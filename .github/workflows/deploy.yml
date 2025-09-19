@@ -2,7 +2,7 @@ name: Build & Deploy FE to IIS
 
 on:
   push:
-    branches: [ main ]             # <-- SỬA nếu deploy từ nhánh khác
+    branches: [ master ]             # <-- SỬA nếu deploy từ nhánh khác
 
 jobs:
   fe-deploy:
