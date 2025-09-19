@@ -1,36 +1,33 @@
-name: Build & Deploy FE to IIS
+name: Build & Deploy FE to IIS (native scp)
 
 on:
   push:
-    branches: [ master ]   # đổi nếu bạn deploy từ nhánh khác
+    branches: [ master ]   # đổi nếu cần
 
 jobs:
   fe-deploy:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Lấy code
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      # 2) Node
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      # 3) Cài & build (Vite)
       - name: Install & Build (Vite)
         run: |
           npm ci
           npm run build
-        # Đảm bảo web.config đã có trong dist/ (Vite sẽ copy từ public/ nếu bạn đặt ở public/)
+        # Lưu ý: web.config của bạn giữ nguyên, đảm bảo có trong dist/ (đặt ở public/ nếu dùng Vite)
 
-      # 4) Tạo STAGING & LIVE (cố định) — chỉ là thư mục Windows, KHÔNG đụng IIS
-      - name: Ensure STAGING and LIVE folders exist
+      # Tạo sẵn staging & live trên server (để scp KHÔNG còn phải mkdir)
+      - name: Ensure STAGING & LIVE exist (SSH)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -47,24 +44,19 @@ jobs:
               if (!(Test-Path $live))    { New-Item -ItemType Directory -Force -Path $live    | Out-Null }
             "
 
-      # 5) Upload KHÔNG ZIP thẳng vào STAGING cố định (tránh lỗi mkdir/SFTP)
-      - name: Upload dist to VPS (SCP, no zip)
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.WIN_HOST }}
-          port: ${{ secrets.WIN_SSH_PORT }}
-          username: ${{ secrets.WIN_USER }}
-          password: ${{ secrets.WIN_PASSWORD }}
-          # upload toàn bộ nội dung dist
-          source: "dist/**"
-          # CHÚ Ý: dùng đường dẫn ổ C: chuẩn Windows; kết thúc bằng "/" để khẳng định là folder
-          target: "C:/deploy/incoming/fe_tmp/"
-          overwrite: true
-          timeout: 60s
-          command_timeout: 10m
-          debug: true
+      # ===== GIẢI PHÁP KHÁC: native scp, KHÔNG dùng appleboy/scp-action =====
+      - name: Upload dist via native scp (NO zip)
+        env:
+          HOST: ${{ secrets.WIN_HOST }}
+          PORT: ${{ secrets.WIN_SSH_PORT }}
+          USER: ${{ secrets.WIN_USER }}
+        run: |
+          # Đường dẫn SFTP Windows nên dùng /C:/...  (có dấu / đầu)
+          DEST="/C:/deploy/incoming/fe_tmp/"
+          # Tắt xác thực host key cho lần đầu
+          scp -P "$PORT" -o StrictHostKeyChecking=no -r dist/* "${USER}@${HOST}:${DEST}"
 
-      # 6) Mirror sang LIVE + ghi version.txt (không import IIS module, không restart pool)
+      # Mirror sang LIVE + ghi version, KHÔNG import IIS, KHÔNG restart app pool
       - name: Deploy to LIVE (robocopy /MIR)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -79,18 +71,15 @@ jobs:
               $src  = 'C:\deploy\incoming\fe_tmp';
               $live = 'C:\sites\myapp-fe\dist';
 
-              # Đồng bộ tuyệt đối nội dung build (kéo cả web.config bạn giữ nguyên)
-              robocopy $src $live /MIR /NFL /NDL /NJH /NJS /NP | Out-Null;
+              robocopy $src $live /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
 
-              # Ghi version.txt để xác nhận nhanh
               $ver = @(
                 'sha=${{ github.sha }}',
                 'branch=${{ github.ref_name }}',
                 'deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z'
-              ) -join \"`r`n\";
-              Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8;
+              ) -join \"`r`n\"
+              Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8
 
-              # In 8 file mới nhất
               Get-ChildItem $live -Recurse |
                 Sort-Object LastWriteTime -Descending |
                 Select-Object -First 8 FullName, LastWriteTime |
