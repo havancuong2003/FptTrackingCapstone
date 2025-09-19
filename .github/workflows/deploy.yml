@@ -2,11 +2,11 @@ name: Build & Deploy FE to IIS
 
 on:
   push:
-    branches: [ master ]             # <-- SỬA nếu deploy từ nhánh khác
+    branches: [ master ]
 
 jobs:
   fe-deploy:
-    runs-on: ubuntu-latest         # <-- ĐỂ NGUYÊN
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -17,40 +17,39 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20         # <-- SỬA nếu project cần Node khác
-          cache: 'npm'             # <-- Dùng npm; nếu yarn/pnpm thì đổi bước build
+          node-version: 20
+          cache: npm
 
       - name: Install & Build
         run: |
-          npm ci                   # <-- Nếu yarn: corepack enable && yarn install --frozen-lockfile
-          npm run build            # <-- Nếu yarn: yarn build (pnpm tương tự)
+          npm ci
+          npm run build
         # Vite sẽ copy public/web.config vào dist/
 
-- name: Upload dist to VPS (SCP)
-  uses: appleboy/scp-action@v0.1.7
-  with:
-    host: ${{ secrets.WIN_HOST }}
-    username: ${{ secrets.WIN_USER }}
-    port: ${{ secrets.WIN_SSH_PORT }}
-    password: ${{ secrets.WIN_PASSWORD }}   # <— dùng password
-    source: "dist/*"
-    target: "C:/deploy/incoming/fe/${{ github.sha }}/"
+      - name: Upload dist to VPS (SCP)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.WIN_HOST }}
+          username: ${{ secrets.WIN_USER }}
+          port: ${{ secrets.WIN_SSH_PORT }}
+          password: ${{ secrets.WIN_PASSWORD }}   # dùng password
+          source: "dist/*"
+          target: "C:/deploy/incoming/fe/${{ github.sha }}/"
 
-
-- name: Atomic deploy on VPS (PowerShell)
-  uses: appleboy/ssh-action@v1.0.3
-  with:
-    host: ${{ secrets.WIN_HOST }}
-    username: ${{ secrets.WIN_USER }}
-    port: ${{ secrets.WIN_SSH_PORT }}
-    password: ${{ secrets.WIN_PASSWORD }}   # <— dùng password
-    script_stop: true
-    command_timeout: 20m
+      - name: Atomic deploy on VPS (PowerShell)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.WIN_HOST }}
+          username: ${{ secrets.WIN_USER }}
+          port: ${{ secrets.WIN_SSH_PORT }}
+          password: ${{ secrets.WIN_PASSWORD }}   # dùng password
+          script_stop: true
+          command_timeout: 20m
           script: |
             powershell -NoProfile -ExecutionPolicy Bypass -Command "
               $sha = '${{ github.sha }}'
-              $incoming = 'C:\deploy\incoming\fe\' + $sha            # <-- phải khớp target ở trên
-              $live = 'C:\sites\myapp-fe\dist'                       # <-- thư mục IIS đang trỏ tới
+              $incoming = 'C:\deploy\incoming\fe\' + $sha
+              $live = 'C:\sites\myapp-fe\dist'
 
               if (!(Test-Path $incoming)) { throw 'Incoming folder not found: ' + $incoming }
               if (!(Test-Path $live)) { New-Item -ItemType Directory -Force -Path $live | Out-Null }
@@ -64,5 +63,5 @@ jobs:
               robocopy $incoming $live /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
 
               Import-Module WebAdministration
-              Restart-WebAppPool -Name 'myapp-fe'                    # <-- SỬA nếu app pool tên khác
+              Restart-WebAppPool -Name 'myapp-fe'
             "
