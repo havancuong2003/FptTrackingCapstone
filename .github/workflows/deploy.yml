@@ -26,25 +26,26 @@ jobs:
           npm run build            # <-- Nếu yarn: yarn build (pnpm tương tự)
         # Vite sẽ copy public/web.config vào dist/
 
-      - name: Upload dist to VPS (SCP)
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.WIN_HOST }}        # <-- Secrets phải tạo đúng tên
-          username: ${{ secrets.WIN_USER }}
-          port: ${{ secrets.WIN_SSH_PORT }}
-          key: ${{ secrets.WIN_SSH_KEY }}
-          source: "dist/*"                     # <-- SỬA nếu output khác dist/*
-          target: "C:/deploy/incoming/fe/${{ github.sha }}/"   # <-- SỬA nếu muốn đường dẫn khác
+- name: Upload dist to VPS (SCP)
+  uses: appleboy/scp-action@v0.1.7
+  with:
+    host: ${{ secrets.WIN_HOST }}
+    username: ${{ secrets.WIN_USER }}
+    port: ${{ secrets.WIN_SSH_PORT }}
+    password: ${{ secrets.WIN_PASSWORD }}   # <— dùng password
+    source: "dist/*"
+    target: "C:/deploy/incoming/fe/${{ github.sha }}/"
 
-      - name: Atomic deploy on VPS (PowerShell)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.WIN_HOST }}
-          username: ${{ secrets.WIN_USER }}
-          port: ${{ secrets.WIN_SSH_PORT }}
-          key: ${{ secrets.WIN_SSH_KEY }}
-          script_stop: true
-          command_timeout: 20m
+
+- name: Atomic deploy on VPS (PowerShell)
+  uses: appleboy/ssh-action@v1.0.3
+  with:
+    host: ${{ secrets.WIN_HOST }}
+    username: ${{ secrets.WIN_USER }}
+    port: ${{ secrets.WIN_SSH_PORT }}
+    password: ${{ secrets.WIN_PASSWORD }}   # <— dùng password
+    script_stop: true
+    command_timeout: 20m
           script: |
             powershell -NoProfile -ExecutionPolicy Bypass -Command "
               $sha = '${{ github.sha }}'
