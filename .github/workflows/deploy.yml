@@ -2,7 +2,7 @@ name: Build & Deploy FE to IIS
 
 on:
   push:
-    branches: [ master ]   # đổi nếu deploy từ nhánh khác
+    branches: [ master ]   # đổi nếu deploy nhánh khác
 
 jobs:
   fe-deploy:
@@ -11,7 +11,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with: { fetch-depth: 1 }
+        with:
+          fetch-depth: 1
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -23,70 +24,51 @@ jobs:
         run: |
           npm ci
           npm run build
+        # Lưu ý: web.config phải nằm trong public/ để Vite copy vào dist/
 
-      - name: Zip dist
-        run: |
-          cd dist
-          zip -rq ../dist.zip .
-          cd ..
-          ls -l dist.zip
-
-      - name: Ensure incoming dir on VPS
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.WIN_HOST }}
-          username: ${{ secrets.WIN_USER }}
-          port: ${{ secrets.WIN_SSH_PORT }}
-          password: ${{ secrets.WIN_PASSWORD }}
-          script: |
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "New-Item -ItemType Directory -Force -Path 'C:\deploy\incoming\fe' | Out-Null"
-
-      - name: Upload dist.zip to VPS (SCP)
+      - name: Upload dist to VPS (SCP, no zip)
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.WIN_HOST }}
-          username: ${{ secrets.WIN_USER }}
           port: ${{ secrets.WIN_SSH_PORT }}
+          username: ${{ secrets.WIN_USER }}
           password: ${{ secrets.WIN_PASSWORD }}
-          source: dist.zip
-          target: C:/deploy/incoming/fe
+          source: "dist/*"
+          target: "C:/deploy/incoming/fe/${{ github.sha }}/"
 
-      - name: Deploy on VPS (PowerShell inline, no IIS commands)
+      - name: Deploy on VPS (PowerShell, robocopy /MIR)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WIN_HOST }}
-          username: ${{ secrets.WIN_USER }}
           port: ${{ secrets.WIN_SSH_PORT }}
+          username: ${{ secrets.WIN_USER }}
           password: ${{ secrets.WIN_PASSWORD }}
           script_stop: true
           command_timeout: 20m
-          script: >
-            powershell -NoProfile -ExecutionPolicy Bypass -Command
-            "$ErrorActionPreference='Stop';
-            $zip='C:\deploy\incoming\fe\dist.zip';
-            $stg='C:\deploy\incoming\fe\_staging';
-            $live='C:\sites\myapp-fe\dist';
+          script: |
+            $ErrorActionPreference = 'Stop'
 
-            if(!(Test-Path $zip)){ throw 'Zip not found: ' + $zip };
-            if(!(Test-Path $live)){ New-Item -ItemType Directory -Force -Path $live | Out-Null };
+            $sha      = '${{ github.sha }}'
+            $incoming = "C:\deploy\incoming\fe\$sha"
+            $live     = "C:\sites\myapp-fe\dist"
 
-            if(Test-Path $stg){ Remove-Item $stg -Recurse -Force -ErrorAction SilentlyContinue };
-            New-Item -ItemType Directory -Force -Path $stg | Out-Null;
-            Expand-Archive -Path $zip -DestinationPath $stg -Force;
+            if (!(Test-Path $incoming)) { throw "Incoming not found: $incoming" }
+            if (!(Test-Path $live))     { New-Item -ItemType Directory -Force -Path $live | Out-Null }
 
-            # Mirror staging -> live, giữ web.config
-            $null = robocopy $stg $live /MIR /XF web.config /NFL /NDL /NP /NJH /NJS;
-            Write-Host ('ROBOCOPY exit code: ' + $LASTEXITCODE + ' (0/1 = success)');
+            # Mirror incoming -> live (xóa file thừa, thay file cũ)
+            $null = robocopy $incoming $live /MIR /NFL /NDL /NP /NJH /NJS
+            Write-Host ("ROBOCOPY exit code: " + $LASTEXITCODE + " (0/1 = OK)")
 
-            # Ghi version để kiểm chứng nhanh
-            $stamp=(Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z';
-            Set-Content -Encoding utf8 (Join-Path $live 'version.txt')
-            \"sha=${{ github.sha }}`r`nbranch=${{ github.ref_name }}`r`ndeployed=$stamp\";
-            @{sha='${{ github.sha }}';branch='${{ github.ref_name }}';deployed=$stamp}
-            | ConvertTo-Json
-            | Set-Content -Encoding utf8 (Join-Path $live 'version.json');
+            # Ghi version.txt để check nhanh
+            $ver = @(
+              "sha=${{ github.sha }}",
+              "branch=${{ github.ref_name }}",
+              "deployed=" + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z'
+            ) -join "`r`n"
+            Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8
 
-            # In vài file mới nhất để thấy timestamp đổi
-            Get-ChildItem $live -Recurse | Sort LastWriteTime -Descending
-            | Select -First 8 FullName, LastWriteTime
-            | Format-Table -AutoSize | Out-String | Write-Host;"
+            # In vài file mới nhất để xác nhận
+            Get-ChildItem $live -Recurse |
+              Sort-Object LastWriteTime -Descending |
+              Select-Object -First 8 FullName, LastWriteTime |
+              Format-Table -AutoSize | Out-String | Write-Host
