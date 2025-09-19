@@ -26,15 +26,31 @@ jobs:
           npm run build
         # Vite sẽ copy public/web.config vào dist/
 
+      # Tạo trước thư mục đích theo SHA để tránh lỗi permission trên scp
+      - name: Prepare target folder on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.WIN_HOST }}
+          username: ${{ secrets.WIN_USER }}
+          port: ${{ secrets.WIN_SSH_PORT }}
+          password: ${{ secrets.WIN_PASSWORD }}
+          script: |
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "
+              $dir = 'C:\deploy\incoming\fe\${{ github.sha }}'
+              New-Item -ItemType Directory -Force -Path $dir | Out-Null
+              Write-Host ('Created ' + $dir)
+            "
+
       - name: Upload dist to VPS (SCP)
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.WIN_HOST }}
           username: ${{ secrets.WIN_USER }}
           port: ${{ secrets.WIN_SSH_PORT }}
-          password: ${{ secrets.WIN_PASSWORD }}   # dùng password
+          password: ${{ secrets.WIN_PASSWORD }}
           source: "dist/*"
           target: "C:/deploy/incoming/fe/${{ github.sha }}/"
+          debug: true
 
       - name: Atomic deploy on VPS (PowerShell)
         uses: appleboy/ssh-action@v1.0.3
@@ -42,7 +58,7 @@ jobs:
           host: ${{ secrets.WIN_HOST }}
           username: ${{ secrets.WIN_USER }}
           port: ${{ secrets.WIN_SSH_PORT }}
-          password: ${{ secrets.WIN_PASSWORD }}   # dùng password
+          password: ${{ secrets.WIN_PASSWORD }}
           script_stop: true
           command_timeout: 20m
           script: |
@@ -54,14 +70,17 @@ jobs:
               if (!(Test-Path $incoming)) { throw 'Incoming folder not found: ' + $incoming }
               if (!(Test-Path $live)) { New-Item -ItemType Directory -Force -Path $live | Out-Null }
 
+              # backup nhanh để rollback
               $backupRoot = 'C:\deploy\backups\fe'
               New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
               $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
               $backup = Join-Path $backupRoot $stamp
               robocopy $live $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
 
+              # triển khai phiên bản mới
               robocopy $incoming $live /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
 
+              # refresh app pool (đổi tên nếu bạn đặt khác)
               Import-Module WebAdministration
               Restart-WebAppPool -Name 'myapp-fe'
             "
