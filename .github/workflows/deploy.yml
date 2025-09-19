@@ -47,50 +47,7 @@ jobs:
           debug: true
 
       # GIẢI NÉN + TRIỂN KHAI + GHI VERSION
-- name: Atomic deploy on VPS (PowerShell)
-  uses: appleboy/ssh-action@v1.0.3
-  with:
-    host: ${{ secrets.WIN_HOST }}
-    username: ${{ secrets.WIN_USER }}
-    port: ${{ secrets.WIN_SSH_PORT }}
-    password: ${{ secrets.WIN_PASSWORD }}
-    script_stop: true
-    command_timeout: 20m
-    script: |
-      powershell -NoProfile -ExecutionPolicy Bypass -Command "
-        $ErrorActionPreference = 'Stop'
-        Import-Module WebAdministration
-
-        $zip     = 'C:\deploy\incoming\fe\dist.zip'
-        $staging = 'C:\deploy\incoming\fe\_staging'
-        $live    = 'C:\sites\myapp-fe\dist'    # giữ đúng path IIS đang trỏ
-
-        if (!(Test-Path $zip))  { throw 'Zip not found: ' + $zip }
-        if (!(Test-Path $live)) { New-Item -ItemType Directory -Force -Path $live | Out-Null }
-
-        # Clean & extract
-        Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
-        New-Item -ItemType Directory -Force -Path $staging | Out-Null
-        Expand-Archive -Path $zip -DestinationPath $staging -Force
-
-        # XÓA SẠCH live (giữ web.config nếu có), rồi copy
-        Get-ChildItem $live -Force -Recurse -Exclude web.config | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
-        robocopy $staging $live /E /R:1 /W:1
-        Write-Host ('ROBOCOPY exit code: ' + $LASTEXITCODE + ' (0/1 = OK)')
-
-        # Ghi dấu vết phiên bản
-        $ver = @(
-          'sha=${{ github.sha }}'
-          'branch=${{ github.ref_name }}'
-          'deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z'
-        ) -join \"`r`n\"
-        Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8
-
-        Restart-WebAppPool -Name 'myapp-fe'
-        Start-Sleep -Seconds 1
-        Get-Content (Join-Path $live 'version.txt') | Write-Host  # log ra Actions để nhìn
-      "
-
+      - name: Atomic deploy on VPS (PowerShell)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -101,34 +58,27 @@ jobs:
           command_timeout: 20m
           script: |
             powershell -NoProfile -ExecutionPolicy Bypass -Command "
+              $ErrorActionPreference = 'Stop'
               Import-Module WebAdministration
 
-              $zip      = 'C:\deploy\incoming\fe\dist.zip'
-              $staging  = 'C:\deploy\incoming\fe\_staging'
-              $incoming = 'C:\deploy\incoming\fe'
-              $live     = 'C:\sites\myapp-fe\dist'
+              $zip     = 'C:\deploy\incoming\fe\dist.zip'
+              $staging = 'C:\deploy\incoming\fe\_staging'
+              $live    = 'C:\sites\myapp-fe\dist'    # giữ đúng path IIS đang trỏ
 
-              if (!(Test-Path $incoming)) { throw 'Incoming not found: ' + $incoming }
-              if (!(Test-Path $zip))      { throw 'Zip not found (upload failed): ' + $zip }
-              if (!(Test-Path $live))     { New-Item -ItemType Directory -Force -Path $live | Out-Null }
+              if (!(Test-Path $zip))  { throw 'Zip not found: ' + $zip }
+              if (!(Test-Path $live)) { New-Item -ItemType Directory -Force -Path $live | Out-Null }
 
-              # vệ sinh staging & giải nén
+              # Clean & extract
               Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
               New-Item -ItemType Directory -Force -Path $staging | Out-Null
               Expand-Archive -Path $zip -DestinationPath $staging -Force
 
-              # backup để rollback nhanh
-              $backupRoot = 'C:\deploy\backups\fe'
-              New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
-              $stamp  = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
-              $backup = Join-Path $backupRoot $stamp
-              robocopy $live $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
+              # XÓA SẠCH live (giữ web.config nếu có), rồi copy
+              Get-ChildItem $live -Force -Recurse -Exclude web.config | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+              robocopy $staging $live /E /R:1 /W:1
+              Write-Host ('ROBOCOPY exit code: ' + $LASTEXITCODE + ' (0/1 = OK)')
 
-              # deploy: mirror staging -> live
-              $null = robocopy $staging $live /MIR /NFL /NDL /NP /NJH /NJS
-              Write-Host ('ROBOCOPY exit code: ' + $LASTEXITCODE + ' (0/1 = success)')
-
-              # ghi version.txt để kiểm tra nhanh
+              # Ghi dấu vết phiên bản
               $ver = @(
                 'sha=${{ github.sha }}'
                 'branch=${{ github.ref_name }}'
@@ -136,14 +86,64 @@ jobs:
               ) -join \"`r`n\"
               Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8
 
-              # restart app pool
               Restart-WebAppPool -Name 'myapp-fe'
-              Start-Sleep -Seconds 2
-              (Get-WebAppPoolState 'myapp-fe').Value | Write-Host
-
-              # in 10 file mới nhất để xác nhận
-              Get-ChildItem $live -Recurse |
-                Sort-Object LastWriteTime -Descending |
-                Select-Object -First 10 FullName, LastWriteTime |
-                Format-Table -AutoSize | Out-String | Write-Host
+              Start-Sleep -Seconds 1
+              Get-Content (Join-Path $live 'version.txt') | Write-Host  # log ra Actions để nhìn
             "
+
+              uses: appleboy/ssh-action@v1.0.3
+              with:
+                host: ${{ secrets.WIN_HOST }}
+                username: ${{ secrets.WIN_USER }}
+                port: ${{ secrets.WIN_SSH_PORT }}
+                password: ${{ secrets.WIN_PASSWORD }}
+                script_stop: true
+                command_timeout: 20m
+                script: |
+                  powershell -NoProfile -ExecutionPolicy Bypass -Command "
+                    Import-Module WebAdministration
+
+                    $zip      = 'C:\deploy\incoming\fe\dist.zip'
+                    $staging  = 'C:\deploy\incoming\fe\_staging'
+                    $incoming = 'C:\deploy\incoming\fe'
+                    $live     = 'C:\sites\myapp-fe\dist'
+
+                    if (!(Test-Path $incoming)) { throw 'Incoming not found: ' + $incoming }
+                    if (!(Test-Path $zip))      { throw 'Zip not found (upload failed): ' + $zip }
+                    if (!(Test-Path $live))     { New-Item -ItemType Directory -Force -Path $live | Out-Null }
+
+                    # vệ sinh staging & giải nén
+                    Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
+                    New-Item -ItemType Directory -Force -Path $staging | Out-Null
+                    Expand-Archive -Path $zip -DestinationPath $staging -Force
+
+                    # backup để rollback nhanh
+                    $backupRoot = 'C:\deploy\backups\fe'
+                    New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null
+                    $stamp  = Get-Date -Format 'yyyy-MM-dd_HH-mm-ss'
+                    $backup = Join-Path $backupRoot $stamp
+                    robocopy $live $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
+
+                    # deploy: mirror staging -> live
+                    $null = robocopy $staging $live /MIR /NFL /NDL /NP /NJH /NJS
+                    Write-Host ('ROBOCOPY exit code: ' + $LASTEXITCODE + ' (0/1 = success)')
+
+                    # ghi version.txt để kiểm tra nhanh
+                    $ver = @(
+                      'sha=${{ github.sha }}'
+                      'branch=${{ github.ref_name }}'
+                      'deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z'
+                    ) -join \"`r`n\"
+                    Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8
+
+                    # restart app pool
+                    Restart-WebAppPool -Name 'myapp-fe'
+                    Start-Sleep -Seconds 2
+                    (Get-WebAppPoolState 'myapp-fe').Value | Write-Host
+
+                    # in 10 file mới nhất để xác nhận
+                    Get-ChildItem $live -Recurse |
+                      Sort-Object LastWriteTime -Descending |
+                      Select-Object -First 10 FullName, LastWriteTime |
+                      Format-Table -AutoSize | Out-String | Write-Host
+                  "
