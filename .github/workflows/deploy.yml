@@ -1,5 +1,4 @@
 name: Build & Deploy FE to IIS
-
 on:
   push:
     branches: [ master ]
@@ -7,7 +6,6 @@ on:
 jobs:
   fe-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -23,17 +21,14 @@ jobs:
         run: |
           npm ci
           npm run build
-        # Vite sẽ copy public/web.config vào dist/
 
       - name: Zip dist
         run: |
           cd dist
           zip -rq ../dist.zip .
           cd ..
-          ls -l dist.zip
 
-      # Upload dist.zip vào C:\deploy\incoming\fe
-      - name: Upload dist.zip to VPS (SCP)
+      - name: Upload dist.zip
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -42,10 +37,8 @@ jobs:
           password: ${{ secrets.WIN_PASSWORD }}
           source: dist.zip
           target: C:/deploy/incoming/fe
-          debug: true
 
-      # Upload script .ps1 vào C:\deploy\incoming\fe
-      - name: Upload deploy script to VPS (SCP)
+      - name: Upload deploy script
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -55,8 +48,7 @@ jobs:
           source: .deploy/deploy-fe.ps1
           target: C:/deploy/incoming/fe
 
-      # Chạy script .ps1 vừa upload
-      - name: Run deploy on VPS (SSH)
+      - name: Run deploy on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -66,7 +58,5 @@ jobs:
           script_stop: true
           command_timeout: 20m
           script: |
-            dir C:\deploy\incoming\fe
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "& ""C:\deploy\incoming\fe\deploy-fe.ps1"" -Sha ""${{ github.sha }}"" -Branch ""${{ github.ref_name }}"""
-
-
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "& 'C:\deploy\incoming\fe\deploy-fe.ps1' -Sha '${{ github.sha }}' -Branch '${{ github.ref_name }}'"
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8082/version.txt | Select -ExpandProperty Content | Write-Host"
