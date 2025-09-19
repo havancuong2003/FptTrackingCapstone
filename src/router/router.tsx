@@ -9,6 +9,7 @@ import DaoTaoPage from '../ui/pages/DaoTao'
 import GiangVienPage from '../ui/pages/GiangVien'
 import SinhVienPage from '../ui/pages/SinhVien'
 import NotFoundPage from '../ui/pages/NotFound'
+import RegisterPage from '../ui/pages/Register'
 
 export const router = createBrowserRouter([
   {
@@ -37,5 +38,6 @@ export const router = createBrowserRouter([
     ],
   },
   { path: '/login', element: <LoginPage /> },
+  { path: '/register', element: <RegisterPage /> },
   { path: '*', element: <NotFoundPage /> },
 ]) 

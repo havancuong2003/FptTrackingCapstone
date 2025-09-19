@@ -62,6 +62,9 @@ const LoginPage = () => {
           <Button type="submit" variant="contained" disabled={loading} fullWidth>
             {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
           </Button>
+          <Button color="secondary" variant="text" fullWidth sx={{ mt: 1 }} onClick={() => navigate('/register')}>
+            Chưa có tài khoản? Đăng ký
+          </Button>
         </Box>
       </Paper>
     </Box>

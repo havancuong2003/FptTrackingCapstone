@@ -4,7 +4,8 @@ import { useAppSelector } from '../store/hooks'
 export const useAuthorization = () => {
   const auth = useAppSelector((s) => s.auth)
   const user = auth.user
-
+  console.log('auth in use authorization', auth);
+  
   const can = useMemo(() => {
     const permissions = user?.permissions ?? []
     return (required: string | string[] | undefined) => {
@@ -16,11 +17,11 @@ export const useAuthorization = () => {
   }, [user?.permissions])
 
   const hasRole = useMemo(() => {
-    const roles = user?.roles ?? []
+    const roles = user?.roles ?? ''
     return (required: string | string[] | undefined) => {
       if (!required) return true
       const requiredList = Array.isArray(required) ? required : [required]
-      return requiredList.some((r) => roles.includes(r))
+      return requiredList.some((r) => r === roles)
     }
   }, [user?.roles])
 

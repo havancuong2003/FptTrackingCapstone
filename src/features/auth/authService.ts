@@ -1,6 +1,6 @@
 import httpClient from '../../core/httpClient'
 import type { AuthTokens, User } from './types'
-import { findMockByCredentials, mockUsers } from '../../mocks/users'
+import {  mockUsers } from '../../mocks/users'
 
 export interface LoginResponse {
   user: User
@@ -11,12 +11,14 @@ const useMock = !import.meta.env.VITE_API_BASE_URL
 
 const authService = {
   async login(username: string, password: string): Promise<LoginResponse> {
-    if (useMock) {
-      const rec = findMockByCredentials(username, password)
-      if (!rec) throw new Error('Thông tin đăng nhập không hợp lệ')
-      return { user: rec.user, tokens: rec.tokens }
-    }
-    const { data } = await httpClient.post<LoginResponse>('/auth/login', { username, password })
+    // if (useMock) {
+    //   const rec = findMockByCredentials(username, password)
+    //   if (!rec) throw new Error('Thông tin đăng nhập không hợp lệ')
+    //   return { user: rec.user, tokens: rec.tokens }
+    // }
+    const { data } = await httpClient.post<LoginResponse>('/Auth/login', { username, password })
+    console.log('data',data);
+    
     return data
   },
 
@@ -37,6 +39,15 @@ const authService = {
     }
     const { data } = await httpClient.get<User>('/auth/me')
     return data
+  },
+
+  async register(payload: { username: string; password: string; name?: string | null; gender?: string | null; role?: string | null }): Promise<void> {
+    // if (useMock) {
+    //   throw new Error('Đăng ký không hỗ trợ ở chế độ mock. Hãy cấu hình VITE_API_BASE_URL trong .env')
+    // }
+   const response =  await httpClient.post('/Auth/register', payload)
+   console.log('response',response);
+   
   },
 }
 
