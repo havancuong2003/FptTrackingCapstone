@@ -1,11 +1,13 @@
 name: Build & Deploy FE to IIS
+
 on:
   push:
-    branches: [ master ]
+    branches: [ master ]   # đổi nếu bạn deploy từ nhánh khác
 
 jobs:
   fe-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,7 +19,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install & Build
+      - name: Install & Build (Vite)
         run: |
           npm ci
           npm run build
@@ -27,8 +29,21 @@ jobs:
           cd dist
           zip -rq ../dist.zip .
           cd ..
+          ls -l dist.zip
 
-      - name: Upload dist.zip
+      # Bảo đảm thư mục nhận file tồn tại (trước khi scp)
+      - name: Ensure incoming dir on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.WIN_HOST }}
+          username: ${{ secrets.WIN_USER }}
+          port: ${{ secrets.WIN_SSH_PORT }}
+          password: ${{ secrets.WIN_PASSWORD }}
+          script_stop: true
+          script: |
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "New-Item -ItemType Directory -Force -Path 'C:\deploy\incoming\fe' | Out-Null"
+
+      - name: Upload dist.zip to VPS (SCP)
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -38,17 +53,7 @@ jobs:
           source: dist.zip
           target: C:/deploy/incoming/fe
 
-      - name: Upload deploy script
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.WIN_HOST }}
-          username: ${{ secrets.WIN_USER }}
-          port: ${{ secrets.WIN_SSH_PORT }}
-          password: ${{ secrets.WIN_PASSWORD }}
-          source: .deploy/deploy-fe.ps1
-          target: C:/deploy/incoming/fe
-
-      - name: Run deploy on VPS
+      - name: Deploy on VPS (PowerShell inline)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -57,6 +62,42 @@ jobs:
           password: ${{ secrets.WIN_PASSWORD }}
           script_stop: true
           command_timeout: 20m
-          script: |
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "& 'C:\deploy\incoming\fe\deploy-fe.ps1' -Sha '${{ github.sha }}' -Branch '${{ github.ref_name }}'"
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8082/version.txt | Select -ExpandProperty Content | Write-Host"
+          # TẤT CẢ LOGIC NẰM TRONG 1 LỆNH POWERSHELL
+          script: >
+            powershell -NoProfile -ExecutionPolicy Bypass -Command
+            "$ErrorActionPreference='Stop';
+            Import-Module WebAdministration;
+            $zip='C:\deploy\incoming\fe\dist.zip';
+            $stg='C:\deploy\incoming\fe\_staging';
+            $live='C:\sites\myapp-fe\dist';
+
+            if(!(Test-Path $zip)){ throw 'Zip not found: ' + $zip };
+            if(!(Test-Path $live)){ New-Item -ItemType Directory -Force -Path $live | Out-Null };
+
+            if(Test-Path $stg){ Remove-Item $stg -Recurse -Force -ErrorAction SilentlyContinue };
+            New-Item -ItemType Directory -Force -Path $stg | Out-Null;
+            Expand-Archive -Path $zip -DestinationPath $stg -Force;
+
+            # Mirror staging -> live, giữ web.config
+            $null = robocopy $stg $live /MIR /XF web.config /NFL /NDL /NP /NJH /NJS;
+            Write-Host ('ROBOCOPY exit code: ' + $LASTEXITCODE + ' (0/1 = success)');
+
+            # Ghi version để kiểm chứng
+            $stamp=(Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z';
+            Set-Content -Encoding utf8 (Join-Path $live 'version.txt')
+            \"sha=${{ github.sha }}`r`nbranch=${{ github.ref_name }}`r`ndeployed=$stamp\";
+            @{sha='${{ github.sha }}';branch='${{ github.ref_name }}';deployed=$stamp}
+            | ConvertTo-Json
+            | Set-Content -Encoding utf8 (Join-Path $live 'version.json');
+
+            Restart-WebAppPool -Name 'myapp-fe';
+
+            # In 8 file mới nhất để thấy timestamp thay đổi
+            Get-ChildItem $live -Recurse | Sort LastWriteTime -Descending
+            | Select -First 8 FullName, LastWriteTime
+            | Format-Table -AutoSize | Out-String | Write-Host;
+
+            # Thử đọc qua HTTP (nếu web.config cho phép)
+            try {
+              (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8082/version.json).Content | Write-Host
+            } catch { Write-Host 'Note: version.json không đọc được qua HTTP (MIME/routing), nhưng file đã ghi trong LIVE.' }"
