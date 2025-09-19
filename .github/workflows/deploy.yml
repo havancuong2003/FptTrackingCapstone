@@ -2,10 +2,10 @@ name: Build & Deploy FE to IIS
 
 on:
   push:
-    branches: [ master ]   # đổi nếu deploy nhánh khác
+    branches: [ master ]
 
 jobs:
-  fe-deploy:
+  deploy-fe:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,8 +24,28 @@ jobs:
         run: |
           npm ci
           npm run build
-        # Lưu ý: web.config phải nằm trong public/ để Vite copy vào dist/
 
+      # 1) Pre-create target folder on VPS (deep path) bằng PowerShell
+      - name: Prepare target dir on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.WIN_HOST }}
+          port: ${{ secrets.WIN_SSH_PORT }}
+          username: ${{ secrets.WIN_USER }}
+          password: ${{ secrets.WIN_PASSWORD }}
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            powershell -NoProfile -Command "
+              $sha = '${{ github.sha }}'
+              $target = 'C:\deploy\incoming\fe\' + $sha
+              if (!(Test-Path $target)) {
+                New-Item -ItemType Directory -Force -Path $target | Out-Null
+              }
+            "
+
+      # 2) Upload tất cả file trong dist/ qua SFTP
+      #    LƯU Ý: target phải là /C:/... (có dấu / ở đầu, và dùng / thay vì \)
       - name: Upload dist to VPS (SCP, no zip)
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -33,10 +53,14 @@ jobs:
           port: ${{ secrets.WIN_SSH_PORT }}
           username: ${{ secrets.WIN_USER }}
           password: ${{ secrets.WIN_PASSWORD }}
-          source: "dist/*"
-          target: "C:/deploy/incoming/fe/${{ github.sha }}/"
+          source: "dist/**"
+          target: "/C:/deploy/incoming/fe/${{ github.sha }}"
+          overwrite: true
+          timeout: 60s
+          command_timeout: 10m
 
-      - name: Deploy on VPS (PowerShell, robocopy /MIR)
+      # 3) Mirror sang LIVE bằng robocopy
+      - name: Deploy on VPS (robocopy /MIR)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -46,29 +70,10 @@ jobs:
           script_stop: true
           command_timeout: 20m
           script: |
-            $ErrorActionPreference = 'Stop'
-
-            $sha      = '${{ github.sha }}'
-            $incoming = "C:\deploy\incoming\fe\$sha"
-            $live     = "C:\sites\myapp-fe\dist"
-
-            if (!(Test-Path $incoming)) { throw "Incoming not found: $incoming" }
-            if (!(Test-Path $live))     { New-Item -ItemType Directory -Force -Path $live | Out-Null }
-
-            # Mirror incoming -> live (xóa file thừa, thay file cũ)
-            $null = robocopy $incoming $live /MIR /NFL /NDL /NP /NJH /NJS
-            Write-Host ("ROBOCOPY exit code: " + $LASTEXITCODE + " (0/1 = OK)")
-
-            # Ghi version.txt để check nhanh
-            $ver = @(
-              "sha=${{ github.sha }}",
-              "branch=${{ github.ref_name }}",
-              "deployed=" + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z'
-            ) -join "`r`n"
-            Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8
-
-            # In vài file mới nhất để xác nhận
-            Get-ChildItem $live -Recurse |
-              Sort-Object LastWriteTime -Descending |
-              Select-Object -First 8 FullName, LastWriteTime |
-              Format-Table -AutoSize | Out-String | Write-Host
+            powershell -NoProfile -Command "
+              $sha  = '${{ github.sha }}'
+              $src  = 'C:\deploy\incoming\fe\' + $sha
+              $dest = 'C:\sites\myapp-fe\dist'
+              if (!(Test-Path $dest)) { New-Item -ItemType Directory -Force -Path $dest | Out-Null }
+              robocopy $src $dest /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+            "
