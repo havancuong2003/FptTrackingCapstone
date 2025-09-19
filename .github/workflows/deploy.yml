@@ -2,31 +2,35 @@ name: Build & Deploy FE to IIS
 
 on:
   push:
-    branches: [ master ]   # đổi nếu deploy từ nhánh khác
+    branches: [ master ]   # đổi nếu bạn deploy từ nhánh khác
 
 jobs:
   fe-deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Lấy code
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
+      # 2) Node
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
+      # 3) Cài & build (Vite)
       - name: Install & Build (Vite)
         run: |
           npm ci
           npm run build
+        # Đảm bảo web.config đã có trong dist/ (Vite sẽ copy từ public/ nếu bạn đặt ở public/)
 
-      # 1) TẠO SẴN THƯ MỤC ĐÍCH qua SSH (fix lỗi SFTP không tạo được deep path)
-      - name: Prepare target dir on VPS
+      # 4) Tạo STAGING & LIVE (cố định) — chỉ là thư mục Windows, KHÔNG đụng IIS
+      - name: Ensure STAGING and LIVE folders exist
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -37,14 +41,13 @@ jobs:
           command_timeout: 10m
           script: |
             powershell -NoProfile -Command "
-              $sha    = '${{ github.sha }}';
-              $parent = 'C:\deploy\incoming\fe';
-              $target = Join-Path $parent $sha;
-              if (!(Test-Path $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null };
-              if (!(Test-Path $target)) { New-Item -ItemType Directory -Force -Path $target | Out-Null };
+              $staging = 'C:\deploy\incoming\fe_tmp';
+              $live    = 'C:\sites\myapp-fe\dist';
+              if (!(Test-Path $staging)) { New-Item -ItemType Directory -Force -Path $staging | Out-Null }
+              if (!(Test-Path $live))    { New-Item -ItemType Directory -Force -Path $live    | Out-Null }
             "
 
-      # 2) SCP UPLOAD (KHÔNG NÉN) -- dùng đường dẫn SFTP CHUẨN /C:/...
+      # 5) Upload KHÔNG ZIP thẳng vào STAGING cố định (tránh lỗi mkdir/SFTP)
       - name: Upload dist to VPS (SCP, no zip)
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -52,15 +55,17 @@ jobs:
           port: ${{ secrets.WIN_SSH_PORT }}
           username: ${{ secrets.WIN_USER }}
           password: ${{ secrets.WIN_PASSWORD }}
+          # upload toàn bộ nội dung dist
           source: "dist/**"
-          target: "/C:/deploy/incoming/fe/${{ github.sha }}"
+          # CHÚ Ý: dùng đường dẫn ổ C: chuẩn Windows; kết thúc bằng "/" để khẳng định là folder
+          target: "C:/deploy/incoming/fe_tmp/"
           overwrite: true
           timeout: 60s
           command_timeout: 10m
           debug: true
 
-      # 3) MIRROR sang LIVE bằng robocopy (không cần module IIS, không restart)
-      - name: Deploy on VPS (robocopy /MIR)
+      # 6) Mirror sang LIVE + ghi version.txt (không import IIS module, không restart pool)
+      - name: Deploy to LIVE (robocopy /MIR)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -71,17 +76,23 @@ jobs:
           command_timeout: 10m
           script: |
             powershell -NoProfile -Command "
-              $sha  = '${{ github.sha }}';
-              $src  = 'C:\deploy\incoming\fe\' + $sha;
-              $dest = 'C:\sites\myapp-fe\dist';
-              if (!(Test-Path $dest)) { New-Item -ItemType Directory -Force -Path $dest | Out-Null };
-              robocopy $src $dest /MIR /NFL /NDL /NJH /NJS /NP | Out-Null;
+              $src  = 'C:\deploy\incoming\fe_tmp';
+              $live = 'C:\sites\myapp-fe\dist';
 
-              # Ghi version.txt để check nhanh trên server (không ảnh hưởng app)
+              # Đồng bộ tuyệt đối nội dung build (kéo cả web.config bạn giữ nguyên)
+              robocopy $src $live /MIR /NFL /NDL /NJH /NJS /NP | Out-Null;
+
+              # Ghi version.txt để xác nhận nhanh
               $ver = @(
                 'sha=${{ github.sha }}',
                 'branch=${{ github.ref_name }}',
                 'deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z'
               ) -join \"`r`n\";
-              Set-Content -Path (Join-Path $dest 'version.txt') -Value $ver -Encoding utf8;
+              Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8;
+
+              # In 8 file mới nhất
+              Get-ChildItem $live -Recurse |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 8 FullName, LastWriteTime |
+                Format-Table -AutoSize | Out-String | Write-Host
             "
