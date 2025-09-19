@@ -2,7 +2,7 @@ name: Build & Deploy FE to IIS
 
 on:
   push:
-    branches: [ master ]   # đổi nếu bạn deploy từ nhánh khác
+    branches: [ master ]   # đổi nếu deploy từ nhánh khác
 
 jobs:
   fe-deploy:
@@ -31,7 +31,6 @@ jobs:
           cd ..
           ls -l dist.zip
 
-      # Bảo đảm thư mục nhận file tồn tại (trước khi scp)
       - name: Ensure incoming dir on VPS
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -39,7 +38,6 @@ jobs:
           username: ${{ secrets.WIN_USER }}
           port: ${{ secrets.WIN_SSH_PORT }}
           password: ${{ secrets.WIN_PASSWORD }}
-          script_stop: true
           script: |
             powershell -NoProfile -ExecutionPolicy Bypass -Command "New-Item -ItemType Directory -Force -Path 'C:\deploy\incoming\fe' | Out-Null"
 
@@ -53,7 +51,7 @@ jobs:
           source: dist.zip
           target: C:/deploy/incoming/fe
 
-      - name: Deploy on VPS (PowerShell inline)
+      - name: Deploy on VPS (PowerShell inline, no IIS commands)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.WIN_HOST }}
@@ -62,11 +60,9 @@ jobs:
           password: ${{ secrets.WIN_PASSWORD }}
           script_stop: true
           command_timeout: 20m
-          # TẤT CẢ LOGIC NẰM TRONG 1 LỆNH POWERSHELL
           script: >
             powershell -NoProfile -ExecutionPolicy Bypass -Command
             "$ErrorActionPreference='Stop';
-            Import-Module WebAdministration;
             $zip='C:\deploy\incoming\fe\dist.zip';
             $stg='C:\deploy\incoming\fe\_staging';
             $live='C:\sites\myapp-fe\dist';
@@ -82,7 +78,7 @@ jobs:
             $null = robocopy $stg $live /MIR /XF web.config /NFL /NDL /NP /NJH /NJS;
             Write-Host ('ROBOCOPY exit code: ' + $LASTEXITCODE + ' (0/1 = success)');
 
-            # Ghi version để kiểm chứng
+            # Ghi version để kiểm chứng nhanh
             $stamp=(Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z';
             Set-Content -Encoding utf8 (Join-Path $live 'version.txt')
             \"sha=${{ github.sha }}`r`nbranch=${{ github.ref_name }}`r`ndeployed=$stamp\";
@@ -90,14 +86,7 @@ jobs:
             | ConvertTo-Json
             | Set-Content -Encoding utf8 (Join-Path $live 'version.json');
 
-            Restart-WebAppPool -Name 'myapp-fe';
-
-            # In 8 file mới nhất để thấy timestamp thay đổi
+            # In vài file mới nhất để thấy timestamp đổi
             Get-ChildItem $live -Recurse | Sort LastWriteTime -Descending
             | Select -First 8 FullName, LastWriteTime
-            | Format-Table -AutoSize | Out-String | Write-Host;
-
-            # Thử đọc qua HTTP (nếu web.config cho phép)
-            try {
-              (Invoke-WebRequest -UseBasicParsing http://127.0.0.1:8082/version.json).Content | Write-Host
-            } catch { Write-Host 'Note: version.json không đọc được qua HTTP (MIME/routing), nhưng file đã ghi trong LIVE.' }"
+            | Format-Table -AutoSize | Out-String | Write-Host;"
