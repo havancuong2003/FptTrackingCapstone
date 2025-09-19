@@ -17,8 +17,8 @@ export interface AppConfig {
 }
 
 export const defaultAppConfig: AppConfig = {
-  appTitle: 'Capstone Tracking',
-  footerText: '© 2025 Capstone Tracking',
+  appTitle: 'Capstone Tracking System',
+  footerText: '© 2025 Capstone Tracking System',
   menus: defaultMenuItems,
   message: {
     autoToastOnError: true,
