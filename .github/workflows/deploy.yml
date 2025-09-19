@@ -66,6 +66,5 @@ jobs:
           script_stop: true
           command_timeout: 20m
           script: |
-            powershell -NoProfile -ExecutionPolicy Bypass `
-              -File "C:\deploy\incoming\fe\deploy-fe.ps1" `
-              -Sha "${{ github.sha }}" -Branch "${{ github.ref_name }}"
+            powershell -NoProfile -ExecutionPolicy Bypass -File 'C:\deploy\incoming\fe\deploy-fe.ps1' -Sha '${{ github.sha }}' -Branch '${{ github.ref_name }}'
+
