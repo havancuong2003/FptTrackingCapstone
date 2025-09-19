@@ -37,7 +37,7 @@ const LoginPage = () => {
     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
       <Paper sx={{ p: 4, width: 360 }} elevation={3}>
         <Typography variant="h6" sx={{ mb: 2 }}>
-          Đăng nhập
+          Đăng nhập a
         </Typography>
         <Box component="form" onSubmit={handleSubmit}>
           <TextField
