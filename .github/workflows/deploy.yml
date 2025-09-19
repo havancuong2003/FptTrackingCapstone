@@ -11,8 +11,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+        with: { fetch-depth: 1 }
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -33,7 +32,7 @@ jobs:
           cd ..
           ls -l dist.zip
 
-      # Upload dist.zip
+      # Upload dist.zip vào C:\deploy\incoming\fe
       - name: Upload dist.zip to VPS (SCP)
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -45,7 +44,7 @@ jobs:
           target: C:/deploy/incoming/fe
           debug: true
 
-      # Upload script deploy-fe.ps1 (để lần nào cũng sẵn trên VPS)
+      # Upload script .ps1 vào C:\deploy\incoming\fe
       - name: Upload deploy script to VPS (SCP)
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -54,9 +53,9 @@ jobs:
           port: ${{ secrets.WIN_SSH_PORT }}
           password: ${{ secrets.WIN_PASSWORD }}
           source: .deploy/deploy-fe.ps1
-          target: C:/deploy/scripts
+          target: C:/deploy/incoming/fe
 
-      # Chạy script trên VPS (lệnh ngắn, không còn lỗi 'command line is too long')
+      # Chạy script .ps1 vừa upload
       - name: Run deploy on VPS (SSH)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -67,5 +66,6 @@ jobs:
           script_stop: true
           command_timeout: 20m
           script: |
-            powershell -NoProfile -ExecutionPolicy Bypass -File "C:\deploy\scripts\deploy-fe.ps1" `
+            powershell -NoProfile -ExecutionPolicy Bypass `
+              -File "C:\deploy\incoming\fe\deploy-fe.ps1" `
               -Sha "${{ github.sha }}" -Branch "${{ github.ref_name }}"
