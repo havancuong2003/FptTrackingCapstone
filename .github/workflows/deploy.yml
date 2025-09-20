@@ -2,16 +2,22 @@ name: Build & Deploy FE to IIS
 
 on:
   push:
-    branches: [ master ]   # đổi nếu bạn deploy từ nhánh khác
+    branches: [ master ]
+  workflow_dispatch:
+
+concurrency:
+  group: fe-deploy
+  cancel-in-progress: true
+
+env:
+  # Thư mục trên VPS (Windows)
+  INCOMING_DIR: 'C:\deploy\incoming\fe'
+  BACKUP_DIR:   'C:\deploy\backups\fe'
+  LIVE_DIR:     'C:\sites\myapp-fe\dist'
 
 jobs:
-  fe-deploy:
+  deploy:
     runs-on: ubuntu-latest
-
-    env:
-      LIVE_DIR:  C:/sites/myapp-fe/dist
-      INCOMING_ROOT: C:/deploy/incoming/fe
-      BACKUP_ROOT:   C:/deploy/backups/fe
 
     steps:
       - name: Checkout
@@ -29,83 +35,92 @@ jobs:
         run: |
           npm ci
           npm run build
-        # Vite sẽ copy web.config trong public/ vào dist/
+        # Vite sẽ tự copy web.config từ public vào dist/ (giữ nguyên file của bạn)
 
-      # === Upload dist lên VPS (SCP, NO ZIP) ===
-      - name: Upload dist via SCP (NO zip)
+      - name: Zip dist
+        run: |
+          cd dist
+          zip -rq ../dist.zip .
+          cd ..
+
+      # ========= Upload qua SCP =========
+      # Lưu ý: khi đẩy lên Windows qua OpenSSH, dùng path kiểu "/C:/..." và dấu "/"
+      - name: Upload dist.zip to VPS (SCP)
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.WIN_HOST }}
-          username: ${{ secrets.WIN_USER }}          # ví dụ: deploy
-          password: ${{ secrets.WIN_PASSWORD }}
-          port: ${{ secrets.WIN_SSH_PORT }}
-          source: "dist/*"
-          target: "C:/deploy/incoming/fe/${{ github.sha }}"   # KHÔNG có slash đầu/cuối
-          overwrite: true
-          timeout: 2m
+          host:       ${{ secrets.WIN_HOST }}
+          port:       ${{ secrets.WIN_SSH_PORT }}
+          username:   ${{ secrets.WIN_USER }}
+          password:   ${{ secrets.WIN_PASSWORD }}
+          source:     "dist.zip"
+          target:     "/C:/deploy/incoming/fe"  # không có slash cuối
+          overwrite:  true
+          timeout:    60s
           command_timeout: 10m
 
-      # === Triển khai: mirror sang LIVE + backup + ghi version.txt ===
-      - name: Deploy to LIVE (robocopy /MIR)
+      # ========= Giải nén + deploy trên VPS qua SSH/PowerShell =========
+      - name: Deploy on VPS (PowerShell)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.WIN_HOST }}
-          username: ${{ secrets.WIN_USER }}
-          password: ${{ secrets.WIN_PASSWORD }}
-          port: ${{ secrets.WIN_SSH_PORT }}
+          host:       ${{ secrets.WIN_HOST }}
+          port:       ${{ secrets.WIN_SSH_PORT }}
+          username:   ${{ secrets.WIN_USER }}
+          password:   ${{ secrets.WIN_PASSWORD }}
           script_stop: true
           command_timeout: 20m
           script: |
             powershell -NoProfile -ExecutionPolicy Bypass -Command "
-              $ErrorActionPreference = 'Stop';
+              $ErrorActionPreference = 'Stop'
 
-              $sha        = '${{ github.sha }}';
-              $incoming   = Join-Path 'C:\deploy\incoming\fe' $sha;
-              $live       = 'C:\sites\myapp-fe\dist';
-              $backupRoot = 'C:\deploy\backups\fe';
+              $incoming = '${{ env.INCOMING_DIR }}'
+              $backupRoot = '${{ env.BACKUP_DIR }}'
+              $live = '${{ env.LIVE_DIR }}'
+              $zip  = Join-Path $incoming 'dist.zip'
+              $stg  = Join-Path $incoming '_staging'
 
-              if (!(Test-Path $incoming)) { throw 'Incoming not found: ' + $incoming }
-              if (!(Test-Path $live))     { New-Item -ItemType Directory -Force -Path $live | Out-Null }
-              if (!(Test-Path $backupRoot)) { New-Item -ItemType Directory -Force -Path $backupRoot | Out-Null }
+              # Ensure dirs
+              New-Item -ItemType Directory -Force -Path $incoming,$backupRoot,$live | Out-Null
 
-              # Backup LIVE (để rollback nhanh)
-              $stamp  = Get-Date -Format 'yyyyMMdd-HHmmss';
+              if (!(Test-Path $zip)) { throw 'Zip not found: ' + $zip }
+
+              # Clean staging & expand zip
+              Remove-Item -Path $stg -Recurse -Force -ErrorAction SilentlyContinue
+              New-Item -ItemType Directory -Force -Path $stg | Out-Null
+              Expand-Archive -Path $zip -DestinationPath $stg -Force
+
+              # Backup current live (mirror)
+              $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
               $backup = Join-Path $backupRoot $stamp
               robocopy $live $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
 
-              # Mirror staging -> LIVE
-              $rc = robocopy $incoming $live /MIR /NFL /NDL /NP /NJH /NJS
-              Write-Host ('ROBOCOPY exit code: ' + $LASTEXITCODE + ' (0/1 = success)')
+              # Deploy: mirror staging -> live
+              robocopy $stg $live /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
 
-              # Ghi version.txt để kiểm tra nhanh
+              # Write version.txt
               $ver = @(
                 'sha=${{ github.sha }}'
                 'branch=${{ github.ref_name }}'
-                ('deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z')
+                'deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z'
               ) -join \"`r`n\"
               Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8
 
-              # In 8 file mới nhất trong LIVE cho log
+              # Show summary
               Get-ChildItem $live -Recurse |
                 Sort-Object LastWriteTime -Descending |
-                Select-Object -First 8 FullName, LastWriteTime |
+                Select-Object -First 10 FullName, LastWriteTime |
                 Format-Table -AutoSize | Out-String | Write-Host
             "
 
-      # (Tuỳ chọn) xác nhận version
       - name: Show version
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.WIN_HOST }}
-          username: ${{ secrets.WIN_USER }}
-          password: ${{ secrets.WIN_PASSWORD }}
-          port: ${{ secrets.WIN_SSH_PORT }}
+          host:       ${{ secrets.WIN_HOST }}
+          port:       ${{ secrets.WIN_SSH_PORT }}
+          username:   ${{ secrets.WIN_USER }}
+          password:   ${{ secrets.WIN_PASSWORD }}
           script: |
             powershell -NoProfile -ExecutionPolicy Bypass -Command "
-              $live = 'C:\sites\myapp-fe\dist';
-              if (Test-Path (Join-Path $live 'version.txt')) {
-                Get-Content (Join-Path $live 'version.txt') | Write-Host
-              } else {
-                Write-Host 'version.txt not found in LIVE.'
-              }
+              $live = '${{ env.LIVE_DIR }}'
+              $verFile = Join-Path $live 'version.txt'
+              if (Test-Path $verFile) { Get-Content $verFile | Write-Host } else { Write-Host 'version.txt not found' }
             "
