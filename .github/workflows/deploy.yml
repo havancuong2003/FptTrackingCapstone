@@ -52,7 +52,6 @@ jobs:
           port:     ${{ secrets.WIN_SSH_PORT || 22 }}
           source:   "${{ env.ZIP_NAME }}"
           target:   "${{ env.INCOMING_DIR_POSIX }}"    # dùng path kiểu POSIX cho scp
-          overwrite: true
           strip_components: 0
           rm: false
           debug: false
