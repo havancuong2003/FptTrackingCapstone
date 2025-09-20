@@ -1,94 +1,121 @@
-name: Build & Deploy FE (short cmds)
+name: Build & Deploy FE to IIS
 
 on:
   push:
-    branches: [ master ]
-  workflow_dispatch:
+    branches: [ master ]   # đổi nếu bạn deploy branch khác
 
 jobs:
-  deploy:
+  fe-deploy:
     runs-on: ubuntu-latest
 
     env:
-      ZIP: dist.zip
-      INCOMING: C:\deploy\incoming\fe
-      STAGING:  C:\deploy\incoming\fe\_staging
-      BACKUP:   C:\deploy\backups\fe
-      LIVE:     C:\sites\myapp-fe\dist
-      SITE:     myapp-fe
-      POOL:     myapp-fe
+      # Đường dẫn trên VPS (Windows)
+      INCOMING_DIR: 'C:\deploy\incoming\fe'
+      INCOMING_DIR_POSIX: 'C:/deploy/incoming/fe'   # dùng cho SCP
+      BACKUP_DIR: 'C:\deploy\backups\fe'
+      LIVE_DIR: 'C:\sites\myapp-fe\dist'
+      POOL_NAME: 'myapp-fe'
+      ZIP_NAME:  'dist.zip'
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
 
-      - name: Build (Vite)
+      - name: Install & Build (Vite)
         run: |
           npm ci
           npm run build
+        # Vite sẽ copy public/web.config vào dist/ (giữ nguyên file bạn đã cung cấp)
 
+      # ----- ZIP NGAY Ở ROOT, không cd đi cd lại -----
       - name: Zip dist (1 file duy nhất)
+        shell: bash
         run: |
-          cd dist
-          zip -rq ../$ZIP .
-          cd ..
-          ls -lh $ZIP
+          zip -rq "${ZIP_NAME}" dist
+          ls -lh "${ZIP_NAME}"
 
-      - name: Ensure folders on VPS (ngắn)
-        run: |
-          sudo apt-get update && sudo apt-get install -y sshpass
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" \
-            ssh -p ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no \
-            ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} \
-            "powershell -NoProfile -c \"New-Item -Type Directory -Force -Path '$env:INCOMING','$env:BACKUP','$env:LIVE' | Out-Null\""
+      # ----- UPLOAD dist.zip -----
+      - name: Upload dist.zip via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     ${{ secrets.WIN_HOST }}
+          username: ${{ secrets.WIN_USER }}
+          password: ${{ secrets.WIN_PASSWORD }}
+          port:     ${{ secrets.WIN_SSH_PORT || 22 }}
+          source:   "${{ env.ZIP_NAME }}"
+          target:   "${{ env.INCOMING_DIR_POSIX }}"    # dùng path kiểu POSIX cho scp
+          overwrite: true
+          strip_components: 0
+          rm: false
+          debug: false
+          timeout: 60s
+          command_timeout: 10m
 
-      - name: Upload ZIP via scp (tránh lỗi /C:/ mkdir)
-        run: |
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" \
-            scp -P ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no \
-            $ZIP ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }}:/C:/deploy/incoming/fe/$ZIP
+      # ----- SSH 1: Tạo thư mục + giải nén -----
+      - name: Ensure folders on VPS (ngắn) & unzip
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.WIN_HOST }}
+          username: ${{ secrets.WIN_USER }}
+          port:     ${{ secrets.WIN_SSH_PORT || 22 }}
+          password: ${{ secrets.WIN_PASSWORD }}
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            powershell -NoProfile -Command ^
+              "New-Item -ItemType Directory -Force -Path '${{ env.INCOMING_DIR }}','${{ env.BACKUP_DIR }}','${{ env.LIVE_DIR }}' | Out-Null; ^
+               Remove-Item -Path (Join-Path '${{ env.INCOMING_DIR }}' '_staging') -Recurse -Force -ErrorAction SilentlyContinue; ^
+               Expand-Archive -Path (Join-Path '${{ env.INCOMING_DIR }}' '${{ env.ZIP_NAME }}') -DestinationPath (Join-Path '${{ env.INCOMING_DIR }}' '_staging') -Force"
 
-      # --- Các lệnh dưới đây NGẮN, tách nhỏ, mỗi lệnh < 8k ký tự ---
+      # ----- SSH 2: Backup & mirror -----
+      - name: Backup & Deploy (robocopy /MIR)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.WIN_HOST }}
+          username: ${{ secrets.WIN_USER }}
+          port:     ${{ secrets.WIN_SSH_PORT || 22 }}
+          password: ${{ secrets.WIN_PASSWORD }}
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            powershell -NoProfile -Command ^
+              "$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'; ^
+               $staging = Join-Path '${{ env.INCOMING_DIR }}' '_staging'; ^
+               $backup  = Join-Path '${{ env.BACKUP_DIR }}' $stamp; ^
+               robocopy '${{ env.LIVE_DIR }}' $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null; ^
+               robocopy $staging '${{ env.LIVE_DIR }}' /MIR /NFL /NDL /NP /NJH /NJS; ^
+               if ($LASTEXITCODE -gt 3) { exit 1 }"
 
-      - name: Clean & Unzip to STAGING
-        run: |
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" ssh -p ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} ^
-          "powershell -NoProfile -c \"Remove-Item '$env:STAGING' -Recurse -Force -EA SilentlyContinue; New-Item -Type Directory -Force -Path '$env:STAGING'|Out-Null; Expand-Archive -Path (Join-Path '$env:INCOMING' '$env:ZIP') -DestinationPath '$env:STAGING' -Force\""
-
-      - name: Backup LIVE
-        run: |
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" ssh -p ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} ^
-          "powershell -NoProfile -c \"\$bk=(Join-Path '$env:BACKUP' (Get-Date -f yyyyMMdd-HHmmss)); New-Item -Type Directory -Force -Path \$bk|Out-Null; robocopy '$env:LIVE' \$bk /MIR /NFL /NDL /NP /NJH /NJS | Out-Null\""
-
-      - name: Mirror STAGING -> LIVE
-        run: |
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" ssh -p ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} ^
-          "powershell -NoProfile -c \"robocopy '$env:STAGING' '$env:LIVE' /MIR /NFL /NDL /NP /NJH /NJS; if(\$LASTEXITCODE -gt 3){throw 'robocopy failed '+\$LASTEXITCODE}\""
-
-      # ---- FIX 401.3: ACL + Anonymous ----
-      - name: Fix ACL (AppPool read)
-        run: |
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" ssh -p ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} ^
-          "powershell -NoProfile -c \"icacls 'C:\sites','C:\sites\myapp-fe','$env:LIVE' /inheritance:e | Out-Null; icacls 'C:\sites','C:\sites\myapp-fe','$env:LIVE' /grant 'IIS AppPool\$env:POOL:(OI)(CI)(RX)' /T /C | Out-Null\""
-
-      - name: Enable Anonymous & Allow *
-        run: |
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" ssh -p ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} ^
-          "powershell -NoProfile -c \"& \$env:SystemRoot\system32\inetsrv\appcmd.exe set config '$env:SITE/' /section:anonymousAuthentication /enabled:true /userName: /password:; & \$env:SystemRoot\system32\inetsrv\appcmd.exe set config '$env:SITE/' /section:windowsAuthentication /enabled:false; & \$env:SystemRoot\system32\inetsrv\appcmd.exe set config '$env:SITE/' /section:basicAuthentication /enabled:false; & \$env:SystemRoot\system32\inetsrv\appcmd.exe set config '$env:SITE/' /section:authorization /clear; & \$env:SystemRoot\system32\inetsrv\appcmd.exe set config '$env:SITE/' /section:authorization \"/+[accessType='Allow',users='*']\"\""
-
-      - name: Write version.txt
-        run: |
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" ssh -p ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} ^
-          "powershell -NoProfile -c \"\$v='sha=${{ github.sha }}`r`nbranch=${{ github.ref_name }}`r`ndeployed='+ (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss')+'Z'; Set-Content -Path (Join-Path '$env:LIVE' 'version.txt') -Value \$v -Encoding utf8\""
-
-      - name: Recycle app pool & list latest files
-        run: |
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" ssh -p ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} ^
-          "powershell -NoProfile -c \"& \$env:SystemRoot\system32\inetsrv\appcmd.exe recycle apppool /apppool.name:$env:POOL; Get-ChildItem '$env:LIVE' -Recurse | Sort LastWriteTime -Desc | Select -First 8 FullName,LastWriteTime | ft -AutoSize | Out-String | Write-Host\""
-
-      - name: Show version (confirm)
-        run: |
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" ssh -p ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} ^
-          "powershell -NoProfile -c \"Get-Content '$env:LIVE\version.txt' | Write-Host\""
+      # ----- SSH 3: Sửa ACL (fix 401.3) + ghi version -----
+      - name: Fix ACL for AppPool & write version
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host:     ${{ secrets.WIN_HOST }}
+          username: ${{ secrets.WIN_USER }}
+          port:     ${{ secrets.WIN_SSH_PORT || 22 }}
+          password: ${{ secrets.WIN_PASSWORD }}
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            powershell -NoProfile -Command ^
+              "$pool = '${{ env.POOL_NAME }}'; ^
+               $sid  = 'IIS AppPool\{0}' -f $pool; ^
+               # Bật kế thừa & cấp quyền Read+Execute cho AppPool (fix 401.3) ^
+               icacls 'C:\sites','C:\sites\myapp-fe','${{ env.LIVE_DIR }}' /inheritance:e | Out-Null; ^
+               icacls '${{ env.LIVE_DIR }}' /grant '$sid:(OI)(CI)(RX)' /T /C | Out-Null; ^
+               # Ghi version.txt để kiểm tra nhanh ^
+               $ver = @('repo=${{ github.repository }}', ^
+                        'sha=${{ github.sha }}', ^
+                        'branch=${{ github.ref_name }}', ^
+                        'deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z') -join \"`r`n\"; ^
+               Set-Content -Path (Join-Path '${{ env.LIVE_DIR }}' 'version.txt') -Value $ver -Encoding utf8; ^
+               # In vài file mới nhất để confirm ^
+               Get-ChildItem '${{ env.LIVE_DIR }}' -Recurse | Sort LastWriteTime -Desc | Select -First 8 FullName,LastWriteTime | Format-Table -AutoSize | Out-String | Write-Host"
