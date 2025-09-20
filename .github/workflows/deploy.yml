@@ -83,18 +83,20 @@ jobs:
         with:
           host:     ${{ secrets.WIN_HOST }}
           username: ${{ secrets.WIN_USER }}
-          port:     ${{ secrets.WIN_SSH_PORT || 22 }}
           password: ${{ secrets.WIN_PASSWORD }}
-          script_stop: true
-          command_timeout: 15m
-          script: |
-            powershell -NoProfile -Command ^
-              "$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'; ^
-               $staging = Join-Path '${{ env.INCOMING_DIR }}' '_staging'; ^
-               $backup  = Join-Path '${{ env.BACKUP_DIR }}' $stamp; ^
-               robocopy '${{ env.LIVE_DIR }}' $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null; ^
-               robocopy $staging '${{ env.LIVE_DIR }}' /MIR /NFL /NDL /NP /NJH /NJS; ^
-               if ($LASTEXITCODE -gt 3) { exit 1 }"
+          port:     ${{ secrets.WIN_SSH_PORT || 22 }}
+          command_timeout: 20m
+          script: >
+            powershell -NoProfile -Command
+            "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';
+            $stamp   = Get-Date -Format 'yyyyMMdd-HHmmss';
+            $staging = 'C:\deploy\incoming\fe\_staging';
+            $live    = 'C:\sites\myapp-fe\dist';
+            $backup  = Join-Path 'C:\deploy\backups\fe' $stamp;
+            robocopy $live $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null;
+            robocopy $staging $live /MIR /NFL /NDL /NP /NJH /NJS;
+            if ($LASTEXITCODE -gt 3) { throw 'robocopy failed: ' + $LASTEXITCODE; }"
+
 
       # ----- SSH 3: Sửa ACL (fix 401.3) + ghi version -----
       - name: Fix ACL for AppPool & write version
@@ -106,18 +108,30 @@ jobs:
           password: ${{ secrets.WIN_PASSWORD }}
           script_stop: true
           command_timeout: 10m
-          script: |
-            powershell -NoProfile -Command ^
-              "$pool = '${{ env.POOL_NAME }}'; ^
-               $sid  = 'IIS AppPool\{0}' -f $pool; ^
-               # Bật kế thừa & cấp quyền Read+Execute cho AppPool (fix 401.3) ^
-               icacls 'C:\sites','C:\sites\myapp-fe','${{ env.LIVE_DIR }}' /inheritance:e | Out-Null; ^
-               icacls '${{ env.LIVE_DIR }}' /grant '$sid:(OI)(CI)(RX)' /T /C | Out-Null; ^
-               # Ghi version.txt để kiểm tra nhanh ^
-               $ver = @('repo=${{ github.repository }}', ^
-                        'sha=${{ github.sha }}', ^
-                        'branch=${{ github.ref_name }}', ^
-                        'deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z') -join \"`r`n\"; ^
-               Set-Content -Path (Join-Path '${{ env.LIVE_DIR }}' 'version.txt') -Value $ver -Encoding utf8; ^
-               # In vài file mới nhất để confirm ^
-               Get-ChildItem '${{ env.LIVE_DIR }}' -Recurse | Sort LastWriteTime -Desc | Select -First 8 FullName,LastWriteTime | Format-Table -AutoSize | Out-String | Write-Host"
+          script: >
+            powershell -NoProfile -Command "& {
+              $ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';
+              $pool = '${{ env.POOL_NAME }}';
+              $sid  = 'IIS AppPool\{0}' -f $pool;
+              $live = '${{ env.LIVE_DIR }}';
+
+              # Bật kế thừa & cấp quyền Read+Execute cho AppPool (fix 401.3)
+              icacls 'C:\sites','C:\sites\myapp-fe',$live /inheritance:e | Out-Null;
+              icacls $live /grant ""$sid:(OI)(CI)(RX)"" /T /C | Out-Null;
+
+              # Ghi version.txt để kiểm tra nhanh
+              $ver = @(
+                'repo=${{ github.repository }}',
+                'sha=${{ github.sha }}',
+                'branch=${{ github.ref_name }}',
+                'deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z'
+              ) -join ""`r`n"";
+              Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8;
+
+              # In vài file mới nhất để confirm
+              Get-ChildItem $live -Recurse |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 8 FullName, LastWriteTime |
+                Format-Table -AutoSize | Out-String | Write-Host
+            }"
+
