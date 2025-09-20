@@ -13,6 +13,7 @@ env:
   INCOMING_DIR: 'C:\deploy\incoming\fe'
   BACKUP_DIR:   'C:\deploy\backups\fe'
   LIVE_DIR:     'C:\sites\myapp-fe\dist'
+  APP_POOL_NAME: 'myapp-fe' # Thêm biến này để lưu tên app pool
 
 jobs:
   deploy:
@@ -104,6 +105,11 @@ jobs:
           script: |
             powershell -NoProfile -ExecutionPolicy Bypass -Command "
               $live = '${{ env.LIVE_DIR }}'
+              icacls $live /inheritance:e
+              icacls $live /grant "IIS_IUSRS:(OI)(CI)(RX)" /T /C
+              icacls $live /grant "IUSR:(OI)(CI)(RX)" /T /C
+              icacls $live /grant "IIS AppPool\<TEN_APP_POOL>:(OI)(CI)(RX)" /T /C
+              cipher /d /s:$live
               $vf = Join-Path $live 'version.txt'
               if (Test-Path $vf) { Get-Content $vf | Write-Host } else { Write-Host 'version.txt not found' }
             "
