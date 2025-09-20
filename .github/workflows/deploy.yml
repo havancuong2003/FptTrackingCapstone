@@ -3,26 +3,14 @@ name: Build & Deploy FE to IIS
 on:
   push:
     branches: [ master ]
-  workflow_dispatch:
-
-concurrency:
-  group: fe-deploy
-  cancel-in-progress: true
-
-env:
-  INCOMING_DIR: 'C:\deploy\incoming\fe'
-  BACKUP_DIR:   'C:\deploy\backups\fe'
-  LIVE_DIR:     'C:\sites\myapp-fe\dist'
-  APP_POOL_NAME: 'myapp-fe' # Thêm biến này để lưu tên app pool
 
 jobs:
-  deploy:
+  fe-deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with: { fetch-depth: 1 }
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -40,76 +28,76 @@ jobs:
           cd dist
           zip -rq ../dist.zip .
           cd ..
+          ls -l dist.zip
 
-      # ==== Upload: dùng scp thuần, tránh lỗi SFTP với /C:/ ====
-      - name: Upload dist.zip via native scp
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y sshpass
-          sshpass -p "${{ secrets.WIN_PASSWORD }}" \
-            scp -P ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no \
-            dist.zip "${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }}:/C:/deploy/incoming/fe/dist.zip"
+      - name: Upload dist.zip to VPS (SCP)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.WIN_HOST }}
+          username: ${{ secrets.WIN_USER }}
+          port: ${{ secrets.WIN_SSH_PORT }}
+          password: ${{ secrets.WIN_PASSWORD }}
+          source: "dist.zip"
+          target: "C:/deploy/incoming/fe"
+          timeout: 60s
+          command_timeout: 20m
 
-      # ==== Deploy trên VPS ====
-      - name: Deploy on VPS (PowerShell)
+      - name: Deploy on VPS (run a PS1 file)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host:       ${{ secrets.WIN_HOST }}
-          port:       ${{ secrets.WIN_SSH_PORT }}
-          username:   ${{ secrets.WIN_USER }}
-          password:   ${{ secrets.WIN_PASSWORD }}
+          host: ${{ secrets.WIN_HOST }}
+          username: ${{ secrets.WIN_USER }}
+          port: ${{ secrets.WIN_SSH_PORT }}
+          password: ${{ secrets.WIN_PASSWORD }}
           script_stop: true
           command_timeout: 20m
           script: |
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "
-              $ErrorActionPreference = 'Stop'
-              $incoming = '${{ env.INCOMING_DIR }}'
-              $backupRoot = '${{ env.BACKUP_DIR }}'
-              $live = '${{ env.LIVE_DIR }}'
-              $zip  = Join-Path $incoming 'dist.zip'
-              $stg  = Join-Path $incoming '_staging'
+            powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+              "$script = @'
+              # --- CONFIG ---
+              $incoming = 'C:\deploy\incoming\fe'
+              $zip      = Join-Path $incoming 'dist.zip'
+              $staging  = Join-Path $incoming '_staging'
+              $live     = 'C:\sites\myapp-fe\dist'
+              $appPool  = 'myapp-fe'                                       # TÊN APP POOL
+              $principal = 'IIS AppPool\{0}' -f $appPool                   # 'IIS AppPool\myapp-fe'
+              # --------------
 
-              New-Item -ItemType Directory -Force -Path $incoming,$backupRoot,$live | Out-Null
-              if (!(Test-Path $zip)) { throw 'Zip not found: ' + $zip }
+              if (!(Test-Path $zip)) { throw ('Zip not found: ' + $zip) }
 
-              Remove-Item -Path $stg -Recurse -Force -ErrorAction SilentlyContinue
-              New-Item -ItemType Directory -Force -Path $stg | Out-Null
-              Expand-Archive -Path $zip -DestinationPath $stg -Force
+              # Giải nén vào staging
+              if (Test-Path $staging) { Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue }
+              New-Item -ItemType Directory -Force -Path $staging | Out-Null
+              Expand-Archive -Path $zip -DestinationPath $staging -Force
 
-              $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-              $backup = Join-Path $backupRoot $stamp
-              robocopy $live $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
+              # KHÔNG xóa thư mục live để giữ kế thừa ACL; nếu chưa có thì tạo
+              if (!(Test-Path $live)) {
+                New-Item -ItemType Directory -Force -Path $live | Out-Null
+              }
 
-              robocopy $stg $live /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
+              # Sync nội dung
+              robocopy $staging $live /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
 
-              $ver = @(
-                'sha=${{ github.sha }}'
-                'branch=${{ github.ref_name }}'
-                'deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z'
-              ) -join \"`r`n\"
-              Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8
+              # BẬT kế thừa ACL & CẤP quyền đọc cho AppPool
+              icacls $live /inheritance:e | Out-Null
+              icacls $live /grant '$principal:(OI)(CI)(RX)' /T | Out-Null
 
-              Get-ChildItem $live -Recurse |
-                Sort-Object LastWriteTime -Descending |
-                Select-Object -First 10 FullName, LastWriteTime |
-                Format-Table -AutoSize | Out-String | Write-Host
-            "
+              # (Tuỳ chọn) bảo đảm Anonymous được bật (chỉ chạy 1 lần)
+              Import-Module WebAdministration
+              Set-WebConfigurationProperty -PSPath 'IIS:\Sites\myapp-fe' `
+                -Filter '/system.webServer/security/authentication/anonymousAuthentication' `
+                -Name enabled -Value $true | Out-Null
 
-      - name: Show version
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host:       ${{ secrets.WIN_HOST }}
-          port:       ${{ secrets.WIN_SSH_PORT }}
-          username:   ${{ secrets.WIN_USER }}
-          password:   ${{ secrets.WIN_PASSWORD }}
-          script: |
-            powershell -NoProfile -ExecutionPolicy Bypass -Command "
-              $live = '${{ env.LIVE_DIR }}'
-              icacls $live /inheritance:e
-              icacls $live /grant "IIS_IUSRS:(OI)(CI)(RX)" /T /C
-              icacls $live /grant "IUSR:(OI)(CI)(RX)" /T /C
-              icacls $live /grant "IIS AppPool\<TEN_APP_POOL>:(OI)(CI)(RX)" /T /C
-              cipher /d /s:$live
-              $vf = Join-Path $live 'version.txt'
-              if (Test-Path $vf) { Get-Content $vf | Write-Host } else { Write-Host 'version.txt not found' }
-            "
+              # Restart AppPool
+              Restart-WebAppPool -Name $appPool
+
+              # Log nhanh
+              '--- ACL of LIVE ---'
+              icacls $live | Out-String
+              '--- TOP files ---'
+              Get-ChildItem $live -Recurse | Sort-Object LastWriteTime -Desc | Select -First 5 FullName, LastWriteTime | Format-Table -AutoSize | Out-String
+              '@
+              ; $tmp = 'C:\deploy\scripts'; New-Item -ItemType Directory -Force -Path $tmp | Out-Null;
+              $ps1 = Join-Path $tmp 'deploy-fe.ps1';
+              Set-Content -Path $ps1 -Value $script -Encoding UTF8;
+              powershell -NoProfile -ExecutionPolicy Bypass -File $ps1"
