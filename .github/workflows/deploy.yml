@@ -67,7 +67,13 @@ jobs:
           password: ${{ secrets.WIN_PASSWORD }}
           port:     ${{ secrets.WIN_SSH_PORT || 22 }}
           script: |
-            powershell -NoProfile -Command "$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force -Path '${{ env.INCOMING_DIR }}','${{ env.BACKUP_DIR }}','${{ env.LIVE_DIR }}' | Out-Null; Remove-Item -Path (Join-Path '${{ env.INCOMING_DIR }}' '_staging') -Recurse -Force -ErrorAction SilentlyContinue; Expand-Archive -Path (Join-Path '${{ env.INCOMING_DIR }}' '${{ env.ZIP_NAME }}') -DestinationPath (Join-Path '${{ env.INCOMING_DIR }}' '_staging') -Force"
+            powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; `
+              New-Item -ItemType Directory -Force -Path 'C:\deploy\incoming\fe','C:\deploy\backups\fe','C:\sites\myapp-fe\dist' | Out-Null; `
+              $stg = Join-Path 'C:\deploy\incoming\fe' '_staging'; `
+              Remove-Item -Path $stg -Recurse -Force -ErrorAction SilentlyContinue; `
+              $zip = Join-Path 'C:\deploy\incoming\fe' 'dist.zip'; `
+              if (!(Test-Path $zip)) { throw 'Zip not found: ' + $zip }; `
+              Expand-Archive -Path $zip -DestinationPath $stg -Force"
 
 
       # ----- SSH 2: Backup & mirror -----
