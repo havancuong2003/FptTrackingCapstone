@@ -66,14 +66,15 @@ jobs:
           username: ${{ secrets.WIN_USER }}
           password: ${{ secrets.WIN_PASSWORD }}
           port:     ${{ secrets.WIN_SSH_PORT || 22 }}
-          script: |
-            powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; `
-              New-Item -ItemType Directory -Force -Path 'C:\deploy\incoming\fe','C:\deploy\backups\fe','C:\sites\myapp-fe\dist' | Out-Null; `
-              $stg = Join-Path 'C:\deploy\incoming\fe' '_staging'; `
-              Remove-Item -Path $stg -Recurse -Force -ErrorAction SilentlyContinue; `
-              $zip = Join-Path 'C:\deploy\incoming\fe' 'dist.zip'; `
-              if (!(Test-Path $zip)) { throw 'Zip not found: ' + $zip }; `
-              Expand-Archive -Path $zip -DestinationPath $stg -Force"
+          script: >
+            powershell -NoProfile -Command
+            "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';
+            New-Item -ItemType Directory -Force -Path 'C:\deploy\incoming\fe','C:\deploy\backups\fe','C:\sites\myapp-fe\dist' | Out-Null;
+            Remove-Item -Path 'C:\deploy\incoming\fe\_staging' -Recurse -Force -ErrorAction SilentlyContinue;
+            $zip='C:\deploy\incoming\fe\dist.zip';
+            if (!(Test-Path $zip)) { throw ('Zip not found: ' + $zip) };
+            Expand-Archive -Path $zip -DestinationPath 'C:\deploy\incoming\fe\_staging' -Force;"
+
 
 
       # ----- SSH 2: Backup & mirror -----
