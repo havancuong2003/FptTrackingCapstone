@@ -87,21 +87,17 @@ jobs:
           password: ${{ secrets.WIN_PASSWORD }}
           script_stop: true
           command_timeout: 10m
-          script: |
-            $ErrorActionPreference = 'Stop'
-            $ProgressPreference    = 'SilentlyContinue'
+          script: >
+            powershell -NoProfile -ExecutionPolicy Bypass -Command
+            "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';
+            $stamp=Get-Date -Format 'yyyyMMdd-HHmmss';
+            $staging='C:\***\incoming\fe\_staging';
+            $live='C:\sites\myapp-fe\dist';
+            $backup=Join-Path 'C:\***\backups\fe' $stamp;
+            robocopy $live $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null;
+            robocopy $staging $live /MIR /NFL /NDL /NP /NJH /NJS | Out-Null;
+            $rc=$LASTEXITCODE; if($rc -gt 3){throw ('ROBOCOPY failed rc='+$rc)} else {Write-Host ('ROBOCOPY ok rc='+$rc)}"
 
-            $stamp   = Get-Date -Format 'yyyyMMdd-HHmmss'
-            $staging = 'C:\***\incoming\fe\_staging'
-            $live    = 'C:\sites\myapp-fe\dist'
-            $backup  = Join-Path 'C:\***\backups\fe' $stamp
-
-            robocopy $live    $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
-            robocopy $staging $live   /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
-
-            $rc = $LASTEXITCODE
-            if ($rc -gt 3) { throw "ROBOCOPY failed rc=$rc" }
-            Write-Host "ROBOCOPY ok rc=$rc"
 
 
 
