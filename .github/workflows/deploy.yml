@@ -88,17 +88,21 @@ jobs:
           script_stop: true
           command_timeout: 10m
           script: |
-            powershell -NoProfile -Command ^
-              "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; ^
-              $stamp   = Get-Date -Format 'yyyyMMdd-HHmmss'; ^
-              $staging = 'C:\***\incoming\fe\_staging'; ^
-              $live    = 'C:\sites\myapp-fe\dist'; ^
-              $backup  = Join-Path 'C:\***\backups\fe' $stamp; ^
-              robocopy $live    $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null; ^
-              robocopy $staging $live   /MIR /NFL /NDL /NP /NJH /NJS | Out-Null; ^
-              $rc = $LASTEXITCODE; ^
-              if ($rc -gt 3) { Write-Error ('ROBOCOPY failed rc=' + $rc); exit $rc } ^
-              else { Write-Host ('ROBOCOPY ok rc=' + $rc); exit 0 }"
+            $ErrorActionPreference = 'Stop'
+            $ProgressPreference    = 'SilentlyContinue'
+
+            $stamp   = Get-Date -Format 'yyyyMMdd-HHmmss'
+            $staging = 'C:\***\incoming\fe\_staging'
+            $live    = 'C:\sites\myapp-fe\dist'
+            $backup  = Join-Path 'C:\***\backups\fe' $stamp
+
+            robocopy $live    $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
+            robocopy $staging $live   /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
+
+            $rc = $LASTEXITCODE
+            if ($rc -gt 3) { throw "ROBOCOPY failed rc=$rc" }
+            Write-Host "ROBOCOPY ok rc=$rc"
+
 
 
 
