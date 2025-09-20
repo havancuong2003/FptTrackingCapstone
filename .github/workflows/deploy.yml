@@ -64,15 +64,11 @@ jobs:
         with:
           host:     ${{ secrets.WIN_HOST }}
           username: ${{ secrets.WIN_USER }}
-          port:     ${{ secrets.WIN_SSH_PORT || 22 }}
           password: ${{ secrets.WIN_PASSWORD }}
-          script_stop: true
-          command_timeout: 10m
+          port:     ${{ secrets.WIN_SSH_PORT || 22 }}
           script: |
-            powershell -NoProfile -Command ^
-              "New-Item -ItemType Directory -Force -Path '${{ env.INCOMING_DIR }}','${{ env.BACKUP_DIR }}','${{ env.LIVE_DIR }}' | Out-Null; ^
-               Remove-Item -Path (Join-Path '${{ env.INCOMING_DIR }}' '_staging') -Recurse -Force -ErrorAction SilentlyContinue; ^
-               Expand-Archive -Path (Join-Path '${{ env.INCOMING_DIR }}' '${{ env.ZIP_NAME }}') -DestinationPath (Join-Path '${{ env.INCOMING_DIR }}' '_staging') -Force"
+            powershell -NoProfile -Command "$ErrorActionPreference='Stop'; New-Item -ItemType Directory -Force -Path '${{ env.INCOMING_DIR }}','${{ env.BACKUP_DIR }}','${{ env.LIVE_DIR }}' | Out-Null; Remove-Item -Path (Join-Path '${{ env.INCOMING_DIR }}' '_staging') -Recurse -Force -ErrorAction SilentlyContinue; Expand-Archive -Path (Join-Path '${{ env.INCOMING_DIR }}' '${{ env.ZIP_NAME }}') -DestinationPath (Join-Path '${{ env.INCOMING_DIR }}' '_staging') -Force"
+
 
       # ----- SSH 2: Backup & mirror -----
       - name: Backup & Deploy (robocopy /MIR)
