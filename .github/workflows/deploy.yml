@@ -10,7 +10,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Thư mục trên VPS (Windows)
   INCOMING_DIR: 'C:\deploy\incoming\fe'
   BACKUP_DIR:   'C:\deploy\backups\fe'
   LIVE_DIR:     'C:\sites\myapp-fe\dist'
@@ -22,8 +21,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
+        with: { fetch-depth: 1 }
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -35,7 +33,6 @@ jobs:
         run: |
           npm ci
           npm run build
-        # Vite sẽ tự copy web.config từ public vào dist/ (giữ nguyên file của bạn)
 
       - name: Zip dist
         run: |
@@ -43,22 +40,16 @@ jobs:
           zip -rq ../dist.zip .
           cd ..
 
-      # ========= Upload qua SCP =========
-      # Lưu ý: khi đẩy lên Windows qua OpenSSH, dùng path kiểu "/C:/..." và dấu "/"
-      - name: Upload dist.zip to VPS (SCP)
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host:       ${{ secrets.WIN_HOST }}
-          port:       ${{ secrets.WIN_SSH_PORT }}
-          username:   ${{ secrets.WIN_USER }}
-          password:   ${{ secrets.WIN_PASSWORD }}
-          source:     "dist.zip"
-          target:     "/C:/deploy/incoming/fe"  # không có slash cuối
-          overwrite:  true
-          timeout:    60s
-          command_timeout: 10m
+      # ==== Upload: dùng scp thuần, tránh lỗi SFTP với /C:/ ====
+      - name: Upload dist.zip via native scp
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+          sshpass -p "${{ secrets.WIN_PASSWORD }}" \
+            scp -P ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=no \
+            dist.zip "${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }}:/C:/deploy/incoming/fe/dist.zip"
 
-      # ========= Giải nén + deploy trên VPS qua SSH/PowerShell =========
+      # ==== Deploy trên VPS ====
       - name: Deploy on VPS (PowerShell)
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -71,32 +62,25 @@ jobs:
           script: |
             powershell -NoProfile -ExecutionPolicy Bypass -Command "
               $ErrorActionPreference = 'Stop'
-
               $incoming = '${{ env.INCOMING_DIR }}'
               $backupRoot = '${{ env.BACKUP_DIR }}'
               $live = '${{ env.LIVE_DIR }}'
               $zip  = Join-Path $incoming 'dist.zip'
               $stg  = Join-Path $incoming '_staging'
 
-              # Ensure dirs
               New-Item -ItemType Directory -Force -Path $incoming,$backupRoot,$live | Out-Null
-
               if (!(Test-Path $zip)) { throw 'Zip not found: ' + $zip }
 
-              # Clean staging & expand zip
               Remove-Item -Path $stg -Recurse -Force -ErrorAction SilentlyContinue
               New-Item -ItemType Directory -Force -Path $stg | Out-Null
               Expand-Archive -Path $zip -DestinationPath $stg -Force
 
-              # Backup current live (mirror)
               $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
               $backup = Join-Path $backupRoot $stamp
               robocopy $live $backup /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
 
-              # Deploy: mirror staging -> live
               robocopy $stg $live /MIR /NFL /NDL /NP /NJH /NJS | Out-Null
 
-              # Write version.txt
               $ver = @(
                 'sha=${{ github.sha }}'
                 'branch=${{ github.ref_name }}'
@@ -104,7 +88,6 @@ jobs:
               ) -join \"`r`n\"
               Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8
 
-              # Show summary
               Get-ChildItem $live -Recurse |
                 Sort-Object LastWriteTime -Descending |
                 Select-Object -First 10 FullName, LastWriteTime |
@@ -121,6 +104,6 @@ jobs:
           script: |
             powershell -NoProfile -ExecutionPolicy Bypass -Command "
               $live = '${{ env.LIVE_DIR }}'
-              $verFile = Join-Path $live 'version.txt'
-              if (Test-Path $verFile) { Get-Content $verFile | Write-Host } else { Write-Host 'version.txt not found' }
+              $vf = Join-Path $live 'version.txt'
+              if (Test-Path $vf) { Get-Content $vf | Write-Host } else { Write-Host 'version.txt not found' }
             "
