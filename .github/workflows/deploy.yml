@@ -1,11 +1,11 @@
-name: Build & Deploy FE to IIS (native scp)
+name: FE → IIS (SSH, no-zip)
 
 on:
   push:
-    branches: [ master ]   # đổi nếu cần
+    branches: [ master ]     # đổi nếu bạn dùng nhánh khác
 
 jobs:
-  fe-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -20,68 +20,59 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install & Build (Vite)
+      - name: Build FE
         run: |
           npm ci
           npm run build
-        # Lưu ý: web.config của bạn giữ nguyên, đảm bảo có trong dist/ (đặt ở public/ nếu dùng Vite)
+        # web.config giữ nguyên nằm trong dist (Vite copy từ public)
 
-      # Tạo sẵn staging & live trên server (để scp KHÔNG còn phải mkdir)
-      - name: Ensure STAGING & LIVE exist (SSH)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.WIN_HOST }}
-          port: ${{ secrets.WIN_SSH_PORT }}
-          username: ${{ secrets.WIN_USER }}
-          password: ${{ secrets.WIN_PASSWORD }}
-          script_stop: true
-          command_timeout: 10m
-          script: |
-            powershell -NoProfile -Command "
-              $staging = 'C:\deploy\incoming\fe_tmp';
-              $live    = 'C:\sites\myapp-fe\dist';
-              if (!(Test-Path $staging)) { New-Item -ItemType Directory -Force -Path $staging | Out-Null }
-              if (!(Test-Path $live))    { New-Item -ItemType Directory -Force -Path $live    | Out-Null }
-            "
-
-      # ===== GIẢI PHÁP KHÁC: native scp, KHÔNG dùng appleboy/scp-action =====
-      - name: Upload dist via native scp (NO zip)
-        env:
-          HOST: ${{ secrets.WIN_HOST }}
-          PORT: ${{ secrets.WIN_SSH_PORT }}
-          USER: ${{ secrets.WIN_USER }}
+      # Dùng scp/ssh gốc (tránh lỗi đường dẫn của appleboy/drone-scp)
+      - name: Install ssh client
         run: |
-          # Đường dẫn SFTP Windows nên dùng /C:/...  (có dấu / đầu)
-          DEST="/C:/deploy/incoming/fe_tmp/"
-          # Tắt xác thực host key cho lần đầu
-          scp -P "$PORT" -o StrictHostKeyChecking=no -r dist/* "${USER}@${HOST}:${DEST}"
+          sudo apt-get update
+          sudo apt-get install -y sshpass
 
-      # Mirror sang LIVE + ghi version, KHÔNG import IIS, KHÔNG restart app pool
-      - name: Deploy to LIVE (robocopy /MIR)
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.WIN_HOST }}
-          port: ${{ secrets.WIN_SSH_PORT }}
-          username: ${{ secrets.WIN_USER }}
-          password: ${{ secrets.WIN_PASSWORD }}
-          script_stop: true
-          command_timeout: 10m
-          script: |
-            powershell -NoProfile -Command "
-              $src  = 'C:\deploy\incoming\fe_tmp';
-              $live = 'C:\sites\myapp-fe\dist';
+      - name: Create remote incoming/<SHA>
+        run: |
+          sshpass -p "${{ secrets.WIN_PASSWORD }}" \
+          ssh -o StrictHostKeyChecking=accept-new -p ${{ secrets.WIN_SSH_PORT }} \
+          ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} \
+          'powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path ''C:\deploy\incoming\fe\${{ github.sha }}'' | Out-Null"'
 
-              robocopy $src $live /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+      - name: Upload dist via native scp (NO zip)
+        run: |
+          sshpass -p "${{ secrets.WIN_PASSWORD }}" \
+          scp -P ${{ secrets.WIN_SSH_PORT }} -o StrictHostKeyChecking=accept-new -r \
+          dist/* ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }}:"C:/deploy/incoming/fe/${{ github.sha }}/"
 
-              $ver = @(
-                'sha=${{ github.sha }}',
-                'branch=${{ github.ref_name }}',
-                'deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z'
-              ) -join \"`r`n\"
-              Set-Content -Path (Join-Path $live 'version.txt') -Value $ver -Encoding utf8
+      - name: Atomic mirror to LIVE (robocopy /MIR)
+        run: |
+          sshpass -p "${{ secrets.WIN_PASSWORD }}" \
+          ssh -o StrictHostKeyChecking=accept-new -p ${{ secrets.WIN_SSH_PORT }} \
+          ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} powershell -NoProfile -Command "
+            \$incoming = 'C:\deploy\incoming\fe\${{ github.sha }}';
+            \$live     = 'C:\sites\myapp-fe\dist';
 
-              Get-ChildItem $live -Recurse |
-                Sort-Object LastWriteTime -Descending |
-                Select-Object -First 8 FullName, LastWriteTime |
-                Format-Table -AutoSize | Out-String | Write-Host
-            "
+            if (-not (Test-Path \$live)) { New-Item -ItemType Directory -Force -Path \$live | Out-Null }
+
+            # backup để rollback nhanh
+            \$backupRoot = 'C:\deploy\backups\fe';
+            New-Item -ItemType Directory -Force -Path \$backupRoot | Out-Null
+            \$stamp  = Get-Date -Format 'yyyyMMdd-HHmmss'
+            \$backup = Join-Path \$backupRoot \$stamp
+            robocopy \$live \$backup /MIR /NFL /NDL /NJH /NJS | Out-Null
+
+            # deploy: mirror staging -> live (không chạm web.config trừ khi bạn build mới)
+            robocopy \$incoming \$live /MIR /NFL /NDL /NJH /NJS | Out-Null
+
+            # ghi version để bạn kiểm tra nhanh
+            \$ver = @('sha=${{ github.sha }}','branch=${{ github.ref_name }}','deployed=' + (Get-Date).ToUniversalTime().ToString('yyyy-MM-dd HH:mm:ss') + 'Z') -join \"`r`n\"
+            Set-Content -Path (Join-Path \$live 'version.txt') -Value \$ver -Encoding utf8
+          "
+
+      - name: Show version
+        run: |
+          sshpass -p "${{ secrets.WIN_PASSWORD }}" \
+          ssh -o StrictHostKeyChecking=accept-new -p ${{ secrets.WIN_SSH_PORT }} \
+          ${{ secrets.WIN_USER }}@${{ secrets.WIN_HOST }} \
+          'powershell -NoProfile -Command "Get-Content ''C:\sites\myapp-fe\dist\version.txt'' | Write-Host"'
