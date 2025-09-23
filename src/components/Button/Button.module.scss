@@ -1,0 +1,20 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+  background: var(--color-primary);
+  color: white;
+  cursor: pointer;
+}
+.secondary { background: var(--color-secondary); }
+.ghost { background: transparent; border-color: var(--color-border); color: inherit; }
+.sm { padding: 6px 10px; font-size: 14px; }
+.md { padding: 8px 12px; font-size: 14px; }
+.lg { padding: 10px 14px; font-size: 16px; }
+.fullWidth { width: 100%; }
+.disabled { opacity: 0.6; cursor: not-allowed; }
+.loading { pointer-events: none; } 

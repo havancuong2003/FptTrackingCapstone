@@ -1,0 +1,29 @@
+.container {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  background: var(--color-bg);
+  color: var(--color-fg);
+}
+
+.main {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+}
+
+.overlay {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .main {
+    grid-template-columns: 1fr;
+  }
+  .overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 49;
+  }
+} 

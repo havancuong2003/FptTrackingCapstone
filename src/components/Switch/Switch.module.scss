@@ -1,0 +1,41 @@
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.track {
+  position: relative;
+  width: 42px;
+  height: 24px;
+  background: var(--color-border);
+  border-radius: 12px;
+  transition: background .2s;
+}
+
+.thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: white;
+  transition: transform .2s;
+}
+
+.on .track {
+  background: var(--color-primary);
+}
+
+.on .thumb {
+  transform: translateX(18px);
+}
+
+.label {
+  margin-left: 4px;
+}
