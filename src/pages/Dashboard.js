@@ -11,7 +11,7 @@ export default function Dashboard() {
   return (
     <div className={styles.wrap}>
       <h1>Dashboard</h1>
-      <p>Tổng quan nhanh. Role hiện tại nhé kk: <strong>{user.role}</strong></p>
+      <p>Tổng quan nhanh. Role hiện tại nhé kk hehe: <strong>{user.role}</strong></p>
       <div className={styles.cards}>
         <Card title="Người dùng">123</Card>
         <Card title="Đơn hàng">45</Card>
