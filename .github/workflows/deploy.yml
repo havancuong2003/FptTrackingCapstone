@@ -1,0 +1,56 @@
+name: Build & Deploy to IIS
+
+on:
+  push:
+    branches: [ main ]   # chạy khi push vào branch main
+
+jobs:
+  deploy:
+    runs-on: self-hosted   # chạy trên VPS (runner bạn vừa cài)
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'   # chỉnh cho đúng version Node của project
+
+      - name: Install dependencies & Build React
+        run: |
+          npm ci
+          npm run build
+
+      - name: Deploy to IIS folder
+        run: |
+          $src = Join-Path $env:GITHUB_WORKSPACE 'build'
+          $dst = 'C:\sites\myapp-fe'
+
+          # Xoá file cũ, giữ lại web.config nếu có
+          if (Test-Path $dst) {
+            Get-ChildItem $dst -Recurse -Force | Where-Object { $_.Name -ne 'web.config' } | Remove-Item -Recurse -Force
+          } else {
+            New-Item -ItemType Directory -Force -Path $dst | Out-Null
+          }
+
+          # Copy build mới
+          robocopy $src $dst /MIR
+
+          # Copy web.config từ repo (nếu có)
+          if (Test-Path (Join-Path $env:GITHUB_WORKSPACE 'web.config')) {
+            Copy-Item (Join-Path $env:GITHUB_WORKSPACE 'web.config') (Join-Path $dst 'web.config') -Force
+          }
+
+      - name: Restart IIS AppPool
+        run: |
+          Import-Module WebAdministration
+          $appPool = "myapp-fe"   # app pool của bạn
+          if (Test-Path IIS:\AppPools\$appPool) {
+            Restart-WebAppPool $appPool
+          } else {
+            IISReset /restart
+          }
