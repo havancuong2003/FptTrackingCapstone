@@ -1,9 +1,9 @@
-import React from 'react';
-import styles from './Dashboard.module.scss';
-import Card from '../components/Card/Card';
-import Button from '../components/Button/Button';
-import Modal from '../components/Modal/Modal';
-import { getCurrentUser } from '../auth/auth';
+import React from "react";
+import styles from "./Dashboard.module.scss";
+import Card from "../components/Card/Card";
+import Button from "../components/Button/Button";
+import Modal from "../components/Modal/Modal";
+import { getCurrentUser } from "../auth/auth";
 
 export default function Dashboard() {
   const [open, setOpen] = React.useState(false);
@@ -11,7 +11,9 @@ export default function Dashboard() {
   return (
     <div className={styles.wrap}>
       <h1>Dashboard</h1>
-      <p>Tổng quan nhanh. Role hiện tại nhé kk hehe: <strong>{user.role}</strong></p>
+      <p>
+        Tổng quan nhanh. Role hiện tại Hương test: <strong>{user.role}</strong>
+      </p>
       <div className={styles.cards}>
         <Card title="Người dùng">123</Card>
         <Card title="Đơn hàng">45</Card>
@@ -26,4 +28,4 @@ export default function Dashboard() {
       </Modal>
     </div>
   );
-} 
+}
