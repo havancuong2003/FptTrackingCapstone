@@ -2,26 +2,27 @@ name: Build & Deploy to IIS
 
 on:
   push:
-    branches: [ master ]   # chạy khi push vào branch main
+    branches: [ master ]
+  workflow_dispatch: {}
 
 jobs:
   deploy:
-    runs-on: self-hosted   # chạy trên VPS (runner bạn vừa cài)
+    runs-on: self-hosted
     defaults:
       run:
-        shell: pwsh
+        shell: powershell   # <--- dùng Windows PowerShell
 
     steps:
-      - name: Checkout source code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '20'   # chỉnh cho đúng version Node của project
+          node-version: '20'
 
       - name: Install dependencies & Build React
         run: |
+          npm -v
+          node -v
           npm ci
           npm run build
 
@@ -29,18 +30,12 @@ jobs:
         run: |
           $src = Join-Path $env:GITHUB_WORKSPACE 'build'
           $dst = 'C:\sites\myapp-fe'
-
-          # Xoá file cũ, giữ lại web.config nếu có
           if (Test-Path $dst) {
             Get-ChildItem $dst -Recurse -Force | Where-Object { $_.Name -ne 'web.config' } | Remove-Item -Recurse -Force
           } else {
             New-Item -ItemType Directory -Force -Path $dst | Out-Null
           }
-
-          # Copy build mới
           robocopy $src $dst /MIR
-
-          # Copy web.config từ repo (nếu có)
           if (Test-Path (Join-Path $env:GITHUB_WORKSPACE 'web.config')) {
             Copy-Item (Join-Path $env:GITHUB_WORKSPACE 'web.config') (Join-Path $dst 'web.config') -Force
           }
@@ -48,9 +43,5 @@ jobs:
       - name: Restart IIS AppPool
         run: |
           Import-Module WebAdministration
-          $appPool = "myapp-fe"   # app pool của bạn
-          if (Test-Path IIS:\AppPools\$appPool) {
-            Restart-WebAppPool $appPool
-          } else {
-            IISReset /restart
-          }
+          $appPool = "myapp-fe"
+          if (Test-Path IIS:\AppPools\$appPool) { Restart-WebAppPool $appPool } else { IISReset /restart }
