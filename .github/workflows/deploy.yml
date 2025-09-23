@@ -26,29 +26,32 @@ jobs:
           npm ci
           npm run build
 
-      - name: Deploy to IIS folder
+      - name: Deploy to IIS folder (into ...\build)
         shell: powershell
         run: |
-          $src = Join-Path $env:GITHUB_WORKSPACE 'build'
-          $dst = 'C:\sites\myapp-fe'
+          $src     = Join-Path $env:GITHUB_WORKSPACE 'build'     # build tạo bởi npm
+          $dstRoot = 'C:\sites\myapp-fe'
+          $dst     = Join-Path $dstRoot 'build'                  # thư mục IIS trỏ tới
 
           if (!(Test-Path $src)) { throw "Build folder not found: $src" }
-          if (!(Test-Path $dst)) { New-Item -ItemType Directory -Force -Path $dst | Out-Null }
+          if (!(Test-Path $dstRoot)) { New-Item -ItemType Directory -Force -Path $dstRoot | Out-Null }
+          if (!(Test-Path $dst))     { New-Item -ItemType Directory -Force -Path $dst     | Out-Null }
 
-          # Xoá nội dung cũ, giữ web.config nếu có
-          Get-ChildItem $dst -Recurse -Force |
-            Where-Object { $_.Name -ne 'web.config' } |
+          # Xoá sạch bên trong thư mục build, giữ web.config nếu muốn
+          Get-ChildItem $dst -Force | Where-Object { $_.Name -ne 'web.config' } |
             Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
-          # Copy nội dung build
+          # Copy nội dung build mới
           robocopy $src $dst /MIR /NFL /NDL /NJH /NJS /NP
           $code = $LASTEXITCODE
-          # Robocopy: 0–3 = success (0: nothing to do, 1: copied, 2: extras, 3: copied+extras)
           if ($code -ge 8) { throw "Robocopy failed with exit code $code" }
+          # Rất quan trọng: reset để GitHub không fail step vì mã 1/2/3
+          $global:LASTEXITCODE = 0
 
-          # Copy web.config từ repo (nếu có)
+          # Đặt web.config trong thư mục build (nếu có trong repo)
           $wc = Join-Path $env:GITHUB_WORKSPACE 'web.config'
           if (Test-Path $wc) { Copy-Item $wc (Join-Path $dst 'web.config') -Force }
+
 
 
 
