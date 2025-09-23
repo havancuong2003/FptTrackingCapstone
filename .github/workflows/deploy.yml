@@ -2,7 +2,7 @@ name: Build & Deploy to IIS
 
 on:
   push:
-    branches: [ main ]   # chạy khi push vào branch main
+    branches: [ master ]   # chạy khi push vào branch main
 
 jobs:
   deploy:
