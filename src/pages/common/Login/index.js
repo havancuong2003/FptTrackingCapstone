@@ -1,9 +1,9 @@
 import React from 'react';
-import styles from './Login.module.scss';
-import Button from '../components/Button/Button';
-import useForm from '../hooks/useForm';
-import { required } from '../utils/validate';
-import { login } from '../auth/auth';
+import styles from './index.module.scss';
+import Button from '../../../components/Button/Button';
+import useForm from '../../../hooks/useForm';
+import { required } from '../../../utils/validate';
+import { login } from '../../../auth/auth';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 export default function Login() {
@@ -22,7 +22,6 @@ export default function Login() {
       try {
         setError('');
         const { user } = await login(values);
-        // Có thể điều hướng khác nhau theo role nếu muốn
         navigate(from || '/dashboard', { replace: true });
       } catch (e) {
         setError(e.message || 'Đăng nhập thất bại');

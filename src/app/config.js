@@ -1,4 +1,4 @@
-export const APP_NAME = 'React Core FE';
+export const APP_NAME = 'FPT Tracking Capstone';
 export const VERSION = '0.1.0';
 
 export const BREAKPOINTS = {

@@ -1,6 +1,9 @@
 const staffMenu = [
-  { path: '/dashboard', label: 'Home' },
-  { path: '/components', label: 'Components' },
+  { path: '/dashboard', label: 'Dashboard' },
+  { path: '/reports', label: 'Báo cáo & Đánh giá' },
+  { path: '/analytics', label: 'Dashboard thống kê' },
+  { path: '/templates', label: 'Template báo cáo' },
+  { path: '/tasks', label: 'Quản lý Task' },
   { path: '/settings', label: 'Settings' },
 ];
 
