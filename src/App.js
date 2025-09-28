@@ -28,7 +28,7 @@ export default function App() {
   useEffect(() => {
     const pathname = location.pathname;
     const match = routes.find(r => r.path === pathname) || routes.find(r => r.path === '*');
-    document.title = (match && match.meta && match.meta.title) ? match.meta.title : 'React Core FE';
+    document.title = (match && match.meta && match.meta.title) ? match.meta.title : 'FPT Tracking Capstone';
   }, [location.pathname]);
 
   return (

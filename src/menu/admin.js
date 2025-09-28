@@ -1,6 +1,7 @@
 const adminMenu = [
-  { path: '/dashboard', label: 'Home' },
-  { path: '/components', label: 'Components' },
+  { path: '/dashboard', label: 'Dashboard' },
+  { path: '/users', label: 'Quản trị người dùng' },
+  { path: '/system', label: 'Quản lý hệ thống' },
   { path: '/settings', label: 'Settings' },
 ];
 

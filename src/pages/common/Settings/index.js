@@ -1,9 +1,9 @@
 import React from 'react';
-import styles from './Settings.module.scss';
-import useForm from '../hooks/useForm';
-import Button from '../components/Button/Button';
-import { required, email } from '../utils/validate';
-import FormField from '../components/FormField/FormField';
+import styles from './index.module.scss';
+import useForm from '../../../hooks/useForm';
+import Button from '../../../components/Button/Button';
+import { required, email } from '../../../utils/validate';
+import FormField from '../../../components/FormField/FormField';
 
 export default function Settings() {
   const [submitted, setSubmitted] = React.useState(false);
@@ -37,4 +37,4 @@ export default function Settings() {
       </form>
     </div>
   );
-}
+} 
