@@ -6,7 +6,7 @@ export default function Footer() {
   const year = new Date().getFullYear();
   return (
     <footer className={styles.footer}>
-      © {year} React Core FE · v{VERSION}
+      © {year} FPT Tracking Capstone · v{VERSION}
     </footer>
   );
 } 

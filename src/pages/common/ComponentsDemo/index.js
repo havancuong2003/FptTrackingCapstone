@@ -1,17 +1,17 @@
 import React from 'react';
-import styles from './ComponentsDemo.module.scss';
-import Button from '../components/Button/Button';
-import Input from '../components/Input/Input';
-import Textarea from '../components/Textarea/Textarea';
-import Select from '../components/Select/Select';
-import Checkbox from '../components/Checkbox/Checkbox';
-import RadioGroup from '../components/RadioGroup/RadioGroup';
-import Switch from '../components/Switch/Switch';
-import Tooltip from '../components/Tooltip/Tooltip';
-import Modal from '../components/Modal/Modal';
-import Card from '../components/Card/Card';
-import Spinner from '../components/Spinner/Spinner';
-import FormField from '../components/FormField/FormField';
+import styles from './index.module.scss';
+import Button from '../../../components/Button/Button';
+import Input from '../../../components/Input/Input';
+import Textarea from '../../../components/Textarea/Textarea';
+import Select from '../../../components/Select/Select';
+import Checkbox from '../../../components/Checkbox/Checkbox';
+import RadioGroup from '../../../components/RadioGroup/RadioGroup';
+import Switch from '../../../components/Switch/Switch';
+import Tooltip from '../../../components/Tooltip/Tooltip';
+import Modal from '../../../components/Modal/Modal';
+import Card from '../../../components/Card/Card';
+import Spinner from '../../../components/Spinner/Spinner';
+import FormField from '../../../components/FormField/FormField';
 
 export default function ComponentsDemo() {
   const [checked, setChecked] = React.useState(false);
