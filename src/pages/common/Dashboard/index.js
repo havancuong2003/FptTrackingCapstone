@@ -1,9 +1,9 @@
-import React from 'react';
-import styles from './index.module.scss';
-import Card from '../../../components/Card/Card';
-import Button from '../../../components/Button/Button';
-import Modal from '../../../components/Modal/Modal';
-import { getCurrentUser } from '../../../auth/auth';
+import React from "react";
+import styles from "./Dashboard.module.scss";
+import Card from "../components/Card/Card";
+import Button from "../components/Button/Button";
+import Modal from "../components/Modal/Modal";
+import { getCurrentUser } from "../auth/auth";
 
 export default function Dashboard() {
   const [open, setOpen] = React.useState(false);
@@ -26,4 +26,4 @@ export default function Dashboard() {
       </Modal>
     </div>
   );
-} 
+}
