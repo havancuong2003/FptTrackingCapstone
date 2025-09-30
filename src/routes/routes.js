@@ -17,6 +17,7 @@ const AiAssistant = React.lazy(() => import('../pages/student/AiAssistant'));
 const Evaluations = React.lazy(() => import('../pages/teacher/Evaluations'));
 const Analytics = React.lazy(() => import('../pages/staff/Analytics'));
 const Templates = React.lazy(() => import('../pages/staff/Templates'));
+const StaffGroups = React.lazy(() => import('../pages/staff/Groups'));
 const Users = React.lazy(() => import('../pages/admin/Users'));
 const System = React.lazy(() => import('../pages/admin/System'));
 
@@ -90,6 +91,11 @@ export const routes = [
     path: '/analytics',
     element: Analytics,
     meta: { title: 'Analytics', protected: true, roles: ['STAFF'] },
+  },
+  {
+    path: '/staff/groups',
+    element: StaffGroups,
+    meta: { title: 'Capstone Groups', protected: true, roles: ['STAFF'] },
   },
   {
     path: '/templates',
