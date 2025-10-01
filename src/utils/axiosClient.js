@@ -1,39 +1,82 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../app/config';
-import { getToken, logout } from '../auth/auth';
 import { startLoading, stopLoading } from './loading';
 
-const client = axios.create({ baseURL: API_BASE_URL });
+async function triggerLogout() {
+  try {
+    const mod = await import('../auth/auth');
+    if (typeof mod.logout === 'function') {
+      await mod.logout();
+    }
+  } catch {}
+}
 
+const client = axios.create({ baseURL: API_BASE_URL, withCredentials: true });
+
+// Request Interceptor
 client.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) {
-    config.headers = config.headers || {};
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  // bật loading
   startLoading();
   return config;
 });
 
+// Response Interceptor
 client.interceptors.response.use(
   (response) => {
     stopLoading();
+
+    // Luôn format lại cho đồng nhất
+    const { status, message, data } = response.data || {};
+
+    if (status === 401) {
+      // Token hết hạn → logout
+      triggerLogout();
+      return Promise.reject({ status, message, data });
+    }
+
     return response;
   },
-  (error) => {
+  async (error) => {
     stopLoading();
-    if (error?.response?.status === 401) {
-      logout();
+    const originalRequest = error.config;
+
+    // Nếu accessToken hết hạn → thử refresh
+    if (error?.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const refreshResponse = await client.post('/auth/refreshToken');
+        const { status, message } = refreshResponse.data || {};
+
+        if (status === 200) {
+          // refresh thành công → retry request gốc
+          return client(originalRequest);
+        } else {
+          // refresh thất bại → logout
+          triggerLogout();
+          return Promise.reject(refreshResponse.data);
+        }
+      } catch (refreshError) {
+        // refresh token cũng hết hạn hoặc lỗi mạng
+        const resData = refreshError?.response?.data || {
+          status: 500,
+          message: refreshError.message,
+          data: null,
+        };
+
+        if (resData.status === 401) {
+          triggerLogout();
+        }
+        return Promise.reject(resData);
+      }
     }
-    return Promise.reject(normalizeError(error));
+
+    // Các lỗi khác
+    const resData = error?.response?.data || {
+      status: 500,
+      message: error.message,
+      data: null,
+    };
+    return Promise.reject(resData);
   }
 );
 
-export function normalizeError(error) {
-  const status = error?.response?.status || 0;
-  const message = error?.response?.data?.message || error.message || 'Lỗi không xác định';
-  return { status, message, raw: error };
-}
-
-export default client; 
+export default client;

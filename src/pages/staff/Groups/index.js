@@ -40,7 +40,8 @@ export default function StaffGroups() {
       if (f.courseCode !== 'all' && g.courseCode !== f.courseCode) return false;
       if (q) {
         const inGroupId = normalizeStr(g.id).includes(q);
-        const inSupervisor = normalizeStr(g.supervisor).includes(q);
+        const supervisorsList = Array.isArray(g.supervisors) ? g.supervisors : (g.supervisor ? [g.supervisor] : []);
+        const inSupervisor = supervisorsList.some(sv => normalizeStr(sv).includes(q));
         const inStudents = (g.students || []).some(s => normalizeStr(s.name).includes(q) || normalizeStr(s.id).includes(q));
         if (!(inGroupId || inSupervisor || inStudents)) return false;
       }
@@ -239,7 +240,7 @@ export default function StaffGroups() {
                 <td>{g.term}</td>
                 <td>{g.major}</td>
                 <td>{g.studentCount}</td>
-                <td>{g.supervisor}</td>
+                <td>{(Array.isArray(g.supervisors) ? g.supervisors : (g.supervisor ? [g.supervisor] : [])).join(', ')}</td>
                 <td>
                   <span className={g.submittedDocs ? styles.badgeOk : styles.badgeNo}>
                     {g.submittedDocs ? 'Đã nộp' : 'Thiếu'}
@@ -274,7 +275,7 @@ export default function StaffGroups() {
               <h3>Group Info</h3>
               <p><strong>Group ID:</strong> {detail.id}</p>
               <p><strong>Project:</strong> {detail.projectName}</p>
-              <p><strong>Supervisor:</strong> {detail.supervisor}</p>
+              <p><strong>Supervisors:</strong> {(Array.isArray(detail.supervisors) ? detail.supervisors : (detail.supervisor ? [detail.supervisor] : [])).join(', ')}</p>
               <p><strong>Status:</strong> {detail.status}</p>
               <p><strong>Risk:</strong> {detail.risk}</p>
             </section>

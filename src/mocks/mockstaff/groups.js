@@ -6,7 +6,7 @@ export const capstoneGroups = [
     term: 'Fall23',
     major: 'AI',
     studentCount: 5,
-    supervisor: 'GV1',
+    supervisors: ['GV1', 'GVX'],
     submittedDocs: true,
     projectName: 'AI Chatbot',
     status: 'Delayed',
@@ -18,7 +18,7 @@ export const capstoneGroups = [
     term: 'Fall24',
     major: 'SE',
     studentCount: 4,
-    supervisor: 'GV2',
+    supervisors: ['GV2'],
     submittedDocs: false,
     projectName: 'E-learning Platform',
     status: 'On Track',
@@ -30,7 +30,7 @@ export const capstoneGroups = [
     term: 'Spring25',
     major: 'IoT',
     studentCount: 6,
-    supervisor: 'GV3',
+    supervisors: ['GV3', 'GVY'],
     submittedDocs: true,
     projectName: 'Smart Home Hub',
     status: 'On Track',
@@ -42,7 +42,7 @@ export const capstoneGroups = [
     term: 'Spring25',
     major: 'DS',
     studentCount: 3,
-    supervisor: 'GV4',
+    supervisors: ['GV4'],
     submittedDocs: true,
     projectName: 'Data Mining Tool',
     status: 'Delayed',
@@ -66,7 +66,7 @@ export const capstoneGroupDetails = {
   GR1: {
     id: 'GR1',
     projectName: 'AI Chatbot',
-    supervisor: 'GV1',
+    supervisors: ['GV1', 'GVX'],
     status: 'Delayed',
     risk: 'Medium',
     students: [
@@ -92,7 +92,7 @@ export const capstoneGroupDetails = {
   GR2: {
     id: 'GR2',
     projectName: 'E-learning Platform',
-    supervisor: 'GV2',
+    supervisors: ['GV2'],
     status: 'On Track',
     risk: 'Low',
     students: [

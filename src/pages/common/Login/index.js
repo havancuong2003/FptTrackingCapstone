@@ -4,13 +4,15 @@ import Button from '../../../components/Button/Button';
 import useForm from '../../../hooks/useForm';
 import { required } from '../../../utils/validate';
 import { login } from '../../../auth/auth';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { useAuth } from '../../../auth/authProvider';
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/dashboard';
   const [error, setError] = React.useState('');
+  const { status, refresh } = useAuth();
 
   const form = useForm({
     initialValues: { username: '', password: '' },
@@ -21,13 +23,18 @@ export default function Login() {
     onSubmit: async (values) => {
       try {
         setError('');
-        const { user } = await login(values);
+        await login(values);
+        await refresh();
         navigate(from || '/dashboard', { replace: true });
       } catch (e) {
         setError(e.message || 'Đăng nhập thất bại');
       }
     },
   });
+
+  if (status === 'loading') return null;
+  const isAuthed = status === 'authenticated';
+  if (isAuthed) return <Navigate to={from} replace />;
 
   return (
     <div className={styles.wrap}>

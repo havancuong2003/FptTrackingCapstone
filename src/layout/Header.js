@@ -1,12 +1,14 @@
 import React from 'react';
 import styles from './Header.module.scss';
 import Button from '../components/Button/Button';
-import { isAuthenticated, logout } from '../auth/auth';
+import { logout } from '../auth/auth';
 import { useLayout } from './LayoutContext';
+import { useAuth } from '../auth/authProvider';
 
 export default function Header() {
   const [theme, setTheme] = React.useState(() => localStorage.getItem('theme') || 'light');
-  const authed = isAuthenticated();
+  const { status, refresh } = useAuth();
+  const authed = status === 'authenticated';
   const { sidebarOpen, setSidebarOpen } = useLayout();
 
   React.useEffect(() => {
@@ -18,8 +20,9 @@ export default function Header() {
     setTheme(t => (t === 'light' ? 'dark' : 'light'));
   }
 
-  function handleLogout() {
-    logout();
+  async function handleLogout() {
+    await logout();
+    await refresh();
     window.location.href = '/';
   }
 

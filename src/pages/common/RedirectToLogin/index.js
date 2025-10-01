@@ -1,8 +1,10 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { isAuthenticated } from '../../../auth/auth';
+import { useAuth } from '../../../auth/authProvider';
 
 export default function RedirectToLogin() {
-  const target = isAuthenticated() ? '/dashboard' : '/login';
+  const { status } = useAuth();
+  if (status === 'loading') return null;
+  const target = status === 'authenticated' ? '/dashboard' : '/login';
   return <Navigate to={target} replace />;
 } 
