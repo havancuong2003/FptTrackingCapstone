@@ -44,10 +44,10 @@ export default function App() {
             let content = <Element />;
             if (isProtected) {
               content = (
-                <RequireAuth roles={route.meta.roles}>
+                <RequireAuth role={route.meta.role}>
                   {content}
                 </RequireAuth>
-              );
+              );    
             }
 
             if (!noLayout) {

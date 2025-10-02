@@ -10,43 +10,40 @@ export function AuthProvider({ children }) {
 
   const fetchMe = React.useCallback(async () => {
     setStatus('loading');
-    try {
-      // --- mock/local ---
-      try {
-        const raw = localStorage.getItem(USER_INFO_KEY);
-        console.log('raw', raw);
-        if (raw) {
-          const u = JSON.parse(raw);
-          setUser({ id: u.id || 'u_1', name: u.name || 'User', role: u.role || 'STUDENT' });
-          setStatus('authenticated');
-          return;
-        }
-        // Fallback: chỉ có role = STAFF thì mock user Staff
-        const role = localStorage.getItem(USER_ROLE_KEY);
-        if (role === 'STAFF') {
-          setUser({ id: 'u_1', name: 'Staff', role: 'STAFF' });
-          setStatus('authenticated');
-          return;
-        }
-      } catch {}
 
-      // Khi dùng mock (không có user local), không gọi API thật
+    // Chỉ kiểm tra phiên nếu có dữ liệu user trong localStorage
+    const rawUser = localStorage.getItem(USER_INFO_KEY);
+    if (!rawUser) {
+      localStorage.removeItem(USER_INFO_KEY);
+      localStorage.removeItem(USER_ROLE_KEY);
       setUser(null);
       setStatus('unauthenticated');
       return;
+    }
 
-      // Nếu cần dùng API thật, bật lại đoạn sau:
-      // const res = await client.get('/auth/me');
-      // const body = res?.data;
-      // const me = body?.data || body || null;
-      // if (me) {
-      //   setUser({ id: me.id || me.userId || 'u_1', name: me.name || me.fullName || 'User', role: me.role || 'STUDENT' });
-      //   setStatus('authenticated');
-      // } else {
-      //   setUser(null);
-      //   setStatus('unauthenticated');
-      // }
+    try {
+      const res = await client.get('/auth/user-info');
+      const body = res?.data;
+      const me = body?.data || body || null;
+      if (me) {
+        const normalizedUser = {
+          id: me.id || me.userId || 'u_1',
+          name: me.name || me.fullName || 'User',
+          role: me.role || 'STUDENT',
+        };
+        setUser(normalizedUser);
+        localStorage.setItem(USER_INFO_KEY, JSON.stringify(normalizedUser));
+        if (normalizedUser.role) localStorage.setItem(USER_ROLE_KEY, normalizedUser.role);
+        setStatus('authenticated');
+      } else {
+        localStorage.removeItem(USER_INFO_KEY);
+        localStorage.removeItem(USER_ROLE_KEY);
+        setUser(null);
+        setStatus('unauthenticated');
+      }
     } catch {
+      localStorage.removeItem(USER_INFO_KEY);
+      localStorage.removeItem(USER_ROLE_KEY);
       setUser(null);
       setStatus('unauthenticated');
     }

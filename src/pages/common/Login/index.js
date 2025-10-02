@@ -25,7 +25,7 @@ export default function Login() {
         setError('');
         await login(values);
         await refresh();
-        navigate(from || '/dashboard', { replace: true });
+        // Điều hướng sẽ được thực hiện bởi <Navigate> khi status === 'authenticated'
       } catch (e) {
         setError(e.message || 'Đăng nhập thất bại');
       }

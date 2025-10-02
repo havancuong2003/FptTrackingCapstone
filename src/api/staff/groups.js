@@ -3,12 +3,12 @@ import client from '../../utils/axiosClient';
 import { capstoneGroups, capstoneGroupDetails } from '../../mocks/mockstaff/groups';
 import { API_BASE_URL } from '../../app/config';
 
-const USE_MOCK = true; // đổi false để dùng API thật
+const USE_MOCK = false; // đổi false để dùng API thật
 
 // ================== list ==================
 export async function listCapstoneGroups({ page = 1, pageSize = 100 } = {}) {
   if (!USE_MOCK) {
-    const res = await client.get(`/api/staff/capstone-groups`, {
+    const res = await client.get(`/Staff/capstone-groups`, {
       params: { page, pageSize },
     });
     const payload = res.data;
@@ -52,7 +52,7 @@ export async function listCapstoneGroups({ page = 1, pageSize = 100 } = {}) {
 // ================== detail ==================
 export async function getCapstoneGroupDetail(groupId) {
   if (!USE_MOCK) {
-    const res = await client.get(`/api/staff/capstone-groups/${groupId}`);
+    const res = await client.get(`/Staff/capstone-groups/${groupId}`);
     const payload = res.data;
     const raw = payload?.data ?? payload;
     const normalized = raw ? {

@@ -11,7 +11,8 @@ async function triggerLogout() {
   } catch {}
 }
 
-const client = axios.create({ baseURL: API_BASE_URL, withCredentials: true });
+const normalizedBaseURL = (API_BASE_URL || '').replace(/\/+$/, '');
+const client = axios.create({ baseURL: normalizedBaseURL, withCredentials: true });
 
 // Request Interceptor
 client.interceptors.request.use((config) => {

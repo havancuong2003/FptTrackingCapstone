@@ -17,33 +17,26 @@ export function getCurrentUser() {
 }
 
 export async function login({ username, password }) {
- 
-  // --- mock staff ---
-  if (username === 'staff' && password === 'staff123') {
-    localStorage.setItem(USER_ROLE_KEY, 'STAFF');
-    localStorage.setItem(USER_INFO_KEY, JSON.stringify({ id: 'u_1', name: 'Staff', role: 'STAFF' }));
-    
-    return { message: 'Login successfully' };
-  }
- 
- 
   if (!username || !password) {
     throw new Error('Thiếu thông tin đăng nhập');
   }
 
   try {
-    await client.post('/auth/login', { username, password });
+    const res = await client.post('/auth/login', { userName : username, password });
+    console.log("res login", res);
   } catch (e) {
     const msg = e?.response?.data?.message || e?.message || 'Đăng nhập thất bại';
     throw new Error(msg);
   }
 
   try {
-    const meRes = await client.get('/auth/me');
+    const meRes = await client.get('/auth/user-info');
     const meBody = meRes?.data;
     const me = meBody?.data || meBody || null;
     if (me) {
+      console.log("me", me);
       const role = me.role || localStorage.getItem(USER_ROLE_KEY) || 'STUDENT';
+      console.log("role", role);
       localStorage.setItem(USER_ROLE_KEY, role);
       localStorage.setItem(
         USER_INFO_KEY,
@@ -57,12 +50,12 @@ export async function login({ username, password }) {
 
 export async function logout() {
   try {
-    // mock logout
+  
+    await client.post('/auth/logout');
     localStorage.removeItem(USER_ROLE_KEY);
     localStorage.removeItem(USER_INFO_KEY);
     resetLoading();
     return;
-   // await client.post('/auth/logout');
   } catch {}
   localStorage.removeItem(USER_ROLE_KEY);
   localStorage.removeItem(USER_INFO_KEY);

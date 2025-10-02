@@ -7,7 +7,7 @@ import { useLayout } from './LayoutContext';
 
 export default function Sidebar() {
   const user = getCurrentUser();
-  const items = getMenuForRole(user.role);
+  const items = getMenuForRole((user.role || '').toString());
   const { sidebarOpen } = useLayout();
 
   return (
