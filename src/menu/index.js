@@ -5,7 +5,8 @@ import studentMenu from './student';
 import teacherMenu from './teacher';
 
 export function getMenuForRole(role) {
-  switch (role) {
+  const normalized = String(role || '').toUpperCase();
+  switch (normalized) {
     case Role.ADMIN:
       return adminMenu;
     case Role.STAFF:
