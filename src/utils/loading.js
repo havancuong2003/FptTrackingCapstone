@@ -22,4 +22,9 @@ export function startLoading() {
 export function stopLoading() {
   loadingCount = Math.max(0, loadingCount - 1);
   emit();
+}
+
+export function resetLoading() {
+  loadingCount = 0;
+  emit();
 } 

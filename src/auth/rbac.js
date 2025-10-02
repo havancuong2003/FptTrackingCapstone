@@ -5,7 +5,7 @@ export const Role = {
   TEACHER: 'TEACHER',
 };
 
-export function hasRole(user, roles) {
-  if (!roles || roles.length === 0) return true;
-  return roles.includes(user.role);
+export function hasRole(user, role) {
+  if (!role) return true;
+  return role.includes(user.role);
 } 
