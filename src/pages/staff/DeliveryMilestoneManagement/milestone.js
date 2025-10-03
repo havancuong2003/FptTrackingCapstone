@@ -2,237 +2,314 @@ import React from "react";
 import Select from "../../../components/Select/Select";
 import Input from "../../../components/Input/Input";
 import Button from "../../../components/Button/Button";
+import client from "../../../utils/axiosClient";
 import Modal from "../../../components/Modal/Modal";
 
-// Mock course codes
-const COURSE_CODES = [
-    { value: "ALL", label: "All" },
-    { value: "SEP490", label: "SEP490" },
-    { value: "SEP491", label: "SEP491" },
-    { value: "SEP492", label: "SEP492" },
-];
-
-// Seed mock milestones
-function createMockMilestones() {
-    const base = [
-        {
-            id: "SE01",
-            code: "SEP490",
-            name: "Report 1",
-            description:
-                "Provides an overview of the project, including scope, objectives, target users.",
-        },
-        {
-            id: "SE02",
-            code: "SEP490",
-            name: "Report 2",
-            description:
-                "Describes the general perspective of the system, including its main functions.",
-        },
-        {
-            id: "SE03",
-            code: "SEP490",
-            name: "Report 3",
-            description:
-                "Lists and details the core features of the system with explanations.",
-        },
-        {
-            id: "SE04",
-            code: "SEP490",
-            name: "Project Breakdown Document",
-            description:
-                "Outlines the project structure by breaking it down into smaller tasks and modules.",
-        },
-        {
-            id: "SE05",
-            code: "SEP490",
-            name: "Report 4",
-            description:
-                "Specifies the requirements for external interfaces including user interfaces.",
-        },
-        {
-            id: "SE06",
-            code: "SEP490",
-            name: "Report 5",
-            description:
-                "Outlines both functional and non-functional requirements of the system.",
-        },
-        {
-            id: "SE07",
-            code: "SEP490",
-            name: "Report 6",
-            description:
-                "Presents main system use cases with supporting UML diagrams.",
-        },
-        {
-            id: "SE08",
-            code: "SEP490",
-            name: "Test Document",
-            description:
-                "Describes testing strategy, test cases, and expected results for validation.",
-        },
-        {
-            id: "SE09",
-            code: "SEP490",
-            name: "Report 7",
-            description:
-                "Consolidates previous reports into a complete, well-structured SRS document.",
-        },
-    ];
-
-    // Duplicate a few to other course codes with different dates
-    const now = Date.now();
-    return base
-        .concat(
-            base.slice(0, 4).map((m, idx) => ({
-                ...m,
-                id: `SX${String(idx + 1).padStart(2, "0")}`,
-                code: "SEP491",
-            })),
-            base.slice(0, 3).map((m, idx) => ({
-                ...m,
-                id: `SY${String(idx + 1).padStart(2, "0")}`,
-                code: "SEP492",
-            }))
-        )
-        .map((m, i) => ({
-            ...m,
-            createdAt: new Date(now - (i + 1) * 86400000).toISOString(),
-            updatedAt: new Date(now - (i + 1) * 3600000).toISOString(),
-        }));
-}
-
 function Milestone() {
-    const [milestones, setMilestones] = React.useState(createMockMilestones());
-    const [selectedCode, setSelectedCode] = React.useState("SEP490");
+    const [majors, setMajors] = React.useState([]);
+    const [selectedMajorId, setSelectedMajorId] = React.useState("");
+    const [milestones, setMilestones] = React.useState([]);
     const [search, setSearch] = React.useState("");
-    const [sortBy, setSortBy] = React.useState("name"); // name | createdAt | updatedAt
+    const [sortBy, setSortBy] = React.useState("name"); // name | createAt
+    const [page, setPage] = React.useState(1);
+    const pageSize = 10;
 
-    const [isModalOpen, setIsModalOpen] = React.useState(false);
+    // Edit modal state
+    const [isEditOpen, setIsEditOpen] = React.useState(false);
     const [editingItem, setEditingItem] = React.useState(null);
+    const [editError, setEditError] = React.useState("");
+
+    // Create-many modal state
+    const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+    const [createMajorId, setCreateMajorId] = React.useState("");
+    const [createRows, setCreateRows] = React.useState([]); // { id, name, description }
+    const [createError, setCreateError] = React.useState("");
+
+    // Load majors on mount and select the first one
+    React.useEffect(() => {
+        let mounted = true;
+        async function fetchMajors() {
+            try {
+                const res = await client.get(
+                    "https://160.30.21.113:5000/api/Staff/GetMajors"
+                );
+                const body = res?.data || {};
+                const list = Array.isArray(body.data) ? body.data : [];
+                if (!mounted) return;
+                setMajors(list);
+                if (list.length > 0) {
+                    setSelectedMajorId(String(list[0].id));
+                    setCreateMajorId(String(list[0].id));
+                }
+            } catch (e) {
+                if (!mounted) return;
+                setMajors([]);
+            }
+        }
+        fetchMajors();
+        return () => {
+            mounted = false;
+        };
+    }, []);
+
+    // Load milestones when selectedMajorId changes
+    React.useEffect(() => {
+        let mounted = true;
+        async function fetchMilestones() {
+            if (!selectedMajorId) return;
+            try {
+                const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
+                    selectedMajorId
+                )}&semesterId=1`;
+                const res = await client.get(url);
+                const body = res?.data || {};
+                const list = Array.isArray(body.data) ? body.data : [];
+                if (!mounted) return;
+                setMilestones(list);
+                setPage(1);
+            } catch (e) {
+                if (!mounted) return;
+                setMilestones([]);
+            }
+        }
+        fetchMilestones();
+        return () => {
+            mounted = false;
+        };
+    }, [selectedMajorId]);
 
     const filtered = React.useMemo(() => {
         const lower = search.trim().toLowerCase();
         let list = milestones.filter((m) => {
-            const codeOk = selectedCode === "ALL" || m.code === selectedCode;
             const searchOk =
                 lower === "" ||
-                m.code.toLowerCase().includes(lower) ||
-                m.name.toLowerCase().includes(lower);
-            return codeOk && searchOk;
+                (m.name || "").toLowerCase().includes(lower) ||
+                (m.description || "").toLowerCase().includes(lower) ||
+                (m.majorName || "").toLowerCase().includes(lower);
+            return searchOk;
         });
 
         list.sort((a, b) => {
-            if (sortBy === "name") return a.name.localeCompare(b.name);
-            if (sortBy === "createdAt")
-                return new Date(a.createdAt) - new Date(b.createdAt);
-            if (sortBy === "updatedAt")
-                return new Date(a.updatedAt) - new Date(b.updatedAt);
+            if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
+            if (sortBy === "createAt")
+                return new Date(a.createAt || 0) - new Date(b.createAt || 0);
             return 0;
         });
 
         return list;
-    }, [milestones, selectedCode, search, sortBy]);
+    }, [milestones, search, sortBy]);
 
-    function openCreate() {
-        setEditingItem({
-            id: "",
-            code: selectedCode === "ALL" ? "SEP490" : selectedCode,
-            name: "",
-            description: "",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        });
-        setIsModalOpen(true);
-    }
+    const selectedMajor = React.useMemo(() => {
+        return majors.find((m) => String(m.id) === String(selectedMajorId)) || null;
+    }, [majors, selectedMajorId]);
+
+    const paged = React.useMemo(() => {
+        const start = (page - 1) * pageSize;
+        return filtered.slice(start, start + pageSize);
+    }, [filtered, page]);
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 
     function openEdit(item) {
-        setEditingItem({ ...item });
-        setIsModalOpen(true);
+        setEditingItem({ ...item, code: selectedMajor?.code || "" });
+        setEditError("");
+        setIsEditOpen(true);
     }
 
-    function closeModal() {
-        setIsModalOpen(false);
+    function closeEdit() {
+        setIsEditOpen(false);
         setEditingItem(null);
+        setEditError("");
     }
 
-    function saveItem(e) {
+    async function saveEdit(e) {
         e.preventDefault();
         if (!editingItem) return;
-        if (!editingItem.name.trim()) return;
-
-        setMilestones((prev) => {
-            const exists = prev.some(
-                (m) => m.id === editingItem.id && m.code === editingItem.code
-            );
-            if (exists) {
-                return prev.map((m) =>
-                    m.id === editingItem.id && m.code === editingItem.code
-                        ? {
-                              ...editingItem,
-                              updatedAt: new Date().toISOString(),
-                          }
-                        : m
-                );
-            }
-            const newId =
-                editingItem.id ||
-                `M${String(prev.length + 1).padStart(3, "0")}`;
-            return [
-                ...prev,
+        const name = (editingItem.name || "").trim();
+        if (!name) {
+            setEditError("Name is required");
+            return;
+        }
+        const dup = milestones.some(
+            (m) => m.id !== editingItem.id && (m.name || "").toLowerCase() === name.toLowerCase()
+        );
+        if (dup) {
+            setEditError("Name must be unique");
+            return;
+        }
+        try {
+            const body = [
                 {
-                    ...editingItem,
-                    id: newId,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
+                    id: editingItem.id,
+                    name,
+                    description: editingItem.description || "",
+                    deadline: null,
+                    majorId: Number(selectedMajorId),
+                    semesterId: 1,
                 },
             ];
-        });
-        closeModal();
+            await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", body);
+            closeEdit();
+            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
+                selectedMajorId
+            )}&semesterId=1`;
+            const res = await client.get(url);
+            const bodyRes = res?.data || {};
+            setMilestones(Array.isArray(bodyRes.data) ? bodyRes.data : []);
+        } catch (err) {
+            setEditError(err?.message || "Update failed");
+        }
+    }
+
+    function openCreate() {
+        setCreateRows([{ id: "", name: "", description: "" }]);
+        setCreateError("");
+        setIsCreateOpen(true);
+    }
+
+    function closeCreate() {
+        setIsCreateOpen(false);
+        setCreateRows([]);
+        setCreateError("");
+    }
+
+    function updateCreateRow(index, field, value) {
+        setCreateRows((prev) => prev.map((r, i) => (i === index ? { ...r, [field]: value } : r)));
+    }
+
+    function addCreateRow() {
+        setCreateRows((prev) => [...prev, { id: "", name: "", description: "" }]);
+    }
+
+    function removeCreateRow(index) {
+        setCreateRows((prev) => prev.filter((_, i) => i !== index));
+    }
+
+    async function saveCreate(e) {
+        e.preventDefault();
+        const majorIdNum = Number(createMajorId || selectedMajorId);
+        if (!majorIdNum) {
+            setCreateError("Please select major");
+            return;
+        }
+        const trimmed = createRows.map((r) => ({
+            id: (r.id || "").toString().trim(),
+            name: (r.name || "").trim(),
+            description: (r.description || "").trim(),
+        }));
+        if (trimmed.some((r) => !r.id || !r.name)) {
+            setCreateError("ID and Name are required in all rows");
+            return;
+        }
+        const ids = new Set();
+        const names = new Set();
+        for (const r of trimmed) {
+            const idKey = r.id.toLowerCase();
+            const nameKey = r.name.toLowerCase();
+            if (ids.has(idKey) || names.has(nameKey)) {
+                setCreateError("IDs and Names must be unique across new rows");
+                return;
+            }
+            ids.add(idKey);
+            names.add(nameKey);
+        }
+        const existIdSet = new Set(milestones.map((m) => String(m.id).toLowerCase()));
+        const existNameSet = new Set(milestones.map((m) => (m.name || "").toLowerCase()));
+        if (
+            trimmed.some(
+                (r) => existIdSet.has(r.id.toLowerCase()) || existNameSet.has(r.name.toLowerCase())
+            )
+        ) {
+            setCreateError("ID or Name already exists");
+            return;
+        }
+        try {
+            const payload = trimmed.map((r) => ({
+                id: Number(r.id),
+                name: r.name,
+                description: r.description,
+                deadline: null,
+                majorId: majorIdNum,
+                semesterId: 1,
+            }));
+            await client.post("https://160.30.21.113:5000/api/v1/Staff/milestones", payload);
+            closeCreate();
+            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
+                selectedMajorId
+            )}&semesterId=1`;
+            const res = await client.get(url);
+            const bodyRes = res?.data || {};
+            setMilestones(Array.isArray(bodyRes.data) ? bodyRes.data : []);
+        } catch (err) {
+            setCreateError(err?.message || "Create failed");
+        }
     }
 
     return (
         <div style={{ padding: 16 }}>
             <div
                 style={{
-                    display: "flex",
+                    display: "grid",
+                    gridTemplateColumns: "auto 1fr auto",
                     alignItems: "center",
                     gap: 16,
                     marginBottom: 16,
+                    background: "#fff",
+                    padding: 12,
+                    border: "1px solid #e5e7eb",
+                    borderRadius: 8,
                 }}
             >
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {/* Code select */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 240 }}>
                     <span style={{ fontWeight: 600 }}>Code:</span>
-                    <Select
-                        value={selectedCode}
-                        onChange={(e) => setSelectedCode(e.target.value)}
-                    >
-                        {COURSE_CODES.map((c) => (
-                            <option key={c.value} value={c.value}>
-                                {c.label}
-                            </option>
-                        ))}
-                    </Select>
+                    <div style={{ width: 160 }}>
+                        <Select
+                            value={selectedMajorId}
+                            onChange={(e) => setSelectedMajorId(e.target.value)}
+                        >
+                            {majors.map((m) => (
+                                <option key={m.id} value={m.id}>
+                                    {m.code}
+                                </option>
+                            ))}
+                        </Select>
+                    </div>
                 </div>
 
-                <div style={{ flex: 1 }}>
+                {/* Search box with trailing icon inside input */}
+                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                     <Input
                         placeholder="Search for Capstone Milestone by Code or Milestone Name..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
+                        style={{ width: "100%", paddingRight: 40 }}
                     />
+                    <span
+                        aria-hidden
+                        style={{
+                            position: "absolute",
+                            right: 12,
+                            color: "#94a3b8",
+                            pointerEvents: "none",
+                        }}
+                    >
+                        🔍
+                    </span>
                 </div>
 
+                {/* Sort by select */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontWeight: 600 }}>Sort by:</span>
-                    <Select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value)}
-                    >
-                        <option value="name">Name</option>
-                        <option value="createdAt">Created time</option>
-                        <option value="updatedAt">Updated time</option>
-                    </Select>
+                    <div style={{ width: 160 }}>
+                        <Select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                        >
+                            <option value="name">Name</option>
+                            <option value="createAt">Created time</option>
+                        </Select>
+                    </div>
                 </div>
             </div>
 
@@ -309,15 +386,15 @@ function Milestone() {
                         </tr>
                     </thead>
                     <tbody>
-                        {filtered.map((m, idx) => (
-                            <tr key={`${m.code}-${m.id}`}>
+                        {paged.map((m, idx) => (
+                            <tr key={m.id}>
                                 <td
                                     style={{
                                         padding: 12,
                                         borderBottom: "1px solid #f1f5f9",
                                     }}
                                 >
-                                    {idx + 1}
+                                    {(page - 1) * pageSize + idx + 1}
                                 </td>
                                 <td
                                     style={{
@@ -333,7 +410,7 @@ function Milestone() {
                                         borderBottom: "1px solid #f1f5f9",
                                     }}
                                 >
-                                    {m.code}
+                                    {selectedMajor?.code || ""}
                                 </td>
                                 <td
                                     style={{
@@ -348,7 +425,6 @@ function Milestone() {
                                     style={{
                                         padding: 12,
                                         borderBottom: "1px solid #f1f5f9",
-                                        color: "#334155",
                                     }}
                                 >
                                     {m.description}
@@ -359,12 +435,7 @@ function Milestone() {
                                         borderBottom: "1px solid #f1f5f9",
                                     }}
                                 >
-                                    <Button
-                                        size="sm"
-                                        onClick={() => openEdit(m)}
-                                    >
-                                        Edit ✎
-                                    </Button>
+                                    <Button size="sm" onClick={() => openEdit(m)}>Edit ✎</Button>
                                 </td>
                             </tr>
                         ))}
@@ -385,7 +456,19 @@ function Milestone() {
                     </tbody>
                 </table>
             </div>
+            {/* Pagination */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
+                <div style={{ color: "#64748b" }}>
+                    Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <Button variant="ghost" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</Button>
+                    <span>Page {page} / {totalPages}</span>
+                    <Button variant="ghost" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+                </div>
+            </div>
 
+            {/* Create button at the bottom-right */}
             <div
                 style={{
                     display: "flex",
@@ -393,115 +476,95 @@ function Milestone() {
                     marginTop: 16,
                 }}
             >
-                <Button variant="secondary" onClick={openCreate}>
-                    Create +
-                </Button>
+                <Button variant="secondary" onClick={openCreate}>Create +</Button>
             </div>
 
-            <Modal open={isModalOpen} onClose={closeModal}>
+            {/* Edit Modal */}
+            <Modal open={isEditOpen} onClose={closeEdit}>
                 {editingItem && (
-                    <form
-                        onSubmit={saveItem}
-                        style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            gap: 12,
-                        }}
-                    >
-                        <h3 style={{ margin: 0 }}>
-                            {editingItem.id
-                                ? "Edit Milestone"
-                                : "Create Milestone"}
-                        </h3>
-                        <label
-                            style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 6,
-                            }}
-                        >
-                            <span>Course code</span>
-                            <Select
-                                value={editingItem.code}
-                                onChange={(e) =>
-                                    setEditingItem({
-                                        ...editingItem,
-                                        code: e.target.value,
-                                    })
-                                }
-                            >
-                                {COURSE_CODES.filter(
-                                    (c) => c.value !== "ALL"
-                                ).map((c) => (
-                                    <option key={c.value} value={c.value}>
-                                        {c.label}
-                                    </option>
-                                ))}
-                            </Select>
+                    <form onSubmit={saveEdit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        <h3 style={{ margin: 0 }}>Edit Milestone</h3>
+                        {editError && <div style={{ color: "#dc2626" }}>{editError}</div>}
+                        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <span>ID</span>
+                            <Input value={editingItem.id} disabled />
                         </label>
-                        <label
-                            style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 6,
-                            }}
-                        >
-                            <span>Milestone name</span>
-                            <Input
-                                value={editingItem.name}
-                                onChange={(e) =>
-                                    setEditingItem({
-                                        ...editingItem,
-                                        name: e.target.value,
-                                    })
-                                }
-                                placeholder="Enter milestone name"
-                            />
+                        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <span>Code</span>
+                            <Input value={selectedMajor?.code || ""} disabled />
                         </label>
-                        <label
-                            style={{
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 6,
-                            }}
-                        >
+                        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <span>Name</span>
+                            <Input value={editingItem.name || ""} onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })} placeholder="Enter milestone name" />
+                        </label>
+                        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                             <span>Description</span>
-                            <textarea
-                                value={editingItem.description}
-                                onChange={(e) =>
-                                    setEditingItem({
-                                        ...editingItem,
-                                        description: e.target.value,
-                                    })
-                                }
-                                rows={4}
-                                style={{
-                                    padding: 8,
-                                    border: "1px solid #e5e7eb",
-                                    borderRadius: 6,
-                                }}
-                                placeholder="Describe milestone"
-                            />
+                            <textarea value={editingItem.description || ""} onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })} rows={4} style={{ padding: 8, border: "1px solid #e5e7eb", borderRadius: 6 }} placeholder="Describe milestone" />
                         </label>
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "flex-end",
-                                gap: 8,
-                                marginTop: 8,
-                            }}
-                        >
-                            <Button
-                                variant="ghost"
-                                type="button"
-                                onClick={closeModal}
-                            >
-                                Cancel
-                            </Button>
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
+                            <Button variant="ghost" type="button" onClick={closeEdit}>Cancel</Button>
                             <Button type="submit">Save</Button>
                         </div>
                     </form>
                 )}
+            </Modal>
+
+            {/* Create-many Modal */}
+            <Modal open={isCreateOpen} onClose={closeCreate}>
+                <form onSubmit={saveCreate} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <h3 style={{ margin: 0 }}>Create Milestone Items</h3>
+                    {createError && <div style={{ color: "#dc2626" }}>{createError}</div>}
+                    <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span>Major</span>
+                        <Select value={createMajorId} onChange={(e) => setCreateMajorId(e.target.value)}>
+                            {majors.map((m) => (
+                                <option key={m.id} value={m.id}>{m.code} - {m.name}</option>
+                            ))}
+                        </Select>
+                    </label>
+                    <div style={{ overflow: "auto", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+                        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+                            <thead style={{ background: "#f9fafb" }}>
+                                <tr>
+                                    <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>ID</th>
+                                    <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>Name</th>
+                                    <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>Description</th>
+                                    <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {createRows.map((row, idx) => (
+                                    <tr key={idx}>
+                                        <td style={{ padding: 12, borderBottom: "1px solid #f1f5f9" }}>
+                                            <Input value={row.id} onChange={(e) => updateCreateRow(idx, "id", e.target.value)} placeholder="e.g. 10" />
+                                        </td>
+                                        <td style={{ padding: 12, borderBottom: "1px solid #f1f5f9" }}>
+                                            <Input value={row.name} onChange={(e) => updateCreateRow(idx, "name", e.target.value)} placeholder="Milestone name" />
+                                        </td>
+                                        <td style={{ padding: 12, borderBottom: "1px solid #f1f5f9" }}>
+                                            <Input value={row.description} onChange={(e) => updateCreateRow(idx, "description", e.target.value)} placeholder="Description" />
+                                        </td>
+                                        <td style={{ padding: 12, borderBottom: "1px solid #f1f5f9" }}>
+                                            <Button variant="ghost" size="sm" type="button" onClick={() => removeCreateRow(idx)}>Remove</Button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {createRows.length === 0 && (
+                                    <tr>
+                                        <td colSpan={4} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>No rows. Click "Add row".</td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <Button variant="ghost" type="button" onClick={addCreateRow}>Add row</Button>
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <Button variant="ghost" type="button" onClick={closeCreate}>Cancel</Button>
+                            <Button type="submit">Create</Button>
+                        </div>
+                    </div>
+                </form>
             </Modal>
         </div>
     );

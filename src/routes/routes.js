@@ -33,6 +33,7 @@ const Milestone = React.lazy(() =>
 const Delivery = React.lazy(() =>
   import("../pages/staff/DeliveryMilestoneManagement/delivery")
 );
+const GroupTracking = React.lazy(() => import("../pages/staff/Tracking/grouptracking"));
 export const routes = [
   {
     path: "/",
@@ -161,6 +162,11 @@ export const routes = [
     path: "/tracking",
     element: Tracking,
     meta: { title: "Tracking", protected: true, roles: ["STAFF"] },
+  },
+  {
+    path: "/staff/tracking/group/:groupId",
+    element: GroupTracking,
+    meta: { title: "Group Tracking", protected: true, roles: ["STAFF"] },
   },
   {
     path: "/milestones-management",
