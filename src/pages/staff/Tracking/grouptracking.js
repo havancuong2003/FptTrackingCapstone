@@ -1,28 +1,107 @@
 import React from 'react';
 import Select from "../../../components/Select/Select";
 import Button from "../../../components/Button/Button";
+import client from "../../../utils/axiosClient";
+import { mockGroupTrackingApi } from "../../../mocks/mockstaff/groupTrackingApiResponse";
 
 export default function GroupTracking() {
-    const [selectedWeek, setSelectedWeek] = React.useState("Week 2: 22/09/2025 - 28/09/2025");
+    // Control variable for mock data vs API
+    const USE_MOCKDATA = false;
+    // State for API data
+    const [apiData, setApiData] = React.useState(null);
+    const [loading, setLoading] = React.useState(false);
+    const [error, setError] = React.useState(null);
+    const [selectedWeek, setSelectedWeek] = React.useState('');
 
-    // Mock data - replace with API calls later
-    const weeks = [
+    // API call function
+    const fetchGroupTrackingData = async (groupId, startDate, endDate) => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+
+            // request to api
+            // const response = await client.get('/staff/group-tracking', {
+            //     params: {
+            //         groupid: groupId,
+            //         startdate: startDate,
+            //         enddate: endDate
+            //     }
+            // });
+            // Sử dụng mock API thay vì gọi API thật
+            const response = await mockGroupTrackingApi(groupId, startDate, endDate);
+            
+            if (response.status === '200') {
+                setApiData(response.data);
+                // Chỉ set currentWeek lần đầu khi chưa có selectedWeek
+                if (response.data.currentWeek && !selectedWeek) {
+                    setSelectedWeek(response.data.currentWeek);
+                    console.log('Set initial selectedWeek from API:', response.data.currentWeek);
+                }
+            } else {
+                throw new Error(response.message || 'Failed to fetch data');
+            }
+        } catch (err) {
+            setError(err.message || 'Error fetching data');
+            console.error('API Error:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Extract dates from selected week
+    const extractDatesFromWeek = (weekString) => {
+        const dateMatch = weekString.match(/(\d{2}\/\d{2}\/\d{4}) - (\d{2}\/\d{2}\/\d{4})/);
+        if (dateMatch) {
+            return {
+                startDate: dateMatch[1],
+                endDate: dateMatch[2]
+            };
+        }
+        return null;
+    };
+
+    // Effect to fetch data when component mounts
+    React.useEffect(() => {
+        if (!USE_MOCKDATA) {
+            // Gọi API ngay khi component mount, không cần selectedWeek
+            const groupId = 'GR01'; // This should come from props or context
+            console.log('Calling mock API on mount');
+            fetchGroupTrackingData(groupId, '29/09/2025', '05/10/2025'); // Default dates for Week 3
+        }
+    }, []); // Chỉ chạy khi component mount
+
+    // Effect để gọi API khi user thay đổi week thủ công
+    React.useEffect(() => {
+        if (!USE_MOCKDATA && apiData) {
+            // Chỉ gọi API khi đã có data từ lần đầu và user thay đổi week
+            const dates = extractDatesFromWeek(selectedWeek);
+            if (dates) {
+                const groupId = 'GR01';
+                console.log('User changed week, calling API with:', { groupId, startDate: dates.startDate, endDate: dates.endDate });
+                fetchGroupTrackingData(groupId, dates.startDate, dates.endDate);
+            }
+        }
+    }, [selectedWeek]); // Chạy khi selectedWeek thay đổi
+
+    // Data source - either mock or API
+    const weeks = USE_MOCKDATA ? [
         { value: "Week 1: 15/09/2025 - 21/09/2025", label: "Week 1: 15/09/2025 - 21/09/2025" },
         { value: "Week 2: 22/09/2025 - 28/09/2025", label: "Week 2: 22/09/2025 - 28/09/2025" },
-        { value: "Week 3: 29/09/2025 - 05/10/2025", label: "Week 3: 29/09/2025 - 05/10/2025" },
+        { value: "Week 9: 29/09/2025 - 05/10/2025", label: "Week 3: 29/09/2025 - 05/10/2025" },
         { value: "Week 4: 06/10/2025 - 12/10/2025", label: "Week 4: 06/10/2025 - 12/10/2025" },
-    ];
+    ] : (apiData?.weeks || []);
 
-    const timeSlots = [
+    const timeSlots = USE_MOCKDATA ? [
         "00:00 - 04:00",
         "04:00 - 08:00", 
         "08:00 - 12:00",
         "12:00 - 16:00",
         "16:00 - 20:00",
         "20:00 - 24:00"
-    ];
+    ] : (apiData?.timeSlots || []);
 
-    const days = [
+    const days = USE_MOCKDATA ? [
         { name: "Monday", date: "22/09" },
         { name: "Tuesday", date: "23/09" },
         { name: "Wednesday", date: "24/09" },
@@ -30,17 +109,18 @@ export default function GroupTracking() {
         { name: "Friday", date: "26/09" },
         { name: "Saturday", date: "27/09" },
         { name: "Sunday", date: "28/09" }
-    ];
+    ] : (apiData?.days || []);
 
-    const groupMembers = [
+    // Data source - either mock or API
+    const groupMembers = USE_MOCKDATA ? [
         { id: "SE00001", name: "Nguyen Van A", isLeader: true },
         { id: "SE00002", name: "Nguyen Van B", isLeader: false },
         { id: "SE00003", name: "Nguyen Van C", isLeader: false },
         { id: "SE00004", name: "Nguyen Van D", isLeader: false },
         { id: "SE00005", name: "Nguyen Van E", isLeader: false },
-    ];
+    ] : (apiData?.groupMembers || []);
 
-    const milestones = [
+    const milestones = USE_MOCKDATA ? [
         { name: "Report 1", deadline: "23:59 - 28/09/2025", status: "submitted" },
         { name: "Report 2", deadline: "23:59 - 12/10/2025", status: "late" },
         { name: "Report 3, Project Breakdown", deadline: "23:59 - 26/10/2025", status: "not-submitted" },
@@ -48,7 +128,7 @@ export default function GroupTracking() {
         { name: "Report 5", deadline: "23:59 - 23/11/2025", status: "not-submitted" },
         { name: "Report 6, Test Document", deadline: "23:59 - 07/12/2025", status: "not-submitted" },
         { name: "Report 7", deadline: "23:59 - 21/12/2025", status: "not-submitted" },
-    ];
+    ] : (apiData?.milestones || []);
 
     function getStatusIcon(status) {
         switch (status) {
@@ -61,6 +141,34 @@ export default function GroupTracking() {
             default:
                 return { icon: "?", color: "#64748b", text: "Unknown" };
         }
+    }
+
+    // Show loading state
+    if (loading) {
+        return (
+            <div style={{ padding: 16, textAlign: 'center' }}>
+                <div>Loading...</div>
+            </div>
+        );
+    }
+
+    // Show error state
+    if (error) {
+        return (
+            <div style={{ padding: 16 }}>
+                <div style={{ color: '#dc2626', marginBottom: 16 }}>
+                    Error: {error}
+                </div>
+                <Button onClick={() => {
+                    const dates = extractDatesFromWeek(selectedWeek);
+                    if (dates) {
+                        fetchGroupTrackingData('GR01', dates.startDate, dates.endDate);
+                    }
+                }}>
+                    Retry
+                </Button>
+            </div>
+        );
     }
 
     return (

@@ -21,6 +21,19 @@ export async function login({ username, password }) {
     throw new Error('Thiếu thông tin đăng nhập');
   }
 
+  // Mock login cho testing
+  if (username === 'abc' && password === '123') {
+    console.log('Mock login: abc/123 detected, setting as staff');
+    const mockUser = {
+      id: 'mock_staff_1',
+      name: 'Mock Staff User',
+      role: 'STAFF'
+    };
+    localStorage.setItem(USER_ROLE_KEY, 'STAFF');
+    localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser));
+    return { message: 'Mock login successfully' };
+  }
+
   try {
     const res = await client.post('/auth/login', { userName : username, password });
     console.log("res login", res);
