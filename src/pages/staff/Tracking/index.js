@@ -51,7 +51,7 @@ export default function Tracking() {
         async function loadGroups() {
             setLoading(true);
             try {
-                const url = `https://160.30.21.113:5000/api/Staff/capstone-groups?page=${page}&pageSize=${pageSize}`;
+                const url = `https://160.30.21.113:5000/api/v1/Staff/capstone-groups?page=${page}&pageSize=${pageSize}`;
                 const res = await client.get(url);
                 const data = res?.data?.data || {};
                 if (!mounted) return;

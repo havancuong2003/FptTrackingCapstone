@@ -21,15 +21,15 @@ export default function GroupTracking() {
             
 
             // request to api
-            // const response = await client.get('/staff/group-tracking', {
-            //     params: {
-            //         groupid: groupId,
-            //         startdate: startDate,
-            //         enddate: endDate
-            //     }
-            // });
+            const response = await client.get('/staff/group-tracking', {
+                params: {
+                    groupid: groupId,
+                    startdate: startDate,
+                    enddate: endDate
+                }
+            });
             // Sử dụng mock API thay vì gọi API thật
-            const response = await mockGroupTrackingApi(groupId, startDate, endDate);
+            // const response = await mockGroupTrackingApi(groupId, startDate, endDate);
             
             if (response.status === '200') {
                 setApiData(response.data);
