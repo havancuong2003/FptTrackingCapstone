@@ -20,6 +20,10 @@ jobs:
           node-version: '20'
 
       - name: Install dependencies & Build React
+        env:
+          REACT_APP_API_BASE_URL: ${{ secrets.REACT_APP_API_BASE_URL }}
+          PORT: ${{ secrets.PORT }}
+          HOST: ${{ secrets.HOST }}
         run: |
           npm -v
           node -v
