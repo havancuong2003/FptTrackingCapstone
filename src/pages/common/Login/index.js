@@ -10,7 +10,7 @@ import { useAuth } from '../../../auth/authProvider';
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const from = location.state?.from?.pathname || '/dashboard';
+  const from = location.state?.from?.pathname || '/';
   const [error, setError] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
   const { status, refresh } = useAuth();

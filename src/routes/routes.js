@@ -37,11 +37,16 @@ const GroupTracking = React.lazy(() => import("../pages/staff/Tracking/grouptrac
 const SemesterManagement = React.lazy(() => import("../pages/staff/SemesterManagement"));
 const SemesterList = React.lazy(() => import("../pages/staff/SemesterList"));
 const SemesterDetail = React.lazy(() => import("../pages/staff/SemesterDetail"));
+const DefaultPage = React.lazy(() => import("../pages/common/DefaultPage"));
 export const routes = [
   {
     path: "/",
-    element: RedirectToLogin,
-    meta: { title: "Login", public: true, layout: "none" },
+    element: DefaultPage,
+    meta: { 
+      title: "Trang chủ", 
+      protected: true, 
+      roles: ["ADMIN", "STAFF", "STUDENT", "TEACHER"] 
+    },
   },
   {
     path: "/home",
@@ -172,7 +177,7 @@ export const routes = [
     meta: { title: "Group Tracking", protected: true, roles: ["STAFF"] },
   },
   {
-    path: "/milestones-management",
+    path: "/milestones",
     element: Milestone,
     meta: {
       title: "Milestones Management",
