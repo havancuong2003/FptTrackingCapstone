@@ -9,8 +9,12 @@ const staffMenu = [
   // { path: "/tasks", label: "Quản lý Task" },
  // { path: "/settings", label: "Settings" },
   { path: "/tracking", label: "Capstone Tracking" },
-  { path: "/milestones-management", label: "Milestones Management" },
-  { path: "/delivery-management", label: "Delivery Management" },
+  { path: "/milestones", label: "Milestones Management" ,
+    children: [
+      { path: "/milestones", label: "Milestones" },
+      { path: "/delivery-management", label: "Delivery Item" },
+    ]
+  },
 ];
 
 export default staffMenu;

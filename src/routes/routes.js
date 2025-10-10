@@ -169,7 +169,7 @@ export const routes = [
     meta: { title: "Group Tracking", protected: true, roles: ["STAFF"] },
   },
   {
-    path: "/milestones-management",
+    path: "/milestones",
     element: Milestone,
     meta: {
       title: "Milestones Management",

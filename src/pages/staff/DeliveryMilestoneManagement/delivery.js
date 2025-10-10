@@ -18,8 +18,9 @@ export default function Delivery() {
     const [modalWeek, setModalWeek] = React.useState(1);
     const [modalDay, setModalDay] = React.useState("Monday");
     const [deadlineTime, setDeadlineTime] = React.useState("23:59");
-    const [selectedItems, setSelectedItems] = React.useState([]); // milestone ids selected to set deadline
+    const [selectedMilestone, setSelectedMilestone] = React.useState(null); // selected milestone
     const [modalError, setModalError] = React.useState("");
+    const [editingItems, setEditingItems] = React.useState([]); // items in the selected milestone
 
     // Load majors then milestones
     React.useEffect(() => {
@@ -47,9 +48,11 @@ export default function Delivery() {
         async function loadMilestones() {
             if (!selectedMajorId) return;
             try {
-                const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${selectedMajorId}&semesterId=1`;
+                const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${selectedMajorId}`;
                 const res = await client.get(url);
                 const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+                // Filter only active milestones
+                // const activeMilestones = list.filter(milestone => milestone.isActive === true);
                 if (!mounted) return;
                 setMilestones(list);
             } catch {
@@ -69,46 +72,146 @@ export default function Delivery() {
         setModalWeek(weekIndex + 1);
         setModalDay(DAYS[dayIndex]);
         setDeadlineTime("23:59");
-        // pre-select items already scheduled at this slot
-        const existingAtSlot = milestones
-            .filter((m) => (m.deadline || "").startsWith(`Week ${weekIndex + 1} - ${DAYS[dayIndex]}`))
-            .map((m) => m.id);
-        setSelectedItems(existingAtSlot);
+        setSelectedMilestone(null);
+        setEditingItems([]);
         setModalError("");
         setIsModalOpen(true);
     }
 
-    function toggleSelectItem(id) {
-        setSelectedItems((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    function openEditMilestone(milestone) {
+        // Extract current deadline info if exists
+        if (milestone.deadline) {
+            const parts = milestone.deadline.split(" - ");
+            if (parts.length >= 3) {
+                const weekPart = parts[0]; // "Week X"
+                const dayPart = parts[1]; // "Day"
+                const timePart = parts[2]; // "HH:MM"
+                setModalWeek(parseInt(weekPart.split(" ")[1]));
+                setModalDay(dayPart);
+                setDeadlineTime(timePart);
+            }
+        } else {
+            setModalWeek(1);
+            setModalDay("Monday");
+            setDeadlineTime("23:59");
+        }
+        setSelectedMilestone(milestone);
+        setEditingItems(milestone.items ? [...milestone.items] : []);
+        setModalError("");
+        setIsModalOpen(true);
+    }
+
+    function openViewMilestone(milestone) {
+        // For viewing milestone with existing deadline - show only its info
+        if (milestone.deadline) {
+            const parts = milestone.deadline.split(" - ");
+            if (parts.length >= 3) {
+                const weekPart = parts[0]; // "Week X"
+                const dayPart = parts[1]; // "Day"
+                const timePart = parts[2]; // "HH:MM"
+                setModalWeek(parseInt(weekPart.split(" ")[1]));
+                setModalDay(dayPart);
+                setDeadlineTime(timePart);
+            }
+        }
+        setSelectedMilestone(milestone);
+        setEditingItems(milestone.items ? [...milestone.items] : []);
+        setModalError("");
+        setIsModalOpen(true);
+    }
+
+    function selectMilestone(milestone) {
+        setSelectedMilestone(milestone);
+        setEditingItems(milestone.items ? [...milestone.items] : []);
+    }
+
+    function addItem() {
+        setEditingItems(prev => [...prev, { name: "", description: "" }]);
+    }
+
+    function removeItem(index) {
+        setEditingItems(prev => prev.filter((_, i) => i !== index));
+    }
+
+    function updateItem(index, field, value) {
+        setEditingItems(prev => prev.map((item, i) => 
+            i === index ? { ...item, [field]: value } : item
+        ));
     }
 
     async function saveDeadline(e) {
         e.preventDefault();
-        if (selectedItems.length === 0) {
-            setModalError("Please choose at least one milestone");
+        if (!selectedMilestone) {
+            setModalError("Please select a milestone");
+            return;
+        }
+        if (editingItems.some(item => !item.name.trim())) {
+            setModalError("All items must have a name");
             return;
         }
         const deadlineString = `Week ${modalWeek} - ${modalDay} - ${deadlineTime}`;
         try {
-            const payload = milestones
-                .filter((m) => selectedItems.includes(m.id))
-                .map((m) => ({
-                    id: m.id,
-                    name: m.name,
-                    description: m.description || "",
-                    deadline: deadlineString,
-                    majorId: Number(selectedMajorId),
-                    semesterId: 1,
-                }));
+            const payload = {
+                id: selectedMilestone.id,
+                name: selectedMilestone.name,
+                description: selectedMilestone.description || "",
+                deadline: deadlineString,
+                majorId: Number(selectedMajorId),
+                items: editingItems.map(item => {
+                    const itemData = {
+                        name: item.name.trim(),
+                        description: item.description.trim()
+                    };
+                    // Only include ID if it exists (for existing items)
+                    if (item.id) {
+                        itemData.id = item.id;
+                    }
+                    return itemData;
+                })
+            };
+            console.log(payload);
             await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", payload);
             setIsModalOpen(false);
             // refetch
-            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${selectedMajorId}&semesterId=1`;
+            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${selectedMajorId}`;
             const res = await client.get(url);
             const list = Array.isArray(res?.data?.data) ? res.data.data : [];
             setMilestones(list);
         } catch (err) {
             setModalError(err?.message || "Failed to save deadline");
+        }
+    }
+
+    async function removeDeadline() {
+        if (!selectedMilestone) return;
+        try {
+            const payload = {
+                id: selectedMilestone.id,
+                name: selectedMilestone.name,
+                description: selectedMilestone.description || "",
+                deadline: null,
+                majorId: Number(selectedMajorId),
+                items: editingItems.map(item => {
+                    const itemData = {
+                        name: item.name.trim(),
+                        description: item.description.trim()
+                    };
+                    // Only include ID if it exists (for existing items)
+                    if (item.id) {
+                        itemData.id = item.id;
+                    }
+                    return itemData;
+                })
+            };
+            await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", payload);
+            setIsModalOpen(false);
+            // refetch
+            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${selectedMajorId}`;
+            const res = await client.get(url);
+            const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+            setMilestones(list);
+        } catch (err) {
+            setModalError(err?.message || "Failed to remove deadline");
         }
     }
 
@@ -203,7 +306,7 @@ export default function Delivery() {
                                                         <span style={{ fontWeight: 600, fontSize: 13, color: "#0c4a6e" }}>{it.name}</span>
                                                         <span 
                                                             style={{ cursor: "pointer", color: "#64748b", fontSize: 12 }} 
-                                                            onClick={() => openCellEditor(w, d)} 
+                                                            onClick={() => openViewMilestone(it)} 
                                                             title="Edit"
                                                         >
                                                             ✎
@@ -280,69 +383,136 @@ export default function Delivery() {
                 <form onSubmit={saveDeadline} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                     <h3 style={{ margin: 0 }}>Delivery Milestone</h3>
                     {modalError && <div style={{ color: "#dc2626" }}>{modalError}</div>}
-                    <div>Timelines: <strong>Week {modalWeek}</strong></div>
-                    <div>Day: <strong>{modalDay}</strong></div>
+                    <div>Timeline: <strong>Week {modalWeek} - {modalDay}</strong></div>
                     <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span>Deadline:</span>
                         <Input type="time" value={deadlineTime} onChange={(e) => setDeadlineTime(e.target.value)} />
                     </label>
 
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        <span>Items:</span>
-                        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                            {selectedItems.map((id) => {
-                                const it = milestones.find((m) => m.id === id);
-                                if (!it) return null;
-                                return (
-                                    <span key={id} style={{ background: "#e0f2fe", color: "#0369a1", padding: "6px 10px", borderRadius: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                                        {it.name}
-                                        <button type="button" onClick={() => toggleSelectItem(id)} style={{ border: 0, background: "transparent", cursor: "pointer" }}>−</button>
-                                    </span>
-                                );
-                            })}
-                            {selectedItems.length === 0 && <span style={{ color: "#94a3b8" }}>No items selected</span>}
-                        </div>
-                    </div>
-
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        <span>Milestone:</span>
-                        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, display: "flex", flexWrap: "wrap", gap: 8, maxHeight: 200, overflow: "auto" }}>
-                            {milestones.map((m) => {
-                                const alreadyScheduled = Boolean(m.deadline && m.deadline.length > 0);
-                                const disabled = alreadyScheduled && !selectedItems.includes(m.id);
-                                const isSelected = selectedItems.includes(m.id);
+                    {!selectedMilestone || !selectedMilestone.deadline ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <span>Select Milestone:</span>
+                        <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 8, display: "flex", flexWrap: "wrap", gap: 8, maxHeight: 150, overflow: "auto" }}>
+                            {milestones.filter(m => !m.deadline || m.deadline.length === 0).map((m) => {
+                                const isSelected = selectedMilestone?.id === m.id;
                                 return (
                                     <button
                                         key={m.id}
                                         type="button"
-                                        disabled={disabled}
-                                        onClick={() => toggleSelectItem(m.id)}
+                                        onClick={() => selectMilestone(m)}
                                         style={{
-                                            opacity: disabled ? 0.5 : 1,
-                                            cursor: disabled ? "not-allowed" : "pointer",
                                             background: isSelected ? "#dbeafe" : "#f1f5f9",
-                                            border: "1px solid #e2e8f0",
+                                            border: `1px solid ${isSelected ? "#3b82f6" : "#e2e8f0"}`,
                                             color: "#0f172a",
                                             borderRadius: 12,
                                             padding: "6px 10px",
                                             display: "inline-flex",
                                             alignItems: "center",
                                             gap: 6,
+                                            cursor: "pointer",
                                         }}
-                                        title={alreadyScheduled ? "Already has deadline" : "Add to items"}
+                                        title="Select milestone"
                                     >
                                         {m.name}
-                                        {!alreadyScheduled && <span>＋</span>}
-                                        {alreadyScheduled && !isSelected && <span>🚫</span>}
                                     </button>
                                 );
                             })}
                         </div>
-                    </div>
+                        </div>
+                    ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <span>Milestone Information:</span>
+                            <div style={{ 
+                                border: "1px solid #e5e7eb", 
+                                borderRadius: 12, 
+                                padding: 12, 
+                                background: "#fef3c7",
+                                borderColor: "#f59e0b"
+                            }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <div>
+                                        <div style={{ fontWeight: 600, color: "#92400e" }}>{selectedMilestone.name}</div>
+                                        <div style={{ fontSize: 12, color: "#a16207", marginTop: 2 }}>
+                                            📅 {selectedMilestone.deadline}
+                                        </div>
+                                        {selectedMilestone.description && (
+                                            <div style={{ fontSize: 11, color: "#a16207", marginTop: 2 }}>
+                                                {selectedMilestone.description}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                        <Button variant="ghost" type="button" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-                        <Button type="submit">Save</Button>
+                    {selectedMilestone && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span>Items in "{selectedMilestone.name}":</span>
+                                <Button variant="ghost" size="sm" type="button" onClick={addItem}>Add Item</Button>
+                            </div>
+                            <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, overflow: "auto", maxHeight: 300 }}>
+                                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+                                    <thead style={{ background: "#f9fafb" }}>
+                                        <tr>
+                                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb" }}>Name</th>
+                                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb" }}>Description</th>
+                                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb", width: "80px" }}>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {editingItems.map((item, idx) => (
+                                            <tr key={item.id || idx}>
+                                                <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                                                    <Input 
+                                                        value={item.name || ""} 
+                                                        onChange={(e) => updateItem(idx, "name", e.target.value)} 
+                                                        placeholder="Item name"
+                                                        style={{ width: "100%" }}
+                                                    />
+                                                </td>
+                                                <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                                                    <Input 
+                                                        value={item.description || ""} 
+                                                        onChange={(e) => updateItem(idx, "description", e.target.value)} 
+                                                        placeholder="Description"
+                                                        style={{ width: "100%" }}
+                                                    />
+                                                </td>
+                                                <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                                                    <Button variant="ghost" size="sm" type="button" onClick={() => removeItem(idx)}>Remove</Button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                        {editingItems.length === 0 && (
+                                            <tr>
+                                                <td colSpan={3} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>
+                                                    No items. Click "Add Item" to add items.
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        {selectedMilestone && selectedMilestone.deadline && (
+                            <Button 
+                                variant="ghost" 
+                                type="button" 
+                                onClick={removeDeadline}
+                                style={{ color: "#dc2626", borderColor: "#dc2626" }}
+                            >
+                                Remove Deadline
+                            </Button>
+                        )}
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <Button variant="ghost" type="button" onClick={() => setIsModalOpen(false)}>Cancel</Button>
+                            <Button type="submit" disabled={!selectedMilestone}>Save</Button>
+                        </div>
                     </div>
                 </form>
             </Modal>
