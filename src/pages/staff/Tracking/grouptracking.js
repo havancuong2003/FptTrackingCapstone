@@ -1,10 +1,14 @@
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import Select from "../../../components/Select/Select";
 import Button from "../../../components/Button/Button";
 import client from "../../../utils/axiosClient";
 import { mockGroupTrackingApi } from "../../../mocks/mockstaff/groupTrackingApiResponse";
 
 export default function GroupTracking() {
+    // Get groupId from URL parameters
+    const { groupId } = useParams();
+    
     // Control variable for mock data vs API
     const USE_MOCKDATA = false;
     // State for API data
@@ -18,28 +22,31 @@ export default function GroupTracking() {
         try {
             setLoading(true);
             setError(null);
-            
+            // // parse groupID to string
+            // groupId = String(groupId);
 
             // request to api
-            const response = await client.get('/staff/group-tracking', {
+            const response = await client.get('/Staff/group-tracking', {
                 params: {
                     groupid: groupId,
                     startdate: startDate,
                     enddate: endDate
                 }
             });
+            console.log('response', response);
             // Sử dụng mock API thay vì gọi API thật
             // const response = await mockGroupTrackingApi(groupId, startDate, endDate);
             
-            if (response.status === '200') {
-                setApiData(response.data);
+            // API trả về cấu trúc: response.data.status và response.data.da    ta
+            if (response.data.status === 200) {
+                setApiData(response.data.data);
                 // Chỉ set currentWeek lần đầu khi chưa có selectedWeek
-                if (response.data.currentWeek && !selectedWeek) {
-                    setSelectedWeek(response.data.currentWeek);
-                    console.log('Set initial selectedWeek from API:', response.data.currentWeek);
+                if (response.data.data.currentWeek && !selectedWeek) {
+                    setSelectedWeek(response.data.data.currentWeek);
+                    console.log('Set initial selectedWeek from API:', response.data.data.currentWeek);
                 }
             } else {
-                throw new Error(response.message || 'Failed to fetch data');
+                throw new Error(response.data.message || 'Failed to fetch data');
             }
         } catch (err) {
             setError(err.message || 'Error fetching data');
@@ -63,26 +70,24 @@ export default function GroupTracking() {
 
     // Effect to fetch data when component mounts
     React.useEffect(() => {
-        if (!USE_MOCKDATA) {
-            // Gọi API ngay khi component mount, không cần selectedWeek
-            const groupId = 'GR01'; // This should come from props or context
-            console.log('Calling mock API on mount');
+        if (!USE_MOCKDATA && groupId) {
+            // Gọi API ngay khi component mount với groupId từ URL params
+            console.log('Calling API on mount with groupId:', groupId);
             fetchGroupTrackingData(groupId, '29/09/2025', '05/10/2025'); // Default dates for Week 3
         }
-    }, []); // Chỉ chạy khi component mount
+    }, [groupId]); // Chạy khi groupId thay đổi
 
     // Effect để gọi API khi user thay đổi week thủ công
     React.useEffect(() => {
-        if (!USE_MOCKDATA && apiData) {
+        if (!USE_MOCKDATA && apiData && groupId) {
             // Chỉ gọi API khi đã có data từ lần đầu và user thay đổi week
             const dates = extractDatesFromWeek(selectedWeek);
             if (dates) {
-                const groupId = 'GR01';
                 console.log('User changed week, calling API with:', { groupId, startDate: dates.startDate, endDate: dates.endDate });
                 fetchGroupTrackingData(groupId, dates.startDate, dates.endDate);
             }
         }
-    }, [selectedWeek]); // Chạy khi selectedWeek thay đổi
+    }, [selectedWeek, groupId]); // Chạy khi selectedWeek hoặc groupId thay đổi
 
     // Data source - either mock or API
     const weeks = USE_MOCKDATA ? [
@@ -152,6 +157,18 @@ export default function GroupTracking() {
         );
     }
 
+    // Show error if no groupId
+    if (!groupId) {
+        return (
+            <div style={{ padding: 16 }}>
+                <div style={{ color: '#dc2626', marginBottom: 16 }}>
+                    Error: No group ID provided
+                </div>
+                <p>Please navigate to this page with a valid group ID.</p>
+            </div>
+        );
+    }
+
     // Show error state
     if (error) {
         return (
@@ -161,8 +178,8 @@ export default function GroupTracking() {
                 </div>
                 <Button onClick={() => {
                     const dates = extractDatesFromWeek(selectedWeek);
-                    if (dates) {
-                        fetchGroupTrackingData('GR01', dates.startDate, dates.endDate);
+                    if (dates && groupId) {
+                        fetchGroupTrackingData(groupId, dates.startDate, dates.endDate);
                     }
                 }}>
                     Retry
@@ -176,14 +193,14 @@ export default function GroupTracking() {
             {/* Project Details Section */}
             <div style={{ marginBottom: 24 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 12 }}>
-                    <h2 style={{ margin: 0, color: "#374151" }}>SEP490 &gt; GR01</h2>
-                    <h3 style={{ margin: 0, color: "#374151" }}>Project Name: Student Management System</h3>
+                    <h2 style={{ margin: 0, color: "#374151" }}>SEP490 &gt; {groupId || 'Loading...'}</h2>
+                    <h3 style={{ margin: 0, color: "#374151" }}>
+                        Project Name: {apiData?.projectName || 'Loading...'}
+                    </h3>
                 </div>
                 
                 <p style={{ margin: "0 0 16px 0", color: "#64748b", lineHeight: 1.6 }}>
-                    The <em>Student Management System</em> is a simple web app that helps schools manage student information. 
-                    Users can add, edit, delete, and search students easily. The system provides a clean interface for 
-                    administrators to organize and access data quickly.
+                    {apiData?.projectDescription || 'Loading project description...'}
                 </p>
 
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -202,7 +219,9 @@ export default function GroupTracking() {
                         </Select>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontWeight: 600 }}>Mentor: LamPT</span>
+                        <span style={{ fontWeight: 600 }}>
+                            Mentor: {apiData?.mentor || 'Loading...'}
+                        </span>
                     </div>
                 </div>
             </div>

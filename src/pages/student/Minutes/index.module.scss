@@ -1,0 +1,228 @@
+.container {
+  padding: 20px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  font-size: 16px;
+  color: #666;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.roleWarning {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 20px;
+  color: #92400e;
+}
+
+.minutesList {
+  display: grid;
+  gap: 20px;
+}
+
+.minuteCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.minuteHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.minuteInfo h3 {
+  margin: 0 0 4px 0;
+  color: #374151;
+  font-size: 18px;
+}
+
+.minuteDate {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.minuteStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusIcon {
+  font-size: 18px;
+}
+
+.statusText {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.minuteContent {
+  margin-bottom: 16px;
+}
+
+.contentSection {
+  margin-bottom: 16px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.contentSection h4 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.contentSection p {
+  margin: 0;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.contentSection ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.contentSection li {
+  margin: 4px 0;
+  color: #374151;
+  line-height: 1.4;
+}
+
+.attachmentLink {
+  color: #3b82f6;
+  text-decoration: none;
+  
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.minuteFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.minuteMeta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.minuteActions {
+  display: flex;
+  gap: 8px;
+}
+
+.createModal {
+  max-width: 600px;
+  width: 100%;
+}
+
+.createModal h2 {
+  margin: 0 0 20px 0;
+  color: #374151;
+}
+
+.formGroup {
+  margin-bottom: 16px;
+}
+
+.formGroup label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+}
+
+.select, .textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .minuteHeader {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .minuteFooter {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .minuteMeta {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .minuteActions {
+    justify-content: stretch;
+  }
+}

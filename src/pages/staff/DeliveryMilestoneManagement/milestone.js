@@ -22,7 +22,7 @@ function Milestone() {
     // Create-many modal state
     const [isCreateOpen, setIsCreateOpen] = React.useState(false);
     const [createMajorId, setCreateMajorId] = React.useState("");
-    const [createRows, setCreateRows] = React.useState([]); // { id, name, description }
+    const [createRows, setCreateRows] = React.useState([]); // { name, description }
     const [createError, setCreateError] = React.useState("");
 
     // Load majors on mount and select the first one
@@ -60,7 +60,7 @@ function Milestone() {
             try {
                 const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
                     selectedMajorId
-                )}&semesterId=1`;
+                )}`;
                 const res = await client.get(url);
                 const body = res?.data || {};
                 const list = Array.isArray(body.data) ? body.data : [];
@@ -152,7 +152,7 @@ function Milestone() {
             closeEdit();
             const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
                 selectedMajorId
-            )}&semesterId=1`;
+            )}`;
             const res = await client.get(url);
             const bodyRes = res?.data || {};
             setMilestones(Array.isArray(bodyRes.data) ? bodyRes.data : []);
@@ -161,8 +161,24 @@ function Milestone() {
         }
     }
 
+    async function deleteMilestone() {
+        if (!editingItem) return;
+        try {
+            await client.delete(`https://160.30.21.113:5000/api/v1/Staff/milestone/${editingItem.id}`);
+            closeEdit();
+            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
+                selectedMajorId
+            )}`;
+            const res = await client.get(url);
+            const bodyRes = res?.data || {};
+            setMilestones(Array.isArray(bodyRes.data) ? bodyRes.data : []);
+        } catch (err) {
+            setEditError(err?.message || "Delete failed");
+        }
+    }
+
     function openCreate() {
-        setCreateRows([{ id: "", name: "", description: "" }]);
+        setCreateRows([{ name: "", description: "" }]);
         setCreateError("");
         setIsCreateOpen(true);
     }
@@ -178,7 +194,7 @@ function Milestone() {
     }
 
     function addCreateRow() {
-        setCreateRows((prev) => [...prev, { id: "", name: "", description: "" }]);
+        setCreateRows((prev) => [...prev, { name: "", description: "" }]);
     }
 
     function removeCreateRow(index) {
@@ -193,39 +209,30 @@ function Milestone() {
             return;
         }
         const trimmed = createRows.map((r) => ({
-            id: (r.id || "").toString().trim(),
             name: (r.name || "").trim(),
             description: (r.description || "").trim(),
         }));
-        if (trimmed.some((r) => !r.id || !r.name)) {
-            setCreateError("ID and Name are required in all rows");
+        if (trimmed.some((r) => !r.name)) {
+            setCreateError("Name is required in all rows");
             return;
         }
-        const ids = new Set();
         const names = new Set();
         for (const r of trimmed) {
-            const idKey = r.id.toLowerCase();
             const nameKey = r.name.toLowerCase();
-            if (ids.has(idKey) || names.has(nameKey)) {
-                setCreateError("IDs and Names must be unique across new rows");
+            if (names.has(nameKey)) {
+                setCreateError("Names must be unique across new rows");
                 return;
             }
-            ids.add(idKey);
             names.add(nameKey);
         }
-        const existIdSet = new Set(milestones.map((m) => String(m.id).toLowerCase()));
         const existNameSet = new Set(milestones.map((m) => (m.name || "").toLowerCase()));
-        if (
-            trimmed.some(
-                (r) => existIdSet.has(r.id.toLowerCase()) || existNameSet.has(r.name.toLowerCase())
-            )
-        ) {
-            setCreateError("ID or Name already exists");
+        if (trimmed.some((r) => existNameSet.has(r.name.toLowerCase()))) {
+            setCreateError("Name already exists");
             return;
         }
         try {
             const payload = trimmed.map((r) => ({
-                id: Number(r.id),
+                id: 0, // Let the backend auto-generate the ID
                 name: r.name,
                 description: r.description,
                 deadline: null,
@@ -236,7 +243,7 @@ function Milestone() {
             closeCreate();
             const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
                 selectedMajorId
-            )}&semesterId=1`;
+            )}`;
             const res = await client.get(url);
             const bodyRes = res?.data || {};
             setMilestones(Array.isArray(bodyRes.data) ? bodyRes.data : []);
@@ -334,6 +341,8 @@ function Milestone() {
                                     textAlign: "left",
                                     padding: 12,
                                     borderBottom: "1px solid #e5e7eb",
+                                    width: "80px",
+
                                 }}
                             >
                                 No.
@@ -343,24 +352,7 @@ function Milestone() {
                                     textAlign: "left",
                                     padding: 12,
                                     borderBottom: "1px solid #e5e7eb",
-                                }}
-                            >
-                                ID
-                            </th>
-                            <th
-                                style={{
-                                    textAlign: "left",
-                                    padding: 12,
-                                    borderBottom: "1px solid #e5e7eb",
-                                }}
-                            >
-                                Code
-                            </th>
-                            <th
-                                style={{
-                                    textAlign: "left",
-                                    padding: 12,
-                                    borderBottom: "1px solid #e5e7eb",
+                                    width: "400px",
                                 }}
                             >
                                 Milestone Name
@@ -379,6 +371,7 @@ function Milestone() {
                                     textAlign: "left",
                                     padding: 12,
                                     borderBottom: "1px solid #e5e7eb",
+                                    width: "120px",
                                 }}
                             >
                                 Action
@@ -392,6 +385,7 @@ function Milestone() {
                                     style={{
                                         padding: 12,
                                         borderBottom: "1px solid #f1f5f9",
+                                        // textAlign: "center",
                                     }}
                                 >
                                     {(page - 1) * pageSize + idx + 1}
@@ -400,23 +394,8 @@ function Milestone() {
                                     style={{
                                         padding: 12,
                                         borderBottom: "1px solid #f1f5f9",
-                                    }}
-                                >
-                                    {m.id}
-                                </td>
-                                <td
-                                    style={{
-                                        padding: 12,
-                                        borderBottom: "1px solid #f1f5f9",
-                                    }}
-                                >
-                                    {selectedMajor?.code || ""}
-                                </td>
-                                <td
-                                    style={{
-                                        padding: 12,
-                                        borderBottom: "1px solid #f1f5f9",
                                         fontWeight: 600,
+                                        fontSize: "14px",
                                     }}
                                 >
                                     {m.name}
@@ -425,9 +404,12 @@ function Milestone() {
                                     style={{
                                         padding: 12,
                                         borderBottom: "1px solid #f1f5f9",
+                                        fontSize: "14px",
+                                        lineHeight: "1.4",
+                                        wordBreak: "break-word",
                                     }}
                                 >
-                                    {m.description}
+                                    {m.description || <span style={{ color: "#94a3b8", fontStyle: "italic" }}>No description</span>}
                                 </td>
                                 <td
                                     style={{
@@ -442,7 +424,7 @@ function Milestone() {
                         {filtered.length === 0 && (
                             <tr>
                                 <td
-                                    colSpan={6}
+                                    colSpan={4}
                                     style={{
                                         padding: 24,
                                         textAlign: "center",
@@ -501,9 +483,19 @@ function Milestone() {
                             <span>Description</span>
                             <textarea value={editingItem.description || ""} onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })} rows={4} style={{ padding: 8, border: "1px solid #e5e7eb", borderRadius: 6 }} placeholder="Describe milestone" />
                         </label>
-                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 8 }}>
-                            <Button variant="ghost" type="button" onClick={closeEdit}>Cancel</Button>
-                            <Button type="submit">Save</Button>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+                            <Button 
+                                variant="ghost" 
+                                type="button" 
+                                onClick={deleteMilestone}
+                                style={{ color: "#dc2626", borderColor: "#dc2626" }}
+                            >
+                                Delete
+                            </Button>
+                            <div style={{ display: "flex", gap: 8 }}>
+                                <Button variant="ghost" type="button" onClick={closeEdit}>Cancel</Button>
+                                <Button type="submit">Save</Button>
+                            </div>
                         </div>
                     </form>
                 )}
@@ -526,7 +518,6 @@ function Milestone() {
                         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
                             <thead style={{ background: "#f9fafb" }}>
                                 <tr>
-                                    <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>ID</th>
                                     <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>Name</th>
                                     <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>Description</th>
                                     <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>Action</th>
@@ -535,9 +526,6 @@ function Milestone() {
                             <tbody>
                                 {createRows.map((row, idx) => (
                                     <tr key={idx}>
-                                        <td style={{ padding: 12, borderBottom: "1px solid #f1f5f9" }}>
-                                            <Input value={row.id} onChange={(e) => updateCreateRow(idx, "id", e.target.value)} placeholder="e.g. 10" />
-                                        </td>
                                         <td style={{ padding: 12, borderBottom: "1px solid #f1f5f9" }}>
                                             <Input value={row.name} onChange={(e) => updateCreateRow(idx, "name", e.target.value)} placeholder="Milestone name" />
                                         </td>
@@ -551,7 +539,7 @@ function Milestone() {
                                 ))}
                                 {createRows.length === 0 && (
                                     <tr>
-                                        <td colSpan={4} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>No rows. Click "Add row".</td>
+                                        <td colSpan={3} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>No rows. Click "Add row".</td>
                                     </tr>
                                 )}
                             </tbody>

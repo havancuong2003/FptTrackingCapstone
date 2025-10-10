@@ -66,4 +66,91 @@
 @media (max-width: 480px) {
   .filters { grid-template-columns: repeat(4, 1fr); padding: 10px; gap: 8px; }
   .filters > div { grid-column: span 4; }
+}
+
+/* Email Section */
+.emailSection {
+  margin-top: 20px;
+  border-top: 2px solid #e5e7eb;
+  padding-top: 20px;
+}
+
+.emailForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.emailRecipients {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.recipientList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.recipient {
+  background: #e3f2fd;
+  color: #1976d2;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  border: 1px solid #bbdefb;
+}
+
+.emailInput {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.emailInput label {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.emailTextarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 120px;
+  transition: border-color 0.2s ease;
+
+  &:focus {
+    outline: none;
+    border-color: #333;
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+  }
+
+  &::placeholder {
+    color: #999;
+  }
+}
+
+.emailActions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .emailActions {
+    flex-direction: column;
+  }
+  
+  .recipientList {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 } 

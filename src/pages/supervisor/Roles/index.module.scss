@@ -1,0 +1,248 @@
+.container {
+  padding: 20px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  font-size: 16px;
+  color: #666;
+}
+
+.subtitle {
+  color: #6b7280;
+  margin-bottom: 24px;
+  font-size: 16px;
+}
+
+.groupsList {
+  display: grid;
+  gap: 24px;
+}
+
+.groupCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.groupHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.groupHeader h3 {
+  margin: 0;
+  color: #374151;
+  font-size: 20px;
+}
+
+.memberCount {
+  background: #f3f4f6;
+  color: #374151;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.membersList {
+  display: grid;
+  gap: 16px;
+}
+
+.memberCard {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.memberInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 1;
+}
+
+.memberName h4 {
+  margin: 0 0 4px 0;
+  color: #374151;
+  font-size: 16px;
+}
+
+.memberEmail {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.memberRole {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roleIcon {
+  font-size: 16px;
+}
+
+.roleText {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.roleHistory {
+  min-width: 200px;
+}
+
+.roleHistory h5 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.historyList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.historyItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+}
+
+.historyRole {
+  color: #374151;
+  font-weight: 500;
+}
+
+.historyDate {
+  color: #6b7280;
+}
+
+.memberActions {
+  display: flex;
+  gap: 8px;
+}
+
+.roleModal {
+  max-width: 500px;
+  width: 100%;
+}
+
+.roleModal h2 {
+  margin: 0 0 8px 0;
+  color: #374151;
+}
+
+.roleModal p {
+  margin: 0 0 20px 0;
+  color: #6b7280;
+}
+
+.roleOptions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.roleOption {
+  position: relative;
+}
+
+.roleOption input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.roleLabel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    border-color: #d1d5db;
+    background: #f9fafb;
+  }
+}
+
+.roleOption input[type="radio"]:checked + .roleLabel {
+  border-color: #3b82f6;
+  background: #eff6ff;
+}
+
+.roleLabel .roleIcon {
+  font-size: 20px;
+  min-width: 24px;
+}
+
+.roleLabel div strong {
+  display: block;
+  color: #374151;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.roleLabel div p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+@media (max-width: 768px) {
+  .memberCard {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .memberInfo {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .roleHistory {
+    min-width: auto;
+  }
+
+  .roleLabel {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}

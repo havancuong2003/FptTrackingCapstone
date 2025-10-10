@@ -34,11 +34,38 @@ const Delivery = React.lazy(() =>
   import("../pages/staff/DeliveryMilestoneManagement/delivery")
 );
 const GroupTracking = React.lazy(() => import("../pages/staff/Tracking/grouptracking"));
+const SemesterManagement = React.lazy(() => import("../pages/staff/SemesterManagement"));
+const SemesterList = React.lazy(() => import("../pages/staff/SemesterList"));
+const SemesterDetail = React.lazy(() => import("../pages/staff/SemesterDetail"));
+const DefaultPage = React.lazy(() => import("../pages/common/DefaultPage"));
+
+// Student pages
+const StudentMilestones = React.lazy(() => import("../pages/student/Milestones"));
+const StudentDeliveries = React.lazy(() => import("../pages/student/Deliveries"));
+const StudentTasks = React.lazy(() => import("../pages/student/Tasks"));
+const StudentMeetings = React.lazy(() => import("../pages/student/Meetings"));
+const StudentMinutes = React.lazy(() => import("../pages/student/Minutes"));
+const StudentEvaluation = React.lazy(() => import("../pages/student/Evaluation"));
+const StudentDocuments = React.lazy(() => import("../pages/student/Documents"));
+
+// Supervisor pages
+const SupervisorGroups = React.lazy(() => import("../pages/supervisor/Groups"));
+const SupervisorRoles = React.lazy(() => import("../pages/supervisor/Roles"));
+const SupervisorVotes = React.lazy(() => import("../pages/supervisor/Votes"));
+const SupervisorMeetings = React.lazy(() => import("../pages/supervisor/Meetings"));
+const SupervisorTracking = React.lazy(() => import("../pages/supervisor/Tracking"));
+const SupervisorTasks = React.lazy(() => import("../pages/supervisor/Tasks"));
+const SupervisorEvaluation = React.lazy(() => import("../pages/supervisor/Evaluation"));
+const SupervisorDocuments = React.lazy(() => import("../pages/supervisor/Documents"));
 export const routes = [
   {
     path: "/",
-    element: RedirectToLogin,
-    meta: { title: "Login", public: true, layout: "none" },
+    element: DefaultPage,
+    meta: { 
+      title: "Trang chủ", 
+      protected: true, 
+      roles: ["ADMIN", "STAFF", "STUDENT", "TEACHER"] 
+    },
   },
   {
     path: "/home",
@@ -169,7 +196,7 @@ export const routes = [
     meta: { title: "Group Tracking", protected: true, roles: ["STAFF"] },
   },
   {
-    path: "/milestones-management",
+    path: "/milestones",
     element: Milestone,
     meta: {
       title: "Milestones Management",
@@ -184,6 +211,170 @@ export const routes = [
       title: "Delivery Management",
       protected: true,
       roles: ["STAFF"],
+    },
+  },
+  {
+    path: "/category-management/semesters",
+    element: SemesterList,
+    meta: {
+      title: "Danh Sách Kỳ Học",
+      protected: true,
+      roles: ["STAFF"],
+    },
+  },
+  {
+    path: "/category-management/semester/create",
+    element: SemesterManagement,
+    meta: {
+      title: "Tạo Kỳ Học",
+      protected: true,
+      roles: ["STAFF"],
+    },
+  },
+  {
+    path: "/category-management/semester/:id",
+    element: SemesterDetail,
+    meta: {
+      title: "Chi Tiết Kỳ Học",
+      protected: true,
+      roles: ["STAFF"],
+    },
+  },
+  // Student routes
+  {
+    path: "/student/milestones",
+    element: StudentMilestones,
+    meta: {
+      title: "Milestones",
+      protected: true,
+      roles: ["STUDENT"],
+    },
+  },
+  {
+    path: "/student/deliveries",
+    element: StudentDeliveries,
+    meta: {
+      title: "Deliveries",
+      protected: true,
+      roles: ["STUDENT"],
+    },
+  },
+  {
+    path: "/student/tasks",
+    element: StudentTasks,
+    meta: {
+      title: "Tasks",
+      protected: true,
+      roles: ["STUDENT"],
+    },
+  },
+  {
+    path: "/student/meetings",
+    element: StudentMeetings,
+    meta: {
+      title: "Meetings",
+      protected: true,
+      roles: ["STUDENT"],
+    },
+  },
+  {
+    path: "/student/minutes",
+    element: StudentMinutes,
+    meta: {
+      title: "Minutes",
+      protected: true,
+      roles: ["STUDENT"],
+    },
+  },
+  {
+    path: "/student/evaluation",
+    element: StudentEvaluation,
+    meta: {
+      title: "Evaluation",
+      protected: true,
+      roles: ["STUDENT"],
+    },
+  },
+  {
+    path: "/student/documents",
+    element: StudentDocuments,
+    meta: {
+      title: "Documents",
+      protected: true,
+      roles: ["STUDENT"],
+    },
+  },
+  // Supervisor routes
+  {
+    path: "/supervisor/groups",
+    element: SupervisorGroups,
+    meta: {
+      title: "Groups",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/roles",
+    element: SupervisorRoles,
+    meta: {
+      title: "Role Management",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/votes",
+    element: SupervisorVotes,
+    meta: {
+      title: "Vote Scheduler",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/meetings",
+    element: SupervisorMeetings,
+    meta: {
+      title: "Meetings",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/tracking",
+    element: SupervisorTracking,
+    meta: {
+      title: "Tracking",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/tasks",
+    element: SupervisorTasks,
+    meta: {
+      title: "Tasks Overview",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/evaluation",
+    element: SupervisorEvaluation,
+    meta: {
+      title: "Evaluation",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/documents",
+    element: SupervisorDocuments,
+    meta: {
+      title: "Documents",
+      protected: true,
+      roles: ["SUPERVISOR"],
     },
   },
 ];
