@@ -4,7 +4,7 @@ import Input from '../../../components/Input/Input';
 import Select from '../../../components/Select/Select';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
-import { listCapstoneGroups, getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { listCapstoneGroups, getCapstoneGroupDetail, sendEmailToGroup } from '../../../api/staff/groups';
 
 export default function StaffGroups() {
   const [filters, setFilters] = React.useState({
@@ -18,6 +18,8 @@ export default function StaffGroups() {
   const [items, setItems] = React.useState([]);
   const [detailOpen, setDetailOpen] = React.useState(false);
   const [detail, setDetail] = React.useState(null);
+  const [emailContent, setEmailContent] = React.useState('');
+  const [sendingEmail, setSendingEmail] = React.useState(false);
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(10);
   const [total, setTotal] = React.useState(0);
@@ -77,10 +79,32 @@ export default function StaffGroups() {
 
   async function openDetail(id) {
     setDetail(null);
+    setEmailContent('');
     setDetailOpen(true);
     const res = await getCapstoneGroupDetail(id);
     console.log("res", res);
     setDetail(res.data);
+  }
+
+  async function handleSendEmail() {
+    if (!emailContent.trim() || !detail) return;
+    
+    setSendingEmail(true);
+    try {
+      const res = await sendEmailToGroup(detail.id, emailContent);
+      
+      if (res.status === 200) {
+        alert('Email đã được gửi thành công!');
+        setEmailContent('');
+      } else {
+        alert(res.message || 'Có lỗi xảy ra khi gửi email.');
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert('Có lỗi xảy ra khi gửi email. Vui lòng thử lại.');
+    } finally {
+      setSendingEmail(false);
+    }
   }
 
   function onChangeFilter(key, value) {
@@ -310,6 +334,54 @@ export default function StaffGroups() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </section>
+            
+            <section className={styles.emailSection}>
+              <h3>Gửi email cho nhóm</h3>
+              <div className={styles.emailForm}>
+                <div className={styles.emailRecipients}>
+                  <strong>Người nhận:</strong>
+                  <div className={styles.recipientList}>
+                    {(detail.students || []).map(s => (
+                      <span key={s.id} className={styles.recipient}>
+                        {s.name} ({s.id})
+                      </span>
+                    ))}
+                    {(Array.isArray(detail.supervisors) ? detail.supervisors : (detail.supervisor ? [detail.supervisor] : [])).map((sv, idx) => (
+                      <span key={idx} className={styles.recipient}>
+                        {sv} (Supervisor)
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className={styles.emailInput}>
+                  <label htmlFor="emailContent">Nội dung email:</label>
+                  <textarea
+                    id="emailContent"
+                    className={styles.emailTextarea}
+                    placeholder="Nhập nội dung email bạn muốn gửi cho nhóm..."
+                    value={emailContent}
+                    onChange={(e) => setEmailContent(e.target.value)}
+                    rows={6}
+                  />
+                </div>
+                <div className={styles.emailActions}>
+                  <Button 
+                    onClick={handleSendEmail}
+                    disabled={!emailContent.trim() || sendingEmail}
+                    variant="primary"
+                  >
+                    {sendingEmail ? 'Đang gửi...' : 'Gửi email'}
+                  </Button>
+                  <Button 
+                    onClick={() => setEmailContent('')}
+                    variant="secondary"
+                    disabled={sendingEmail}
+                  >
+                    Xóa nội dung
+                  </Button>
+                </div>
               </div>
             </section>
           </div>

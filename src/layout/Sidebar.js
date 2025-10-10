@@ -8,6 +8,8 @@ import { useLayout } from './LayoutContext';
 export default function Sidebar() {
   const user = getCurrentUser();
   const items = getMenuForRole((user.role || '').toString());
+  console.log('user', user);
+  console.log('items', items);
   const { sidebarOpen } = useLayout();
 
   return (

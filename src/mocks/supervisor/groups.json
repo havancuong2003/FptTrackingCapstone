@@ -1,0 +1,66 @@
+{
+  "status": 200,
+  "message": "Fetched successfully",
+  "data": [
+    {
+      "id": "GR01",
+      "groupName": "Team Alpha",
+      "projectCode": "SEP490",
+      "projectName": "Student Management System",
+      "members": [
+        {
+          "id": "SE00001",
+          "name": "Nguyen Van A",
+          "role": "Leader",
+          "email": "nguyenvana@student.fpt.edu.vn"
+        },
+        {
+          "id": "SE00002",
+          "name": "Nguyen Van B",
+          "role": "Member",
+          "email": "nguyenvanb@student.fpt.edu.vn"
+        },
+        {
+          "id": "SE00003",
+          "name": "Nguyen Van C",
+          "role": "Secretary",
+          "email": "nguyenvanc@student.fpt.edu.vn"
+        }
+      ],
+      "progress": {
+        "completedMilestones": 1,
+        "totalMilestones": 7,
+        "completionPercentage": 14.3
+      },
+      "currentMilestone": "System Design Document",
+      "nextDeadline": "2025-11-03T23:59:00Z"
+    },
+    {
+      "id": "GR02",
+      "groupName": "Team Beta",
+      "projectCode": "SEP490",
+      "projectName": "Library Management System",
+      "members": [
+        {
+          "id": "SE00004",
+          "name": "Tran Thi D",
+          "role": "Leader",
+          "email": "tranthid@student.fpt.edu.vn"
+        },
+        {
+          "id": "SE00005",
+          "name": "Le Van E",
+          "role": "Member",
+          "email": "levane@student.fpt.edu.vn"
+        }
+      ],
+      "progress": {
+        "completedMilestones": 2,
+        "totalMilestones": 7,
+        "completionPercentage": 28.6
+      },
+      "currentMilestone": "Prototype Development",
+      "nextDeadline": "2025-11-10T23:59:00Z"
+    }
+  ]
+}

@@ -34,6 +34,19 @@ export async function login({ username, password }) {
     return { message: 'Mock login successfully' };
   }
 
+  // Mock login cho SUPERVISOR testing
+  if (username === 'supervisor' && password === '123') {
+    console.log('Mock login: supervisor/123 detected, setting as supervisor');
+    const mockUser = {
+      id: 'mock_supervisor_1',
+      name: 'Mock Supervisor User',
+      role: 'SUPERVISOR'
+    };
+    localStorage.setItem(USER_ROLE_KEY, 'SUPERVISOR');
+    localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser));
+    return { message: 'Mock login successfully' };
+  }
+
   try {
     const res = await client.post('/auth/login', { userName : username, password });
     console.log("res login", res);

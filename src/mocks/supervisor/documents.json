@@ -1,0 +1,40 @@
+{
+  "status": 200,
+  "message": "Fetched successfully",
+  "data": [
+    {
+      "id": 1,
+      "fileName": "project_guidelines.pdf",
+      "fileSize": "2.1MB",
+      "uploadDate": "2025-10-05T09:00:00Z",
+      "uploadedBy": "SUPERVISOR001",
+      "uploadedByName": "Dr. Smith",
+      "aiSummary": {
+        "summary": "Comprehensive guidelines for capstone project development including requirements, deliverables, and evaluation criteria.",
+        "keywords": ["Capstone", "Guidelines", "Requirements", "Deliverables", "Evaluation"],
+        "objective": "To provide clear guidance for students on project expectations and deliverables",
+        "conclusion": "Following these guidelines will ensure successful project completion and proper evaluation"
+      },
+      "type": "guideline",
+      "tags": ["Guidelines", "Project", "Requirements"],
+      "accessLevel": "group"
+    },
+    {
+      "id": 2,
+      "fileName": "technical_review_checklist.docx",
+      "fileSize": "0.8MB",
+      "uploadDate": "2025-10-12T14:30:00Z",
+      "uploadedBy": "SUPERVISOR001",
+      "uploadedByName": "Dr. Smith",
+      "aiSummary": {
+        "summary": "Technical review checklist for evaluating student submissions including code quality, documentation, and testing.",
+        "keywords": ["Technical Review", "Checklist", "Code Quality", "Documentation", "Testing"],
+        "objective": "To standardize technical evaluation process for mentor reviews",
+        "conclusion": "Using this checklist ensures consistent and thorough technical evaluations"
+      },
+      "type": "internal",
+      "tags": ["Technical", "Review", "Internal"],
+      "accessLevel": "mentor"
+    }
+  ]
+}

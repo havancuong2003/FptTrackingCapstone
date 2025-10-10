@@ -3,6 +3,7 @@ export const Role = {
   STAFF: 'STAFF',
   STUDENT: 'STUDENT',
   TEACHER: 'TEACHER',
+  SUPERVISOR: 'SUPERVISOR',
 };
 
 export function hasRole(user, role) {

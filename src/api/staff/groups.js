@@ -69,3 +69,30 @@ export async function getCapstoneGroupDetail(groupId) {
     ? { data: item, status: 200, message: 'Lấy thành công (mock)' }
     : { data: {}, status: 404, message: 'Không tìm thấy nhóm' };
 }
+
+// ================== send email ==================
+export async function sendEmailToGroup(groupId, content) {
+  if (!USE_MOCK) {
+    const res = await client.post(`/Staff/capstone-groups/${groupId}/send-email`, {
+      content,
+    });
+    const payload = res.data;
+    return {
+      data: payload.data,
+      status: payload.status ?? res.status,
+      message: payload.message || 'Email đã được gửi thành công',
+    };
+  }
+
+  // --- mock ---
+  console.log('Mock: Sending email to group', groupId, 'with content:', content);
+  
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  return {
+    data: { sent: true, recipients: ['student1@example.com', 'student2@example.com'] },
+    status: 200,
+    message: 'Email đã được gửi thành công (mock)',
+  };
+}

@@ -1,0 +1,161 @@
+.container {
+  padding: 20px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  font-size: 16px;
+  color: #666;
+}
+
+.milestonesList {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.milestoneCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.milestoneHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.milestoneInfo {
+  flex: 1;
+}
+
+.milestoneInfo h3 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 18px;
+}
+
+.description {
+  margin: 0;
+  color: #6b7280;
+  line-height: 1.5;
+}
+
+.milestoneStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusIcon {
+  font-size: 20px;
+  font-weight: bold;
+}
+
+.statusText {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.milestoneDetails {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f9fafb;
+  border-radius: 6px;
+}
+
+.detailItem {
+  font-size: 14px;
+  color: #374151;
+}
+
+.milestoneActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.milestoneDetail {
+  max-width: 600px;
+}
+
+.detailSection {
+  margin-bottom: 24px;
+}
+
+.detailSection h3 {
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 16px;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 8px;
+}
+
+.detailSection p {
+  margin: 8px 0;
+  color: #374151;
+}
+
+.deliverablesList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.deliverableItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.deliverableName {
+  font-weight: 600;
+  color: #374151;
+}
+
+.deliverableType {
+  color: #6b7280;
+  font-size: 12px;
+  background: #e5e7eb;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.required {
+  background: #fef3c7;
+  color: #d97706;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .milestoneHeader {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .milestoneDetails {
+    grid-template-columns: 1fr;
+  }
+}

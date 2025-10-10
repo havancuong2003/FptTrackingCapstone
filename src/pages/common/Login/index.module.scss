@@ -1,3 +1,277 @@
-.wrap { padding: 16px; display: grid; gap: 12px; }
-.form { display: grid; gap: 8px; max-width: 360px; }
-.error { color: #c62828; } 
+// Login Container
+.loginContainer {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+  padding: 20px;
+}
+
+// Loading States
+.loadingContainer {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f5;
+}
+
+.loadingSpinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e0e0e0;
+  border-top: 4px solid #333;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+// Login Card
+.loginCard {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e0e0e0;
+
+  @media (max-width: 480px) {
+    padding: 30px 20px;
+    margin: 10px;
+  }
+}
+
+
+// Header
+.loginHeader {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  margin-bottom: 16px;
+
+  img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.5px;
+}
+
+
+// Error Alert
+.errorAlert {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 4px;
+  padding: 16px;
+  margin-bottom: 24px;
+  color: #c62828;
+  font-size: 14px;
+
+  svg {
+    flex-shrink: 0;
+  }
+}
+
+// Form
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.inputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.inputWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 16px;
+  color: #999;
+  z-index: 1;
+  transition: color 0.2s ease;
+}
+
+.input {
+  width: 100%;
+  padding: 16px 16px 16px 48px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+  background: #fff;
+  transition: border-color 0.2s ease;
+  outline: none;
+
+  &:focus {
+    border-color: #333;
+
+    + .inputIcon {
+      color: #333;
+    }
+  }
+
+  &::placeholder {
+    color: #999;
+  }
+
+  &:hover {
+    border-color: #999;
+  }
+}
+
+// Submit Button
+.submitButton {
+  width: 100%;
+  padding: 16px;
+  background: #333;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &:hover:not(:disabled) {
+    background: #555;
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+}
+
+.buttonSpinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #ffffff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+// Demo Accounts
+.demoAccounts {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e1e5e9;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin: 0 0 16px 0;
+    text-align: center;
+  }
+}
+
+.accountList {
+  display: grid;
+  gap: 12px;
+}
+
+.accountItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e1e5e9;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #f0f2f5;
+    border-color: #d1d5db;
+  }
+}
+
+.role {
+  font-weight: 600;
+  color: #667eea;
+  font-size: 14px;
+}
+
+.credentials {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+  color: #666;
+  background: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #e1e5e9;
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .loginContainer {
+    padding: 16px;
+  }
+
+  .loginCard {
+    padding: 32px 24px;
+  }
+
+  .title {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .loginCard {
+    padding: 24px 20px;
+  }
+
+  .title {
+    font-size: 22px;
+  }
+
+  .input {
+    font-size: 16px; // Prevent zoom on iOS
+  }
+} 
