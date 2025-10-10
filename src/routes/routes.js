@@ -34,6 +34,9 @@ const Delivery = React.lazy(() =>
   import("../pages/staff/DeliveryMilestoneManagement/delivery")
 );
 const GroupTracking = React.lazy(() => import("../pages/staff/Tracking/grouptracking"));
+const SemesterManagement = React.lazy(() => import("../pages/staff/SemesterManagement"));
+const SemesterList = React.lazy(() => import("../pages/staff/SemesterList"));
+const SemesterDetail = React.lazy(() => import("../pages/staff/SemesterDetail"));
 export const routes = [
   {
     path: "/",
@@ -182,6 +185,33 @@ export const routes = [
     element: Delivery,
     meta: {
       title: "Delivery Management",
+      protected: true,
+      roles: ["STAFF"],
+    },
+  },
+  {
+    path: "/category-management/semesters",
+    element: SemesterList,
+    meta: {
+      title: "Danh Sách Kỳ Học",
+      protected: true,
+      roles: ["STAFF"],
+    },
+  },
+  {
+    path: "/category-management/semester/create",
+    element: SemesterManagement,
+    meta: {
+      title: "Tạo Kỳ Học",
+      protected: true,
+      roles: ["STAFF"],
+    },
+  },
+  {
+    path: "/category-management/semester/:id",
+    element: SemesterDetail,
+    meta: {
+      title: "Chi Tiết Kỳ Học",
       protected: true,
       roles: ["STAFF"],
     },
