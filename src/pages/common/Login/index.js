@@ -135,9 +135,10 @@ export default function Login() {
               <span className={styles.credentials}>haildhe172452 / 123456</span>
             </div>
             <div className={styles.accountItem}>
-              <span className={styles.role}>Giáo viên</span>
-              <span className={styles.credentials}>thuypt26 / 123456</span>
+              <span className={styles.role}>Supervisor</span>
+              <span className={styles.credentials}>anhpn / 123456</span>
             </div>
+
           </div>
         </div>
       </div>

@@ -1,0 +1,240 @@
+.container {
+  padding: 20px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  font-size: 16px;
+  color: #666;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.groupSelector {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.groupSelector label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+}
+
+.select {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+}
+
+.projectInfo {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.projectInfo h2 {
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 24px;
+}
+
+.projectInfo p {
+  margin: 8px 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.weeksList {
+  display: grid;
+  gap: 20px;
+}
+
+.weekCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.weekHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.weekInfo h3 {
+  margin: 0 0 4px 0;
+  color: #374151;
+  font-size: 18px;
+}
+
+.weekDates {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.weekStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.progressBar {
+  width: 200px;
+  height: 8px;
+  background: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.statusInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statusIcon {
+  font-size: 16px;
+}
+
+.statusText {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.tasksList {
+  margin-top: 16px;
+}
+
+.tasksList h4 {
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.taskCard {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.taskInfo {
+  flex: 1;
+}
+
+.taskInfo h5 {
+  margin: 0 0 4px 0;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.taskAssignee, .taskDeadline, .taskCompleted {
+  margin: 2px 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.taskCompleted {
+  color: #059669;
+  font-weight: 500;
+}
+
+.taskStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 120px;
+  justify-content: flex-end;
+}
+
+.taskStatusIcon {
+  font-size: 14px;
+}
+
+.taskStatusText {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 40px;
+  color: #6b7280;
+  font-size: 16px;
+}
+
+@media (max-width: 768px) {
+  .header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .groupSelector {
+    justify-content: space-between;
+  }
+
+  .weekHeader {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .weekStatus {
+    align-items: flex-start;
+  }
+
+  .progressBar {
+    width: 100%;
+  }
+
+  .taskCard {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .taskStatus {
+    justify-content: flex-start;
+  }
+}

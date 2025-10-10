@@ -1,0 +1,279 @@
+.container {
+  padding: 20px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  font-size: 16px;
+  color: #666;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.header h1 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 28px;
+}
+
+.subtitle {
+  margin: 0;
+  color: #6b7280;
+  font-size: 16px;
+}
+
+.sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.studentsSection, .evaluationsSection {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.studentsSection h2, .evaluationsSection h2 {
+  margin: 0 0 20px 0;
+  color: #374151;
+  font-size: 20px;
+}
+
+.studentsList, .evaluationsList {
+  display: grid;
+  gap: 16px;
+}
+
+.studentCard, .evaluationCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.studentInfo h3 {
+  margin: 0 0 4px 0;
+  color: #374151;
+  font-size: 16px;
+}
+
+.studentGroup {
+  margin: 0 0 12px 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.milestonesList h4 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.milestoneItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+  
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.milestoneName {
+  color: #374151;
+  font-size: 13px;
+}
+
+.milestoneStatus {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.studentActions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.evaluationHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.evaluationInfo h3 {
+  margin: 0 0 4px 0;
+  color: #374151;
+  font-size: 16px;
+}
+
+.evaluationMilestone {
+  margin: 0 0 4px 0;
+  color: #3b82f6;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.evaluationDate {
+  margin: 0;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.evaluationScore {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.scoreCircle {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+}
+
+.scoreText {
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.evaluationContent {
+  margin-bottom: 16px;
+}
+
+.commentSection, .penaltySection {
+  margin-bottom: 12px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.commentSection h4, .penaltySection h4 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.comment {
+  margin: 0;
+  color: #374151;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.penaltyTag {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.evaluationActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.evaluateModal {
+  max-width: 600px;
+  width: 100%;
+}
+
+.evaluateModal h2 {
+  margin: 0 0 8px 0;
+  color: #374151;
+}
+
+.evaluateModal p {
+  margin: 0 0 20px 0;
+  color: #6b7280;
+}
+
+.formGroup {
+  margin-bottom: 16px;
+}
+
+.formGroup label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+}
+
+.input, .textarea, .select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+@media (max-width: 1024px) {
+  .sections {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .evaluationHeader {
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .evaluationScore {
+    flex-direction: row;
+    gap: 12px;
+  }
+}
