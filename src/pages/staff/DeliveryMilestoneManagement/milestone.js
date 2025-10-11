@@ -138,16 +138,13 @@ function Milestone() {
             return;
         }
         try {
-            const body = [
+            const body = 
                 {
                     id: editingItem.id,
-                    name,
+                    name: editingItem.name || "",
                     description: editingItem.description || "",
-                    deadline: null,
                     majorId: Number(selectedMajorId),
-                    semesterId: 1,
-                },
-            ];
+                };
             await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", body);
             closeEdit();
             const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
