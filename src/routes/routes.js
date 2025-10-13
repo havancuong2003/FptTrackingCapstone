@@ -57,6 +57,7 @@ const SupervisorTracking = React.lazy(() => import("../pages/supervisor/Tracking
 const SupervisorTasks = React.lazy(() => import("../pages/supervisor/Tasks"));
 const SupervisorEvaluation = React.lazy(() => import("../pages/supervisor/Evaluation"));
 const SupervisorDocuments = React.lazy(() => import("../pages/supervisor/Documents"));
+const SupervisorSchedule = React.lazy(() => import("../pages/supervisor/Schedule"));
 export const routes = [
   {
     path: "/",
@@ -64,7 +65,7 @@ export const routes = [
     meta: { 
       title: "Trang chủ", 
       protected: true, 
-      roles: ["ADMIN", "STAFF", "STUDENT", "TEACHER"] 
+      roles: ["ADMIN", "STAFF", "STUDENT", "SUPERVISOR"] 
     },
   },
   {
@@ -83,7 +84,7 @@ export const routes = [
     meta: {
       title: "Dashboard",
       protected: true,
-      roles: ["ADMIN", "STAFF", "STUDENT", "TEACHER"],
+      roles: ["ADMIN", "STAFF", "STUDENT", "SUPERVISOR"],
     },
   },
   {
@@ -92,7 +93,7 @@ export const routes = [
     meta: {
       title: "Components",
       protected: true,
-      roles: ["ADMIN", "STAFF", "STUDENT", "TEACHER"],
+      roles: ["ADMIN", "STAFF", "STUDENT", "SUPERVISOR"],
     },
   },
   {
@@ -106,7 +107,7 @@ export const routes = [
     meta: {
       title: "Tasks",
       protected: true,
-      roles: ["STAFF", "STUDENT", "TEACHER"],
+      roles: ["STAFF", "STUDENT", "SUPERVISOR"],
     },
   },
   {
@@ -115,7 +116,7 @@ export const routes = [
     meta: {
       title: "Reports",
       protected: true,
-      roles: ["STAFF", "STUDENT", "TEACHER"],
+      roles: ["STAFF", "STUDENT", "SUPERVISOR"],
     },
   },
   {
@@ -124,7 +125,7 @@ export const routes = [
     meta: {
       title: "Progress",
       protected: true,
-      roles: ["STAFF", "STUDENT", "TEACHER"],
+      roles: ["STAFF", "STUDENT", "SUPERVISOR"],
     },
   },
   {
@@ -133,7 +134,7 @@ export const routes = [
     meta: {
       title: "Discussions",
       protected: true,
-      roles: ["STUDENT", "TEACHER"],
+      roles: ["STUDENT", "SUPERVISOR"],
     },
   },
   {
@@ -142,7 +143,7 @@ export const routes = [
     meta: {
       title: "Schedule",
       protected: true,
-      roles: ["STUDENT", "TEACHER"],
+      roles: ["STUDENT", "SUPERVISOR"],
     },
   },
   {
@@ -153,7 +154,7 @@ export const routes = [
   {
     path: "/evaluations",
     element: Evaluations,
-    meta: { title: "Evaluations", protected: true, roles: ["TEACHER"] },
+    meta: { title: "Evaluations", protected: true, roles: ["SUPERVISOR"] },
   },
   {
     path: "/analytics",
@@ -254,7 +255,7 @@ export const routes = [
     path: "/student/deliveries",
     element: StudentDeliveries,
     meta: {
-      title: "Deliveries",
+      title: "Delivery Management",
       protected: true,
       roles: ["STUDENT"],
     },
@@ -263,7 +264,7 @@ export const routes = [
     path: "/student/tasks",
     element: StudentTasks,
     meta: {
-      title: "Tasks",
+      title: "Task Management",
       protected: true,
       roles: ["STUDENT"],
     },
@@ -272,7 +273,7 @@ export const routes = [
     path: "/student/meetings",
     element: StudentMeetings,
     meta: {
-      title: "Meetings",
+      title: "Meeting Management",
       protected: true,
       roles: ["STUDENT"],
     },
@@ -281,7 +282,7 @@ export const routes = [
     path: "/student/minutes",
     element: StudentMinutes,
     meta: {
-      title: "Minutes",
+      title: "Meeting Minutes",
       protected: true,
       roles: ["STUDENT"],
     },
@@ -290,7 +291,7 @@ export const routes = [
     path: "/student/evaluation",
     element: StudentEvaluation,
     meta: {
-      title: "Evaluation",
+      title: "My Evaluation",
       protected: true,
       roles: ["STUDENT"],
     },
@@ -354,16 +355,7 @@ export const routes = [
     path: "/supervisor/tasks",
     element: SupervisorTasks,
     meta: {
-      title: "Tasks Overview",
-      protected: true,
-      roles: ["SUPERVISOR"],
-    },
-  },
-  {
-    path: "/supervisor/evaluation",
-    element: SupervisorEvaluation,
-    meta: {
-      title: "Evaluation",
+      title: "Task Management",
       protected: true,
       roles: ["SUPERVISOR"],
     },
@@ -372,7 +364,25 @@ export const routes = [
     path: "/supervisor/documents",
     element: SupervisorDocuments,
     meta: {
-      title: "Documents",
+      title: "Delivery Management",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/evaluation",
+    element: SupervisorEvaluation,
+    meta: {
+      title: "Evaluation System",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/schedule",
+    element: SupervisorSchedule,
+    meta: {
+      title: "Schedule Management",
       protected: true,
       roles: ["SUPERVISOR"],
     },
