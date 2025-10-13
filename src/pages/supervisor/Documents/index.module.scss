@@ -12,10 +12,29 @@
 }
 
 .header {
+  margin-bottom: 24px;
+}
+
+.controls {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
   align-items: center;
-  margin-bottom: 16px;
+  margin-top: 16px;
+}
+
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.controlGroup label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 .subtitle {
@@ -24,12 +43,55 @@
   font-size: 16px;
 }
 
-.documentsList {
+.groupInfo {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.groupInfo h2 {
+  margin: 0 0 16px 0;
+  color: #374151;
+  font-size: 20px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
+}
+
+.statCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.statNumber {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.submissionsList {
   display: grid;
   gap: 20px;
 }
 
-.documentCard {
+.submissionCard {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -42,22 +104,74 @@
   }
 }
 
-.documentHeader {
+.submissionHeader {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
-.documentInfo h3 {
-  margin: 0 0 4px 0;
+.submissionInfo {
+  flex: 1;
+}
+
+.submissionInfo h3 {
+  margin: 0 0 8px 0;
   color: #374151;
   font-size: 16px;
 }
 
-.documentMeta {
-  margin: 0;
+.submissionMeta {
+  margin: 0 0 8px 0;
   color: #6b7280;
+  font-size: 12px;
+}
+
+.submissionContext {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.milestoneTag, .deliveryTag, .versionTag {
+  background: #e0f2fe;
+  color: #0277bd;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.deliveryTag {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+
+.versionTag {
+  background: #f0f9ff;
+  color: #0369a1;
+}
+
+.submissionStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  min-width: 150px;
+}
+
+.statusItem, .evaluationStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.statusIcon, .evaluationIcon {
+  font-size: 14px;
+}
+
+.statusText, .evaluationText {
+  font-weight: 600;
   font-size: 12px;
 }
 
@@ -135,10 +249,64 @@
   margin-bottom: 4px;
 }
 
-.documentActions {
+.submissionDetails {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.detailRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 8px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.detailItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detailItem strong {
+  color: #374151;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detailItem span {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.commentSection, .supervisorCommentSection {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.commentText, .supervisorCommentText {
+  margin: 8px 0 0 0;
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.5;
+  background: #fff;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+}
+
+.submissionActions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .emptyState {
@@ -152,14 +320,40 @@
   font-size: 16px;
 }
 
-.uploadModal, .viewModal {
+.uploadModal, .viewModal, .evaluationModal {
   max-width: 600px;
   width: 100%;
 }
 
-.uploadModal h2, .viewModal h2 {
+.evaluationModal {
+  max-width: 500px;
+}
+
+.uploadModal h2, .viewModal h2, .evaluationModal h2 {
   margin: 0 0 20px 0;
   color: #374151;
+}
+
+.submissionDetail {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+
+.submissionDetail h3 {
+  margin: 0 0 12px 0;
+  color: #374151;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.evaluationForm {
+  margin-bottom: 20px;
 }
 
 .formGroup {
@@ -270,23 +464,43 @@
 }
 
 @media (max-width: 768px) {
-  .header {
+  .controls {
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
     align-items: stretch;
   }
 
-  .documentHeader {
+  .controlGroup {
+    min-width: auto;
+    justify-content: space-between;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .submissionHeader {
     flex-direction: column;
     gap: 12px;
   }
 
-  .documentStats {
-    flex-direction: column;
-    gap: 4px;
+  .submissionStatus {
+    align-items: flex-start;
+    min-width: auto;
   }
 
-  .documentActions {
+  .detailRow {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .detailGrid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .submissionActions {
     justify-content: stretch;
+    flex-direction: column;
   }
 }

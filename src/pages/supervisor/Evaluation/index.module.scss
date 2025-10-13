@@ -16,21 +16,218 @@
 }
 
 .header h1 {
-  margin: 0 0 8px 0;
+  margin: 0 0 16px 0;
   color: #374151;
   font-size: 28px;
 }
 
-.subtitle {
-  margin: 0;
-  color: #6b7280;
-  font-size: 16px;
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
 }
 
-.sections {
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.controlGroup label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.groupInfo {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.groupInfo h2 {
+  margin: 0 0 16px 0;
+  color: #374151;
+  font-size: 20px;
+}
+
+.statsGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 32px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
+}
+
+.statCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.statNumber {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 4px;
+}
+
+.statLabel {
+  font-size: 12px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.evaluationTable {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.evaluationTable h2 {
+  margin: 0 0 16px 0;
+  color: #374151;
+  font-size: 20px;
+  padding: 20px 20px 0 20px;
+}
+
+.tableContainer {
+  overflow-x: auto;
+}
+
+.evaluationTable table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.evaluationTable th,
+.evaluationTable td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.evaluationTable th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.evaluationTable td {
+  font-size: 14px;
+  color: #374151;
+}
+
+.studentInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.studentId {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.roleTag {
+  background: #e0f2fe;
+  color: #0277bd;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.attendanceInfo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.attendanceIcon {
+  font-size: 14px;
+}
+
+.attendanceText {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.lateTasksCount {
+  color: #d97706;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.penaltyCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.penaltyCard {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.noPenalty {
+  color: #059669;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.scoreInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.scoreValue {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.scoreText {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.noScore, .noComment {
+  color: #6b7280;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.commentPreview {
+  max-width: 200px;
+  color: #374151;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 8px;
 }
 
 .studentsSection, .evaluationsSection {
@@ -203,18 +400,103 @@
 }
 
 .evaluateModal {
-  max-width: 600px;
+  max-width: 700px;
   width: 100%;
 }
 
 .evaluateModal h2 {
+  margin: 0 0 16px 0;
+  color: #374151;
+  font-size: 24px;
+}
+
+.studentInfo {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.studentInfo h3 {
   margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 18px;
+}
+
+.studentInfo p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.evaluationForm {
+  margin-bottom: 20px;
+}
+
+.formSection {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.formSection h4 {
+  margin: 0 0 16px 0;
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.penaltyCardsList {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.penaltyCardOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 2px solid #e5e7eb;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fff;
+  
+  &:hover {
+    border-color: #3b82f6;
+    background: #f0f9ff;
+  }
+  
+  &.selected {
+    border-color: #3b82f6;
+    background: #dbeafe;
+  }
+}
+
+.penaltyIcon {
+  font-size: 16px;
+}
+
+.penaltyText {
+  flex: 1;
+  font-weight: 500;
   color: #374151;
 }
 
-.evaluateModal p {
-  margin: 0 0 20px 0;
-  color: #6b7280;
+.checkmark {
+  color: #059669;
+  font-weight: 700;
+  font-size: 16px;
 }
 
 .formGroup {
@@ -266,6 +548,44 @@
 }
 
 @media (max-width: 768px) {
+  .controls {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .controlGroup {
+    min-width: auto;
+    justify-content: space-between;
+  }
+
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .tableContainer {
+    overflow-x: auto;
+  }
+
+  .evaluationTable th,
+  .evaluationTable td {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .formRow {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .penaltyCardsList {
+    grid-template-columns: 1fr;
+  }
+
+  .penaltyCardOption {
+    padding: 10px;
+  }
+
   .evaluationHeader {
     flex-direction: column;
     gap: 12px;

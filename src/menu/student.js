@@ -6,27 +6,32 @@ const studentMenu = [
   },
   { 
     path: "/student/deliveries", 
-    label: "Deliveries", 
-    icon: "📤"
+    label: "Delivery Management", 
+    icon: "📦"
   },
   { 
     path: "/student/tasks", 
-    label: "Tasks", 
+    label: "Task Management", 
     icon: "✅"
   },
   { 
+    path: "/schedule", 
+    label: "Schedule", 
+    icon: "📅"
+  },
+  { 
     path: "/student/meetings", 
-    label: "Meetings", 
-    icon: "👥"
+    label: "Meeting Management", 
+    icon: "📅"
   },
   { 
     path: "/student/minutes", 
-    label: "Minutes", 
+    label: "Meeting Minutes", 
     icon: "📝"
   },
   { 
     path: "/student/evaluation", 
-    label: "Evaluation", 
+    label: "My Evaluation", 
     icon: "⭐"
   },
   { 

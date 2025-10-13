@@ -1,0 +1,413 @@
+.container {
+  padding: 20px;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  font-size: 16px;
+  color: #666;
+}
+
+.header {
+  margin-bottom: 24px;
+}
+
+.header h1 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 28px;
+}
+
+.header p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 16px;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.section {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.section h2 {
+  margin: 0 0 16px 0;
+  color: #374151;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.groupSelector, .daySelector {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.groupSelect, .daySelect {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  min-width: 200px;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+}
+
+.groupOverview {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.memberCard {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.memberInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.memberInfo h4 {
+  margin: 0;
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.slotCount {
+  background: #dbeafe;
+  color: #2563eb;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.memberSlots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.availableSlot {
+  background: #dbeafe;
+  color: #2563eb;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.suggestedSlots {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.suggestedSlot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.slotInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.slotTime {
+  font-size: 18px;
+  font-weight: 700;
+  color: #374151;
+}
+
+.slotStats {
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.confirmButton {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  
+  &:hover:not(:disabled) {
+    background: #2563eb;
+  }
+  
+  &:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+  }
+}
+
+.confirmedSchedules {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.scheduleGroup {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.scheduleGroup h3 {
+  margin: 0 0 16px 0;
+  color: #374151;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.scheduleItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.scheduleDate {
+  font-weight: 600;
+  color: #374151;
+}
+
+.scheduleTime {
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+.scheduleStatus {
+  background: #d1fae5;
+  color: #065f46;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.instructions {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.instructions h3 {
+  margin: 0 0 12px 0;
+  color: #92400e;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.instructions ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #92400e;
+}
+
+.instructions li {
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.modal h3 {
+  margin: 0 0 16px 0;
+  color: #374151;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.modal p {
+  margin: 0 0 24px 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.customScheduleSection {
+  margin-top: 24px;
+  padding: 20px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.customScheduleHeader {
+  margin-bottom: 16px;
+}
+
+.customScheduleHeader h3 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.customScheduleHeader p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.customScheduleButton {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  
+  &:hover {
+    background: #059669;
+  }
+}
+
+.customTimeSlots {
+  margin: 20px 0;
+}
+
+.customTimeSlots h4 {
+  margin: 0 0 12px 0;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.timeSlotsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.timeSlot {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: white;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: #f8fafc;
+    border-color: #3b82f6;
+  }
+  
+  &.selected {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+  }
+}
+
+.modalActions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.cancelButton {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  
+  &:hover {
+    background: #e5e7eb;
+  }
+}
+
+@media (max-width: 768px) {
+  .groupOverview {
+    grid-template-columns: 1fr;
+  }
+  
+  .suggestedSlot {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  
+  .confirmButton {
+    width: 100%;
+  }
+  
+  .scheduleItem {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+}

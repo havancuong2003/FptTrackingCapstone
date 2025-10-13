@@ -15,6 +15,11 @@ const supervisorMenu = [
     icon: "🗳️"
   },
   { 
+    path: "/supervisor/schedule", 
+    label: "Schedule Management", 
+    icon: "📅"
+  },
+  { 
     path: "/supervisor/meetings", 
     label: "Meetings", 
     icon: "📅"
@@ -26,18 +31,18 @@ const supervisorMenu = [
   },
   { 
     path: "/supervisor/tasks", 
-    label: "Tasks Overview", 
+    label: "Task Management", 
     icon: "✅"
   },
   { 
-    path: "/supervisor/evaluation", 
-    label: "Evaluation", 
-    icon: "⭐"
+    path: "/supervisor/documents", 
+    label: "Delivery Management", 
+    icon: "📦"
   },
   { 
-    path: "/supervisor/documents", 
-    label: "Documents", 
-    icon: "📚"
+    path: "/supervisor/evaluation", 
+    label: "Evaluation System", 
+    icon: "⭐"
   }
 ];
 

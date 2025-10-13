@@ -2,11 +2,14 @@ import React from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
+import Select from '../../../components/Select/Select';
 
 export default function SupervisorEvaluation() {
   const [evaluations, setEvaluations] = React.useState([]);
-  const [students, setStudents] = React.useState([]);
+  const [groups, setGroups] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [selectedGroup, setSelectedGroup] = React.useState('GR01');
+  const [selectedMilestone, setSelectedMilestone] = React.useState('all');
   const [evaluateModal, setEvaluateModal] = React.useState(false);
   const [selectedStudent, setSelectedStudent] = React.useState(null);
   const [newEvaluation, setNewEvaluation] = React.useState({
@@ -14,7 +17,9 @@ export default function SupervisorEvaluation() {
     milestoneId: '',
     score: '',
     comment: '',
-    penaltyTag: ''
+    penaltyCards: [],
+    attendance: 'present',
+    lateTasks: 0
   });
 
   React.useEffect(() => {
@@ -23,72 +28,117 @@ export default function SupervisorEvaluation() {
         setLoading(true);
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Mock evaluations data
-        const evaluationsData = {
+        // Mock groups data with students and evaluations
+        const groupsData = {
           "status": 200,
           "message": "Fetched successfully",
           "data": [
             {
-              "id": 1,
-              "studentId": "SE00001",
-              "studentName": "Nguyen Van A",
-              "milestoneId": 1,
-              "milestoneName": "Project Proposal",
-              "comment": "Excellent work on the project proposal. Clear problem statement and well-defined objectives. Good understanding of the requirements.",
-              "penaltyTag": null,
-              "score": 9.5,
-              "createdAt": "2025-10-21T10:00:00Z",
-              "createdBy": "SUPERVISOR001",
-              "createdByName": "Dr. Smith"
-            },
-            {
-              "id": 2,
-              "studentId": "SE00001",
-              "studentName": "Nguyen Van A",
-              "milestoneId": 2,
-              "milestoneName": "System Design Document",
-              "comment": "Good technical design but submitted late. Please improve time management for future milestones.",
-              "penaltyTag": "late-submission",
-              "score": 7.0,
-              "createdAt": "2025-10-29T14:30:00Z",
-              "createdBy": "SUPERVISOR001",
-              "createdByName": "Dr. Smith"
+              "groupId": "GR01",
+              "groupName": "Team Alpha",
+              "milestones": [
+                {
+                  "id": 1,
+                  "name": "Project Setup & Planning",
+                  "students": [
+                    {
+                      "id": "SE00001",
+                      "name": "Nguyen Van A",
+                      "role": "Team Leader",
+                      "attendance": "present",
+                      "lateTasks": 0,
+                      "penaltyCards": [],
+                      "evaluations": [
+                        {
+                          "id": 1,
+                          "milestoneId": 1,
+                          "score": 9.5,
+                          "comment": "Excellent leadership and project planning. Clear vision and good team coordination.",
+                          "penaltyCards": [],
+                          "createdAt": "2025-10-21T10:00:00Z"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "SE00002",
+                      "name": "Nguyen Van B",
+                      "role": "Developer",
+                      "attendance": "present",
+                      "lateTasks": 2,
+                      "penaltyCards": [
+                        {
+                          "type": "late-submission",
+                          "description": "Late submission for task assignment",
+                          "date": "2025-10-15T14:30:00Z"
+                        }
+                      ],
+                      "evaluations": [
+                        {
+                          "id": 2,
+                          "milestoneId": 1,
+                          "score": 7.0,
+                          "comment": "Good technical skills but needs improvement in time management. Late submissions affected team progress.",
+                          "penaltyCards": ["late-submission"],
+                          "createdAt": "2025-10-21T10:00:00Z"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "SE00003",
+                      "name": "Nguyen Van C",
+                      "role": "Designer",
+                      "attendance": "absent",
+                      "lateTasks": 1,
+                      "penaltyCards": [
+                        {
+                          "type": "missing-meeting",
+                          "description": "Absent from team meeting without notice",
+                          "date": "2025-10-18T09:00:00Z"
+                        }
+                      ],
+                      "evaluations": []
+                    }
+                  ]
+                },
+                {
+                  "id": 2,
+                  "name": "Design & Architecture",
+                  "students": [
+                    {
+                      "id": "SE00001",
+                      "name": "Nguyen Van A",
+                      "role": "Team Leader",
+                      "attendance": "present",
+                      "lateTasks": 0,
+                      "penaltyCards": [],
+                      "evaluations": []
+                    },
+                    {
+                      "id": "SE00002",
+                      "name": "Nguyen Van B",
+                      "role": "Developer",
+                      "attendance": "present",
+                      "lateTasks": 1,
+                      "penaltyCards": [],
+                      "evaluations": []
+                    },
+                    {
+                      "id": "SE00003",
+                      "name": "Nguyen Van C",
+                      "role": "Designer",
+                      "attendance": "present",
+                      "lateTasks": 0,
+                      "penaltyCards": [],
+                      "evaluations": []
+                    }
+                  ]
+                }
+              ]
             }
           ]
         };
         
-        // Mock students data
-        const studentsData = {
-          "status": 200,
-          "message": "Fetched successfully",
-          "data": [
-            {
-              "id": "SE00001",
-              "name": "Nguyen Van A",
-              "groupId": "GR01",
-              "groupName": "Team Alpha",
-              "milestones": [
-                { "id": 1, "name": "Project Proposal", "status": "completed" },
-                { "id": 2, "name": "System Design Document", "status": "completed" },
-                { "id": 3, "name": "Prototype Development", "status": "in-progress" }
-              ]
-            },
-            {
-              "id": "SE00002",
-              "name": "Nguyen Van B",
-              "groupId": "GR01",
-              "groupName": "Team Alpha",
-              "milestones": [
-                { "id": 1, "name": "Project Proposal", "status": "completed" },
-                { "id": 2, "name": "System Design Document", "status": "pending" },
-                { "id": 3, "name": "Prototype Development", "status": "pending" }
-              ]
-            }
-          ]
-        };
-        
-        setEvaluations(evaluationsData.data);
-        setStudents(studentsData.data);
+        setGroups(groupsData.data);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -112,18 +162,31 @@ export default function SupervisorEvaluation() {
     return 'Needs Improvement';
   };
 
-  const getPenaltyInfo = (penaltyTag) => {
-    if (!penaltyTag) return null;
-    
-    switch (penaltyTag) {
+  const getPenaltyCardInfo = (type) => {
+    switch (type) {
       case 'late-submission':
-        return { text: 'Late Submission', color: '#d97706' };
+        return { text: 'Late Submission', color: '#d97706', icon: '⏰' };
       case 'missing-meeting':
-        return { text: 'Missing Meeting', color: '#dc2626' };
+        return { text: 'Missing Meeting', color: '#dc2626', icon: '🚫' };
       case 'poor-quality':
-        return { text: 'Poor Quality', color: '#dc2626' };
+        return { text: 'Poor Quality', color: '#dc2626', icon: '❌' };
+      case 'no-participation':
+        return { text: 'No Participation', color: '#dc2626', icon: '😴' };
       default:
-        return { text: penaltyTag, color: '#64748b' };
+        return { text: type, color: '#64748b', icon: '⚠️' };
+    }
+  };
+
+  const getAttendanceInfo = (attendance) => {
+    switch (attendance) {
+      case 'present':
+        return { text: 'Present', color: '#059669', icon: '✅' };
+      case 'absent':
+        return { text: 'Absent', color: '#dc2626', icon: '❌' };
+      case 'late':
+        return { text: 'Late', color: '#d97706', icon: '⏰' };
+      default:
+        return { text: 'Unknown', color: '#64748b', icon: '❓' };
     }
   };
 
@@ -137,8 +200,38 @@ export default function SupervisorEvaluation() {
     });
   };
 
+  // Get filtered data
+  const selectedGroupData = groups.find(group => group.groupId === selectedGroup);
+  const selectedMilestoneData = selectedGroupData?.milestones?.find(m => 
+    selectedMilestone === 'all' || m.id.toString() === selectedMilestone
+  );
+  
+  const studentsToEvaluate = selectedMilestoneData?.students || [];
+  const allEvaluations = selectedGroupData?.milestones?.flatMap(m => 
+    m.students?.flatMap(s => s.evaluations?.map(e => ({
+      ...e,
+      studentId: s.id,
+      studentName: s.name,
+      milestoneName: m.name
+    }))) || []
+  ) || [];
+
+  const milestoneOptions = selectedGroupData?.milestones?.map(m => ({ 
+    value: m.id.toString(), 
+    label: m.name 
+  })) || [];
+
   const openEvaluateModal = (student) => {
     setSelectedStudent(student);
+    setNewEvaluation({
+      studentId: student.id,
+      milestoneId: selectedMilestoneData?.id?.toString() || '',
+      score: '',
+      comment: '',
+      penaltyCards: [],
+      attendance: student.attendance,
+      lateTasks: student.lateTasks
+    });
     setEvaluateModal(true);
   };
 
@@ -183,55 +276,178 @@ export default function SupervisorEvaluation() {
   }
 
   return (
-    <div className={styles.container}>
+    <>
+      <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Student Evaluation</h1>
-        <p className={styles.subtitle}>
-          Evaluate student performance and provide feedback for each milestone.
-        </p>
-      </div>
-      
-      <div className={styles.sections}>
-        <div className={styles.studentsSection}>
-          <h2>Students to Evaluate</h2>
-          <div className={styles.studentsList}>
-            {students.map((student) => (
-              <div key={student.id} className={styles.studentCard}>
-                <div className={styles.studentInfo}>
-                  <h3>{student.name}</h3>
-                  <p className={styles.studentGroup}>
-                    {student.groupName} ({student.groupId})
-                  </p>
-                </div>
-                <div className={styles.milestonesList}>
-                  <h4>Milestones</h4>
-                  {student.milestones.map((milestone) => (
-                    <div key={milestone.id} className={styles.milestoneItem}>
-                      <span className={styles.milestoneName}>{milestone.name}</span>
-                      <span 
-                        className={styles.milestoneStatus}
-                        style={{
-                          color: milestone.status === 'completed' ? '#059669' : 
-                                 milestone.status === 'in-progress' ? '#3b82f6' : '#d97706'
-                        }}
-                      >
-                        {milestone.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <div className={styles.studentActions}>
-                  <Button 
-                    onClick={() => openEvaluateModal(student)}
-                    size="sm"
-                  >
-                    Evaluate
-                  </Button>
-                </div>
-              </div>
-            ))}
+        <h1>⭐ Student Evaluation - Supervisor View</h1>
+        <div className={styles.controls}>
+          <div className={styles.controlGroup}>
+            <label>Group:</label>
+            <Select
+              value={selectedGroup}
+              onChange={setSelectedGroup}
+              options={groups.map(group => ({ value: group.groupId, label: `${group.groupName} (${group.groupId})` }))}
+            />
+          </div>
+          <div className={styles.controlGroup}>
+            <label>Milestone:</label>
+            <Select
+              value={selectedMilestone}
+              onChange={setSelectedMilestone}
+              options={[{ value: 'all', label: 'All Milestones' }, ...milestoneOptions]}
+            />
           </div>
         </div>
+      </div>
+      
+      {selectedGroupData && (
+        <>
+          <div className={styles.groupInfo}>
+            <h2>📈 {selectedGroupData.groupName} ({selectedGroupData.groupId}) - Evaluation Summary</h2>
+            <div className={styles.statsGrid}>
+              <div className={styles.statCard}>
+                <div className={styles.statNumber}>{studentsToEvaluate.length}</div>
+                <div className={styles.statLabel}>Students</div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statNumber}>{allEvaluations.length}</div>
+                <div className={styles.statLabel}>Evaluations</div>
+              </div>
+              <div className={styles.statCard}>
+                <div className={styles.statNumber}>
+                  {studentsToEvaluate.length > 0 ? Math.round((allEvaluations.length / studentsToEvaluate.length) * 100) : 0}%
+                </div>
+                <div className={styles.statLabel}>Completion Rate</div>
+              </div>
+            </div>
+          </div>
+          
+          <div className={styles.evaluationTable}>
+            <h2>📊 Students Evaluation Table</h2>
+            <div className={styles.tableContainer}>
+              <table className={styles.evaluationTable}>
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Role</th>
+                    <th>Attendance</th>
+                    <th>Late Tasks</th>
+                    <th>Penalty Cards</th>
+                    <th>Score</th>
+                    <th>Comment</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentsToEvaluate.map((student) => {
+                    const attendanceInfo = getAttendanceInfo(student.attendance);
+                    const latestEvaluation = student.evaluations?.[0];
+                    
+                    return (
+                      <tr key={student.id}>
+                        <td>
+                          <div className={styles.studentInfo}>
+                            <strong>{student.name}</strong>
+                            <span className={styles.studentId}>({student.id})</span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={styles.roleTag}>{student.role}</span>
+                        </td>
+                        <td>
+                          <div className={styles.attendanceInfo}>
+                            <span 
+                              className={styles.attendanceIcon}
+                              style={{ color: attendanceInfo.color }}
+                            >
+                              {attendanceInfo.icon}
+                            </span>
+                            <span 
+                              className={styles.attendanceText}
+                              style={{ color: attendanceInfo.color }}
+                            >
+                              {attendanceInfo.text}
+                            </span>
+                          </div>
+                        </td>
+                        <td>
+                          <span className={styles.lateTasksCount}>
+                            {student.lateTasks} tasks
+                          </span>
+                        </td>
+                        <td>
+                          <div className={styles.penaltyCards}>
+                            {student.penaltyCards.length > 0 ? (
+                              student.penaltyCards.map((card, index) => {
+                                const penaltyInfo = getPenaltyCardInfo(card.type);
+                                return (
+                                  <span 
+                                    key={index}
+                                    className={styles.penaltyCard}
+                                    style={{ backgroundColor: penaltyInfo.color }}
+                                    title={card.description}
+                                  >
+                                    {penaltyInfo.icon} {penaltyInfo.text}
+                                  </span>
+                                );
+                              })
+                            ) : (
+                              <span className={styles.noPenalty}>No penalties</span>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          {latestEvaluation ? (
+                            <div className={styles.scoreInfo}>
+                              <span 
+                                className={styles.scoreValue}
+                                style={{ color: getScoreColor(latestEvaluation.score) }}
+                              >
+                                {latestEvaluation.score}/10
+                              </span>
+                              <span 
+                                className={styles.scoreText}
+                                style={{ color: getScoreColor(latestEvaluation.score) }}
+                              >
+                                {getScoreText(latestEvaluation.score)}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className={styles.noScore}>Not evaluated</span>
+                          )}
+                        </td>
+                        <td>
+                          {latestEvaluation ? (
+                            <div className={styles.commentPreview}>
+                              {latestEvaluation.comment.length > 50 
+                                ? `${latestEvaluation.comment.substring(0, 50)}...` 
+                                : latestEvaluation.comment
+                              }
+                            </div>
+                          ) : (
+                            <span className={styles.noComment}>No comment</span>
+                          )}
+                        </td>
+                        <td>
+                          <div className={styles.actionButtons}>
+                            <Button 
+                              onClick={() => openEvaluateModal(student)}
+                              size="sm"
+                              variant={latestEvaluation ? "secondary" : "primary"}
+                            >
+                              {latestEvaluation ? "Re-evaluate" : "Evaluate"}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
         
         <div className={styles.evaluationsSection}>
           <h2>Recent Evaluations</h2>
@@ -304,75 +520,116 @@ export default function SupervisorEvaluation() {
       </div>
 
       <Modal open={evaluateModal} onClose={() => setEvaluateModal(false)}>
-        <div className={styles.evaluateModal}>
-          <h2>Evaluate Student</h2>
-          <p>Evaluating: <strong>{selectedStudent?.name}</strong></p>
-          
-          <div className={styles.formGroup}>
-            <label>Milestone</label>
-            <select
-              value={newEvaluation.milestoneId}
-              onChange={(e) => setNewEvaluation({...newEvaluation, milestoneId: e.target.value})}
-              className={styles.select}
-            >
-              <option value="">Select milestone</option>
-              {selectedStudent?.milestones.map(milestone => (
-                <option key={milestone.id} value={milestone.id}>
-                  {milestone.name}
-                </option>
-              ))}
-            </select>
+        {selectedStudent && (
+          <div className={styles.evaluateModal}>
+            <h2>⭐ Evaluate Student</h2>
+            <div className={styles.studentInfo}>
+              <h3>Evaluating: {selectedStudent.name} ({selectedStudent.id})</h3>
+              <p>Role: {selectedStudent.role} | Milestone: {selectedMilestoneData?.name}</p>
+            </div>
+            
+            <div className={styles.evaluationForm}>
+              <div className={styles.formSection}>
+                <h4>📊 Basic Information</h4>
+                <div className={styles.formRow}>
+                  <div className={styles.formGroup}>
+                    <label>Attendance</label>
+                    <select
+                      value={newEvaluation.attendance}
+                      onChange={(e) => setNewEvaluation({...newEvaluation, attendance: e.target.value})}
+                      className={styles.select}
+                    >
+                      <option value="present">✅ Present</option>
+                      <option value="absent">❌ Absent</option>
+                      <option value="late">⏰ Late</option>
+                    </select>
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>Late Tasks Count</label>
+                    <input
+                      type="number"
+                      value={newEvaluation.lateTasks}
+                      onChange={(e) => setNewEvaluation({...newEvaluation, lateTasks: parseInt(e.target.value) || 0})}
+                      className={styles.input}
+                      min="0"
+                      placeholder="Number of late tasks"
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className={styles.formSection}>
+                <h4>⭐ Evaluation</h4>
+                <div className={styles.formGroup}>
+                  <label>Score (0-10)</label>
+                  <input
+                    type="number"
+                    value={newEvaluation.score}
+                    onChange={(e) => setNewEvaluation({...newEvaluation, score: e.target.value})}
+                    className={styles.input}
+                    min="0"
+                    max="10"
+                    step="0.1"
+                    placeholder="Enter score"
+                  />
+                </div>
+                
+                <div className={styles.formGroup}>
+                  <label>Comment</label>
+                  <textarea
+                    value={newEvaluation.comment}
+                    onChange={(e) => setNewEvaluation({...newEvaluation, comment: e.target.value})}
+                    placeholder="Provide detailed feedback about the student's performance..."
+                    className={styles.textarea}
+                    rows={4}
+                  />
+                </div>
+              </div>
+              
+              <div className={styles.formSection}>
+                <h4>⚠️ Penalty Cards</h4>
+                <div className={styles.penaltyCardsList}>
+                  {['late-submission', 'missing-meeting', 'poor-quality', 'no-participation'].map(penaltyType => {
+                    const penaltyInfo = getPenaltyCardInfo(penaltyType);
+                    const isSelected = newEvaluation.penaltyCards.includes(penaltyType);
+                    
+                    return (
+                      <div 
+                        key={penaltyType}
+                        className={`${styles.penaltyCardOption} ${isSelected ? styles.selected : ''}`}
+                        onClick={() => {
+                          const updatedCards = isSelected 
+                            ? newEvaluation.penaltyCards.filter(card => card !== penaltyType)
+                            : [...newEvaluation.penaltyCards, penaltyType];
+                          setNewEvaluation({...newEvaluation, penaltyCards: updatedCards});
+                        }}
+                      >
+                        <span 
+                          className={styles.penaltyIcon}
+                          style={{ color: penaltyInfo.color }}
+                        >
+                          {penaltyInfo.icon}
+                        </span>
+                        <span className={styles.penaltyText}>{penaltyInfo.text}</span>
+                        {isSelected && <span className={styles.checkmark}>✓</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+            
+            <div className={styles.modalActions}>
+              <Button variant="secondary" onClick={() => setEvaluateModal(false)}>
+                Cancel
+              </Button>
+              <Button onClick={submitEvaluation}>
+                Submit Evaluation
+              </Button>
+            </div>
           </div>
-          
-          <div className={styles.formGroup}>
-            <label>Score (0-10)</label>
-            <input
-              type="number"
-              value={newEvaluation.score}
-              onChange={(e) => setNewEvaluation({...newEvaluation, score: e.target.value})}
-              className={styles.input}
-              min="0"
-              max="10"
-              step="0.1"
-              placeholder="Enter score"
-            />
-          </div>
-          
-          <div className={styles.formGroup}>
-            <label>Comment</label>
-            <textarea
-              value={newEvaluation.comment}
-              onChange={(e) => setNewEvaluation({...newEvaluation, comment: e.target.value})}
-              placeholder="Provide detailed feedback..."
-              className={styles.textarea}
-              rows={4}
-            />
-          </div>
-          
-          <div className={styles.formGroup}>
-            <label>Penalty Tag (optional)</label>
-            <select
-              value={newEvaluation.penaltyTag}
-              onChange={(e) => setNewEvaluation({...newEvaluation, penaltyTag: e.target.value})}
-              className={styles.select}
-            >
-              <option value="">No penalty</option>
-              <option value="late-submission">Late Submission</option>
-              <option value="missing-meeting">Missing Meeting</option>
-              <option value="poor-quality">Poor Quality</option>
-            </select>
-          </div>
-          
-          <div className={styles.modalActions}>
-            <Button variant="secondary" onClick={() => setEvaluateModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={submitEvaluation}>
-              Submit Evaluation
-            </Button>
-          </div>
-        </div>
+        )}
       </Modal>
-    </div>
+    </>
   );
 }
