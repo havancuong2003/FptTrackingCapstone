@@ -141,11 +141,10 @@ function Milestone() {
             const body = 
                 {
                     id: editingItem.id,
-                    name: editingItem.name,
+                    name: editingItem.name || "",
                     description: editingItem.description || "",
                     majorId: Number(selectedMajorId),
-                }
-            ;
+                };
             await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", body);
             closeEdit();
             const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(

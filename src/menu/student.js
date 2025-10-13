@@ -1,11 +1,44 @@
 const studentMenu = [
-  { path: '/dashboard', label: 'Dashboard' },
-  { path: '/tasks', label: 'Task & Lịch trình' },
-  { path: '/reports', label: 'Báo cáo' },
-  { path: '/progress', label: 'Tiến độ' },
-  { path: '/discussions', label: 'Thảo luận' },
-  { path: '/schedule', label: 'Lịch nhóm' },
-  { path: '/ai', label: 'AI hỗ trợ' },
+  { 
+    path: "/student/milestones", 
+    label: "Milestones", 
+    icon: "📋"
+  },
+  { 
+    path: "/student/deliveries", 
+    label: "Delivery Management", 
+    icon: "📦"
+  },
+  { 
+    path: "/student/tasks", 
+    label: "Task Management", 
+    icon: "✅"
+  },
+  { 
+    path: "/schedule", 
+    label: "Schedule", 
+    icon: "📅"
+  },
+  { 
+    path: "/student/meetings", 
+    label: "Meeting Management", 
+    icon: "📅"
+  },
+  { 
+    path: "/student/minutes", 
+    label: "Meeting Minutes", 
+    icon: "📝"
+  },
+  { 
+    path: "/student/evaluation", 
+    label: "My Evaluation", 
+    icon: "⭐"
+  },
+  { 
+    path: "/student/documents", 
+    label: "Documents", 
+    icon: "📚"
+  }
 ];
 
-export default studentMenu; 
+export default studentMenu;

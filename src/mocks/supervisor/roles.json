@@ -1,0 +1,61 @@
+{
+  "status": 200,
+  "message": "Fetched successfully",
+  "data": [
+    {
+      "groupId": "GR01",
+      "groupName": "Team Alpha",
+      "members": [
+        {
+          "id": "SE00001",
+          "name": "Nguyen Van A",
+          "currentRole": "Leader",
+          "email": "nguyenvana@student.fpt.edu.vn",
+          "roleHistory": [
+            {
+              "role": "Member",
+              "assignedDate": "2025-10-01T00:00:00Z",
+              "assignedBy": "SUPERVISOR001"
+            },
+            {
+              "role": "Leader",
+              "assignedDate": "2025-10-10T00:00:00Z",
+              "assignedBy": "SUPERVISOR001"
+            }
+          ]
+        },
+        {
+          "id": "SE00002",
+          "name": "Nguyen Van B",
+          "currentRole": "Member",
+          "email": "nguyenvanb@student.fpt.edu.vn",
+          "roleHistory": [
+            {
+              "role": "Member",
+              "assignedDate": "2025-10-01T00:00:00Z",
+              "assignedBy": "SUPERVISOR001"
+            }
+          ]
+        },
+        {
+          "id": "SE00003",
+          "name": "Nguyen Van C",
+          "currentRole": "Secretary",
+          "email": "nguyenvanc@student.fpt.edu.vn",
+          "roleHistory": [
+            {
+              "role": "Member",
+              "assignedDate": "2025-10-01T00:00:00Z",
+              "assignedBy": "SUPERVISOR001"
+            },
+            {
+              "role": "Secretary",
+              "assignedDate": "2025-10-15T00:00:00Z",
+              "assignedBy": "SUPERVISOR001"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

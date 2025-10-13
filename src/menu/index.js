@@ -3,9 +3,11 @@ import adminMenu from './admin';
 import staffMenu from './staff';
 import studentMenu from './student';
 import teacherMenu from './teacher';
+import supervisorMenu from './supervisor';
 
 export function getMenuForRole(role) {
   const normalized = String(role || '').toUpperCase();
+  console.log('normalized', normalized);  
   switch (normalized) {
     case Role.ADMIN:
       return adminMenu;
@@ -15,6 +17,8 @@ export function getMenuForRole(role) {
       return studentMenu;
     case Role.TEACHER:
       return teacherMenu;
+    case Role.SUPERVISOR:
+      return supervisorMenu;
     default:
       return studentMenu;
   }

@@ -1,0 +1,48 @@
+{
+  "status": 200,
+  "message": "Fetched successfully",
+  "data": [
+    {
+      "id": 1,
+      "groupId": "GR01",
+      "groupName": "Team Alpha",
+      "studentId": "SE00001",
+      "studentName": "Nguyen Van A",
+      "milestoneId": 1,
+      "milestoneName": "Project Proposal",
+      "comment": "Excellent work on the project proposal. Clear problem statement and well-defined objectives. Good understanding of the requirements.",
+      "penaltyTag": null,
+      "score": 9.5,
+      "createdAt": "2025-10-21T10:00:00Z",
+      "createdBy": "MENTOR001"
+    },
+    {
+      "id": 2,
+      "groupId": "GR01",
+      "groupName": "Team Alpha",
+      "studentId": "SE00002",
+      "studentName": "Nguyen Van B",
+      "milestoneId": 2,
+      "milestoneName": "System Design Document",
+      "comment": "Good technical design but submitted late. Please improve time management for future milestones.",
+      "penaltyTag": "late-submission",
+      "score": 7.0,
+      "createdAt": "2025-10-29T14:30:00Z",
+      "createdBy": "MENTOR001"
+    },
+    {
+      "id": 3,
+      "groupId": "GR01",
+      "groupName": "Team Alpha",
+      "studentId": "SE00003",
+      "studentName": "Nguyen Van C",
+      "milestoneId": 1,
+      "milestoneName": "Project Proposal",
+      "comment": "Good contribution to the proposal. Active participation in discussions.",
+      "penaltyTag": null,
+      "score": 8.5,
+      "createdAt": "2025-10-21T10:30:00Z",
+      "createdBy": "MENTOR001"
+    }
+  ]
+}

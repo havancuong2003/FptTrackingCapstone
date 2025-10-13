@@ -1,0 +1,41 @@
+{
+  "status": 200,
+  "message": "Fetched successfully",
+  "data": [
+    {
+      "id": 1,
+      "groupId": "GR01",
+      "groupName": "Team Alpha",
+      "topic": "Project Kickoff Meeting",
+      "datetime": "2025-10-15T14:00:00Z",
+      "duration": 60,
+      "linkMeet": "https://meet.google.com/abc-defg-hij",
+      "participants": ["SE00001", "SE00002", "SE00003", "SUPERVISOR001"],
+      "objective": "Discuss project requirements and initial planning",
+      "status": "completed",
+      "createdBy": "MENTOR001",
+      "createdDate": "2025-10-10T10:00:00Z",
+      "minutes": {
+        "id": 1,
+        "content": "Discussed project scope and timeline",
+        "issues": ["Need to clarify database requirements"],
+        "actions": ["Research database options", "Setup development environment"],
+        "attachments": ["meeting_notes.pdf"]
+      }
+    },
+    {
+      "id": 2,
+      "groupId": "GR01",
+      "groupName": "Team Alpha",
+      "topic": "Weekly Progress Review",
+      "datetime": "2025-10-22T14:00:00Z",
+      "duration": 45,
+      "linkMeet": "https://meet.google.com/xyz-uvw-rst",
+      "participants": ["SE00001", "SE00002", "SE00003", "SUPERVISOR001"],
+      "objective": "Review progress on milestone 1 and plan for milestone 2",
+      "status": "scheduled",
+      "createdBy": "MENTOR001",
+      "createdDate": "2025-10-18T15:00:00Z"
+    }
+  ]
+}
