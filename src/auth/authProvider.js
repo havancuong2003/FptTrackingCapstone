@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
         const normalizedUser = {
           id: me.id || me.userId || 'u_1',
           name: me.name || me.fullName || 'User',
-          role: me.role || 'STUDENT',
+          role: (me.role || 'STUDENT').toUpperCase(),
         };
         setUser(normalizedUser);
         localStorage.setItem(USER_INFO_KEY, JSON.stringify(normalizedUser));
@@ -41,7 +41,8 @@ export function AuthProvider({ children }) {
         setUser(null);
         setStatus('unauthenticated');
       }
-    } catch {
+    } catch (error) {
+      console.error('Auth error:', error);
       localStorage.removeItem(USER_INFO_KEY);
       localStorage.removeItem(USER_ROLE_KEY);
       setUser(null);

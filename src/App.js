@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import DefaultLayout from './layout/DefaultLayout';
 import { routes } from './routes/routes';
 import RequireAuth from './auth/RequireAuth';
+import RouteGuard from './auth/RouteGuard';
 import Spinner from './components/Spinner/Spinner';
 import LoadingOverlay from './components/LoadingOverlay/LoadingOverlay';
 
@@ -44,9 +45,9 @@ export default function App() {
             let content = <Element />;
             if (isProtected) {
               content = (
-                <RequireAuth role={route.meta.role}>
+                <RouteGuard requiredRoles={route.meta.roles}>
                   {content}
-                </RequireAuth>
+                </RouteGuard>
               );    
             }
 
