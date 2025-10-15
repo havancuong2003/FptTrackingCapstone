@@ -55,7 +55,6 @@ export default function Tracking() {
                 const res = await client.get(url);
                 const data = res?.data?.data || {};
                 if (!mounted) return;
-                console.log("Groups data:", data);
                 setGroups(Array.isArray(data.items) ? data.items : []);
                 setTotal(data.total || 0);
             } catch (err) {

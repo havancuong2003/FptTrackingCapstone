@@ -84,8 +84,6 @@ export default function Dashboard() {
           { withCredentials: true }
         );
 
-        console.log("API DATA:", res.data);
-
         const formattedData =
           res?.data?.data?.map((item) => ({
             code: item?.name || "Không xác định",

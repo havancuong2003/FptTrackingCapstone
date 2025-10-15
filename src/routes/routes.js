@@ -43,6 +43,7 @@ const DefaultPage = React.lazy(() => import("../pages/common/DefaultPage"));
 const StudentMilestones = React.lazy(() => import("../pages/student/Milestones"));
 const StudentDeliveries = React.lazy(() => import("../pages/student/Deliveries"));
 const StudentTasks = React.lazy(() => import("../pages/student/Tasks"));
+const StudentTaskDetail = React.lazy(() => import("../pages/student/Tasks/TaskDetail"));
 const StudentMeetings = React.lazy(() => import("../pages/student/Meetings"));
 const StudentMinutes = React.lazy(() => import("../pages/student/Minutes"));
 const StudentEvaluation = React.lazy(() => import("../pages/student/Evaluation"));
@@ -265,6 +266,15 @@ export const routes = [
     element: StudentTasks,
     meta: {
       title: "Task Management",
+      protected: true,
+      roles: ["STUDENT"],
+    },
+  },
+  {
+    path: "/student/task/group/:groupId",
+    element: StudentTaskDetail,
+    meta: {
+      title: "Task Detail",
       protected: true,
       roles: ["STUDENT"],
     },

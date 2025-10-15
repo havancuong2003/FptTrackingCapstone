@@ -98,7 +98,6 @@ export default function StudentMinutes() {
   };
 
   const createMinutes = () => {
-    console.log('Creating minutes:', newMinutes);
     alert('Meeting minutes created successfully! (Mock)');
     setCreateModal(false);
     setNewMinutes({

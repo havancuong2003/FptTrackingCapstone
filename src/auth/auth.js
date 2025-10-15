@@ -1,9 +1,11 @@
 import { API_BASE_URL } from '../app/config';
 import client from '../utils/axiosClient';
 import { resetLoading } from '../utils/loading';
+import { getCurrentSemester } from '../api/staff/semester';
 
 export const USER_ROLE_KEY = 'auth_role';
 export const USER_INFO_KEY = 'auth_user';
+export const CURRENT_SEMESTER_KEY = 'current_semester';
 
 // Sử dụng client chung đã cấu hình interceptor
 
@@ -16,40 +18,47 @@ export function getCurrentUser() {
   return { id: 'u_1', name: 'Mock User', role };
 }
 
+export function getCurrentSemesterInfo() {
+  try {
+    const raw = localStorage.getItem(CURRENT_SEMESTER_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
 export async function login({ username, password }) {
   if (!username || !password) {
     throw new Error('Thiếu thông tin đăng nhập');
   }
 
-  // Mock login cho testing
-  if (username === 'abc' && password === '123') {
-    console.log('Mock login: abc/123 detected, setting as staff');
-    const mockUser = {
-      id: 'mock_staff_1',
-      name: 'Mock Staff User',
-      role: 'STAFF'
-    };
-    localStorage.setItem(USER_ROLE_KEY, 'STAFF');
-    localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser));
-    return { message: 'Mock login successfully' };
-  }
+  // // Mock login cho testing
+  // if (username === 'abc' && password === '123') {
+  //   console.log('Mock login: abc/123 detected, setting as staff');
+  //   const mockUser = {
+  //     id: 'mock_staff_1',
+  //     name: 'Mock Staff User',
+  //     role: 'STAFF'
+  //   };
+  //   localStorage.setItem(USER_ROLE_KEY, 'STAFF');
+  //   localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser));
+  //   return { message: 'Mock login successfully' };
+  // }
 
-  // Mock login cho SUPERVISOR testing
-  if (username === 'supervisor' && password === '123') {
-    console.log('Mock login: supervisor/123 detected, setting as supervisor');
-    const mockUser = {
-      id: 'mock_supervisor_1',
-      name: 'Mock Supervisor User',
-      role: 'SUPERVISOR'
-    };
-    localStorage.setItem(USER_ROLE_KEY, 'SUPERVISOR');
-    localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser));
-    return { message: 'Mock login successfully' };
-  }
+  // // Mock login cho SUPERVISOR testing
+  // if (username === 'supervisor' && password === '123') {
+  //   console.log('Mock login: supervisor/123 detected, setting as supervisor');
+  //   const mockUser = {
+  //     id: 'mock_supervisor_1',
+  //     name: 'Mock Supervisor User',
+  //     role: 'SUPERVISOR'
+  //   };
+  //   localStorage.setItem(USER_ROLE_KEY, 'SUPERVISOR');
+  //   localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser));
+  //   return { message: 'Mock login successfully' };
+  // }
 
   try {
     const res = await client.post('/auth/login', { userName : username, password });
-    console.log("res login", res);
   } catch (e) {
     const msg = e?.response?.data?.message || e?.message || 'Đăng nhập thất bại';
     throw new Error(msg);
@@ -60,16 +69,34 @@ export async function login({ username, password }) {
     const meBody = meRes?.data;
     const me = meBody?.data || meBody || null;
     if (me) {
-      console.log("me", me);
       const role = me.role || localStorage.getItem(USER_ROLE_KEY) || 'STUDENT';
-      console.log("role", role);
       localStorage.setItem(USER_ROLE_KEY, role);
       localStorage.setItem(
         USER_INFO_KEY,
         JSON.stringify({ id: me.id || me.userId || 'u_1', name: me.name || me.fullName || 'User', role })
       );
+
+      // Lưu groupId cho student để dùng cho điều hướng tasks
+      try {
+        const isStudent = String(role).toUpperCase() === 'STUDENT';
+        const groupId = me.groupId || me.groupID || me.group?.id || me.currentGroupId || null;
+        if (isStudent && groupId) {
+          localStorage.setItem('student_group_id', String(groupId));
+        }
+      } catch {}
     }
   } catch {}
+
+  // Lấy và lưu thông tin semester hiện tại
+  try {
+    const semesterRes = await getCurrentSemester();
+    const semesterData = semesterRes?.data;
+    if (semesterData) {
+      localStorage.setItem(CURRENT_SEMESTER_KEY, JSON.stringify(semesterData));
+    }
+  } catch (error) {
+    console.warn('Không thể lấy thông tin semester hiện tại:', error);
+  }
 
   return { message: 'Login successfully' };
 }
@@ -80,10 +107,14 @@ export async function logout() {
     await client.post('/auth/logout');
     localStorage.removeItem(USER_ROLE_KEY);
     localStorage.removeItem(USER_INFO_KEY);
+    localStorage.removeItem('student_group_id');
+    localStorage.removeItem(CURRENT_SEMESTER_KEY);
     resetLoading();
     return;
   } catch {}
   localStorage.removeItem(USER_ROLE_KEY);
   localStorage.removeItem(USER_INFO_KEY);
+  localStorage.removeItem('student_group_id');
+  localStorage.removeItem(CURRENT_SEMESTER_KEY);
   resetLoading();
 } 
