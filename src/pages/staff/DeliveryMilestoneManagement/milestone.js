@@ -10,7 +10,7 @@ function Milestone() {
     const [selectedMajorId, setSelectedMajorId] = React.useState("");
     const [milestones, setMilestones] = React.useState([]);
     const [search, setSearch] = React.useState("");
-    const [sortBy, setSortBy] = React.useState("name"); // name | createAt
+    const [sortBy, setSortBy] = React.useState("createAt"); // name | createAt
     const [page, setPage] = React.useState(1);
     const pageSize = 10;
 
@@ -31,7 +31,7 @@ function Milestone() {
         async function fetchMajors() {
             try {
                 const res = await client.get(
-                    "https://160.30.21.113:5000/api/Staff/GetMajors"
+                    "https://160.30.21.113:5000/api/v1/Staff/getAllCodeCourse"
                 );
                 const body = res?.data || {};
                 const list = Array.isArray(body.data) ? body.data : [];
@@ -58,7 +58,7 @@ function Milestone() {
         async function fetchMilestones() {
             if (!selectedMajorId) return;
             try {
-                const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
+                const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${encodeURIComponent(
                     selectedMajorId
                 )}`;
                 const res = await client.get(url);
@@ -92,7 +92,7 @@ function Milestone() {
         list.sort((a, b) => {
             if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
             if (sortBy === "createAt")
-                return new Date(a.createAt || 0) - new Date(b.createAt || 0);
+                return new Date(b.createAt || 0) - new Date(a.createAt || 0); // Descending order (newest first)
             return 0;
         });
 
@@ -143,11 +143,11 @@ function Milestone() {
                     id: editingItem.id,
                     name: editingItem.name || "",
                     description: editingItem.description || "",
-                    majorId: Number(selectedMajorId),
+                    majorCateId: Number(selectedMajorId),
                 };
             await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", body);
             closeEdit();
-            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
+            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${encodeURIComponent(
                 selectedMajorId
             )}`;
             const res = await client.get(url);
@@ -163,7 +163,7 @@ function Milestone() {
         try {
             await client.delete(`https://160.30.21.113:5000/api/v1/Staff/milestone/${editingItem.id}`);
             closeEdit();
-            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
+            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${encodeURIComponent(
                 selectedMajorId
             )}`;
             const res = await client.get(url);
@@ -229,16 +229,13 @@ function Milestone() {
         }
         try {
             const payload = trimmed.map((r) => ({
-                id: 0, // Let the backend auto-generate the ID
                 name: r.name,
                 description: r.description,
-                deadline: null,
-                majorId: majorIdNum,
-                semesterId: 1,
+                majorCateId: majorIdNum,
             }));
             await client.post("https://160.30.21.113:5000/api/v1/Staff/milestones", payload);
             closeCreate();
-            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorId=${encodeURIComponent(
+            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${encodeURIComponent(
                 selectedMajorId
             )}`;
             const res = await client.get(url);
@@ -254,23 +251,25 @@ function Milestone() {
             <div
                 style={{
                     display: "grid",
-                    gridTemplateColumns: "auto 1fr auto",
+                    gridTemplateColumns: "auto 1fr",
                     alignItems: "center",
-                    gap: 16,
-                    marginBottom: 16,
+                    gap: 20,
+                    marginBottom: 20,
                     background: "#fff",
-                    padding: 12,
+                    padding: "16px 20px",
                     border: "1px solid #e5e7eb",
-                    borderRadius: 8,
+                    borderRadius: 12,
+                    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)",
                 }}
             >
-                {/* Code select */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 240 }}>
-                    <span style={{ fontWeight: 600 }}>Code:</span>
-                    <div style={{ width: 160 }}>
+                {/* Major select with name display */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 320 }}>
+                    <span style={{ fontWeight: 600 }}>Major:</span>
+                    <div style={{ width: 200 }}>
                         <Select
                             value={selectedMajorId}
                             onChange={(e) => setSelectedMajorId(e.target.value)}
+                            style={{ fontSize: "14px" }}
                         >
                             {majors.map((m) => (
                                 <option key={m.id} value={m.id}>
@@ -279,12 +278,25 @@ function Milestone() {
                             ))}
                         </Select>
                     </div>
+                    {selectedMajor && (
+                        <div style={{ 
+                            fontSize: "14px", 
+                            color: "#64748b", 
+                            fontStyle: "italic",
+                            maxWidth: "200px",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap"
+                        }}>
+                            Name: {selectedMajor.name}
+                        </div>
+                    )}
                 </div>
 
                 {/* Search box with trailing icon inside input */}
                 <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
                     <Input
-                        placeholder="Search for Capstone Milestone by Code or Milestone Name..."
+                        placeholder="Search for Capstone Milestone by Name or Description..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         style={{ width: "100%", paddingRight: 40 }}
@@ -301,27 +313,15 @@ function Milestone() {
                         🔍
                     </span>
                 </div>
-
-                {/* Sort by select */}
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontWeight: 600 }}>Sort by:</span>
-                    <div style={{ width: 160 }}>
-                        <Select
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                        >
-                            <option value="name">Name</option>
-                            <option value="createAt">Created time</option>
-                        </Select>
-                    </div>
-                </div>
             </div>
 
             <div
                 style={{
                     overflow: "auto",
                     border: "1px solid #e5e7eb",
-                    borderRadius: 8,
+                    borderRadius: 12,
+                    backgroundColor: "#fff",
+                    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)",
                 }}
             >
                 <table
@@ -331,25 +331,34 @@ function Milestone() {
                         borderSpacing: 0,
                     }}
                 >
-                    <thead style={{ background: "#f9fafb" }}>
+                    <thead style={{ background: "#f8fafc" }}>
                         <tr>
                             <th
                                 style={{
                                     textAlign: "left",
-                                    padding: 12,
+                                    padding: "16px 20px",
                                     borderBottom: "1px solid #e5e7eb",
-                                    width: "80px",
-
+                                    width: "60px",
+                                    fontSize: "12px",
+                                    fontWeight: "600",
+                                    color: "#64748b",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.05em"
                                 }}
                             >
-                                No.
+                                #
                             </th>
                             <th
                                 style={{
                                     textAlign: "left",
-                                    padding: 12,
+                                    padding: "16px 20px",
                                     borderBottom: "1px solid #e5e7eb",
-                                    width: "400px",
+                                    width: "300px",
+                                    fontSize: "12px",
+                                    fontWeight: "600",
+                                    color: "#64748b",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.05em"
                                 }}
                             >
                                 Milestone Name
@@ -357,8 +366,13 @@ function Milestone() {
                             <th
                                 style={{
                                     textAlign: "left",
-                                    padding: 12,
+                                    padding: "16px 20px",
                                     borderBottom: "1px solid #e5e7eb",
+                                    fontSize: "12px",
+                                    fontWeight: "600",
+                                    color: "#64748b",
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.05em"
                                 }}
                             >
                                 Description
@@ -377,55 +391,78 @@ function Milestone() {
                     </thead>
                     <tbody>
                         {paged.map((m, idx) => (
-                            <tr key={m.id}>
+                            <tr key={m.id} style={{ 
+                                transition: "background-color 0.2s ease",
+                                cursor: "pointer"
+                            }}
+                                onMouseEnter={(e) => e.target.closest('tr').style.backgroundColor = "#f8fafc"}
+                                onMouseLeave={(e) => e.target.closest('tr').style.backgroundColor = "transparent"}
+                            >
                                 <td
                                     style={{
-                                        padding: 12,
+                                        padding: "16px 20px",
                                         borderBottom: "1px solid #f1f5f9",
-                                        // textAlign: "center",
+                                        fontSize: "14px",
+                                        fontWeight: "500",
+                                        color: "#64748b"
                                     }}
                                 >
                                     {(page - 1) * pageSize + idx + 1}
                                 </td>
                                 <td
                                     style={{
-                                        padding: 12,
+                                        padding: "16px 20px",
                                         borderBottom: "1px solid #f1f5f9",
-                                        fontWeight: 600,
+                                        fontWeight: "600",
                                         fontSize: "14px",
+                                        color: "#1f2937",
+                                        lineHeight: "1.4"
                                     }}
                                 >
                                     {m.name}
                                 </td>
                                 <td
                                     style={{
-                                        padding: 12,
+                                        padding: "16px 20px",
                                         borderBottom: "1px solid #f1f5f9",
                                         fontSize: "14px",
-                                        lineHeight: "1.4",
+                                        lineHeight: "1.5",
                                         wordBreak: "break-word",
+                                        color: "#4b5563"
                                     }}
                                 >
-                                    {m.description || <span style={{ color: "#94a3b8", fontStyle: "italic" }}>No description</span>}
+                                    {m.description || <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No description</span>}
                                 </td>
                                 <td
                                     style={{
-                                        padding: 12,
+                                        padding: "16px 20px",
                                         borderBottom: "1px solid #f1f5f9",
+                                        textAlign: "center"
                                     }}
                                 >
-                                    <Button size="sm" onClick={() => openEdit(m)}>Edit ✎</Button>
+                                    <Button 
+                                        size="sm" 
+                                        onClick={() => openEdit(m)}
+                                        style={{
+                                            padding: "6px 12px",
+                                            fontSize: "13px",
+                                            fontWeight: "500"
+                                        }}
+                                    >
+                                        Edit
+                                    </Button>
                                 </td>
                             </tr>
                         ))}
                         {filtered.length === 0 && (
                             <tr>
                                 <td
-                                    colSpan={4}
+                                    colSpan={5}
                                     style={{
-                                        padding: 24,
+                                        padding: "40px 20px",
                                         textAlign: "center",
-                                        color: "#64748b",
+                                        color: "#9ca3af",
+                                        fontSize: "14px"
                                     }}
                                 >
                                     No milestones found
@@ -436,14 +473,54 @@ function Milestone() {
                 </table>
             </div>
             {/* Pagination */}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-                <div style={{ color: "#64748b" }}>
-                    Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length}
+            <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                alignItems: "center", 
+                marginTop: 20,
+                padding: "16px 20px",
+                background: "#f8fafc",
+                border: "1px solid #e5e7eb",
+                borderRadius: 12,
+                fontSize: "14px"
+            }}>
+                <div style={{ color: "#64748b", fontWeight: "500" }}>
+                    Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length} milestones
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                    <Button variant="ghost" size="sm" onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</Button>
-                    <span>Page {page} / {totalPages}</span>
-                    <Button variant="ghost" size="sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Next</Button>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={page === 1}
+                        style={{ 
+                            padding: "6px 12px",
+                            fontSize: "13px",
+                            fontWeight: "500"
+                        }}
+                    >
+                        Previous
+                    </Button>
+                    <span style={{ 
+                        color: "#374151", 
+                        fontWeight: "500",
+                        padding: "0 8px"
+                    }}>
+                        Page {page} of {totalPages}
+                    </span>
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        disabled={page === totalPages}
+                        style={{ 
+                            padding: "6px 12px",
+                            fontSize: "13px",
+                            fontWeight: "500"
+                        }}
+                    >
+                        Next
+                    </Button>
                 </div>
             </div>
 
@@ -452,104 +529,391 @@ function Milestone() {
                 style={{
                     display: "flex",
                     justifyContent: "flex-end",
-                    marginTop: 16,
+                    marginTop: 20,
                 }}
             >
-                <Button variant="secondary" onClick={openCreate}>Create +</Button>
+                <Button 
+                    variant="secondary" 
+                    onClick={openCreate}
+                    style={{
+                        padding: "10px 20px",
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        borderRadius: "8px"
+                    }}
+                >
+                    + Create Milestone
+                </Button>
             </div>
 
             {/* Edit Modal */}
-            <Modal open={isEditOpen} onClose={closeEdit}>
+            <Modal open={isEditOpen} onClose={closeEdit} showCloseButton={false}>
                 {editingItem && (
-                    <form onSubmit={saveEdit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                        <h3 style={{ margin: 0 }}>Edit Milestone</h3>
-                        {editError && <div style={{ color: "#dc2626" }}>{editError}</div>}
-                        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            <span>ID</span>
-                            <Input value={editingItem.id} disabled />
-                        </label>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            <span>Code</span>
-                            <Input value={selectedMajor?.code || ""} disabled />
-                        </label>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            <span>Name</span>
-                            <Input value={editingItem.name || ""} onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })} placeholder="Enter milestone name" />
-                        </label>
-                        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                            <span>Description</span>
-                            <textarea value={editingItem.description || ""} onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })} rows={4} style={{ padding: 8, border: "1px solid #e5e7eb", borderRadius: 6 }} placeholder="Describe milestone" />
-                        </label>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
-                            <Button 
-                                variant="ghost" 
-                                type="button" 
-                                onClick={deleteMilestone}
-                                style={{ color: "#dc2626", borderColor: "#dc2626" }}
-                            >
-                                Delete
-                            </Button>
-                            <div style={{ display: "flex", gap: 8 }}>
-                                <Button variant="ghost" type="button" onClick={closeEdit}>Cancel</Button>
-                                <Button type="submit">Save</Button>
+                    <div style={{ width: "600px", maxWidth: "90vw", maxHeight: "90vh", overflow: "auto" }}>
+                        <form onSubmit={saveEdit} style={{ display: "flex", flexDirection: "column", gap: 24, width: "100%" }}>
+                            <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: "16px", marginBottom: "8px" }}>
+                                <h3 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#1f2937", display: "flex", alignItems: "center", gap: "8px" }}>
+                                    ✏️ Edit Milestone
+                                </h3>
+                                <p style={{ margin: "8px 0 0 0", fontSize: "14px", color: "#6b7280" }}>
+                                    Update milestone information and details
+                                </p>
                             </div>
+                            {editError && (
+                                <div style={{ 
+                                    color: "#dc2626", 
+                                    backgroundColor: "#fef2f2", 
+                                    border: "1px solid #fecaca", 
+                                    padding: "12px", 
+                                    borderRadius: "6px",
+                                    fontSize: "14px"
+                                }}>
+                                    {editError}
+                                </div>
+                            )}
+                            
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                    <label style={{ fontWeight: "600", color: "#374151", fontSize: "14px" }}>Milestone ID</label>
+                                    <Input 
+                                        value={editingItem.id} 
+                                        disabled 
+                                        style={{ 
+                                            backgroundColor: "#f8fafc", 
+                                            color: "#64748b",
+                                            border: "1px solid #e2e8f0",
+                                            fontWeight: "500"
+                                        }} 
+                                    />
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                    <label style={{ fontWeight: "600", color: "#374151", fontSize: "14px" }}>Major Code</label>
+                                    <Input 
+                                        value={selectedMajor?.code || ""} 
+                                        disabled 
+                                        style={{ 
+                                            backgroundColor: "#f8fafc", 
+                                            color: "#64748b",
+                                            border: "1px solid #e2e8f0",
+                                            fontWeight: "500"
+                                        }} 
+                                    />
+                                </div>
+                            </div>
+
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                <label style={{ fontWeight: "600", color: "#374151", fontSize: "14px" }}>
+                                    Milestone Name <span style={{ color: "#dc2626" }}>*</span>
+                                </label>
+                                <Input 
+                                    value={editingItem.name || ""} 
+                                    onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })} 
+                                    placeholder="Enter milestone name" 
+                                    style={{ 
+                                        fontSize: "14px",
+                                        padding: "12px 16px",
+                                        border: "1px solid #d1d5db",
+                                        borderRadius: "8px"
+                                    }}
+                                />
+                            </div>
+
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                <label style={{ fontWeight: "600", color: "#374151", fontSize: "14px" }}>Description</label>
+                                <textarea 
+                                    value={editingItem.description || ""} 
+                                    onChange={(e) => setEditingItem({ ...editingItem, description: e.target.value })} 
+                                    rows={6} 
+                                    style={{ 
+                                        padding: "12px 16px", 
+                                        border: "1px solid #d1d5db", 
+                                        borderRadius: "8px", 
+                                        fontSize: "14px",
+                                        lineHeight: "1.6",
+                                        resize: "vertical",
+                                        minHeight: "140px",
+                                        fontFamily: "inherit",
+                                        outline: "none",
+                                        transition: "border-color 0.2s ease"
+                                    }} 
+                                    placeholder="Describe the milestone details, requirements, and objectives..." 
+                                    onFocus={(e) => e.target.style.borderColor = "#3b82f6"}
+                                    onBlur={(e) => e.target.style.borderColor = "#d1d5db"}
+                                />
+                            </div>
+
+                            <div style={{ 
+                                display: "flex", 
+                                justifyContent: "space-between", 
+                                alignItems: "center", 
+                                marginTop: 20,
+                                paddingTop: 20,
+                                borderTop: "2px solid #f1f5f9"
+                            }}>
+                                <Button 
+                                    variant="ghost" 
+                                    type="button" 
+                                    onClick={deleteMilestone}
+                                    style={{ 
+                                        color: "#dc2626", 
+                                        borderColor: "#dc2626",
+                                        padding: "10px 20px",
+                                        borderRadius: "8px",
+                                        fontWeight: "600",
+                                        fontSize: "14px"
+                                    }}
+                                >
+                                    🗑️ Delete Milestone
+                                </Button>
+                                <div style={{ display: "flex", gap: 12 }}>
+                                    <Button 
+                                        variant="ghost" 
+                                        type="button" 
+                                        onClick={closeEdit}
+                                        style={{
+                                            padding: "10px 20px",
+                                            borderRadius: "8px",
+                                            fontWeight: "600",
+                                            fontSize: "14px"
+                                        }}
+                                    >
+                                        Cancel
+                                    </Button>
+                                    <Button 
+                                        type="submit"
+                                        style={{
+                                            padding: "10px 24px",
+                                            borderRadius: "8px",
+                                            fontWeight: "600",
+                                            fontSize: "14px",
+                                            backgroundColor: "#3b82f6",
+                                            border: "none",
+                                            color: "white"
+                                        }}
+                                    >
+                                        💾 Save Changes
+                                    </Button>
+                                </div>
+                            </div>
+                        </form>
                         </div>
-                    </form>
                 )}
             </Modal>
 
             {/* Create-many Modal */}
-            <Modal open={isCreateOpen} onClose={closeCreate}>
-                <form onSubmit={saveCreate} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    <h3 style={{ margin: 0 }}>Create Milestone Items</h3>
-                    {createError && <div style={{ color: "#dc2626" }}>{createError}</div>}
-                    <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span>Major</span>
+            <Modal open={isCreateOpen} onClose={closeCreate} showCloseButton={false}>
+                <div style={{ width: "900px", maxWidth: "95vw", maxHeight: "90vh", overflow: "auto" }}>
+                    <form onSubmit={saveCreate} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                        <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: "16px", marginBottom: "8px" }}>
+                            <h3 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#1f2937", display: "flex", alignItems: "center", gap: "8px" }}>
+                                ➕ Create Milestone
+                            </h3>
+                            <p style={{ margin: "8px 0 0 0", fontSize: "14px", color: "#6b7280" }}>
+                                Add new milestone  to the selected major
+                            </p>
+                        </div>
+                        {createError && (
+                            <div style={{ 
+                                color: "#dc2626", 
+                                backgroundColor: "#fef2f2", 
+                                border: "1px solid #fecaca", 
+                                padding: "12px", 
+                                borderRadius: "6px",
+                                fontSize: "14px"
+                            }}>
+                                {createError}
+                            </div>
+                        )}
+                        
+                        <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <span style={{ fontWeight: "500", color: "#374151" }}>Major *</span>
                         <Select value={createMajorId} onChange={(e) => setCreateMajorId(e.target.value)}>
                             {majors.map((m) => (
                                 <option key={m.id} value={m.id}>{m.code} - {m.name}</option>
                             ))}
                         </Select>
                     </label>
-                    <div style={{ overflow: "auto", border: "1px solid #e5e7eb", borderRadius: 8 }}>
-                        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-                            <thead style={{ background: "#f9fafb" }}>
-                                <tr>
-                                    <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>Name</th>
-                                    <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>Description</th>
-                                    <th style={{ textAlign: "left", padding: 12, borderBottom: "1px solid #e5e7eb" }}>Action</th>
+
+                        <div style={{ 
+                            border: "1px solid #e5e7eb", 
+                            borderRadius: "8px", 
+                            overflow: "hidden",
+                            backgroundColor: "#fff",
+                            maxHeight: "500px"
+                        }}>
+                            <div style={{ 
+                                backgroundColor: "#f9fafb", 
+                                padding: "12px 16px", 
+                                borderBottom: "1px solid #e5e7eb",
+                                fontWeight: "500",
+                                color: "#374151"
+                            }}>
+                                Milestones ({createRows.length})
+                            </div>
+                            
+                            <div style={{ overflow: "auto", maxHeight: "420px" }}>
+                                {createRows.length === 0 ? (
+                                    <div style={{ 
+                                        padding: "40px 16px", 
+                                        textAlign: "center", 
+                                        color: "#64748b",
+                                        fontSize: "14px"
+                                    }}>
+                                        No milestone added yet. Click "Add Milestone" to get started.
+                                    </div>
+                                ) : (
+                                    <div style={{ padding: "12px" }}>
+                                        <table style={{ 
+                                            width: "100%", 
+                                            borderCollapse: "separate", 
+                                            borderSpacing: 0,
+                                            fontSize: "14px"
+                                        }}>
+                                            <thead style={{ background: "#f8fafc" }}>
+                                                <tr>
+                                                    <th style={{ 
+                                                        textAlign: "left", 
+                                                        padding: "8px 12px", 
+                                                        borderBottom: "1px solid #e5e7eb",
+                                                        width: "50px",
+                                                        fontSize: "12px",
+                                                        fontWeight: "600",
+                                                        color: "#64748b"
+                                                    }}>
+                                                        #
+                                                    </th>
+                                                    <th style={{ 
+                                                        textAlign: "left", 
+                                                        padding: "8px 12px", 
+                                                        borderBottom: "1px solid #e5e7eb",
+                                                        width: "250px",
+                                                        fontSize: "12px",
+                                                        fontWeight: "600",
+                                                        color: "#64748b"
+                                                    }}>
+                                                        Name *
+                                                    </th>
+                                                    <th style={{ 
+                                                        textAlign: "left", 
+                                                        padding: "8px 12px", 
+                                                        borderBottom: "1px solid #e5e7eb",
+                                                        fontSize: "12px",
+                                                        fontWeight: "600",
+                                                        color: "#64748b"
+                                                    }}>
+                                                        Description
+                                                    </th>
+                                                    <th style={{ 
+                                                        textAlign: "center", 
+                                                        padding: "8px 12px", 
+                                                        borderBottom: "1px solid #e5e7eb",
+                                                        width: "80px",
+                                                        fontSize: "12px",
+                                                        fontWeight: "600",
+                                                        color: "#64748b"
+                                                    }}>
+                                                        Action
+                                                    </th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {createRows.map((row, idx) => (
                                     <tr key={idx}>
-                                        <td style={{ padding: 12, borderBottom: "1px solid #f1f5f9" }}>
-                                            <Input value={row.name} onChange={(e) => updateCreateRow(idx, "name", e.target.value)} placeholder="Milestone name" />
+                                                        <td style={{ 
+                                                            padding: "8px 12px", 
+                                                            borderBottom: "1px solid #f1f5f9",
+                                                            textAlign: "center",
+                                                            fontWeight: "500",
+                                                            color: "#64748b"
+                                                        }}>
+                                                            {idx + 1}
+                                                        </td>
+                                                        <td style={{ 
+                                                            padding: "8px 12px", 
+                                                            borderBottom: "1px solid #f1f5f9"
+                                                        }}>
+                                                            <Input 
+                                                                value={row.name} 
+                                                                onChange={(e) => updateCreateRow(idx, "name", e.target.value)} 
+                                                                placeholder="Enter milestone name..." 
+                                                                style={{ 
+                                                                    fontSize: "14px", 
+                                                                    padding: "8px 12px",
+                                                                    border: "1px solid #d1d5db",
+                                                                    width: "100%"
+                                                                }}
+                                                            />
                                         </td>
-                                        <td style={{ padding: 12, borderBottom: "1px solid #f1f5f9" }}>
-                                            <Input value={row.description} onChange={(e) => updateCreateRow(idx, "description", e.target.value)} placeholder="Description" />
+                                                        <td style={{ 
+                                                            padding: "8px 12px", 
+                                                            borderBottom: "1px solid #f1f5f9"
+                                                        }}>
+                                                            <textarea 
+                                                                value={row.description} 
+                                                                onChange={(e) => updateCreateRow(idx, "description", e.target.value)} 
+                                                                rows={3}
+                                                                style={{ 
+                                                                    width: "100%",
+                                                                    padding: "8px 12px", 
+                                                                    border: "1px solid #d1d5db", 
+                                                                    borderRadius: "4px", 
+                                                                    fontSize: "14px",
+                                                                    lineHeight: "1.5",
+                                                                    resize: "vertical",
+                                                                    minHeight: "70px",
+                                                                    maxHeight: "120px",
+                                                                    fontFamily: "inherit"
+                                                                }} 
+                                                                placeholder="Enter milestone description..." 
+                                                            />
                                         </td>
-                                        <td style={{ padding: 12, borderBottom: "1px solid #f1f5f9" }}>
-                                            <Button variant="ghost" size="sm" type="button" onClick={() => removeCreateRow(idx)}>Remove</Button>
+                                                        <td style={{ 
+                                                            padding: "8px 12px", 
+                                                            borderBottom: "1px solid #f1f5f9",
+                                                            textAlign: "center"
+                                                        }}>
+                                                            <Button 
+                                                                variant="ghost" 
+                                                                size="sm" 
+                                                                type="button" 
+                                                                onClick={() => removeCreateRow(idx)}
+                                                                style={{ 
+                                                                    color: "#dc2626",
+                                                                    padding: "4px 8px",
+                                                                    fontSize: "12px"
+                                                                }}
+                                                            >
+                                                                Remove
+                                                            </Button>
                                         </td>
                                     </tr>
                                 ))}
-                                {createRows.length === 0 && (
-                                    <tr>
-                                        <td colSpan={3} style={{ padding: 16, textAlign: "center", color: "#64748b" }}>No rows. Click "Add row".</td>
-                                    </tr>
-                                )}
                             </tbody>
                         </table>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                        <Button variant="ghost" type="button" onClick={addCreateRow}>Add row</Button>
-                        <div style={{ display: "flex", gap: 8 }}>
-                            <Button variant="ghost" type="button" onClick={closeCreate}>Cancel</Button>
-                            <Button type="submit">Create</Button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div style={{ 
+                            display: "flex", 
+                            justifyContent: "space-between", 
+                            alignItems: "center",
+                            paddingTop: "16px",
+                            borderTop: "1px solid #e5e7eb"
+                        }}>
+                            <Button variant="ghost" type="button" onClick={addCreateRow}>
+                                + Add Milestone
+                            </Button>
+                            <div style={{ display: "flex", gap: 12 }}>
+                                <Button variant="ghost" type="button" onClick={closeCreate}>Cancel</Button>
+                                <Button type="submit" disabled={createRows.length === 0}>
+                                    Create {createRows.length} Milestone{createRows.length !== 1 ? 's' : ''}
+                                </Button>
                         </div>
                     </div>
                 </form>
+                </div>
             </Modal>
         </div>
     );
