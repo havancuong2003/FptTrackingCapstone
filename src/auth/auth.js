@@ -70,6 +70,7 @@ export async function login({ username, password }) {
     const me = meBody?.data || meBody || null;
     if (me) {
       const role = me.role || localStorage.getItem(USER_ROLE_KEY) || 'STUDENT';
+     // console.log("me", me);
       localStorage.setItem(USER_ROLE_KEY, role);
       localStorage.setItem(
         USER_INFO_KEY,

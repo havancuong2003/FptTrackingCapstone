@@ -3,12 +3,29 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
+import axiosClient from '../../../utils/axiosClient';
 
 export default function StudentTasks() {
   const navigate = useNavigate();
   const location = useLocation();
   const query = new URLSearchParams(location.search);
-  const groupId = query.get('groupId') || '1';
+  const groupId = query.get('groupId');
+  
+  // Lấy thông tin user từ localStorage
+  const getCurrentUser = () => {
+    try {
+      const authUser = localStorage.getItem('auth_user');
+      if (authUser) {
+        return JSON.parse(authUser);
+      }
+      return null; // Không có user
+    } catch (error) {
+      console.error('Error parsing auth_user:', error);
+      return null; // Lỗi parse
+    }
+  };
+  
+  const currentUser = getCurrentUser();
   const [tasks, setTasks] = React.useState([]);
   const [milestones, setMilestones] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -22,6 +39,11 @@ export default function StudentTasks() {
     milestoneId: '',
     deadline: ''
   });
+  
+  // States cho comment và attachment
+  const [selectedTask, setSelectedTask] = React.useState(null);
+  const [newComment, setNewComment] = React.useState('');
+  const [newAttachment, setNewAttachment] = React.useState('');
 
   // Trạng thái search-on-click
   const [isSearched, setIsSearched] = React.useState(false);
@@ -34,25 +56,64 @@ export default function StudentTasks() {
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
-
-  // Giả lập API: lấy milestones theo group
+  const [myTasksOnly, setMyTasksOnly] = React.useState(false);
+  // API: lấy milestones theo group
   const fetchMilestonesByGroup = async (gid) => {
-    await new Promise(r => setTimeout(r, 300));
-    return [
-      { id: 1, name: 'Milestone 1: Project Setup', groupId: '1' },
-      { id: 2, name: 'Milestone 2: Development', groupId: '1' },
-      { id: 3, name: 'Milestone 3: Testing', groupId: '1' }
-    ];
+    try {
+      const response = await axiosClient.get(`/Student/milestone/group/${gid}`);
+      
+      if (response.data.status === 200) {
+        // Kiểm tra data có tồn tại và không null/undefined
+        const apiData = response.data.data;
+        const milestonesData = Array.isArray(apiData) ? apiData : [];
+        
+        // Map data từ API response sang format frontend
+        return milestonesData.map(milestone => ({
+          id: milestone.id,
+          name: milestone.name,
+          groupId: gid,
+          description: milestone.description,
+          deadline: milestone.deadline
+        }));
+      } else {
+        console.error('Error fetching milestones:', response.data.message);
+        alert(`Lỗi lấy milestones: ${response.data.message}`);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching milestones:', error);
+      alert(`Lỗi kết nối milestones: ${error.message}`);
+      return [];
+    }
   };
 
-  // Giả lập API: lấy students theo group
+  // API: lấy students theo group
   const fetchStudentsByGroup = async (gid) => {
-    await new Promise(r => setTimeout(r, 300));
-    return [
-      { id: 'SE00001', name: 'Nguyen Van A' },
-      { id: 'SE00002', name: 'Nguyen Van B' },
-      { id: 'SE00003', name: 'Nguyen Van C' },
-    ];
+    try {
+      const response = await axiosClient.get(`/Staff/capstone-groups/${gid}`);
+      
+      if (response.data.status === 200) {
+        // Kiểm tra data có tồn tại và không null/undefined
+        const apiData = response.data.data.students;
+        const studentsData = Array.isArray(apiData) ? apiData : [];
+        
+        // Map data từ API response sang format frontend
+        return studentsData.map(student => ({
+          id: student.id,
+          name: student.name,
+          studentId: student.studentId || student.id,
+          email: student.email || ''
+        }));
+      } else {
+        console.error('Error fetching students:', response.data.message);
+        alert(`Lỗi lấy danh sách students: ${response.data.message}`);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      alert(`Lỗi kết nối lấy students: ${error.message}`);
+      return [];
+    }
   };
 
   React.useEffect(() => {
@@ -66,101 +127,11 @@ export default function StudentTasks() {
         ]);
         const milestonesData = milestoneRes;
         const students = studentRes;
-
-        // Mock data for tasks (chỉ hiển thị sau khi bấm Tìm kiếm)
-        const tasksData = [
-          {
-            id: 1,
-            title: 'Setup development environment',
-            description: 'Install required tools and setup project structure',
-            groupId: '1',
-            assignee: 'SE00001',
-            assigneeName: 'Nguyen Van A',
-            deadline: '2025-10-15T23:59:00Z',
-            priority: 'high',
-            status: 'todo',
-            milestoneId: 1,
-            milestoneName: 'Milestone 1: Project Setup',
-            createdAt: '2025-10-10T09:00:00Z',
-            progress: 0,
-            attachments: [],
-            comments: [],
-            history: [
-              { id: 1, type: 'created', detail: 'Task created', at: '2025-10-10T09:00:00Z' }
-            ]
-          },
-          {
-            id: 2,
-            title: 'Research database options',
-            description: 'Compare different database solutions for the project',
-            groupId: '1',
-            assignee: 'SE00002',
-            assigneeName: 'Nguyen Van B',
-            deadline: '2025-10-18T23:59:00Z',
-            priority: 'medium',
-            status: 'todo',
-            milestoneId: 1,
-            milestoneName: 'Milestone 1: Project Setup',
-            createdAt: '2025-10-10T09:30:00Z',
-            progress: 0,
-            attachments: [],
-            comments: [],
-            history: [
-              { id: 1, type: 'created', detail: 'Task created', at: '2025-10-10T09:30:00Z' }
-            ]
-          },
-          {
-            id: 3,
-            title: 'Design user interface',
-            description: 'Create wireframes and mockups for the application',
-            groupId: '1',
-            assignee: 'SE00003',
-            assigneeName: 'Nguyen Van C',
-            deadline: '2025-10-22T23:59:00Z',
-            priority: 'high',
-            status: 'inProgress',
-            milestoneId: 2,
-            milestoneName: 'Milestone 2: Development',
-            createdAt: '2025-10-12T14:00:00Z',
-            progress: 60,
-            attachments: ['wireframe.pdf'],
-            comments: [
-              { id: 1, author: 'SE00003', content: 'Working on mobile responsive design', timestamp: '2025-10-13T10:00:00Z' }
-            ],
-            history: [
-              { id: 1, type: 'created', detail: 'Task created', at: '2025-10-12T14:00:00Z' },
-              { id: 2, type: 'status', detail: 'Moved to In Progress', at: '2025-10-13T09:00:00Z' }
-            ]
-          },
-          {
-            id: 4,
-            title: 'Project requirements analysis',
-            description: 'Analyze and document project requirements',
-            groupId: '1',
-            assignee: 'SE00001',
-            assigneeName: 'Nguyen Van A',
-            deadline: '2025-10-08T23:59:00Z',
-            priority: 'high',
-            status: 'done',
-            milestoneId: 1,
-            milestoneName: 'Milestone 1: Project Setup',
-            createdAt: '2025-10-05T10:00:00Z',
-            completedAt: '2025-10-07T16:30:00Z',
-            progress: 100,
-            attachments: ['requirements.pdf'],
-            comments: [
-              { id: 1, author: 'SE00001', content: 'Requirements analysis completed', timestamp: '2025-10-07T16:30:00Z' }
-            ],
-            history: [
-              { id: 1, type: 'created', detail: 'Task created', at: '2025-10-05T10:00:00Z' },
-              { id: 2, type: 'status', detail: 'Moved to Done', at: '2025-10-07T16:30:00Z' }
-            ]
-          }
-        ];
-        
         setMilestones(milestonesData);
-        setTasks(tasksData);
+        // Không load tasks ở đây nữa, chỉ load khi bấm "Tìm kiếm"
+        setTasks([]);
         // Lưu danh sách assignee từ API students
+        console.log("students", students);
         setAssigneeSource(students);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -202,10 +173,59 @@ export default function StudentTasks() {
     navigate(url);
   };
 
-  // Handle search - load all tasks
-  const handleSearch = () => {
-    setAllTasks(tasks); // Load tất cả tasks
-    setIsSearched(true);
+  // Handle search - load all tasks từ API
+  const handleSearch = async () => {
+    try {
+      setLoading(true);
+      
+      // Gọi API lấy tất cả tasks theo group
+      const response = await axiosClient.get(`/Student/Task/get-by-group/${groupId}`);
+      if (response.data.status === 200) {
+        // Kiểm tra data có tồn tại và không null/undefined
+        const apiData = response.data.data;
+        const tasksData = Array.isArray(apiData) ? apiData : [];
+        // Map data từ API response sang format front
+        const mappedTasks = tasksData.map(task => {
+          console.log("task", task);
+          return {
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            groupId: task.group?.id?.toString() || groupId || '1',
+            assignee: task.assigneeId,
+            assigneeName: task.assigneeName,
+            deadline: task.deadline,
+            priority: task.priority?.toLowerCase() || 'medium',
+            status: task.status === 'ToDo' ? 'todo' : 
+                   task.status === 'InProgress' ? 'inProgress' : 'done',
+            milestoneId: task.milestone?.id || null,
+            milestoneName: task.milestone?.name || 'No Milestone',
+            createdAt: task.createdAt,
+            progress: parseInt(task.process) || 0,
+            attachments: task.attachments || [],
+            comments: task.comments || [],
+            history: task.history || []
+          }});
+
+        setAllTasks(mappedTasks);
+        setIsSearched(true);
+        
+        // Hiển thị thông báo nếu không có task
+        if (mappedTasks.length === 0) {
+          alert('Không có task nào');
+        }
+      } else {
+        console.error('Error fetching tasks:', response.data.message);
+        alert(`Lỗi: ${response.data.message}`);
+        setAllTasks([]);
+      }
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      alert(`Lỗi kết nối: ${error.message}`);
+      setAllTasks([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle reset filters
@@ -214,120 +234,249 @@ export default function StudentTasks() {
     setAssigneeFilter('');
     setPriorityFilter('');
     setStatusFilter('');
+    setMyTasksOnly(false);
     setAllTasks([]);
     setIsSearched(false);
   };
 
-  const createNewTask = () => {
-    if (!newTask.title || !newTask.description || !newTask.milestoneId || !newTask.assignee || !newTask.priority) {
+  const createNewTask = async () => {
+    if (!newTask.title || !newTask.description || !newTask.assignee || !newTask.priority) {
       alert('Please fill in all required fields');
       return;
     }
 
-    const selectedMilestone = milestones.find(m => m.id.toString() === newTask.milestoneId);
-    const selectedAssignee = assigneeOptions.find(a => a.value === newTask.assignee);
+    try {
+      const selectedMilestone = milestones.find(m => m.id.toString() === newTask.milestoneId);
+      const selectedAssignee = assigneeOptions.find(a => a.value === newTask.assignee);
+     
+      // Gọi API tạo task
+      const taskData = {
+        groupId: parseInt(groupId) || 1,
+        name: newTask.title,
+        description: newTask.description,
+        endAt: newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        status: 'ToDo',
+        priority: newTask.priority === 'high' ? 'High' : 
+                 newTask.priority === 'medium' ? 'Medium' : 'Low',
+        process: '0',
+        milestoneId: newTask.milestoneId ? parseInt(newTask.milestoneId) : null,
+        assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null
+      };
+      // console.log("taskData", taskData);
+      const response = await axiosClient.post('/Student/Task/create', taskData);
+      
+      if (response.data.status === 200) {
+        // Tạo task object mới với thông tin từ API response
+        const createdTask = response.data.data;
+        const task = {
+          id: createdTask.id,
+          title: createdTask.title || newTask.title,
+          description: createdTask.description || newTask.description,
+          assignee: createdTask.assigneeId, // ID của student được assign
+          assigneeName: createdTask.assigneeName || selectedAssignee?.label || 'Unknown',
+          deadline: createdTask.deadline || newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          priority: createdTask.priority?.toLowerCase() || newTask.priority,
+          status: createdTask.status === 'ToDo' ? 'todo' : 
+                 createdTask.status === 'InProgress' ? 'inProgress' : 'done',
+          milestoneId: createdTask.milestoneId || (newTask.milestoneId ? parseInt(newTask.milestoneId) : null),
+          milestoneName: createdTask.milestoneName || selectedMilestone?.name || 'No Milestone',
+          createdAt: createdTask.createdAt || new Date().toISOString(),
+          progress: parseInt(createdTask.process) || 0,
+          attachments: createdTask.attachments || [],
+          comments: createdTask.comments || []
+        };
 
-    const task = {
-      id: Date.now(),
-      title: newTask.title,
-      description: newTask.description,
-      assignee: newTask.assignee,
-      assigneeName: selectedAssignee?.label || 'Unknown',
-      deadline: newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      priority: newTask.priority,
-      status: 'todo',
-      milestoneId: parseInt(newTask.milestoneId),
-      milestoneName: selectedMilestone?.name || 'Unknown Milestone',
-      createdAt: new Date().toISOString(),
-      progress: 0,
-      attachments: [],
-      comments: []
-    };
+        setTasks(prev => [task, ...prev]);
 
-    setTasks(prev => [task, ...prev]);
-
-    setNewTask({
-      title: '',
-      description: '',
-      assignee: '',
-      priority: 'medium',
-      milestoneId: '',
-      deadline: ''
-    });
-    setTaskModal(false);
-    alert('Task created successfully!');
+        setNewTask({
+          title: '',
+          description: '',
+          assignee: '',
+          priority: 'medium',
+          milestoneId: '',
+          deadline: ''
+        });
+        setTaskModal(false);
+        alert('Task created successfully!');
+      } else {
+        console.error('Error creating task:', response.data.message);
+        alert(`Lỗi tạo task: ${response.data.message}`);
+      }
+    } catch (error) {
+      console.error('Error creating task:', error);
+      alert(`Lỗi tạo task: ${error.message}`);
+    }
   };
 
-  const moveTask = (taskId, fromStatus, toStatus) => {
-    const nowIso = new Date().toISOString();
-    setTasks(prev => {
-      return prev.map(task => {
-        if (task.id === taskId) {
-          const next = {
-            ...task,
-            status: toStatus,
-            ...(toStatus === 'done' && { 
-              completedAt: nowIso,
-              progress: 100 
-            }),
-          };
-          const nextHistory = Array.isArray(task.history) ? task.history.slice() : [];
-          nextHistory.push({ id: Date.now(), type: 'status', detail: `Moved to ${toStatus}`, at: nowIso });
+  const moveTask = async (taskId, fromStatus, toStatus) => {
+    try {
+      // Tìm task hiện tại
+      const currentTask = allTasks.find(task => task.id === taskId);
+      if (!currentTask) return;
+
+      // Map status từ frontend sang backend
+      const backendStatus = toStatus === 'todo' ? 'ToDo' : 
+                           toStatus === 'inProgress' ? 'InProgress' : 'Done';
+      
+      // Map priority từ frontend sang backend
+      const backendPriority = currentTask.priority === 'high' ? 'High' : 
+                             currentTask.priority === 'medium' ? 'Medium' : 'Low';
+
+      // Gọi API update task
+      const updateData = {
+        id: parseInt(taskId),
+        name: currentTask.title,
+        description: currentTask.description,
+        endAt: currentTask.deadline,
+        status: backendStatus, // THAY ĐỔI: từ statusId (number) thành status (string)
+        priority: backendPriority, // THAY ĐỔI: từ priorityId (number) thành priority (string)
+        process: toStatus === 'done' ? '100' : currentTask.progress.toString(),
+        milestoneId: currentTask.milestoneId,
+        assignedUserId: currentTask.assignee,
+        createdBy: currentUser?.id || 0, // Lấy từ localStorage
+        createdByName: currentUser?.name || 'Unknown', // Lấy từ localStorage
+        groupId: parseInt(groupId) || 1 // THÊM: thông tin group
+      };
+
+      const response = await axiosClient.put('/Student/Task/update', updateData);
+      
+      if (response.data.status === 200) {
+        const nowIso = new Date().toISOString();
+        
+        // Cập nhật state
+        setAllTasks(prev => {
+          return prev.map(task => {
+            if (task.id === taskId) {
+              const next = {
+                ...task,
+                status: toStatus,
+                ...(toStatus === 'done' && { 
+                  completedAt: nowIso,
+                  progress: 100 
+                }),
+              };
+              const nextHistory = Array.isArray(task.history) ? task.history.slice() : [];
+              nextHistory.push({ id: Date.now(), type: 'status', detail: `Moved to ${toStatus}`, at: nowIso });
+              next.history = nextHistory;
+              return next;
+            }
+            return task;
+          });
+        });
+        
+        alert(`Task moved to ${toStatus}!`);
+      } else {
+        console.error('Error updating task:', response.data.message);
+        alert(`Lỗi cập nhật task: ${response.data.message}`);
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+      alert(`Lỗi kết nối cập nhật task: ${error.message}`);
+    }
+  };
+
+  const addCommentToTask = async () => {
+    if (!selectedTask || !newComment.trim()) return;
+    
+    try {
+      // Gọi API create comment
+      const commentData = {
+        entityName: "Task",
+        entityId: selectedTask.id,
+        content: newComment.trim(),
+        groupId: parseInt(groupId) || 1,
+        author: `HE${currentUser.id}`, // Lấy từ localStorage
+        authorName: currentUser.name // Lấy từ localStorage
+      };
+
+      const response = await axiosClient.post('/Student/Comment/create', commentData);
+      
+      if (response.data.status === 200) {
+        const nowIso = new Date().toISOString();
+        
+        // Cập nhật state
+        setTasks(prev => prev.map(t => {
+          if (t.id !== selectedTask.id) return t;
+          const next = { ...t };
+          const nextComments = Array.isArray(next.comments) ? next.comments.slice() : [];
+          nextComments.push({ 
+            id: Date.now(), 
+            author: commentData.author, 
+            authorName: commentData.authorName,
+            content: newComment.trim(), 
+            timestamp: nowIso 
+          });
+          next.comments = nextComments;
+          const nextHistory = Array.isArray(next.history) ? next.history.slice() : [];
+          nextHistory.push({ id: Date.now() + 1, type: 'comment', detail: 'Added a comment', at: nowIso });
           next.history = nextHistory;
           return next;
-        }
-        return task;
-      });
-    });
-    alert(`Task moved to ${toStatus}!`);
+        }));
+        
+        setSelectedTask(prev => {
+          if (!prev) return prev;
+          const next = { ...prev };
+          next.comments = [...(prev.comments || []), { 
+            id: Date.now(), 
+            author: commentData.author, 
+            authorName: commentData.authorName,
+            content: newComment.trim(), 
+            timestamp: nowIso 
+          }];
+          next.history = [...(prev.history || []), { id: Date.now() + 2, type: 'comment', detail: 'Added a comment', at: nowIso }];
+          return next;
+        });
+        
+        setNewComment('');
+      } else {
+        console.error('Error creating comment:', response.data.message);
+        alert(`Lỗi tạo comment: ${response.data.message}`);
+      }
+    } catch (error) {
+      console.error('Error creating comment:', error);
+      alert(`Lỗi kết nối tạo comment: ${error.message}`);
+    }
   };
 
-  const addCommentToTask = () => {
-    if (!selectedTask || !newComment.trim()) return;
-    const nowIso = new Date().toISOString();
-    setTasks(prev => prev.map(t => {
-      if (t.id !== selectedTask.id) return t;
-      const next = { ...t };
-      const nextComments = Array.isArray(next.comments) ? next.comments.slice() : [];
-      nextComments.push({ id: Date.now(), author: 'Me', content: newComment.trim(), timestamp: nowIso });
-      next.comments = nextComments;
-      const nextHistory = Array.isArray(next.history) ? next.history.slice() : [];
-      nextHistory.push({ id: Date.now() + 1, type: 'comment', detail: 'Added a comment', at: nowIso });
-      next.history = nextHistory;
-      return next;
-    }));
-    setSelectedTask(prev => {
-      if (!prev) return prev;
-      const next = { ...prev };
-      next.comments = [...(prev.comments || []), { id: Date.now(), author: 'Me', content: newComment.trim(), timestamp: new Date().toISOString() }];
-      next.history = [...(prev.history || []), { id: Date.now() + 2, type: 'comment', detail: 'Added a comment', at: new Date().toISOString() }];
-      return next;
-    });
-    setNewComment('');
-  };
-
-  const addAttachmentToTask = () => {
+  const addAttachmentToTask = async () => {
     if (!selectedTask || !newAttachment.trim()) return;
-    const nowIso = new Date().toISOString();
-    setTasks(prev => prev.map(t => {
-      if (t.id !== selectedTask.id) return t;
-      const next = { ...t };
-      const nextAttachments = Array.isArray(next.attachments) ? next.attachments.slice() : [];
-      nextAttachments.push(newAttachment.trim());
-      next.attachments = nextAttachments;
-      const nextHistory = Array.isArray(next.history) ? next.history.slice() : [];
-      nextHistory.push({ id: Date.now(), type: 'attachment', detail: `Attached ${newAttachment.trim()}`, at: nowIso });
-      next.history = nextHistory;
-      return next;
-    }));
-    setSelectedTask(prev => {
-      if (!prev) return prev;
-      const next = { ...prev };
-      next.attachments = [...(prev.attachments || []), newAttachment.trim()];
-      next.history = [...(prev.history || []), { id: Date.now() + 3, type: 'attachment', detail: `Attached ${newAttachment.trim()}`, at: new Date().toISOString() }];
-      return next;
-    });
-    setNewAttachment('');
+    
+    try {
+      // Giả sử có API upload attachment
+      // const formData = new FormData();
+      // formData.append('file', newAttachment);
+      // formData.append('taskId', selectedTask.id);
+      // formData.append('groupId', groupId);
+      // const response = await axiosClient.post('/Student/Task/upload-attachment', formData);
+      
+      // Tạm thời xử lý local vì chưa có API upload attachment
+      const nowIso = new Date().toISOString();
+      
+      setTasks(prev => prev.map(t => {
+        if (t.id !== selectedTask.id) return t;
+        const next = { ...t };
+        const nextAttachments = Array.isArray(next.attachments) ? next.attachments.slice() : [];
+        nextAttachments.push(newAttachment.trim());
+        next.attachments = nextAttachments;
+        const nextHistory = Array.isArray(next.history) ? next.history.slice() : [];
+        nextHistory.push({ id: Date.now(), type: 'attachment', detail: `Attached ${newAttachment.trim()}`, at: nowIso });
+        next.history = nextHistory;
+        return next;
+      }));
+      
+      setSelectedTask(prev => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        next.attachments = [...(prev.attachments || []), newAttachment.trim()];
+        next.history = [...(prev.history || []), { id: Date.now() + 3, type: 'attachment', detail: `Attached ${newAttachment.trim()}`, at: nowIso }];
+        return next;
+      });
+      
+      setNewAttachment('');
+    } catch (error) {
+      console.error('Error uploading attachment:', error);
+      alert(`Lỗi upload attachment: ${error.message}`);
+    }
   };
 
   if (loading) {
@@ -340,15 +489,20 @@ export default function StudentTasks() {
 
   // Filter tasks dựa trên các filter states
   const filteredTasks = allTasks.filter(task => {
+     console.log("taska", task.assignee);
+     console.log("assigneeFilter", assigneeFilter);
     const milestoneMatch = milestoneFilter === '' || task.milestoneId.toString() === milestoneFilter;
-    const assigneeMatch = assigneeFilter === '' || task.assignee === assigneeFilter;
+    const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
     const statusMatch = statusFilter === '' || task.status === statusFilter;
     const priorityMatch = priorityFilter === '' || task.priority === priorityFilter;
-    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch;
+    const myTasksMatch = !myTasksOnly || (currentUser && task.assignee === currentUser.id);
+    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && myTasksMatch;
   });
 
   const milestoneOptions = milestones.map(m => ({ value: m.id.toString(), label: m.name }));
-  const assigneeOptions = assigneeSource.map(s => ({ value: s.id, label: s.name }));
+  const assigneeOptions = assigneeSource.map(s => {
+    return { value: s.id, label: s.name }
+  });
 
   const todoTasks = filteredTasks.filter(task => task.status === 'todo');
   const inProgressTasks = filteredTasks.filter(task => task.status === 'inProgress');
@@ -444,6 +598,17 @@ export default function StudentTasks() {
               <option value="done">Done</option>
             </select>
           </div>
+          <div className={styles.controlGroup}>
+            <label>
+              <input
+                type="checkbox"
+                checked={myTasksOnly}
+                onChange={(e) => setMyTasksOnly(e.target.checked)}
+                className={styles.checkbox}
+              />
+              Task của tôi
+            </label>
+          </div>
           <button
             className={styles.searchButton}
             onClick={handleSearch}
@@ -474,10 +639,10 @@ export default function StudentTasks() {
         </button>
       </div>
 
-      {/* Empty state trước khi bấm Tìm kiếm */}
-      {!isSearched ? (
+      {/* Empty state khi không có task */}
+      {filteredTasks.length === 0 ? (
         <div className={styles.emptyState}>
-          <div className={styles.emptyTitle}>Chọn bộ lọc và nhấn "Tìm kiếm" để xem tasks</div>
+          <div className={styles.emptyTitle}>Chọn bộ lọc và nhấn 'Tìm kiếm' để xem tasks</div>
           <button className={styles.searchButton} onClick={handleSearch}>Tìm kiếm</button>
         </div>
       ) : viewMode === 'list' ? (
@@ -703,7 +868,7 @@ export default function StudentTasks() {
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
               <label>
-                Milestone <span className={styles.required}>*</span>
+                Milestone
               </label>
               <select
                 className={styles.select}

@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import styles from './TaskDetail.module.scss';
 import Button from '../../../components/Button/Button';
+import axiosClient from '../../../utils/axiosClient';
 
 export default function TaskDetail() {
   const { groupId } = useParams();
@@ -9,6 +10,23 @@ export default function TaskDetail() {
   const query = new URLSearchParams(location.search);
   const taskId = query.get('taskId');
   const navigate = useNavigate();
+  
+  // Lấy thông tin user từ localStorage
+  const getCurrentUser = () => {
+    try {
+      const authUser = localStorage.getItem('auth_user');
+      if (authUser) {
+        return JSON.parse(authUser);
+      }
+      //return { id: 26, name: "Lê Duy Hải" }; // fallback
+    } catch (error) {
+      console.error('Error parsing auth_user:', error);
+     // return { id: 26, name: "Lê Duy Hải" }; // fallback
+     return null;
+    }
+  };
+  
+  const currentUser = getCurrentUser();
   const [task, setTask] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [newComment, setNewComment] = React.useState('');
@@ -19,106 +37,49 @@ export default function TaskDetail() {
     const fetchTask = async () => {
       try {
         setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 500));
         
-        // Mock data với history đầy đủ
-        const mockTasks = [
-          {
-            id: 1,
-            title: 'Setup development environment',
-            description: 'Install required tools and setup project structure for the new project. This includes setting up IDE, database connections, and development frameworks.',
-            assignee: 'SE00001',
-            assigneeName: 'Nguyen Van A',
-            deadline: '2025-10-15T23:59:00Z',
-            priority: 'high',
-            status: 'todo',
-            milestoneId: 1,
-            milestoneName: 'Milestone 1: Project Setup',
-            createdAt: '2025-10-10T09:00:00Z',
-            progress: 0,
-            attachments: [],
-            comments: [],
-            history: [
-              { 
-                id: 1, 
-                type: 'created', 
-                detail: 'Task created', 
-                at: '2025-10-10T09:00:00Z',
-                user: 'System',
-                action: 'Created task'
-              }
-            ]
-          },
-          {
-            id: 2,
-            title: 'Research database options',
-            description: 'Compare different database solutions for the project including MySQL, PostgreSQL, and MongoDB',
-            assignee: 'SE00002',
-            assigneeName: 'Nguyen Van B',
-            deadline: '2025-10-18T23:59:00Z',
-            priority: 'medium',
-            status: 'inProgress',
-            milestoneId: 1,
-            milestoneName: 'Milestone 1: Project Setup',
-            createdAt: '2025-10-10T09:30:00Z',
-            progress: 60,
-            attachments: ['research_notes.pdf'],
-            comments: [
-              { 
-                id: 1, 
-                author: 'SE00002', 
-                authorName: 'Nguyen Van B',
-                content: 'Found some interesting options. PostgreSQL seems promising for our use case.', 
-                timestamp: '2025-10-12T14:00:00Z' 
-              }
-            ],
-            history: [
-              { 
-                id: 1, 
-                type: 'created', 
-                detail: 'Task created', 
-                at: '2025-10-10T09:30:00Z',
-                user: 'System',
-                action: 'Created task'
-              },
-              { 
-                id: 2, 
-                type: 'status', 
-                detail: 'Moved to In Progress', 
-                at: '2025-10-12T09:00:00Z',
-                user: 'SE00002',
-                action: 'Started work'
-              },
-              { 
-                id: 3, 
-                type: 'comment', 
-                detail: 'Added comment: Found some interesting options...', 
-                at: '2025-10-12T14:00:00Z',
-                user: 'SE00002',
-                action: 'Commented'
-              },
-              { 
-                id: 4, 
-                type: 'attachment', 
-                detail: 'Attached research_notes.pdf', 
-                at: '2025-10-12T15:30:00Z',
-                user: 'SE00002',
-                action: 'Added attachment'
-              }
-            ]
-          }
-        ];
-        
-        const foundTask = mockTasks.find(t => t.id.toString() === taskId);
-        setTask(foundTask || null);
+        // Gọi API lấy task theo ID
+        const response = await axiosClient.get(`/Student/Task/get-by-id/${taskId}`);
+        console.log("response get task by id", response);
+        if (response.data.status === 200) {
+          const taskData = response.data.data;
+          
+          // Map data từ API response sang format frontend
+          const mappedTask = {
+            id: taskData.id,
+            title: taskData.title,
+            description: taskData.description,
+            assignee: taskData.assigneeId,
+            assigneeName: taskData.assigneeName,
+            deadline: taskData.deadline,
+            priority: taskData.priority.toLowerCase(),
+            status: taskData.status === 'ToDo' ? 'todo' : 
+                   taskData.status === 'InProgress' ? 'inProgress' : 'done',
+            milestoneId: taskData.milestone.id,
+            milestoneName: taskData.milestone.name,
+            createdAt: taskData.createdAt,
+            progress: parseInt(taskData.process) || 0,
+            attachments: taskData.attachments || [],
+            comments: taskData.comments || [],
+            history: taskData.history || []
+          };
+          
+          setTask(mappedTask);
+        } else {
+          console.error('Error fetching task:', response.data.message);
+          setTask(null);
+        }
       } catch (error) {
         console.error('Error fetching task:', error);
+        setTask(null);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTask();
+    if (taskId) {
+      fetchTask();
+    }
   }, [taskId]);
 
   const getPriorityInfo = (priority) => {
@@ -144,34 +105,56 @@ export default function TaskDetail() {
     });
   };
 
-  const addComment = () => {
+  const addComment = async () => {
     if (!task || !newComment.trim()) return;
     
-    const nowIso = new Date().toISOString();
-    const newCommentObj = {
-      id: Date.now(),
-      author: 'SE00001',
-      authorName: 'Nguyen Van A',
-      content: newComment.trim(),
-      timestamp: nowIso
-    };
+    try {
+      // Gọi API create comment
+      const commentData = {
+        entityName: "Task",
+        entityId: parseInt(taskId),
+        content: newComment.trim(), // thay vì "feedback"
+        groupId: parseInt(groupId) || 1,
+        author: `HE${currentUser.id}`, // Lấy từ localStorage
+        authorName: currentUser.name // Lấy từ localStorage
+      };
 
-    const newHistoryItem = {
-      id: Date.now() + 1,
-      type: 'comment',
-      detail: `Added comment: ${newComment.trim().substring(0, 50)}...`,
-      at: nowIso,
-      user: 'SE00001',
-      action: 'Commented'
-    };
+      const response = await axiosClient.post('/Student/Comment/create', commentData);
+      
+      if (response.data.status === 200) {
+        // Tạo comment object mới với thông tin từ API
+        const nowIso = new Date().toISOString();
+        const newCommentObj = {
+          id: Date.now(), // API có thể trả về ID thực tế
+          author: commentData.author,
+          authorName: commentData.authorName,
+          content: newComment.trim(),
+          timestamp: nowIso
+        };
 
-    setTask(prev => ({
-      ...prev,
-      comments: [...(prev.comments || []), newCommentObj],
-      history: [...(prev.history || []), newHistoryItem]
-    }));
+        const newHistoryItem = {
+          id: Date.now() + 1,
+          type: 'comment',
+          detail: `Added comment: ${newComment.trim().substring(0, 50)}...`,
+          at: nowIso,
+          user: commentData.author,
+          action: 'Commented'
+        };
 
-    setNewComment('');
+        // Cập nhật state
+        setTask(prev => ({
+          ...prev,
+          comments: [...(prev.comments || []), newCommentObj],
+          history: [...(prev.history || []), newHistoryItem]
+        }));
+
+        setNewComment('');
+      } else {
+        console.error('Error creating comment:', response.data.message);
+      }
+    } catch (error) {
+      console.error('Error creating comment:', error);
+    }
   };
 
   const addAttachment = () => {
@@ -198,47 +181,114 @@ export default function TaskDetail() {
     setNewAttachment('');
   };
 
-  const updateTaskStatus = (newStatus) => {
+  const updateTaskStatus = async (newStatus) => {
     if (!task) return;
     
-    const nowIso = new Date().toISOString();
-    const statusText = newStatus === 'todo' ? 'To Do' : 
-                     newStatus === 'inProgress' ? 'In Progress' : 'Done';
+    try {
+      // Map status từ frontend sang backend
+      const backendStatus = newStatus === 'todo' ? 'ToDo' : 
+                           newStatus === 'inProgress' ? 'InProgress' : 'Done';
+      
+      // Map priority từ frontend sang backend
+      const backendPriority = task.priority === 'high' ? 'High' : 
+                             task.priority === 'medium' ? 'Medium' : 'Low';
 
-    const newHistoryItem = {
-      id: Date.now() + 1,
-      type: 'status',
-      detail: `Changed status to ${statusText}`,
-      at: nowIso,
-      user: 'SE00001',
-      action: 'Updated status'
-    };
+      // Gọi API update task
+      const updateData = {
+        id: parseInt(taskId),
+        name: task.title, // giữ nguyên
+        description: task.description,
+        endAt: task.deadline, // giữ nguyên
+        status: backendStatus, // THAY ĐỔI: từ statusId (number) thành status (string)
+        priority: backendPriority, // THAY ĐỔI: từ priorityId (number) thành priority (string)
+        process: task.progress.toString(),
+        milestoneId: task.milestoneId,
+        assignedUserId: task.assignee, // giữ nguyên
+        createdBy: currentUser.id, // Lấy từ localStorage
+        createdByName: currentUser.name, // Lấy từ localStorage
+        groupId: parseInt(groupId) || 1 // THÊM: thông tin group
+      };
 
-    setTask(prev => ({
-      ...prev,
-      status: newStatus,
-      progress: newStatus === 'done' ? 100 : prev.progress, // không auto 50%
-      completedAt: newStatus === 'done' ? nowIso : (newStatus !== 'done' ? undefined : prev.completedAt),
-      history: [...(prev.history || []), newHistoryItem]
-    }));
+      const response = await axiosClient.put('/Student/Task/update', updateData);
+      
+      if (response.data.status === 200) {
+        const nowIso = new Date().toISOString();
+        const statusText = newStatus === 'todo' ? 'To Do' : 
+                         newStatus === 'inProgress' ? 'In Progress' : 'Done';
+
+        const newHistoryItem = {
+          id: Date.now() + 1,
+          type: 'status',
+          detail: `Changed status to ${statusText}`,
+          at: nowIso,
+          user: `HE${currentUser.id}`,
+          action: 'Updated status'
+        };
+
+        // Cập nhật state
+        setTask(prev => ({
+          ...prev,
+          status: newStatus,
+          progress: newStatus === 'done' ? 100 : prev.progress,
+          completedAt: newStatus === 'done' ? nowIso : (newStatus !== 'done' ? undefined : prev.completedAt),
+          history: [...(prev.history || []), newHistoryItem]
+        }));
+      } else {
+        console.error('Error updating task:', response.data.message);
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+    }
   };
 
-  const updateProgress = (value) => {
+  const updateProgress = async (value) => {
     if (!task) return;
     const clamped = Math.max(0, Math.min(100, Number(value) || 0));
-    const nowIso = new Date().toISOString();
-    setTask(prev => ({
-      ...prev,
-      progress: clamped,
-      history: [...(prev.history || []), {
-        id: Date.now() + 2,
-        type: 'progress',
-        detail: `Updated progress to ${clamped}%`,
-        at: nowIso,
-        user: 'SE00001',
-        action: 'Updated progress'
-      }]
-    }));
+    
+    try {
+      // Map priority từ frontend sang backend
+      const backendPriority = task.priority === 'high' ? 'High' : 
+                             task.priority === 'medium' ? 'Medium' : 'Low';
+
+      // Gọi API update task với progress mới
+      const updateData = {
+        id: parseInt(taskId),
+        name: task.title,
+        description: task.description,
+        endAt: task.deadline,
+        status: task.status === 'todo' ? 'ToDo' : 
+               task.status === 'inProgress' ? 'InProgress' : 'Done',
+        priority: backendPriority,
+        process: clamped.toString(), // Cập nhật progress
+        milestoneId: task.milestoneId,
+        assignedUserId: task.assignee,
+        createdBy: 8,
+        createdByName: "Lê Duy Hải",
+        groupId: parseInt(groupId) || 1
+      };
+
+      const response = await axiosClient.put('/Student/Task/update', updateData);
+      
+      if (response.data.status === 200) {
+        const nowIso = new Date().toISOString();
+        setTask(prev => ({
+          ...prev,
+          progress: clamped,
+          history: [...(prev.history || []), {
+            id: Date.now() + 2,
+            type: 'progress',
+            detail: `Updated progress to ${clamped}%`,
+            at: nowIso,
+            user: `HE${currentUser.id}`,
+            action: 'Updated progress'
+          }]
+        }));
+      } else {
+        console.error('Error updating progress:', response.data.message);
+      }
+    } catch (error) {
+      console.error('Error updating progress:', error);
+    }
   };
 
   if (loading) {
