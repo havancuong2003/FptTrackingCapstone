@@ -12,7 +12,7 @@ const supervisorMenu = [
   },
   { 
     path: "/supervisor/meetings", 
-    label: "Meetings", 
+    label: "Meeting Management", 
     icon: "📅"
   },
   { 

@@ -45,6 +45,7 @@ const StudentDeliveries = React.lazy(() => import("../pages/student/Deliveries")
 const StudentTasks = React.lazy(() => import("../pages/student/Tasks"));
 const StudentTaskDetail = React.lazy(() => import("../pages/student/Tasks/TaskDetail"));
 const StudentMeetings = React.lazy(() => import("../pages/student/Meetings"));
+const StudentMeetingManagement = React.lazy(() => import("../pages/student/MeetingManagement"));
 const StudentMinutes = React.lazy(() => import("../pages/student/Minutes"));
 const StudentEvaluation = React.lazy(() => import("../pages/student/Evaluation"));
 const StudentDocuments = React.lazy(() => import("../pages/student/Documents"));
@@ -59,6 +60,7 @@ const SupervisorTaskDetail = React.lazy(() => import("../pages/supervisor/Tasks/
 const SupervisorEvaluation = React.lazy(() => import("../pages/supervisor/Evaluation"));
 const SupervisorDocuments = React.lazy(() => import("../pages/supervisor/Documents"));
 const SupervisorSchedule = React.lazy(() => import("../pages/supervisor/Schedule"));
+const SupervisorMeetingManagement = React.lazy(() => import("../pages/supervisor/MeetingManagement"));
 export const routes = [
   {
     path: "/",
@@ -281,7 +283,7 @@ export const routes = [
   },
   {
     path: "/student/meetings",
-    element: StudentMeetings,
+    element: StudentMeetingManagement,
     meta: {
       title: "Meeting Management",
       protected: true,
@@ -336,9 +338,9 @@ export const routes = [
   },
     {
     path: "/supervisor/meetings",
-    element: SupervisorMeetings,
+    element: SupervisorMeetingManagement,
     meta: {
-      title: "Meetings",
+      title: "Meeting Management",
       protected: true,
       roles: ["SUPERVISOR"],
     },

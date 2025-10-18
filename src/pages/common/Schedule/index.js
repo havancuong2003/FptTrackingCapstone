@@ -40,8 +40,9 @@ export default function Schedule() {
   const [groupMembers, setGroupMembers] = React.useState([]);
   const [finalMeetingTime, setFinalMeetingTime] = React.useState(null);
   const [isSupervisor, setIsSupervisor] = React.useState(false);
-  const [isFinalized, setIsFinalized] = React.useState(false); // DEMO: bật sẵn trạng thái đã chốt
+  const [isFinalized, setIsFinalized] = React.useState(true); // DEMO: bật sẵn trạng thái đã chốt
   const [timeInterval, setTimeInterval] = React.useState(60); // 30, 60, 120 phút
+  const [groupMeeting, setGroupMeeting] = React.useState(null); // Lịch họp của nhóm
 
   // Tạo time slots dựa trên khoảng thời gian
   const generateTimeSlots = (interval) => {
@@ -49,17 +50,22 @@ export default function Schedule() {
     const startHour = 8;
     const endHour = 20;
     
-    for (let hour = startHour; hour < endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += interval) {
-        const startTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        const endMinute = minute + interval;
-        const endHourCalc = hour + Math.floor(endMinute / 60);
-        const endMinuteFinal = endMinute % 60;
+    // Tính tổng số phút từ 8h đến 20h
+    const totalMinutes = (endHour - startHour) * 60;
+    
+    // Tạo slots với khoảng cách đúng interval (không chồng lấp)
+    for (let currentMinute = 0; currentMinute < totalMinutes; currentMinute += interval) {
+      const startHourCalc = startHour + Math.floor(currentMinute / 60);
+      const startMinute = currentMinute % 60;
+      const endMinute = currentMinute + interval;
+      const endHourCalc = startHour + Math.floor(endMinute / 60);
+      const endMinuteFinal = endMinute % 60;
+      
+      // Chỉ tạo slot nếu không vượt quá endHour
+      if (endHourCalc < endHour || (endHourCalc === endHour && endMinuteFinal === 0)) {
+        const startTime = `${startHourCalc.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}`;
         const endTime = `${endHourCalc.toString().padStart(2, '0')}:${endMinuteFinal.toString().padStart(2, '0')}`;
-        
-        if (endHourCalc < endHour || (endHourCalc === endHour && endMinuteFinal === 0)) {
-          slots.push(`${startTime}-${endTime}`);
-        }
+        slots.push(`${startTime}-${endTime}`);
       }
     }
     return slots;
@@ -99,6 +105,7 @@ export default function Schedule() {
     if (groupId) {
       loadGroupMembers();
       loadSchedules();
+      loadGroupMeeting();
     }
   }, [groupId]);
 
@@ -159,6 +166,35 @@ export default function Schedule() {
     
     setUserSchedules(mockSchedules);
     setLoading(false);
+  };
+
+  // Fetch lịch họp đã chốt của nhóm (chỉ thời gian + link)
+  const fetchGroupMeeting = async (groupId) => {
+    try {
+      // Mock data - thay thế bằng API call thực tế
+      const mockMeeting = {
+        id: 1,
+        groupId: parseInt(groupId),
+        dayOfWeek: "monday",
+        startTime: "09:00:00",
+        endTime: "11:00:00",
+        meetingLink: "https://meet.google.com/abc-defg-hij",
+        supervisorName: "Dr. John Smith"
+      };
+      
+      return mockMeeting;
+    } catch (error) {
+      console.error('Error fetching group meeting:', error);
+      return null;
+    }
+  };
+
+  // Load lịch họp của nhóm
+  const loadGroupMeeting = async () => {
+    if (groupId) {
+      const meeting = await fetchGroupMeeting(groupId);
+      setGroupMeeting(meeting);
+    }
   };
 
   // Mock: Vote lịch rảnh
@@ -312,14 +348,26 @@ export default function Schedule() {
         </div>
       </div>
 
-      {/* Trạng thái chốt lịch */}
+      {/* Trạng thái xác nhận lịch */}
       <div className={`${styles.finalizeBanner} ${isFinalized ? styles.finalized : styles.notFinalized}`}>
         {isFinalized ? (
-          <span>
-            Giảng viên đã chốt thời gian họp cố định: {getWeekdayName(finalMeetingTime?.date)} - {finalMeetingTime?.timeSlot || '...'}
-          </span>
+          <div className={styles.finalizedContent}>
+            <span>
+              Giảng viên đã xác nhận thời gian họp cố định: {getWeekdayName(finalMeetingTime?.date)} - {finalMeetingTime?.timeSlot || '...'}
+            </span>
+            {groupMeeting?.meetingLink && (
+              <a 
+                href={groupMeeting.meetingLink} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className={styles.meetingLinkButton}
+              >
+                Tham gia cuộc họp
+              </a>
+            )}
+          </div>
         ) : (
-          <span>Giảng viên chưa chốt thời gian họp. Bạn có thể vote lịch rảnh.</span>
+          <span>Giảng viên chưa xác nhận thời gian họp. Bạn có thể vote lịch rảnh.</span>
         )}
       </div>
 
@@ -397,6 +445,7 @@ export default function Schedule() {
           </div>
         </div>
       )}
+
 
       {/* Tổng quan lịch rảnh của thành viên (luôn hiển thị ở cuối) */}
       {(
