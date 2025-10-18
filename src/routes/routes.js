@@ -264,19 +264,19 @@ export const routes = [
     },
   },
   {
-    path: "/student/tasks",
-    element: StudentTasks,
+    path: "/student/task-detail/:groupId",
+    element: StudentTaskDetail,
     meta: {
-      title: "Task Management",
+      title: "Task Detail",
       protected: true,
       roles: ["STUDENT"],
     },
   },
   {
-    path: "/student/task/group/:groupId",
-    element: StudentTaskDetail,
+    path: "/student/tasks",
+    element: StudentTasks,
     meta: {
-      title: "Task Detail",
+      title: "Task Management",
       protected: true,
       roles: ["STUDENT"],
     },

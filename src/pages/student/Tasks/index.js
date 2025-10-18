@@ -168,7 +168,7 @@ export default function StudentTasks() {
   };
 
   const openTaskDetail = (task) => {
-    const url = `/student/task/group/${groupId}?taskId=${task.id}`;
+    const url = `/student/task-detail/${groupId}?taskId=${task.id}`;
     navigate(url);
   };
 
