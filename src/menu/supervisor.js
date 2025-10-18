@@ -5,16 +5,6 @@ const supervisorMenu = [
     icon: "👥"
   },
   { 
-    path: "/supervisor/roles", 
-    label: "Role Management", 
-    icon: "👤"
-  },
-  { 
-    path: "/supervisor/votes", 
-    label: "Vote Scheduler", 
-    icon: "🗳️"
-  },
-  { 
     path: "/supervisor/schedule", 
     label: "Schedule Management", 
     icon: "📅"

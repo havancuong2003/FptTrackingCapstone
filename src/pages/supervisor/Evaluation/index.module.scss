@@ -107,6 +107,7 @@
 .evaluationTable table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .evaluationTable th,
@@ -114,6 +115,45 @@
   padding: 12px 16px;
   text-align: left;
   border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+/* === ĐIỀU CHỈNH ĐỘ RỘNG CÁC CỘT === */
+/* Cột 1: Student (15%) */
+.evaluationTable th:nth-child(1),
+.evaluationTable td:nth-child(1) {
+  width: 15%;
+}
+
+/* Cột 2: Role (10%) */
+.evaluationTable th:nth-child(2),
+.evaluationTable td:nth-child(2) {
+  width: 10%;
+}
+
+/* Cột 3: Late Tasks (10%) */
+.evaluationTable th:nth-child(3),
+.evaluationTable td:nth-child(3) {
+  width: 10%;
+}
+
+/* Cột 4: Penalty Cards (20%) */
+.evaluationTable th:nth-child(4),
+.evaluationTable td:nth-child(4) {
+  width: 20%;
+}
+
+/* Cột 5: Comment (35%) */
+.evaluationTable th:nth-child(5),
+.evaluationTable td:nth-child(5) {
+  width: 35%;
+  word-break: break-word;
+}
+
+/* Cột 6: Actions (10%) */
+.evaluationTable th:nth-child(6),
+.evaluationTable td:nth-child(6) {
+  width: 10%;
 }
 
 .evaluationTable th {
@@ -597,3 +637,5 @@
     gap: 12px;
   }
 }
+
+
