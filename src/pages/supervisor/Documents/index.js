@@ -168,7 +168,6 @@ export default function SupervisorDocuments() {
   };
 
   const submitEvaluation = () => {
-    console.log('Submitting evaluation:', evaluation);
     alert('Evaluation submitted successfully! (Mock)');
     setEvaluationModal(false);
     setEvaluation({

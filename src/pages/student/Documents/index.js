@@ -105,7 +105,6 @@ export default function StudentDocuments() {
   };
 
   const uploadDocument = () => {
-    console.log('Uploading document:', newDocument);
     alert('Document uploaded successfully! (Mock)');
     setUploadModal(false);
     setNewDocument({

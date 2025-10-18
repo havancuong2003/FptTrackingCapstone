@@ -10,11 +10,6 @@ const supervisorMenu = [
     icon: "👤"
   },
   { 
-    path: "/supervisor/votes", 
-    label: "Vote Scheduler", 
-    icon: "🗳️"
-  },
-  { 
     path: "/supervisor/meetings", 
     label: "Meetings", 
     icon: "📅"
