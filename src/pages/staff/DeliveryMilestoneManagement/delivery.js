@@ -196,7 +196,6 @@ export default function Delivery() {
                     return itemData;
                 })
             };
-            console.log(payload);
             await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", payload);
             setIsModalOpen(false);
             // refetch

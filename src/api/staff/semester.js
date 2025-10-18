@@ -52,6 +52,16 @@ export async function getSemesterWeeks(semesterId) {
   }
 }
 
+// Lấy kỳ học hiện tại
+export async function getCurrentSemester() {
+  try {
+    const response = await client.get('/Staff/semester/getSemesterByNow');
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
 // Cập nhật tuần nghỉ
 export async function updateVacationWeeks(semesterId, weeks) {
   try {
@@ -65,10 +75,9 @@ export async function updateVacationWeeks(semesterId, weeks) {
       semesterId,
       weeks: formattedWeeks
     });
-    console.log("response updateVacationWeeks", response);
     return response.data;
   } catch (error) {
-    console.log("error updateVacationWeeks", error);
+    console.error("error updateVacationWeeks", error);
     throw error;
   }
 }
