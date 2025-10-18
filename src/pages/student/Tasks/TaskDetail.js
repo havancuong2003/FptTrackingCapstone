@@ -40,10 +40,8 @@ export default function TaskDetail() {
         
         // Gọi API lấy task theo ID
         const response = await axiosClient.get(`/Student/Task/get-by-id/${taskId}`);
-        console.log("response get task by id", response);
         if (response.data.status === 200) {
           const taskData = response.data.data;
-          console.log("taskData", taskData);
           // Map data từ API response sang format frontend
           const mappedTask = {
             id: taskData.id,
@@ -205,7 +203,6 @@ export default function TaskDetail() {
         milestoneId: task.milestoneId || 0,
         assignedUserId: task.assignee || 0
       };
-      console.log("updateData 2", updateData);
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
       if (response.data.status === 200) {
@@ -260,7 +257,6 @@ export default function TaskDetail() {
         milestoneId: task.milestoneId || 0,
         assignedUserId: task.assignee || 0
       };
-      console.log("updateData 1", updateData);
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
       if (response.data.status === 200) {

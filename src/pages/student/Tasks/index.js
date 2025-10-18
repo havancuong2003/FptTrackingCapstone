@@ -131,7 +131,6 @@ export default function StudentTasks() {
         // Không load tasks ở đây nữa, chỉ load khi bấm "Tìm kiếm"
         setTasks([]);
         // Lưu danh sách assignee từ API students
-        console.log("students", students);
         setAssigneeSource(students);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -186,7 +185,6 @@ export default function StudentTasks() {
         const tasksData = Array.isArray(apiData) ? apiData : [];
         // Map data từ API response sang format front
         const mappedTasks = tasksData.map(task => {
-          console.log("task", task);
           return {
             id: task.id,
             title: task.title,
@@ -334,7 +332,6 @@ export default function StudentTasks() {
         milestoneId: currentTask.milestoneId || 0,
         assignedUserId: currentTask.assignee || 0
       };
-      console.log("updateData", updateData);
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
       if (response.data.status === 200) {
@@ -486,8 +483,7 @@ export default function StudentTasks() {
 
   // Filter tasks dựa trên các filter states
   const filteredTasks = allTasks.filter(task => {
-     console.log("taska", task.assignee);
-     console.log("assigneeFilter", assigneeFilter);
+
     const milestoneMatch = milestoneFilter === '' || task.milestoneId.toString() === milestoneFilter;
     const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
     const statusMatch = statusFilter === '' || task.status === statusFilter;
