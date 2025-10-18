@@ -40,7 +40,7 @@ export default function Schedule() {
   const [groupMembers, setGroupMembers] = React.useState([]);
   const [finalMeetingTime, setFinalMeetingTime] = React.useState(null);
   const [isSupervisor, setIsSupervisor] = React.useState(false);
-  const [isFinalized, setIsFinalized] = React.useState(true); // DEMO: bật sẵn trạng thái đã chốt
+  const [isFinalized, setIsFinalized] = React.useState(false); // DEMO: bật sẵn trạng thái đã chốt
   const [timeInterval, setTimeInterval] = React.useState(60); // 30, 60, 120 phút
   const [groupMeeting, setGroupMeeting] = React.useState(null); // Lịch họp của nhóm
 
