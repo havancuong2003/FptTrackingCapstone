@@ -33,7 +33,6 @@ export default function GroupTracking() {
                     enddate: endDate
                 }
             });
-            console.log('response', response);
             // Sử dụng mock API thay vì gọi API thật
             // const response = await mockGroupTrackingApi(groupId, startDate, endDate);
             
@@ -43,7 +42,6 @@ export default function GroupTracking() {
                 // Chỉ set currentWeek lần đầu khi chưa có selectedWeek
                 if (response.data.data.currentWeek && !selectedWeek) {
                     setSelectedWeek(response.data.data.currentWeek);
-                    console.log('Set initial selectedWeek from API:', response.data.data.currentWeek);
                 }
             } else {
                 throw new Error(response.data.message || 'Failed to fetch data');
@@ -72,7 +70,6 @@ export default function GroupTracking() {
     React.useEffect(() => {
         if (!USE_MOCKDATA && groupId) {
             // Gọi API ngay khi component mount với groupId từ URL params
-            console.log('Calling API on mount with groupId:', groupId);
             fetchGroupTrackingData(groupId, '29/09/2025', '05/10/2025'); // Default dates for Week 3
         }
     }, [groupId]); // Chạy khi groupId thay đổi
@@ -83,7 +80,6 @@ export default function GroupTracking() {
             // Chỉ gọi API khi đã có data từ lần đầu và user thay đổi week
             const dates = extractDatesFromWeek(selectedWeek);
             if (dates) {
-                console.log('User changed week, calling API with:', { groupId, startDate: dates.startDate, endDate: dates.endDate });
                 fetchGroupTrackingData(groupId, dates.startDate, dates.endDate);
             }
         }

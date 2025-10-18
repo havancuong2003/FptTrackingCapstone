@@ -18,7 +18,7 @@ const Progress = React.lazy(() => import("../pages/wrappers/ProgressPage"));
 const Discussions = React.lazy(() =>
   import("../pages/wrappers/DiscussionsPage")
 );
-const Schedule = React.lazy(() => import("../pages/student/Schedule"));
+const Schedule = React.lazy(() => import("../pages/common/Schedule"));
 const AiAssistant = React.lazy(() => import("../pages/student/AiAssistant"));
 const Evaluations = React.lazy(() => import("../pages/teacher/Evaluations"));
 const Analytics = React.lazy(() => import("../pages/staff/Analytics"));
@@ -38,12 +38,14 @@ const SemesterManagement = React.lazy(() => import("../pages/staff/SemesterManag
 const SemesterList = React.lazy(() => import("../pages/staff/SemesterList"));
 const SemesterDetail = React.lazy(() => import("../pages/staff/SemesterDetail"));
 const DefaultPage = React.lazy(() => import("../pages/common/DefaultPage"));
-
+const MajorManagement = React.lazy(() => import("../pages/staff/Major/major"));
 // Student pages
 const StudentMilestones = React.lazy(() => import("../pages/student/Milestones"));
 const StudentDeliveries = React.lazy(() => import("../pages/student/Deliveries"));
 const StudentTasks = React.lazy(() => import("../pages/student/Tasks"));
+const StudentTaskDetail = React.lazy(() => import("../pages/student/Tasks/TaskDetail"));
 const StudentMeetings = React.lazy(() => import("../pages/student/Meetings"));
+const StudentMeetingManagement = React.lazy(() => import("../pages/student/MeetingManagement"));
 const StudentMinutes = React.lazy(() => import("../pages/student/Minutes"));
 const StudentEvaluation = React.lazy(() => import("../pages/student/Evaluation"));
 const StudentDocuments = React.lazy(() => import("../pages/student/Documents"));
@@ -53,9 +55,11 @@ const SupervisorGroups = React.lazy(() => import("../pages/supervisor/Groups"));
 const SupervisorMeetings = React.lazy(() => import("../pages/supervisor/Meetings"));
 const SupervisorTracking = React.lazy(() => import("../pages/supervisor/Tracking"));
 const SupervisorTasks = React.lazy(() => import("../pages/supervisor/Tasks"));
+const SupervisorTaskDetail = React.lazy(() => import("../pages/supervisor/Tasks/TaskDetail"));
 const SupervisorEvaluation = React.lazy(() => import("../pages/supervisor/Evaluation"));
 const SupervisorDocuments = React.lazy(() => import("../pages/supervisor/Documents"));
 const SupervisorSchedule = React.lazy(() => import("../pages/supervisor/Schedule"));
+const SupervisorMeetingManagement = React.lazy(() => import("../pages/supervisor/MeetingManagement"));
 export const routes = [
   {
     path: "/",
@@ -148,6 +152,11 @@ export const routes = [
     path: "/ai",
     element: AiAssistant,
     meta: { title: "AI Assistant", protected: true, roles: ["STUDENT"] },
+  },
+  {
+    path: "/staff/major",
+    element: MajorManagement,
+    meta: { title: "Major Management", protected: true, roles: ["STAFF"] },
   },
   {
     path: "/evaluations",
@@ -259,6 +268,15 @@ export const routes = [
     },
   },
   {
+    path: "/student/task-detail/:groupId",
+    element: StudentTaskDetail,
+    meta: {
+      title: "Task Detail",
+      protected: true,
+      roles: ["STUDENT"],
+    },
+  },
+  {
     path: "/student/tasks",
     element: StudentTasks,
     meta: {
@@ -269,7 +287,7 @@ export const routes = [
   },
   {
     path: "/student/meetings",
-    element: StudentMeetings,
+    element: StudentMeetingManagement,
     meta: {
       title: "Meeting Management",
       protected: true,
@@ -313,11 +331,11 @@ export const routes = [
       roles: ["SUPERVISOR"],
     },
   },
-  {
+    {
     path: "/supervisor/meetings",
-    element: SupervisorMeetings,
+    element: SupervisorMeetingManagement,
     meta: {
-      title: "Meetings",
+      title: "Meeting Management",
       protected: true,
       roles: ["SUPERVISOR"],
     },
@@ -336,6 +354,15 @@ export const routes = [
     element: SupervisorTasks,
     meta: {
       title: "Task Management",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/task/group/:groupId",
+    element: SupervisorTaskDetail,
+    meta: {
+      title: "Task Detail",
       protected: true,
       roles: ["SUPERVISOR"],
     },

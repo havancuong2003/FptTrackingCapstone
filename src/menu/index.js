@@ -7,7 +7,6 @@ import supervisorMenu from './supervisor';
 
 export function getMenuForRole(role) {
   const normalized = String(role || '').toUpperCase();
-  console.log('normalized', normalized);  
   switch (normalized) {
     case Role.ADMIN:
       return adminMenu;
