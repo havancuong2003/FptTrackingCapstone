@@ -43,7 +43,7 @@ export default function TaskDetail() {
         console.log("response get task by id", response);
         if (response.data.status === 200) {
           const taskData = response.data.data;
-          
+          console.log("taskData", taskData);
           // Map data từ API response sang format frontend
           const mappedTask = {
             id: taskData.id,
@@ -113,7 +113,7 @@ export default function TaskDetail() {
       const commentData = {
         entityName: "Task",
         entityId: parseInt(taskId),
-        content: newComment.trim(), // thay vì "feedback"
+        feedback: newComment.trim(), // thay vì "feedback"
         groupId: parseInt(groupId) || 1,
         author: `HE${currentUser.id}`, // Lấy từ localStorage
         authorName: currentUser.name // Lấy từ localStorage
@@ -193,23 +193,20 @@ export default function TaskDetail() {
       const backendPriority = task.priority === 'high' ? 'High' : 
                              task.priority === 'medium' ? 'Medium' : 'Low';
 
-      // Gọi API update task
+      // Gọi API update task theo cấu trúc mới
       const updateData = {
         id: parseInt(taskId),
-        name: task.title, // giữ nguyên
+        name: task.title,
         description: task.description,
-        endAt: task.deadline, // giữ nguyên
-        status: backendStatus, // THAY ĐỔI: từ statusId (number) thành status (string)
-        priority: backendPriority, // THAY ĐỔI: từ priorityId (number) thành priority (string)
+        endAt: task.deadline,
+        statusId: backendStatus, // Sử dụng statusId thay vì status
+        priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: task.progress.toString(),
-        milestoneId: task.milestoneId,
-        assignedUserId: task.assignee, // giữ nguyên
-        createdBy: currentUser.id, // Lấy từ localStorage
-        createdByName: currentUser.name, // Lấy từ localStorage
-        groupId: parseInt(groupId) || 1 // THÊM: thông tin group
+        milestoneId: task.milestoneId || 0,
+        assignedUserId: task.assignee || 0
       };
-
-      const response = await axiosClient.put('/Student/Task/update', updateData);
+      console.log("updateData 2", updateData);
+      const response = await axiosClient.post('/Student/Task/update', updateData);
       
       if (response.data.status === 200) {
         const nowIso = new Date().toISOString();
@@ -250,24 +247,21 @@ export default function TaskDetail() {
       const backendPriority = task.priority === 'high' ? 'High' : 
                              task.priority === 'medium' ? 'Medium' : 'Low';
 
-      // Gọi API update task với progress mới
+      // Gọi API update task với progress mới theo cấu trúc mới
       const updateData = {
         id: parseInt(taskId),
         name: task.title,
         description: task.description,
         endAt: task.deadline,
-        status: task.status === 'todo' ? 'ToDo' : 
-               task.status === 'inProgress' ? 'InProgress' : 'Done',
-        priority: backendPriority,
+        statusId: task.status === 'todo' ? 'ToDo' : 
+                 task.status === 'inProgress' ? 'InProgress' : 'Done',
+        priorityId: backendPriority,
         process: clamped.toString(), // Cập nhật progress
-        milestoneId: task.milestoneId,
-        assignedUserId: task.assignee,
-        createdBy: 8,
-        createdByName: "Lê Duy Hải",
-        groupId: parseInt(groupId) || 1
+        milestoneId: task.milestoneId || 0,
+        assignedUserId: task.assignee || 0
       };
-
-      const response = await axiosClient.put('/Student/Task/update', updateData);
+      console.log("updateData 1", updateData);
+      const response = await axiosClient.post('/Student/Task/update', updateData);
       
       if (response.data.status === 200) {
         const nowIso = new Date().toISOString();

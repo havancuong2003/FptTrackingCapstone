@@ -36,7 +36,6 @@ export default function SupervisorTaskDetail() {
         
         // Gọi API lấy task theo ID
         const response = await axiosClient.get(`/Student/Task/get-by-id/${taskId}`);
-        console.log("response get task by id", response);
         if (response.data.status === 200) {
           const taskData = response.data.data;
           

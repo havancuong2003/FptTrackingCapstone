@@ -1,18 +1,9 @@
 const supervisorMenu = [
+  // Chức năng chung (cùng thứ tự với student)
   { 
-    path: "/supervisor/groups", 
-    label: "Groups", 
-    icon: "👥"
-  },
-  { 
-    path: "/supervisor/roles", 
-    label: "Role Management", 
-    icon: "👤"
-  },
-  { 
-    path: "/supervisor/votes", 
-    label: "Vote Scheduler", 
-    icon: "🗳️"
+    path: "/supervisor/tasks", 
+    label: "Task Management", 
+    icon: "✅"
   },
   { 
     path: "/supervisor/schedule", 
@@ -25,16 +16,6 @@ const supervisorMenu = [
     icon: "📅"
   },
   { 
-    path: "/supervisor/tracking", 
-    label: "Tracking", 
-    icon: "📊"
-  },
-  { 
-    path: "/supervisor/tasks", 
-    label: "Task Management", 
-    icon: "✅"
-  },
-  { 
     path: "/supervisor/documents", 
     label: "Delivery Management", 
     icon: "📦"
@@ -43,6 +24,22 @@ const supervisorMenu = [
     path: "/supervisor/evaluation", 
     label: "Evaluation System", 
     icon: "⭐"
+  },
+  // Chức năng riêng của supervisor
+  { 
+    path: "/supervisor/groups", 
+    label: "Groups", 
+    icon: "👥"
+  },
+  { 
+    path: "/supervisor/roles", 
+    label: "Role Management", 
+    icon: "👤"
+  },
+  { 
+    path: "/supervisor/tracking", 
+    label: "Tracking", 
+    icon: "📊"
   }
 ];
 

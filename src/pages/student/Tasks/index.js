@@ -322,23 +322,20 @@ export default function StudentTasks() {
       const backendPriority = currentTask.priority === 'high' ? 'High' : 
                              currentTask.priority === 'medium' ? 'Medium' : 'Low';
 
-      // Gọi API update task
+      // Gọi API update task theo cấu trúc mới
       const updateData = {
         id: parseInt(taskId),
         name: currentTask.title,
         description: currentTask.description,
         endAt: currentTask.deadline,
-        status: backendStatus, // THAY ĐỔI: từ statusId (number) thành status (string)
-        priority: backendPriority, // THAY ĐỔI: từ priorityId (number) thành priority (string)
+        statusId: backendStatus, // Sử dụng statusId thay vì status
+        priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: toStatus === 'done' ? '100' : currentTask.progress.toString(),
-        milestoneId: currentTask.milestoneId,
-        assignedUserId: currentTask.assignee,
-        createdBy: currentUser?.id || 0, // Lấy từ localStorage
-        createdByName: currentUser?.name || 'Unknown', // Lấy từ localStorage
-        groupId: parseInt(groupId) || 1 // THÊM: thông tin group
+        milestoneId: currentTask.milestoneId || 0,
+        assignedUserId: currentTask.assignee || 0
       };
-
-      const response = await axiosClient.put('/Student/Task/update', updateData);
+      console.log("updateData", updateData);
+      const response = await axiosClient.post('/Student/Task/update', updateData);
       
       if (response.data.status === 200) {
         const nowIso = new Date().toISOString();
