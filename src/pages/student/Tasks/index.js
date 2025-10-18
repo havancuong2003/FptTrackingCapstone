@@ -168,7 +168,7 @@ export default function StudentTasks() {
   };
 
   const openTaskDetail = (task) => {
-    const url = `/student/task/group/${groupId}?taskId=${task.id}`;
+    const url = `/student/task-detail/${groupId}?taskId=${task.id}`;
     navigate(url);
   };
 
@@ -185,6 +185,7 @@ export default function StudentTasks() {
         const tasksData = Array.isArray(apiData) ? apiData : [];
         // Map data từ API response sang format front
         const mappedTasks = tasksData.map(task => {
+          console.log("task", task);
           return {
             id: task.id,
             title: task.title,
