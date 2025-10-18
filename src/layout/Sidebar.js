@@ -8,9 +8,19 @@ import { useLayout } from './LayoutContext';
 export default function Sidebar() {
   const user = getCurrentUser();
   const items = getMenuForRole((user.role || '').toString());
-  console.log('user', user);
-  console.log('items', items);
   const { sidebarOpen } = useLayout();
+
+  function resolvePath(path) {
+    try {
+      const normalizedRole = String(user.role || '').toUpperCase();
+      if (normalizedRole === 'STUDENT' && path === '/student/tasks') {
+        const groupId = localStorage.getItem('student_group_id') || '1';
+        const url = `/student/tasks?groupId=${encodeURIComponent(groupId)}`;
+        return url;
+      }
+    } catch {}
+    return path;
+  }
 
   return (
     <aside className={`${styles.sidebar} ${sidebarOpen ? styles.open : ''}`}>
@@ -23,7 +33,7 @@ export default function Sidebar() {
             return (
               <NavLink
                 key={itemKey}
-                to={item.path}
+                to={resolvePath(item.path)}
                 className={({ isActive }) => isActive ? `${styles.link} ${styles.active}` : styles.link}
               >
                 {item.label}

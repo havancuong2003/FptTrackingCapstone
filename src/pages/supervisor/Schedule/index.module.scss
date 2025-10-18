@@ -112,12 +112,216 @@
 }
 
 .availableSlot {
-  background: #dbeafe;
-  color: #2563eb;
+  background: #d1fae5;
+  color: #059669;
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 11px;
   font-weight: 500;
+}
+
+// CSS cho lịch rảnh của thành viên
+.membersList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.memberCard {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.memberInfo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.memberInfo h4 {
+  margin: 0;
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.voteStatus {
+  background: #f3f4f6;
+  color: #6b7280;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.memberSchedule {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.daySchedule {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dayLabel {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.scheduleSlots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.scheduleSlot {
+  background: #d1fae5;
+  color: #059669;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.noVoteMessage {
+  color: #9ca3af;
+  font-style: italic;
+  font-size: 14px;
+}
+
+// CSS cho chốt lịch họp
+.finalizeForm {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.finalizeInfo {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.finalizeInfo p {
+  margin: 0;
+  color: #0369a1;
+  font-size: 14px;
+}
+
+.finalizeActions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.finalizeButton {
+  background: #059669;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  
+  &:hover:not(:disabled) {
+    background: #047857;
+  }
+  
+  &:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+  }
+}
+
+.finalMeeting {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.finalMeetingInfo h3 {
+  margin: 0 0 8px 0;
+  color: #166534;
+  font-size: 18px;
+}
+
+.finalizedAt {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.finalMeetingActions {
+  margin-top: 12px;
+}
+
+// CSS cho chọn thời gian
+.timeSelection {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.timeSelection h3 {
+  margin: 0 0 16px 0;
+  color: #374151;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.timeInputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.timeInputGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.timeInputGroup label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.timeSelect, .timeInput {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+}
+
+.meetingDetails {
+  margin-top: 12px;
+}
+
+.meetingDetails p {
+  margin: 4px 0;
+  color: #374151;
+  font-size: 14px;
 }
 
 .suggestedSlots {

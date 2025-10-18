@@ -1,14 +1,5 @@
 const studentMenu = [
-  { 
-    path: "/student/milestones", 
-    label: "Milestones", 
-    icon: "📋"
-  },
-  { 
-    path: "/student/deliveries", 
-    label: "Delivery Management", 
-    icon: "📦"
-  },
+  // Chức năng chung (cùng thứ tự với supervisor)
   { 
     path: "/student/tasks", 
     label: "Task Management", 
@@ -25,19 +16,30 @@ const studentMenu = [
     icon: "📅"
   },
   { 
-    path: "/student/minutes", 
-    label: "Meeting Minutes", 
-    icon: "📝"
+    path: "/student/documents", 
+    label: "Documents", 
+    icon: "📚"
   },
   { 
     path: "/student/evaluation", 
     label: "My Evaluation", 
     icon: "⭐"
   },
+  // Chức năng riêng của student
   { 
-    path: "/student/documents", 
-    label: "Documents", 
-    icon: "📚"
+    path: "/student/milestones", 
+    label: "Milestones", 
+    icon: "📋"
+  },
+  { 
+    path: "/student/deliveries", 
+    label: "Delivery Management", 
+    icon: "📦"
+  },
+  { 
+    path: "/student/minutes", 
+    label: "Meeting Minutes", 
+    icon: "📝"
   }
 ];
 

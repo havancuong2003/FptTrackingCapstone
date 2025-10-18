@@ -1,205 +1,272 @@
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
-import Select from '../../../components/Select/Select';
+import Modal from '../../../components/Modal/Modal';
+import axiosClient from '../../../utils/axiosClient';
 
 export default function SupervisorTasks() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const groupId = query.get('groupId');
+  
+  // Lấy thông tin user từ localStorage
+  const getCurrentUser = () => {
+    try {
+      const authUser = localStorage.getItem('auth_user');
+      if (authUser) {
+        return JSON.parse(authUser);
+      }
+      return null;
+    } catch (error) {
+      console.error('Error parsing auth_user:', error);
+      return null;
+    }
+  };
+  
+  const currentUser = getCurrentUser();
   const [tasks, setTasks] = React.useState([]);
+  const [milestones, setMilestones] = React.useState([]);
+  const [groups, setGroups] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [selectedGroup, setSelectedGroup] = React.useState('GR01');
-  const [selectedMilestone, setSelectedMilestone] = React.useState('all');
-  const [selectedDeliveryItem, setSelectedDeliveryItem] = React.useState('all');
-  const [selectedStudent, setSelectedStudent] = React.useState('all');
-  const [filter, setFilter] = React.useState('all');
   const [viewMode, setViewMode] = React.useState('list'); // list or kanban
 
+  // Trạng thái search-on-click
+  const [isSearched, setIsSearched] = React.useState(false);
+  
+  // Tất cả tasks (load khi bấm tìm kiếm)
+  const [allTasks, setAllTasks] = React.useState([]);
+  
+  // Filter states riêng biệt
+  const [milestoneFilter, setMilestoneFilter] = React.useState('');
+  const [assigneeFilter, setAssigneeFilter] = React.useState('');
+  const [priorityFilter, setPriorityFilter] = React.useState('');
+  const [statusFilter, setStatusFilter] = React.useState('');
+
+  // API: lấy milestones theo group
+  const fetchMilestonesByGroup = async (gid) => {
+    if (!gid) return [];
+    try {
+      const response = await axiosClient.get(`/Student/milestone/group/${gid}`);
+      
+      if (response.data.status === 200) {
+        const apiData = response.data.data;
+        const milestonesData = Array.isArray(apiData) ? apiData : [];
+        
+        return milestonesData.map(milestone => ({
+          id: milestone.id,
+          name: milestone.name,
+          groupId: gid,
+          description: milestone.description,
+          deadline: milestone.deadline
+        }));
+      } else {
+        console.error('Error fetching milestones:', response.data.message);
+        alert(`Lỗi lấy milestones: ${response.data.message}`);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching milestones:', error);
+      alert(`Lỗi kết nối milestones: ${error.message}`);
+      return [];
+    }
+  };
+
+  // API: lấy students theo group
+  const fetchStudentsByGroup = async (gid) => {
+    if (!gid) return [];
+    try {
+      const response = await axiosClient.get(`/Staff/capstone-groups/${gid}`);
+      
+      if (response.data.status === 200) {
+        const apiData = response.data.data.students;
+        const studentsData = Array.isArray(apiData) ? apiData : [];
+        
+        return studentsData.map(student => ({
+          id: student.id,
+          name: student.name,
+          studentId: student.studentId || student.id,
+          email: student.email || ''
+        }));
+      } else {
+        console.error('Error fetching students:', response.data.message);
+        alert(`Lỗi lấy danh sách students: ${response.data.message}`);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      alert(`Lỗi kết nối lấy students: ${error.message}`);
+      return [];
+    }
+  };
+
+  // API: lấy tất cả groups mà supervisor hướng dẫn
+  const fetchSupervisorGroups = async () => {
+    try {
+      const response = await axiosClient.get('/Mentor/getGroups');
+      
+      if (response.data.status === 200) {
+        const apiData = response.data.data;
+        const groupsData = Array.isArray(apiData) ? apiData : [];
+        
+        return groupsData.map(group => ({
+          id: group.id,
+          name: group.name,
+          description: group.description || ''
+        }));
+      } else {
+        console.error('Error fetching groups:', response.data.message);
+        alert(`Lỗi lấy danh sách groups: ${response.data.message}`);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+      alert(`Lỗi kết nối lấy groups: ${error.message}`);
+      return [];
+    }
+  };
+
   React.useEffect(() => {
-    const fetchTasks = async () => {
+    const bootstrapData = async () => {
       try {
         setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const mockData = {
-          "status": 200,
-          "message": "Fetched successfully",
-          "data": [
-            {
-              "groupId": "GR01",
-              "groupName": "Team Alpha",
-              "milestones": [
-                {
-                  "id": 1,
-                  "name": "Project Setup & Planning",
-                  "deliveryItems": [
-                    {
-                      "id": 1,
-                      "name": "Project Charter",
-                      "tasks": [
-                        {
-                          "id": 1,
-                          "title": "Setup development environment",
-                          "description": "Install required tools and setup project structure",
-                          "assignee": "SE00001",
-                          "assigneeName": "Nguyen Van A",
-                          "deadline": "2025-10-15T23:59:00Z",
-                          "priority": "high",
-                          "status": "completed",
-                          "milestoneId": 1,
-                          "deliveryItemId": 1,
-                          "createdAt": "2025-10-10T09:00:00Z",
-                          "completedAt": "2025-10-14T16:30:00Z",
-                          "progress": 100,
-                          "attachments": ["setup-guide.pdf"],
-                          "comments": [
-                            {
-                              "id": 1,
-                              "author": "SE00001",
-                              "authorName": "Nguyen Van A",
-                              "content": "Environment setup completed successfully",
-                              "createdAt": "2025-10-14T16:30:00Z"
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                },
-                {
-                  "id": 2,
-                  "name": "Design & Architecture",
-                  "deliveryItems": [
-                    {
-                      "id": 2,
-                      "name": "System Design Document",
-                      "tasks": [
-                        {
-                          "id": 2,
-                          "title": "Research database options",
-                          "description": "Compare different database solutions for the project",
-                          "assignee": "SE00002",
-                          "assigneeName": "Nguyen Van B",
-                          "deadline": "2025-10-18T23:59:00Z",
-                          "priority": "medium",
-                          "status": "in-progress",
-                          "milestoneId": 2,
-                          "deliveryItemId": 2,
-                          "createdAt": "2025-10-10T09:30:00Z",
-                          "completedAt": null,
-                          "progress": 60,
-                          "attachments": ["db-comparison.xlsx"],
-                          "comments": [
-                            {
-                              "id": 2,
-                              "author": "SE00002",
-                              "authorName": "Nguyen Van B",
-                              "content": "Still researching PostgreSQL vs MongoDB",
-                              "createdAt": "2025-10-15T10:00:00Z"
-                            }
-                          ]
-                        },
-                        {
-                          "id": 3,
-                          "title": "Design user interface",
-                          "description": "Create wireframes and mockups for the application",
-                          "assignee": "SE00003",
-                          "assigneeName": "Nguyen Van C",
-                          "deadline": "2025-10-22T23:59:00Z",
-                          "priority": "high",
-                          "status": "pending",
-                          "milestoneId": 2,
-                          "deliveryItemId": 2,
-                          "createdAt": "2025-10-12T14:00:00Z",
-                          "completedAt": null,
-                          "progress": 0,
-                          "attachments": [],
-                          "comments": []
-                        }
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        };
+        // Load groups trước
+        const groupsData = await fetchSupervisorGroups();
+        setGroups(groupsData);
         
-        setTasks(mockData.data);
+        // Nếu có groupId, load milestones và students
+        if (groupId) {
+          const [milestoneRes, studentRes] = await Promise.all([
+            fetchMilestonesByGroup(groupId),
+            fetchStudentsByGroup(groupId),
+          ]);
+          setMilestones(milestoneRes);
+          setAssigneeSource(studentRes);
+        } else {
+          setMilestones([]);
+          setAssigneeSource([]);
+        }
+        
+        setTasks([]);
       } catch (error) {
-        console.error('Error fetching tasks:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTasks();
-  }, []);
+    bootstrapData();
+  }, [groupId]);
+
+  // Nguồn assignee lấy từ API theo group
+  const [assigneeSource, setAssigneeSource] = React.useState([]);
 
   const getPriorityInfo = (priority) => {
     switch (priority) {
       case 'high':
-        return { color: '#dc2626', text: 'High', icon: '🔴' };
+        return { color: '#dc2626', text: 'High' };
       case 'medium':
-        return { color: '#d97706', text: 'Medium', icon: '🟡' };
+        return { color: '#d97706', text: 'Medium' };
       case 'low':
-        return { color: '#059669', text: 'Low', icon: '🟢' };
+        return { color: '#059669', text: 'Low' };
       default:
-        return { color: '#64748b', text: 'Unknown', icon: '⚪' };
-    }
-  };
-
-  const getStatusInfo = (status) => {
-    switch (status) {
-      case 'completed':
-        return { color: '#059669', text: 'Completed', icon: '✓' };
-      case 'in-progress':
-        return { color: '#3b82f6', text: 'In Progress', icon: '🔄' };
-      case 'pending':
-        return { color: '#d97706', text: 'Pending', icon: '⏳' };
-      default:
-        return { color: '#64748b', text: 'Unknown', icon: '❓' };
+        return { color: '#64748b', text: 'Unknown' };
     }
   };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('vi-VN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
       hour: '2-digit',
       minute: '2-digit'
     });
   };
 
-  const selectedGroupData = tasks.find(group => group.groupId === selectedGroup);
-  
-  // Flatten all tasks from all milestones and delivery items
-  const allTasks = selectedGroupData?.milestones?.flatMap(milestone => 
-    milestone.deliveryItems?.flatMap(deliveryItem => 
-      deliveryItem.tasks?.map(task => ({
-        ...task,
-        milestoneName: milestone.name,
-        deliveryItemName: deliveryItem.name
-      }))
-    )
-  ) || [];
+  const openTaskDetail = (task) => {
+    const url = `/supervisor/task/group/${groupId}?taskId=${task.id}`;
+    navigate(url);
+  };
 
-  const filteredTasks = allTasks.filter(task => {
-    if (filter !== 'all' && task.status !== filter) return false;
-    if (selectedMilestone !== 'all' && task.milestoneId.toString() !== selectedMilestone) return false;
-    if (selectedDeliveryItem !== 'all' && task.deliveryItemId.toString() !== selectedDeliveryItem) return false;
-    if (selectedStudent !== 'all' && task.assignee !== selectedStudent) return false;
-    return true;
-  });
+  // Handle search - load all tasks từ API
+  const handleSearch = async () => {
+    if (!groupId) {
+      alert('Vui lòng chọn group trước');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      
+      // Gọi API lấy tất cả tasks theo group
+      const response = await axiosClient.get(`/Student/Task/get-by-group/${groupId}`);
+      
+      if (response.data.status === 200) {
+        const apiData = response.data.data;
+        const tasksData = Array.isArray(apiData) ? apiData : [];
+        
+        // Map data từ API response sang format frontend
+        const mappedTasks = tasksData.map(task => {
+          return {
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            groupId: task.group?.id?.toString() || groupId || '1',
+            assignee: task.assigneeId,
+            assigneeName: task.assigneeName,
+            deadline: task.deadline,
+            priority: task.priority?.toLowerCase() || 'medium',
+            status: task.status === 'ToDo' ? 'todo' : 
+                   task.status === 'InProgress' ? 'inProgress' : 'done',
+            milestoneId: task.milestone?.id || null,
+            milestoneName: task.milestone?.name || 'No Milestone',
+            createdAt: task.createdAt,
+            progress: parseInt(task.process) || 0,
+            attachments: task.attachments || [],
+            comments: task.comments || [],
+            history: task.history || []
+          };
+        });
 
-  // Get unique options for filters
-  const milestoneOptions = selectedGroupData?.milestones?.map(m => ({ value: m.id.toString(), label: m.name })) || [];
-  const deliveryItemOptions = selectedGroupData?.milestones?.flatMap(m => 
-    m.deliveryItems?.map(d => ({ value: d.id.toString(), label: d.name, milestoneId: m.id })) || []
-  ) || [];
-  const studentOptions = [...new Set(allTasks.map(task => task.assignee))].map(assignee => {
-    const task = allTasks.find(t => t.assignee === assignee);
-    return { value: assignee, label: `${task.assigneeName} (${assignee})` };
-  });
+        setAllTasks(mappedTasks);
+        setIsSearched(true);
+        
+        // Hiển thị thông báo nếu không có task
+        if (mappedTasks.length === 0) {
+          alert('Không có task nào');
+        }
+      } else {
+        console.error('Error fetching tasks:', response.data.message);
+        alert(`Lỗi: ${response.data.message}`);
+        setAllTasks([]);
+      }
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      alert(`Lỗi kết nối: ${error.message}`);
+      setAllTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle reset filters
+  const handleResetFilters = () => {
+    setMilestoneFilter('');
+    setAssigneeFilter('');
+    setPriorityFilter('');
+    setStatusFilter('');
+    setMyTasksOnly(false);
+    setAllTasks([]);
+    setIsSearched(false);
+  };
+
+  // Handle group change
+  const handleGroupChange = (newGroupId) => {
+    const url = `/supervisor/tasks?groupId=${newGroupId}`;
+    navigate(url);
+  };
 
   if (loading) {
     return (
@@ -209,154 +276,209 @@ export default function SupervisorTasks() {
     );
   }
 
+  // Filter tasks dựa trên các filter states
+  const filteredTasks = allTasks.filter(task => {
+    const milestoneMatch = milestoneFilter === '' || task.milestoneId?.toString() === milestoneFilter;
+    const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
+    const statusMatch = statusFilter === '' || task.status === statusFilter;
+    const priorityMatch = priorityFilter === '' || task.priority === priorityFilter;
+    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch;
+  });
+
+  const milestoneOptions = milestones.map(m => ({ value: m.id.toString(), label: m.name }));
+  const assigneeOptions = assigneeSource.map(s => {
+    return { value: s.id, label: s.name }
+  });
+
+  const todoTasks = filteredTasks.filter(task => task.status === 'todo');
+  const inProgressTasks = filteredTasks.filter(task => task.status === 'inProgress');
+  const doneTasks = filteredTasks.filter(task => task.status === 'done');
+
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>📊 Tasks Overview - Supervisor View</h1>
-        <div className={styles.controls}>
+        <h1>Task Management - Supervisor View</h1>
+      </div>
+
+      {/* Group Selection */}
+      <div className={styles.section}>
+        <h2>Chọn Group</h2>
           <div className={styles.controlGroup}>
             <label>Group:</label>
-            <Select
-              value={selectedGroup}
-              onChange={setSelectedGroup}
-              options={tasks.map(group => ({ value: group.groupId, label: `${group.groupName} (${group.groupId})` }))}
-            />
+          <select
+            value={groupId || ''}
+            onChange={(e) => handleGroupChange(e.target.value)}
+            className={`${styles.select} ${styles.groupSelect}`}
+          >
+            <option value="">Chọn group</option>
+            {groups.map(group => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className={styles.statsGrid}>
+        <div className={styles.statCard}>
+          <div className={styles.statValue}>{filteredTasks.length}</div>
+          <div className={styles.statLabel}>Total Tasks</div>
+        </div>
+        <div className={styles.statCard}>
+          <div className={styles.statValue}>{todoTasks.length}</div>
+          <div className={styles.statLabel}>To Do</div>
+        </div>
+        <div className={styles.statCard}>
+          <div className={styles.statValue}>{inProgressTasks.length}</div>
+          <div className={styles.statLabel}>In Progress</div>
+        </div>
+        <div className={styles.statCard}>
+          <div className={styles.statValue}>{doneTasks.length}</div>
+          <div className={styles.statLabel}>Completed</div>
+        </div>
           </div>
+
+      {/* Filters */}
+      {groupId && (
+        <div className={styles.header}>
+          <div className={styles.controls}>
           <div className={styles.controlGroup}>
             <label>Milestone:</label>
-            <Select
-              value={selectedMilestone}
-              onChange={setSelectedMilestone}
-              options={[{ value: 'all', label: 'All Milestones' }, ...milestoneOptions]}
-            />
+              <select
+                value={milestoneFilter}
+                onChange={(e) => setMilestoneFilter(e.target.value)}
+                className={styles.select}
+              >
+                <option value="">All</option>
+                {milestoneOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
           </div>
           <div className={styles.controlGroup}>
-            <label>Delivery Item:</label>
-            <Select
-              value={selectedDeliveryItem}
-              onChange={setSelectedDeliveryItem}
-              options={[{ value: 'all', label: 'All Delivery Items' }, ...deliveryItemOptions]}
-            />
+              <label>Assignee:</label>
+              <select
+                value={assigneeFilter}
+                onChange={(e) => setAssigneeFilter(e.target.value)}
+                className={styles.select}
+              >
+                <option value="">All</option>
+                {assigneeOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
           </div>
           <div className={styles.controlGroup}>
-            <label>Student:</label>
-            <Select
-              value={selectedStudent}
-              onChange={setSelectedStudent}
-              options={[{ value: 'all', label: 'All Students' }, ...studentOptions]}
-            />
+              <label>Priority:</label>
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value)}
+                className={styles.select}
+              >
+                <option value="">All</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
           </div>
           <div className={styles.controlGroup}>
             <label>Status:</label>
-            <Select
-              value={filter}
-              onChange={setFilter}
-              options={[
-                { value: 'all', label: 'All Tasks' },
-                { value: 'pending', label: 'Pending' },
-                { value: 'in-progress', label: 'In Progress' },
-                { value: 'completed', label: 'Completed' }
-              ]}
-            />
-          </div>
-          <div className={styles.controlGroup}>
-            <label>View:</label>
-            <div className={styles.viewToggle}>
-              <Button 
-                variant={viewMode === 'list' ? 'primary' : 'secondary'} 
-                size="sm"
-                onClick={() => setViewMode('list')}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className={styles.select}
               >
-                📋 List
-              </Button>
-              <Button 
-                variant={viewMode === 'kanban' ? 'primary' : 'secondary'} 
-                size="sm"
-                onClick={() => setViewMode('kanban')}
-              >
-                📊 Kanban
-              </Button>
+                <option value="">All</option>
+                <option value="todo">To Do</option>
+                <option value="inProgress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
             </div>
+            <button
+              className={styles.searchButton}
+              onClick={handleSearch}
+            >
+              Tìm kiếm
+            </button>
+            <button
+              className={styles.resetButton}
+              onClick={handleResetFilters}
+            >
+              Reset
+            </button>
           </div>
         </div>
+      )}
+
+      <div className={styles.viewToggle}>
+        <button 
+          className={`${styles.toggleButton} ${viewMode === 'list' ? styles.active : ''}`}
+          onClick={() => setViewMode('list')}
+        >
+          List View
+        </button>
+        <button 
+          className={`${styles.toggleButton} ${viewMode === 'kanban' ? styles.active : ''}`}
+          onClick={() => setViewMode('kanban')}
+        >
+          Kanban View
+        </button>
       </div>
       
-      {selectedGroupData && (
-        <>
-          <div className={styles.groupInfo}>
-            <h2>📈 {selectedGroupData.groupName} ({selectedGroupData.groupId}) - Progress Summary</h2>
-            <div className={styles.statsGrid}>
-              <div className={styles.statCard}>
-                <div className={styles.statNumber}>{allTasks.length}</div>
-                <div className={styles.statLabel}>Total Tasks</div>
+      {/* Empty state khi không có task */}
+      {filteredTasks.length === 0 ? (
+        <div className={styles.emptyState}>
+          <div className={styles.emptyTitle}>
+            {allTasks.length === 0 ? 
+              "Chọn group và nhấn 'Tìm kiếm' để xem tasks" : 
+              "Không có task nào phù hợp với bộ lọc"
+            }
               </div>
-              <div className={styles.statCard}>
-                <div className={styles.statNumber}>{allTasks.filter(t => t.status === 'completed').length}</div>
-                <div className={styles.statLabel}>Completed</div>
-              </div>
-              <div className={styles.statCard}>
-                <div className={styles.statNumber}>{allTasks.filter(t => t.status === 'in-progress').length}</div>
-                <div className={styles.statLabel}>In Progress</div>
-              </div>
-              <div className={styles.statCard}>
-                <div className={styles.statNumber}>{allTasks.filter(t => t.status === 'pending').length}</div>
-                <div className={styles.statLabel}>Pending</div>
-              </div>
-              <div className={styles.statCard}>
-                <div className={styles.statNumber}>
-                  {allTasks.length > 0 ? Math.round((allTasks.filter(t => t.status === 'completed').length / allTasks.length) * 100) : 0}%
-                </div>
-                <div className={styles.statLabel}>Completion Rate</div>
-              </div>
-            </div>
+          <div className={styles.emptySubtitle}>
+            {allTasks.length === 0 ? 
+              "Chọn group từ dropdown bên trên để xem tasks" : 
+              "Thử thay đổi bộ lọc"
+            }
           </div>
-          
-          {viewMode === 'list' ? (
+          {groupId && (
+            <button className={styles.searchButton} onClick={handleSearch}>
+              {allTasks.length === 0 ? "Tìm kiếm" : "Tìm kiếm lại"}
+            </button>
+          )}
+        </div>
+      ) : viewMode === 'list' ? (
             <div className={styles.tasksList}>
               {filteredTasks.map((task) => {
                 const priorityInfo = getPriorityInfo(task.priority);
-                const statusInfo = getStatusInfo(task.status);
-                
                 return (
                   <div key={task.id} className={styles.taskCard}>
                     <div className={styles.taskHeader}>
-                      <div className={styles.taskInfo}>
-                        <h3>{task.title}</h3>
-                        <p className={styles.taskDescription}>{task.description}</p>
-                        <div className={styles.taskContext}>
-                          <span className={styles.milestoneTag}>📋 {task.milestoneName}</span>
-                          <span className={styles.deliveryTag}>📦 {task.deliveryItemName}</span>
-                        </div>
-                      </div>
-                      <div className={styles.taskMeta}>
-                        <div className={styles.taskPriority}>
-                          <span 
-                            className={styles.priorityIcon}
-                            style={{ color: priorityInfo.color }}
-                          >
-                            {priorityInfo.icon}
-                          </span>
-                          <span 
-                            className={styles.priorityText}
-                            style={{ color: priorityInfo.color }}
-                          >
+                  <h4>{task.title}</h4>
+                  <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
                             {priorityInfo.text}
                           </span>
                         </div>
-                        <div className={styles.taskStatus}>
-                          <span 
-                            className={styles.statusIcon}
-                            style={{ color: statusInfo.color }}
-                          >
-                            {statusInfo.icon}
-                          </span>
-                          <span 
-                            className={styles.statusText}
-                            style={{ color: statusInfo.color }}
-                          >
-                            {statusInfo.text}
-                          </span>
+                
+                <p className={styles.taskDescription}>{task.description}</p>
+                
+                <div className={styles.taskDetails}>
+                  <div className={styles.detailItem}>
+                    <strong>👤 Assignee:</strong> {task.assigneeName}
+                  </div>
+                  <div className={styles.detailItem}>
+                    <strong>📅 Deadline:</strong> {formatDate(task.deadline)}
+                  </div>
+                  <div className={styles.detailItem}>
+                    <strong>🎯 Milestone:</strong> {task.milestoneName}
+                  </div>
                         </div>
+                
                         <div className={styles.progressBar}>
                           <div className={styles.progressLabel}>Progress: {task.progress}%</div>
                           <div className={styles.progressTrack}>
@@ -366,129 +488,151 @@ export default function SupervisorTasks() {
                             />
                           </div>
                         </div>
+                
+                <div className={styles.taskMeta}>
+                  <div className={styles.metaItem}>
+                    <span className={styles.metaLabel}>Created:</span>
+                    <span>{formatDate(task.createdAt)}</span>
+                  </div>
+                  <div className={styles.metaItem}>
+                    <span className={styles.metaLabel}>Attachments:</span>
+                    <span>{task.attachments.length} files</span>
+                  </div>
+                  <div className={styles.metaItem}>
+                    <span className={styles.metaLabel}>Comments:</span>
+                    <span>{task.comments.length}</span>
+                  </div>
+                </div>
+                
+                <div className={styles.taskActions}>
+                  <button 
+                    className={`${styles.actionButton} ${styles.primary}`}
+                    onClick={() => openTaskDetail(task)}
+                  >
+                    View Details
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className={styles.kanbanBoard}>
+          <div className={`${styles.column} ${styles.todo}`}>
+            <div className={styles.columnHeader}>
+              <h3>To Do</h3>
+              <span className={styles.taskCount}>{todoTasks.length}</span>
                       </div>
+            <div className={styles.taskList}>
+              {todoTasks.map((task) => {
+                const priorityInfo = getPriorityInfo(task.priority);
+                return (
+                  <div key={task.id} className={styles.taskCard}>
+                    <div className={styles.taskHeader}>
+                      <h4>{task.title}</h4>
+                      <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
+                        {priorityInfo.text}
+                      </span>
                     </div>
+                    <p className={styles.taskDescription}>{task.description}</p>
                     
                     <div className={styles.taskDetails}>
-                      <div className={styles.detailRow}>
                         <div className={styles.detailItem}>
-                          <strong>👤 Assignee:</strong>
-                          <span>{task.assigneeName} ({task.assignee})</span>
+                        <strong>👤 Assignee:</strong> {task.assigneeName}
                         </div>
                         <div className={styles.detailItem}>
-                          <strong>⏰ Deadline:</strong>
-                          <span>{formatDate(task.deadline)}</span>
-                        </div>
+                        <strong>📅 Deadline:</strong> {formatDate(task.deadline)}
                       </div>
-                      <div className={styles.detailRow}>
                         <div className={styles.detailItem}>
-                          <strong>📅 Created:</strong>
-                          <span>{formatDate(task.createdAt)}</span>
-                        </div>
-                        <div className={styles.detailItem}>
-                          <strong>📎 Attachments:</strong>
-                          <span>{task.attachments?.length || 0} files</span>
-                        </div>
+                        <strong>🎯 Milestone:</strong> {task.milestoneName}
                       </div>
-                      {task.completedAt && (
-                        <div className={styles.detailRow}>
-                          <div className={styles.detailItem}>
-                            <strong>✅ Completed:</strong>
-                            <span>{formatDate(task.completedAt)}</span>
-                          </div>
-                        </div>
-                      )}
-                      {task.comments?.length > 0 && (
-                        <div className={styles.commentsSection}>
-                          <strong>💬 Comments ({task.comments.length}):</strong>
-                          <div className={styles.commentsList}>
-                            {task.comments.slice(0, 2).map(comment => (
-                              <div key={comment.id} className={styles.commentItem}>
-                                <span className={styles.commentAuthor}>{comment.authorName}:</span>
-                                <span className={styles.commentContent}>{comment.content}</span>
-                              </div>
-                            ))}
-                            {task.comments.length > 2 && (
-                              <div className={styles.moreComments}>+{task.comments.length - 2} more comments</div>
-                            )}
-                          </div>
-                        </div>
-                      )}
                     </div>
                     
                     <div className={styles.taskActions}>
-                      <Button variant="secondary" size="sm">
-                        📋 View Details
-                      </Button>
-                      <Button variant="secondary" size="sm">
-                        ✏️ Add Comment
-                      </Button>
-                      <Button variant="secondary" size="sm">
-                        📎 Add Attachment
+                      <button 
+                        className={`${styles.actionButton} ${styles.primary}`}
+                        onClick={() => openTaskDetail(task)}
+                      >
+                        View Details
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className={`${styles.column} ${styles.inProgress}`}>
+            <div className={styles.columnHeader}>
+              <h3>In Progress</h3>
+              <span className={styles.taskCount}>{inProgressTasks.length}</span>
+            </div>
+            <div className={styles.taskList}>
+              {inProgressTasks.map((task) => {
+                const priorityInfo = getPriorityInfo(task.priority);
+                return (
+                  <div key={task.id} className={styles.kanbanCard}>
+                    <div className={styles.kanbanHeader}>
+                    <h4>{task.title}</h4>
+                      <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
+                        {priorityInfo.text}
+                      </span>
+                    </div>
+                    <p className={styles.kanbanDescription}>{task.description}</p>
+                    <div className={styles.kanbanMeta}>
+                      <div className={styles.assigneeInfo}>{task.assigneeName}</div>
+                      <div className={styles.deadlineInfo}>{formatDate(task.deadline)}</div>
+                    </div>
+                    <div className={styles.kanbanActions}>
+                      <Button 
+                        size="sm"
+                        onClick={() => openTaskDetail(task)}
+                      >
+                        View Details
                       </Button>
                     </div>
                   </div>
                 );
               })}
             </div>
-          ) : (
-            <div className={styles.kanbanBoard}>
-              <div className={styles.kanbanColumn}>
-                <h3>⏳ Pending ({filteredTasks.filter(t => t.status === 'pending').length})</h3>
-                {filteredTasks.filter(t => t.status === 'pending').map(task => (
+          </div>
+
+          <div className={`${styles.column} ${styles.done}`}>
+            <div className={styles.columnHeader}>
+              <h3>Done</h3>
+              <span className={styles.taskCount}>{doneTasks.length}</span>
+              </div>
+            <div className={styles.taskList}>
+              {doneTasks.map((task) => {
+                const priorityInfo = getPriorityInfo(task.priority);
+                return (
                   <div key={task.id} className={styles.kanbanCard}>
+                    <div className={styles.kanbanHeader}>
                     <h4>{task.title}</h4>
-                    <p>{task.assigneeName}</p>
+                      <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
+                        {priorityInfo.text}
+                      </span>
+                    </div>
+                    <p className={styles.kanbanDescription}>{task.description}</p>
                     <div className={styles.kanbanMeta}>
-                      <span className={styles.milestoneTag}>{task.milestoneName}</span>
-                      <span className={styles.priorityTag}>{task.priority}</span>
+                      <div className={styles.assigneeInfo}>{task.assigneeName}</div>
+                      <div className={styles.completedDate}>
+                        Completed: {formatDate(task.completedAt)}
+                      </div>
+                    </div>
+                    <div className={styles.kanbanActions}>
+                      <Button 
+                        size="sm"
+                        onClick={() => openTaskDetail(task)}
+                      >
+                        View Details
+                      </Button>
                     </div>
                   </div>
-                ))}
-              </div>
-              <div className={styles.kanbanColumn}>
-                <h3>🔄 In Progress ({filteredTasks.filter(t => t.status === 'in-progress').length})</h3>
-                {filteredTasks.filter(t => t.status === 'in-progress').map(task => (
-                  <div key={task.id} className={styles.kanbanCard}>
-                    <h4>{task.title}</h4>
-                    <p>{task.assigneeName}</p>
-                    <div className={styles.progressBar}>
-                      <div className={styles.progressFill} style={{ width: `${task.progress}%` }} />
-                    </div>
-                    <div className={styles.kanbanMeta}>
-                      <span className={styles.milestoneTag}>{task.milestoneName}</span>
-                      <span className={styles.priorityTag}>{task.priority}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className={styles.kanbanColumn}>
-                <h3>✅ Completed ({filteredTasks.filter(t => t.status === 'completed').length})</h3>
-                {filteredTasks.filter(t => t.status === 'completed').map(task => (
-                  <div key={task.id} className={styles.kanbanCard}>
-                    <h4>{task.title}</h4>
-                    <p>{task.assigneeName}</p>
-                    <div className={styles.kanbanMeta}>
-                      <span className={styles.milestoneTag}>{task.milestoneName}</span>
-                      <span className={styles.completedDate}>{formatDate(task.completedAt)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          )}
-        </>
-      )}
-      
-      {filteredTasks.length === 0 && selectedGroupData && (
-        <div className={styles.emptyState}>
-          <p>No tasks found for the selected filter.</p>
         </div>
-      )}
-      
-      {!selectedGroupData && (
-        <div className={styles.emptyState}>
-          <p>No tasks available for the selected group.</p>
         </div>
       )}
     </div>
