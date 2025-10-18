@@ -52,7 +52,6 @@ const StudentDocuments = React.lazy(() => import("../pages/student/Documents"));
 
 // Supervisor pages
 const SupervisorGroups = React.lazy(() => import("../pages/supervisor/Groups"));
-const SupervisorRoles = React.lazy(() => import("../pages/supervisor/Roles"));
 const SupervisorMeetings = React.lazy(() => import("../pages/supervisor/Meetings"));
 const SupervisorTracking = React.lazy(() => import("../pages/supervisor/Tracking"));
 const SupervisorTasks = React.lazy(() => import("../pages/supervisor/Tasks"));
@@ -328,15 +327,6 @@ export const routes = [
     element: SupervisorGroups,
     meta: {
       title: "Groups",
-      protected: true,
-      roles: ["SUPERVISOR"],
-    },
-  },
-  {
-    path: "/supervisor/roles",
-    element: SupervisorRoles,
-    meta: {
-      title: "Role Management",
       protected: true,
       roles: ["SUPERVISOR"],
     },

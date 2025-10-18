@@ -32,11 +32,6 @@ const supervisorMenu = [
     icon: "👥"
   },
   { 
-    path: "/supervisor/roles", 
-    label: "Role Management", 
-    icon: "👤"
-  },
-  { 
     path: "/supervisor/tracking", 
     label: "Tracking", 
     icon: "📊"
