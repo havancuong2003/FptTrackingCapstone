@@ -27,7 +27,7 @@ const staffMenu = [
   { path: "/dashboard", label: "Dashboard", children: [
     
   ] },
- 
+  { path: "/staff/major", label: "Major Management" },
 ];
 
 export default staffMenu;

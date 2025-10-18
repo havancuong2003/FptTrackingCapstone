@@ -106,7 +106,7 @@ export default function Delivery() {
         async function loadDeliverables() {
             if (!selectedMajorId || !currentSemester?.id) return;
             try {
-                const url = `https://160.30.21.113:5000/api/Deliverable/v1/Staff/deliverables?majorCateId=${selectedMajorId}&semesterId=${currentSemester.id}`;
+                const url = `https://160.30.21.113:5000/api/v1/Staff/deliverables?majorCateId=${selectedMajorId}&semesterId=${currentSemester.id}`;
                 const res = await client.get(url);
                 const list = Array.isArray(res?.data) ? res.data : [];
                 if (!mounted) return;
@@ -168,6 +168,10 @@ export default function Delivery() {
             setModalError("No milestone selected");
             return;
         }
+        if (editingItems.length === 0) {
+            setModalError("At least one item is required");
+            return;
+        }
         if (editingItems.some(item => !item.name.trim())) {
             setModalError("All items must have a name");
             return;
@@ -213,7 +217,7 @@ export default function Delivery() {
             setMilestones(sortedList);
             // also refresh deliverables of current semester
             if (currentSemester?.id) {
-                const deliverUrl = `https://160.30.21.113:5000/api/Deliverable/v1/Staff/deliverables?majorCateId=${selectedMajorId}&semesterId=${currentSemester.id}`;
+                const deliverUrl = `https://160.30.21.113:5000/api/v1/Staff/deliverables?majorCateId=${selectedMajorId}&semesterId=${currentSemester.id}`;
                 const deliverRes = await client.get(deliverUrl);
                 const deliverList = Array.isArray(deliverRes?.data) ? deliverRes.data : [];
                 setDeliverables(deliverList);

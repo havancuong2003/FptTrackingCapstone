@@ -138,13 +138,17 @@ function Milestone() {
             return;
         }
         try {
-            const body = 
-                {
-                    id: editingItem.id,
-                    name: editingItem.name || "",
-                    description: editingItem.description || "",
-                    majorCateId: Number(selectedMajorId),
-                };
+            // Find the original milestone to preserve items and deadline
+            const originalMilestone = milestones.find(m => m.id === editingItem.id);
+            const body = {
+                id: editingItem.id,
+                name: editingItem.name || "",
+                description: editingItem.description || "",
+                majorCateId: Number(selectedMajorId),
+                // Preserve existing items and deadline
+                items: originalMilestone?.items || [],
+                deadline: originalMilestone?.deadline || null
+            };
             await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", body);
             closeEdit();
             const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${encodeURIComponent(
@@ -231,7 +235,7 @@ function Milestone() {
             const payload = trimmed.map((r) => ({
                 name: r.name,
                 description: r.description,
-                majorCateId: majorIdNum,
+                majorCateId: selectedMajorId,
             }));
             await client.post("https://160.30.21.113:5000/api/v1/Staff/milestones", payload);
             closeCreate();

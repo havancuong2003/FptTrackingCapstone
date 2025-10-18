@@ -26,6 +26,11 @@ export default function StudentMilestones() {
   const [loading, setLoading] = React.useState(true);
   const [selectedMilestone, setSelectedMilestone] = React.useState(null);
   const [detailModal, setDetailModal] = React.useState(false);
+  const [milestoneDetails, setMilestoneDetails] = React.useState(null);
+  const [uploading, setUploading] = React.useState(false);
+  const [selectedFile, setSelectedFile] = React.useState(null);
+  const [showHistoryModal, setShowHistoryModal] = React.useState(false);
+  const [selectedItemHistory, setSelectedItemHistory] = React.useState(null);
 
   // Load user info
   React.useEffect(() => {
@@ -94,8 +99,8 @@ export default function StudentMilestones() {
     async function loadMilestones() {
       if (!userInfo?.groupId) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/milestone/group/${userInfo.groupId}`);
-        const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groupId}`);
+        const list = Array.isArray(res?.data) ? res.data : [];
         if (!mounted) return;
         setMilestones(list);
       } catch {
@@ -125,8 +130,8 @@ export default function StudentMilestones() {
     const weekEnd = new Date(selectedWeekData.endAt);
     
     return milestones.filter(milestone => {
-      if (!milestone.deadline) return false;
-      const deadline = new Date(milestone.deadline);
+      if (!milestone.endAt) return false;
+      const deadline = new Date(milestone.endAt);
       return deadline >= weekStart && deadline <= weekEnd;
     });
   };
@@ -136,7 +141,7 @@ export default function StudentMilestones() {
     const weekMilestones = getMilestonesForWeek();
     if (!weekMilestones.length) return null;
     
-    const deadline = new Date(weekMilestones[0].deadline);
+    const deadline = new Date(weekMilestones[0].endAt);
     const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const hour = deadline.getHours();
     
@@ -150,9 +155,126 @@ export default function StudentMilestones() {
     return null;
   };
 
-  const openDetailModal = (milestone) => {
+  const openDetailModal = async (milestone) => {
     setSelectedMilestone(milestone);
     setDetailModal(true);
+    
+    // Load milestone details
+    try {
+      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groupId}&deliverableId=${milestone.id}`);
+      setMilestoneDetails(res?.data || null);
+    } catch (error) {
+      console.error('Error loading milestone details:', error);
+      setMilestoneDetails(null);
+    }
+  };
+
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    setSelectedFile(file);
+  };
+
+  const handleUpload = async (deliveryItemId) => {
+    if (!selectedFile || !userInfo?.groupId) return;
+    
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      
+      const res = await client.post(
+        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groupId}&deliveryItemId=${deliveryItemId}`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      
+      // Reload milestones after successful upload
+      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groupId}`);
+      const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
+      setMilestones(list);
+      
+      // Update selectedMilestone with new status
+      const updatedMilestone = list.find(m => m.id === selectedMilestone.id);
+      if (updatedMilestone) {
+        setSelectedMilestone(updatedMilestone);
+      }
+      
+      // Reload milestone details after successful upload
+      if (selectedMilestone) {
+        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groupId}&deliverableId=${selectedMilestone.id}`);
+        setMilestoneDetails(detailRes?.data || null);
+      }
+      
+      setSelectedFile(null);
+      alert('File uploaded successfully!');
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Error uploading file. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const downloadFile = async (attachment) => {
+    try {
+      const response = await fetch(`https://160.30.21.113:5000${attachment.path}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = attachment.path.split('/').pop();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Error downloading file. Please try again.');
+    }
+  };
+
+  const getLatestAttachment = (attachments) => {
+    if (!attachments || attachments.length === 0) return null;
+    return attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'SUBMITTED':
+        return '#059669'; // Green
+      case 'LATE':
+        return '#dc2626'; // Red
+      case 'Pending':
+        return '#d97706'; // Orange/Yellow
+      case 'UNSUBMITTED':
+        return '#64748b'; // Gray
+      default:
+        return '#64748b'; // Gray
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'SUBMITTED':
+        return '✓ Submitted';
+      case 'LATE':
+        return '⚠ Late';
+      case 'Pending':
+        return '⏳ Pending Review';
+      case 'UNSUBMITTED':
+        return '✗ Unsubmitted';
+      default:
+        return '❓ Unknown';
+    }
+  };
+
+  const showHistory = (item) => {
+    setSelectedItemHistory(item);
+    setShowHistoryModal(true);
   };
 
   if (loading) {
@@ -189,7 +311,7 @@ export default function StudentMilestones() {
             flex: 1
           }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#0c4a6e' }}>
-              {semesterInfo.name} ({formatDate(semesterInfo.startAt, 'DD/MM/YYYY')} - {formatDate(semesterInfo.endAt, 'DD/MM/YYYY')})
+              Semester: {semesterInfo.name} ({formatDate(semesterInfo.startAt, 'DD/MM/YYYY')} - {formatDate(semesterInfo.endAt, 'DD/MM/YYYY')})
             </div>
           </div>
           {groupInfo?.supervisors && (
@@ -291,8 +413,10 @@ export default function StudentMilestones() {
                       {milestone ? (
                         <div 
                           style={{ 
-                            background: '#fef3c7',
-                            border: '1px solid #f59e0b',
+                            background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
+                                       getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
+                                       getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                            border: `1px solid ${getStatusColor(milestone.status)}`,
                             borderRadius: 4,
                             padding: 4,
                             cursor: 'pointer',
@@ -300,16 +424,16 @@ export default function StudentMilestones() {
                             maxHeight: '50px',
                             overflow: 'hidden'
                           }}
-                    onClick={() => openDetailModal(milestone)}
-                  >
-                          <div style={{ fontWeight: 600, color: '#92400e', marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
+                          onClick={() => openDetailModal(milestone)}
+                        >
+                          <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
                             {milestone.name.length > 20 ? milestone.name.substring(0, 20) + '...' : milestone.name}
                           </div>
-                          <div style={{ color: '#a16207', fontSize: 8 }}>
-                            ✗ Unsubmitted
+                          <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                            {getStatusText(milestone.status)}
                           </div>
-                          <div style={{ color: '#a16207', fontSize: 8 }}>
-                            {formatDate(milestone.deadline, 'HH:mm')}
+                          <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                            {formatDate(milestone.endAt, 'HH:mm')}
               </div>
             </div>
                       ) : (
@@ -404,19 +528,21 @@ export default function StudentMilestones() {
                     </td>
                     <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9' }}>
                       <div style={{ color: '#059669', fontWeight: 600, fontSize: 13 }}>
-                        📅 {formatDate(milestone.deadline, 'YYYY-MM-DD HH:mm')}
+                        📅 {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
                       </div>
                     </td>
                     <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
                       <span style={{ 
-                        color: '#dc2626', 
-                        background: '#fee2e2',
+                        color: getStatusColor(milestone.status), 
+                        background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
+                                   getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
+                                   getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
                         padding: '4px 8px',
                         borderRadius: 6,
                         fontSize: 12,
                         fontWeight: 600
                       }}>
-                        ✗ Unsubmitted
+                        {getStatusText(milestone.status)}
                       </span>
                     </td>
                   </tr>
@@ -435,42 +561,226 @@ export default function StudentMilestones() {
 
       <Modal open={detailModal} onClose={() => setDetailModal(false)}>
         {selectedMilestone && (
-          <div style={{ padding: 24, maxWidth: 600 }}>
+          <div style={{ padding: 24, maxWidth: '95vw', width: '1200px', maxHeight: '80vh', overflow: 'auto' }}>
             <h2 style={{ margin: '0 0 16px 0', fontSize: 20 }}>Milestone Details</h2>
             
-            <div style={{ marginBottom: 20 }}>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Basic Information</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div><strong>Name:</strong> {selectedMilestone.name}</div>
-                <div><strong>Description:</strong> {selectedMilestone.description}</div>
-                <div><strong>Deadline:</strong> {formatDate(selectedMilestone.deadline, 'YYYY-MM-DD HH:mm')}</div>
+            <div style={{ display: 'flex', gap: 24, marginBottom: 20 }}>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Basic Information</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div><strong>Name:</strong> {selectedMilestone.name}</div>
+                  <div><strong>Description:</strong> {selectedMilestone.description}</div>
+                  <div><strong>Deadline:</strong> {formatDate(selectedMilestone.endAt, 'YYYY-MM-DD HH:mm')}</div>
                 <div><strong>Status:</strong> 
                   <span style={{ 
-                    color: '#dc2626', 
+                    color: getStatusColor(selectedMilestone.status), 
                     marginLeft: '8px',
-                    background: '#fee2e2',
+                    background: getStatusColor(selectedMilestone.status) === '#059669' ? '#ecfdf5' : 
+                               getStatusColor(selectedMilestone.status) === '#dc2626' ? '#fee2e2' :
+                               getStatusColor(selectedMilestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
                     padding: '2px 6px',
                     borderRadius: 4,
                     fontSize: 12
                   }}>
-                    ✗ Unsubmitted
+                    {getStatusText(selectedMilestone.status)}
                 </span>
                 </div>
+                </div>
+              </div>
+              
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Project Information</h3>
+                {groupInfo && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div><strong>Project:</strong> {groupInfo.projectName}</div>
+                    <div><strong>Supervisors:</strong> {groupInfo.supervisors?.join(', ')}</div>
+                  </div>
+                )}
               </div>
             </div>
-            
-            <div style={{ marginBottom: 20 }}>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Project Information</h3>
-              {groupInfo && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div><strong>Project:</strong> {groupInfo.projectName}</div>
-                  <div><strong>Supervisors:</strong> {groupInfo.supervisors?.join(', ')}</div>
+
+            {/* Delivery Items */}
+            {milestoneDetails?.deliveryItems && (
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Delivery Items</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: 16 }}>
+                  {milestoneDetails.deliveryItems.map((item, index) => (
+                    <div key={item.id} style={{ 
+                      border: '1px solid #e5e7eb', 
+                      borderRadius: 8, 
+                      padding: 16, 
+                      background: '#f9fafb'
+                    }}>
+                      <div style={{ marginBottom: 12 }}>
+                        <h4 style={{ margin: '0 0 4px 0', fontSize: 14, fontWeight: 600 }}>{item.name}</h4>
+                        <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>{item.description}</p>
+                      </div>
+                      
+                      {/* Upload Section */}
+                      <div style={{ marginBottom: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                          <input
+                            type="file"
+                            id={`file-${item.id}`}
+                            onChange={handleFileSelect}
+                            style={{ display: 'none' }}
+                          />
+                          <label 
+                            htmlFor={`file-${item.id}`}
+                            style={{
+                              padding: '6px 12px',
+                              background: '#3b82f6',
+                              color: 'white',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                              fontSize: 12,
+                              fontWeight: 500
+                            }}
+                          >
+                            Choose File
+                          </label>
+                          {selectedFile && (
+                            <Button
+                              onClick={() => handleUpload(item.id)}
+                              disabled={uploading}
+                              style={{ fontSize: 12, padding: '6px 12px' }}
+                            >
+                              {uploading ? 'Uploading...' : 'Upload'}
+                            </Button>
+                          )}
+                        </div>
+                        {selectedFile && (
+                          <div style={{ fontSize: 12, color: '#64748b' }}>
+                            Selected: {selectedFile.name}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Latest Attachment */}
+                      {item.attachments && item.attachments.length > 0 && (
+                        <div>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <h5 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Current Version:</h5>
+                            {item.attachments.length > 1 && (
+                              <Button
+                                onClick={() => showHistory(item)}
+                                variant="ghost"
+                                style={{ fontSize: 11, padding: '4px 8px' }}
+                              >
+                                View History ({item.attachments.length} versions)
+                              </Button>
+                            )}
+                          </div>
+                          
+                          {(() => {
+                            const latestAttachment = getLatestAttachment(item.attachments);
+                            return latestAttachment ? (
+                              <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                padding: '8px 12px',
+                                background: 'white',
+                                border: '1px solid #d1d5db',
+                                borderRadius: 4
+                              }}>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 12, fontWeight: 500, wordBreak: 'break-all' }}>
+                                    {latestAttachment.path.split('/').pop()}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: '#64748b' }}>
+                                    Uploaded by {latestAttachment.userName} on {formatDate(latestAttachment.createAt, 'DD/MM/YYYY HH:mm')}
+                                  </div>
+                                </div>
+                                <Button
+                                  onClick={() => downloadFile(latestAttachment)}
+                                  variant="ghost"
+                                  style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
+                                >
+                                  Download
+                                </Button>
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
               <Button variant="ghost" onClick={() => setDetailModal(false)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* History Modal */}
+      <Modal open={showHistoryModal} onClose={() => setShowHistoryModal(false)}>
+        {selectedItemHistory && (
+          <div style={{ padding: 24, maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }}>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: 20 }}>File History</h2>
+            <div style={{ marginBottom: 16 }}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>{selectedItemHistory.name}</h3>
+              <p style={{ margin: 0, fontSize: 14, color: '#64748b' }}>{selectedItemHistory.description}</p>
+            </div>
+            
+            <div style={{ marginBottom: 20 }}>
+              <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600 }}>All Versions (Newest to Oldest):</h4>
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {selectedItemHistory.attachments
+                  .sort((a, b) => new Date(b.createAt) - new Date(a.createAt))
+                  .map((attachment, index) => (
+                    <div key={index} style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 16px',
+                      background: index === 0 ? '#f0f9ff' : 'white',
+                      border: index === 0 ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                      borderRadius: 8,
+                      marginBottom: 8
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, wordBreak: 'break-all' }}>
+                            {attachment.path.split('/').pop()}
+                          </div>
+                          {index === 0 && (
+                            <span style={{
+                              background: '#3b82f6',
+                              color: 'white',
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              fontSize: 10,
+                              fontWeight: 600
+                            }}>
+                              CURRENT
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 12, color: '#64748b' }}>
+                          Uploaded by {attachment.userName} on {formatDate(attachment.createAt, 'DD/MM/YYYY HH:mm')}
+                        </div>
+                      </div>
+                      <Button
+                        onClick={() => downloadFile(attachment)}
+                        variant="ghost"
+                        style={{ fontSize: 12, padding: '6px 12px', flexShrink: 0 }}
+                      >
+                        Download
+                      </Button>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
+              <Button variant="ghost" onClick={() => setShowHistoryModal(false)}>
                 Close
               </Button>
             </div>
