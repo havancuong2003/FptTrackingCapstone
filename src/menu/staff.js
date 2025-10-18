@@ -23,11 +23,11 @@ const staffMenu = [
   // { path: "/templates", label: "Template báo cáo" },
   // { path: "/tasks", label: "Quản lý Task" },
  // { path: "/settings", label: "Settings" }, 
-  { path: "/tracking", label: "Capstone Tracking" },
+  // { path: "/tracking", label: "Capstone Tracking" },
   { path: "/dashboard", label: "Dashboard", children: [
     
   ] },
- 
+  { path: "/staff/major", label: "Major Management" },
 ];
 
 export default staffMenu;

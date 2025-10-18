@@ -38,7 +38,7 @@ const SemesterManagement = React.lazy(() => import("../pages/staff/SemesterManag
 const SemesterList = React.lazy(() => import("../pages/staff/SemesterList"));
 const SemesterDetail = React.lazy(() => import("../pages/staff/SemesterDetail"));
 const DefaultPage = React.lazy(() => import("../pages/common/DefaultPage"));
-
+const MajorManagement = React.lazy(() => import("../pages/staff/Major/major"));
 // Student pages
 const StudentMilestones = React.lazy(() => import("../pages/student/Milestones"));
 const StudentDeliveries = React.lazy(() => import("../pages/student/Deliveries"));
@@ -153,6 +153,11 @@ export const routes = [
     path: "/ai",
     element: AiAssistant,
     meta: { title: "AI Assistant", protected: true, roles: ["STUDENT"] },
+  },
+  {
+    path: "/staff/major",
+    element: MajorManagement,
+    meta: { title: "Major Management", protected: true, roles: ["STAFF"] },
   },
   {
     path: "/evaluations",
