@@ -185,6 +185,7 @@ export default function StudentTasks() {
         const tasksData = Array.isArray(apiData) ? apiData : [];
         // Map data từ API response sang format front
         const mappedTasks = tasksData.map(task => {
+          console.log("task", task);
           return {
             id: task.id,
             title: task.title,

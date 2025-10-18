@@ -53,15 +53,15 @@ export default function TaskDetail() {
             priority: taskData.priority.toLowerCase(),
             status: taskData.status === 'ToDo' ? 'todo' : 
                    taskData.status === 'InProgress' ? 'inProgress' : 'done',
-            milestoneId: taskData.milestone.id,
-            milestoneName: taskData.milestone.name,
+            milestoneId: taskData.milestone?.id || null,
+            milestoneName: taskData.milestone?.name || 'No Milestone',
             createdAt: taskData.createdAt,
             progress: parseInt(taskData.process) || 0,
             attachments: taskData.attachments || [],
             comments: taskData.comments || [],
             history: taskData.history || []
           };
-          
+        
           setTask(mappedTask);
         } else {
           console.error('Error fetching task:', response.data.message);
