@@ -103,6 +103,36 @@
   color: #065f46;
 }
 
+.finalizedContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.meetingLinkButton {
+  display: inline-block;
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: #2563eb;
+    color: white;
+    text-decoration: none;
+  }
+
+  &:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+  }
+}
+
 .weekHeader {
   display: grid;
   grid-template-columns: 120px repeat(7, 1fr);
@@ -526,5 +556,114 @@
   
   .memberSchedule {
     grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+// Meeting Info Styles
+.meetingInfo {
+  margin: 20px 0;
+  padding: 20px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+
+  h2 {
+    margin: 0 0 16px 0;
+    color: #1e293b;
+    font-size: 1.25rem;
+    font-weight: 600;
+  }
+}
+
+.meetingCard {
+  background: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+}
+
+.meetingHeader {
+  margin-bottom: 16px;
+
+  h3 {
+    margin: 0 0 8px 0;
+    color: #1e293b;
+    font-size: 1.125rem;
+    font-weight: 600;
+  }
+}
+
+.meetingDescription {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.meetingDetails {
+  .detailRow {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 12px;
+
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+
+  .detailItem {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+
+    strong {
+      color: #374151;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    span {
+      color: #1e293b;
+      font-size: 0.875rem;
+    }
+  }
+}
+
+.meetingLink {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+
+  strong {
+    display: block;
+    color: #374151;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+}
+
+.linkButton {
+  display: inline-block;
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: #2563eb;
+    color: white;
+    text-decoration: none;
+  }
+
+  &:focus {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
   }
 }
