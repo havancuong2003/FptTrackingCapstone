@@ -333,10 +333,19 @@ export default function StudentMilestones() {
       {/* Week Selector */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <span style={{ fontWeight: 600, fontSize: 14 }}>Week:</span>
-        <Select 
+        <select 
           value={selectedWeek} 
           onChange={(e) => setSelectedWeek(Number(e.target.value))}
-          style={{ minWidth: 120, maxWidth: 300 }}
+          style={{
+            padding: "8px 12px",
+            border: "1px solid #d1d5db",
+            borderRadius: "6px",
+            fontSize: "14px",
+            backgroundColor: "white",
+            outline: "none",
+            minWidth: 120,
+            maxWidth: 300
+          }}
         >
           {weeks.map((week) => (
             <option 
@@ -351,7 +360,7 @@ export default function StudentMilestones() {
               Week {week.weekNumber} ({formatDate(week.startAt, 'DD/MM/YYYY')}-{formatDate(week.endAt, 'DD/MM/YYYY')}) {week.isVacation ? '(Vacation)' : ''}
             </option>
           ))}
-        </Select>
+        </select>
       </div>
 
               
@@ -528,7 +537,7 @@ export default function StudentMilestones() {
                     </td>
                     <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9' }}>
                       <div style={{ color: '#059669', fontWeight: 600, fontSize: 13 }}>
-                        📅 {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
+                        {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
                       </div>
                     </td>
                     <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>

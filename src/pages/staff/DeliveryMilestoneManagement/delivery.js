@@ -278,11 +278,23 @@ export default function Delivery() {
                 <h2 style={{ margin: 0, flex: 1 }}>Delivery Milestones</h2>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ fontWeight: 600 }}>Code:</span>
-                    <Select value={selectedMajorId} onChange={(e) => setSelectedMajorId(e.target.value)}>
+                    <select 
+                        value={selectedMajorId} 
+                        onChange={(e) => setSelectedMajorId(e.target.value)}
+                        style={{
+                            padding: "8px 12px",
+                            border: "1px solid #d1d5db",
+                            borderRadius: "6px",
+                            fontSize: "14px",
+                            backgroundColor: "white",
+                            outline: "none",
+                            minWidth: "120px"
+                        }}
+                    >
                         {majors.map((m) => (
                             <option key={m.id} value={m.id}>{m.code}</option>
                         ))}
-                    </Select>
+                    </select>
                 </div>
             </div>
             <p style={{ marginTop: 0, color: "#64748b" }}>Manage and track delivery timelines for Capstone milestones.</p>
@@ -332,7 +344,7 @@ export default function Delivery() {
                                 <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9" }}>
                                     {milestone.deadline ? (
                                         <div style={{ color: "#059669", fontWeight: 600, fontSize: 12 }}>
-                                            📅 {milestone.deadline}
+                                             {milestone.deadline}
                                         </div>
                                     ) : (
                                         <span style={{ 
@@ -390,7 +402,8 @@ export default function Delivery() {
                     flexDirection: "column", 
                     gap: 16,
                     width: "800px",
-                    maxWidth: "95vw"
+                    maxWidth: "95vw",
+                    padding:16
                 }}>
                     <h3 style={{ margin: 0 }}>
                         {selectedMilestone && selectedMilestone.deadline ? "Edit Milestone Deadline" : "Set Milestone Deadline"}
@@ -419,7 +432,7 @@ export default function Delivery() {
                                     </div>
                                     {selectedMilestone.deadline && (
                                         <div style={{ fontSize: 12, color: "#0369a1", marginBottom: 4 }}>
-                                            📅 {selectedMilestone.deadline}
+                                             {selectedMilestone.deadline}
                                         </div>
                                     )}
                                     {selectedMilestone.description && (
@@ -437,24 +450,46 @@ export default function Delivery() {
                     )}
 
                     {/* Deadline Settings */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12 , padding:16}}>
                         <span style={{ fontWeight: 600 }}>Set Deadline:</span>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                 <label style={{ fontSize: 12, fontWeight: 600 }}>Week</label>
-                                <Select value={modalWeek} onChange={(e) => setModalWeek(Number(e.target.value))}>
+                                <select 
+                                    value={modalWeek} 
+                                    onChange={(e) => setModalWeek(Number(e.target.value))}
+                                    style={{
+                                        padding: "8px 12px",
+                                        border: "1px solid #d1d5db",
+                                        borderRadius: "6px",
+                                        fontSize: "14px",
+                                        backgroundColor: "white",
+                                        outline: "none"
+                                    }}
+                                >
                                     {Array.from({ length: weeks }, (_, i) => (
                                         <option key={i + 1} value={i + 1}>Week {i + 1}</option>
                                     ))}
-                                </Select>
+                                </select>
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                 <label style={{ fontSize: 12, fontWeight: 600 }}>Day</label>
-                                <Select value={modalDay} onChange={(e) => setModalDay(e.target.value)}>
+                                <select 
+                                    value={modalDay} 
+                                    onChange={(e) => setModalDay(e.target.value)}
+                                    style={{
+                                        padding: "8px 12px",
+                                        border: "1px solid #d1d5db",
+                                        borderRadius: "6px",
+                                        fontSize: "14px",
+                                        backgroundColor: "white",
+                                        outline: "none"
+                                    }}
+                                >
                                     {DAYS.map((day) => (
                                         <option key={day} value={day}>{day}</option>
                                     ))}
-                                </Select>
+                                </select>
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                 <label style={{ fontSize: 12, fontWeight: 600 }}>Time</label>
@@ -592,7 +627,7 @@ export default function Delivery() {
                                     </td>
                                     <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9" }}>
                                         {d.endAt ? (
-                                            <div style={{ color: "#059669", fontWeight: 600, fontSize: 12 }}>📅 {formatDate(d.endAt)}</div>
+                                            <div style={{ color: "#059669", fontWeight: 600, fontSize: 12 }}>{formatDate(d.endAt)}</div>
                                         ) : (
                                             <span style={{ color: "#dc2626", fontWeight: 600, background: "#fee2e2", padding: "2px 6px", borderRadius: 8, fontSize: 11 }}>No deadline</span>
                                         )}

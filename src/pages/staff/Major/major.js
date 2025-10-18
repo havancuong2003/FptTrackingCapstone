@@ -389,7 +389,8 @@ export default function Major() {
                     flexDirection: "column", 
                     gap: 16,
                     width: "500px",
-                    maxWidth: "95vw"
+                    maxWidth: "95vw",
+                    padding:16
                 }}>
                     <h3 style={{ margin: 0 }}>Create New Major</h3>
                     {formError && <div style={{ color: "#dc2626" }}>{formError}</div>}
@@ -441,7 +442,8 @@ export default function Major() {
                     flexDirection: "column", 
                     gap: 16,
                     width: "500px",
-                    maxWidth: "95vw"
+                    maxWidth: "95vw",
+                    padding:16
                 }}>
                     <h3 style={{ margin: 0 }}>Edit Major</h3>
                     {formError && <div style={{ color: "#dc2626" }}>{formError}</div>}

@@ -270,17 +270,25 @@ function Milestone() {
                 <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 320 }}>
                     <span style={{ fontWeight: 600 }}>Major:</span>
                     <div style={{ width: 200 }}>
-                        <Select
+                        <select
                             value={selectedMajorId}
                             onChange={(e) => setSelectedMajorId(e.target.value)}
-                            style={{ fontSize: "14px" }}
+                            style={{
+                                padding: "8px 12px",
+                                border: "1px solid #d1d5db",
+                                borderRadius: "6px",
+                                fontSize: "14px",
+                                backgroundColor: "white",
+                                outline: "none",
+                                width: "100%"
+                            }}
                         >
                             {majors.map((m) => (
                                 <option key={m.id} value={m.id}>
                                     {m.code}
                                 </option>
                             ))}
-                        </Select>
+                        </select>
                     </div>
                     {selectedMajor && (
                         <div style={{ 
@@ -557,7 +565,7 @@ function Milestone() {
                         <form onSubmit={saveEdit} style={{ display: "flex", flexDirection: "column", gap: 24, width: "100%" }}>
                             <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: "16px", marginBottom: "8px" }}>
                                 <h3 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#1f2937", display: "flex", alignItems: "center", gap: "8px" }}>
-                                    ✏️ Edit Milestone
+                                    Edit Milestone
                                 </h3>
                                 <p style={{ margin: "8px 0 0 0", fontSize: "14px", color: "#6b7280" }}>
                                     Update milestone information and details
@@ -667,7 +675,7 @@ function Milestone() {
                                         fontSize: "14px"
                                     }}
                                 >
-                                    🗑️ Delete Milestone
+                                    Delete Milestone
                                 </Button>
                                 <div style={{ display: "flex", gap: 12 }}>
                                     <Button 
@@ -695,7 +703,7 @@ function Milestone() {
                                             color: "white"
                                         }}
                                     >
-                                        💾 Save Changes
+                                        Save Changes
                                     </Button>
                                 </div>
                             </div>
@@ -710,7 +718,7 @@ function Milestone() {
                     <form onSubmit={saveCreate} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                         <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: "16px", marginBottom: "8px" }}>
                             <h3 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#1f2937", display: "flex", alignItems: "center", gap: "8px" }}>
-                                ➕ Create Milestone
+                                Create Milestone
                             </h3>
                             <p style={{ margin: "8px 0 0 0", fontSize: "14px", color: "#6b7280" }}>
                                 Add new milestone  to the selected major
@@ -731,12 +739,24 @@ function Milestone() {
                         
                         <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                             <span style={{ fontWeight: "500", color: "#374151" }}>Major *</span>
-                        <Select value={createMajorId} onChange={(e) => setCreateMajorId(e.target.value)}>
-                            {majors.map((m) => (
-                                <option key={m.id} value={m.id}>{m.code} - {m.name}</option>
-                            ))}
-                        </Select>
-                    </label>
+                            <select 
+                                value={createMajorId} 
+                                onChange={(e) => setCreateMajorId(e.target.value)}
+                                style={{
+                                    padding: "8px 12px",
+                                    border: "1px solid #d1d5db",
+                                    borderRadius: "6px",
+                                    fontSize: "14px",
+                                    backgroundColor: "white",
+                                    outline: "none",
+                                    width: "100%"
+                                }}
+                            >
+                                {majors.map((m) => (
+                                    <option key={m.id} value={m.id}>{m.code} - {m.name}</option>
+                                ))}
+                            </select>
+                        </label>
 
                         <div style={{ 
                             border: "1px solid #e5e7eb", 

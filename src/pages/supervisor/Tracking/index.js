@@ -321,29 +321,47 @@ export default function SupervisorTracking() {
       {/* Group Selector */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <span style={{ fontWeight: 600, fontSize: 14 }}>Group:</span>
-        <Select 
+        <select 
           value={selectedGroup?.id || ''} 
           onChange={(e) => {
             const group = groups.find(g => g.id === Number(e.target.value));
             setSelectedGroup(group);
           }}
-          style={{ minWidth: 200, maxWidth: 300 }}
+          style={{
+            padding: "8px 12px",
+            border: "1px solid #d1d5db",
+            borderRadius: "6px",
+            fontSize: "14px",
+            backgroundColor: "white",
+            outline: "none",
+            minWidth: 300,
+            maxWidth: 400
+          }}
         >
           {groups.map((group) => (
             <option key={group.id} value={group.id}>
-              {group.projectName} (ID: {group.id})
+              {group.projectName} 
             </option>
           ))}
-        </Select>
+        </select>
       </div>
 
       {/* Week Selector */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <span style={{ fontWeight: 600, fontSize: 14 }}>Week:</span>
-        <Select 
+        <select 
           value={selectedWeek} 
           onChange={(e) => setSelectedWeek(Number(e.target.value))}
-          style={{ minWidth: 120, maxWidth: 300 }}
+          style={{
+            padding: "8px 12px",
+            border: "1px solid #d1d5db",
+            borderRadius: "6px",
+            fontSize: "14px",
+            backgroundColor: "white",
+            outline: "none",
+            minWidth: 120,
+            maxWidth: 300
+          }}
         >
           {weeks.map((week) => (
             <option 
@@ -358,7 +376,7 @@ export default function SupervisorTracking() {
               Week {week.weekNumber} ({formatDate(week.startAt, 'DD/MM/YYYY')}-{formatDate(week.endAt, 'DD/MM/YYYY')}) {week.isVacation ? '(Vacation)' : ''}
             </option>
           ))}
-        </Select>
+        </select>
       </div>
               
       {/* Calendar Table */}
@@ -534,7 +552,7 @@ export default function SupervisorTracking() {
                   </td>
                   <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9' }}>
                     <div style={{ color: '#059669', fontWeight: 600, fontSize: 13 }}>
-                      📅 {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
+                       {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
                     </div>
                   </td>
                   <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
