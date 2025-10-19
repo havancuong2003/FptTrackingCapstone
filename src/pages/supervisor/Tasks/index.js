@@ -257,7 +257,6 @@ export default function SupervisorTasks() {
     setAssigneeFilter('');
     setPriorityFilter('');
     setStatusFilter('');
-    setMyTasksOnly(false);
     setAllTasks([]);
     setIsSearched(false);
   };
@@ -278,6 +277,8 @@ export default function SupervisorTasks() {
 
   // Filter tasks dựa trên các filter states
   const filteredTasks = allTasks.filter(task => {
+    console.log("task", task);
+    console.log("milestoneFilter", milestoneFilter);
     const milestoneMatch = milestoneFilter === '' || task.milestoneId?.toString() === milestoneFilter;
     const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
     const statusMatch = statusFilter === '' || task.status === statusFilter;
@@ -286,6 +287,7 @@ export default function SupervisorTasks() {
   });
 
   const milestoneOptions = milestones.map(m => ({ value: m.id.toString(), label: m.name }));
+  console.log("milestoneOptions", milestoneOptions);
   const assigneeOptions = assigneeSource.map(s => {
     return { value: s.id, label: s.name }
   });
