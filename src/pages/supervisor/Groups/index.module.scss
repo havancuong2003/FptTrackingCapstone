@@ -1,66 +1,91 @@
+/* ======================================= */
+/* GLOBAL CONTAINER & LAYOUT */
+/* ======================================= */
 .container {
-  padding: 20px;
+  padding: 40px; 
+  max-width: 1800px; /* ĐIỀU CHỈNH: Tăng max-width lên 1800px */
+  margin: 0 auto;
 }
 
 .loading {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
-  min-height: 200px;
-  font-size: 16px;
-  color: #666;
+  min-height: 400px;
+  font-size: 20px;
+  color: #4b5563;
+}
+
+h1 {
+  color: #1f2937;
+  font-size: 32px;
+  margin-bottom: 10px;
 }
 
 .subtitle {
   color: #6b7280;
-  margin-bottom: 24px;
-  font-size: 16px;
+  margin-bottom: 40px;
+  font-size: 18px;
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 20px;
 }
+
+/* ======================================= */
+/* GROUPS LIST & CARD */
+/* ======================================= */
 
 .groupsList {
   display: grid;
-  gap: 24px;
+  /* ĐIỀU CHỈNH: Tăng minmax lên 450px để thẻ nhóm rộng hơn */
+  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); 
+  gap: 40px; /* Tăng khoảng cách */
 }
 
 .groupCard {
   background: #fff;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  transition: box-shadow 0.2s ease;
+  border-radius: 16px;
+  padding: 40px; /* ĐIỀU CHỈNH: Tăng padding của card */
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.08); /* Bóng đổ nổi hơn */
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  display: flex;
+  flex-direction: column;
 
   &:hover {
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 18px 30px rgba(0, 0, 0, 0.15); 
+    transform: translateY(-5px);
   }
 }
 
 .groupHeader {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #f3f4f6;
 }
 
 .groupInfo h3 {
-  margin: 0 0 8px 0;
-  color: #374151;
-  font-size: 20px;
+  margin: 0 0 6px 0;
+  color: #1f2937;
+  font-size: 26px;
+  font-weight: 700;
 }
 
 .projectName {
-  margin: 0 0 4px 0;
-  color: #6b7280;
-  font-size: 16px;
+  margin: 0 0 6px 0;
+  color: #4b5563;
+  font-size: 17px;
   font-weight: 500;
 }
 
 .projectCode {
   margin: 0;
   color: #9ca3af;
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 400;
 }
 
 .groupProgress {
@@ -68,74 +93,84 @@
   flex-direction: column;
   align-items: center;
   gap: 8px;
+  min-width: 110px; /* Tăng kích thước tối thiểu */
 }
 
 .progressCircle {
-  width: 60px;
-  height: 60px;
+  width: 90px; /* LỚN HƠN */
+  height: 90px; /* LỚN HƠN */
   border-radius: 50%;
-  border: 3px solid #e5e7eb;
+  border: 4px solid #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f8fafc;
+  background: #f9fafb;
 }
 
 .progressValue {
-  font-size: 16px;
-  font-weight: bold;
+  font-size: 24px; /* LỚN HƠN */
+  font-weight: 700;
 }
 
 .progressText {
-  font-size: 12px;
+  font-size: 15px; /* LỚN HƠN */
   font-weight: 600;
   text-align: center;
+  margin-top: 6px;
 }
+
+/* ======================================= */
+/* GROUP DETAILS & MEMBERS */
+/* ======================================= */
 
 .groupDetails {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin-bottom: 20px;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 32px;
+  margin-bottom: 30px;
+  flex-grow: 1;
 }
 
 .detailSection h4 {
-  margin: 0 0 12px 0;
+  margin: 0 0 16px 0;
   color: #374151;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
+  padding-bottom: 8px;
+  border-bottom: 3px solid #eef2ff;
 }
 
 .membersList {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
 .memberItem {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  background: #f8fafc;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
+  padding: 12px 18px;
+  background: #f4f7fa;
+  border-radius: 10px;
+  border: 1px solid #dbeafe;
 }
 
 .memberName {
-  color: #374151;
-  font-weight: 500;
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 16px;
 }
 
-.memberRole {
-  background: #dbeafe;
-  color: #1e40af;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
+.memberRoleTag { 
+  background: #dbeafe; 
+  color: #1e40af; 
+  padding: 4px 12px;
+  border-radius: 16px; 
+  font-size: 12px;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
@@ -149,8 +184,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef2f5;
   
   &:last-child {
     border-bottom: none;
@@ -158,43 +193,274 @@
 }
 
 .progressItem span:first-child {
-  color: #6b7280;
-  font-size: 12px;
+  color: #4b5563;
+  font-size: 15px;
   font-weight: 500;
 }
 
 .progressItem span:last-child {
-  color: #374151;
-  font-size: 12px;
+  color: #1f2937;
+  font-size: 15px;
   font-weight: 600;
 }
+.progressItem .currentMilestone {
+  color: #10b981; 
+  font-style: italic;
+}
+
 
 .groupActions {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   justify-content: flex-end;
+  padding-top: 20px;
+  border-top: 2px solid #f3f4f6;
 }
 
 .emptyState {
   text-align: center;
-  padding: 40px;
+  padding: 80px;
   color: #6b7280;
-  font-size: 16px;
+  font-size: 20px;
+  border: 2px dashed #d1d5db;
+  border-radius: 16px;
+  margin-top: 30px;
 }
 
-@media (max-width: 768px) {
-  .groupHeader {
+/* ======================================= */
+/* MODAL STYLES (Đã được FIX) */
+/* ======================================= */
+
+.groupDetailModal {
+    padding: 30px;
+}
+
+.groupDetailModal h2 {
+    font-size: 28px;
+    color: #1f2937;
+    margin-bottom: 28px;
+    border-bottom: 3px solid #e5e7eb;
+    padding-bottom: 15px;
+}
+
+.groupSummary {
+    background: #eef2ff;
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    border: 1px solid #c7d2fe;
+}
+
+.groupSummary h3 {
+    font-size: 20px;
+    margin: 0 0 8px 0;
+    color: #1f2937;
+    font-weight: 700;
+}
+
+.groupSummary p {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+    color: #4b5563;
+}
+
+.membersSection_Role h4 {
+    margin: 0 0 20px 0;
+    color: #374151;
+    font-size: 18px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #e5e7eb;
+    padding-bottom: 8px;
+}
+
+.membersList_Role {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+}
+
+.memberCard_Role {
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    padding: 20px;
+    background: #fff;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    display: flex;
     flex-direction: column;
-    gap: 16px;
+}
+
+.memberInfo_Role {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.memberName_Role h4 {
+    margin: 0 0 2px 0;
+    font-size: 18px;
+    color: #1f2937;
+    font-weight: 600;
+}
+
+.memberEmail_Role {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 10px;
+}
+
+.memberRole_Role {
+    display: flex;
     align-items: center;
-  }
+    gap: 6px;
+    font-weight: 700;
+    font-size: 14px;
+}
 
-  .groupDetails {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
+.roleIcon_Role {
+    font-size: 20px;
+}
 
-  .groupActions {
+.roleText_Role {
+    text-transform: uppercase;
+    font-size: 12px;
+}
+
+
+.roleHistory_Role {
+    margin-bottom: 15px;
+}
+
+.roleHistory_Role h5 {
+    font-size: 13px;
+    color: #4b5563;
+    margin: 0 0 10px 0;
+    text-transform: uppercase;
+    font-weight: 600;
+    border-bottom: 1px dotted #e5e7eb;
+    padding-bottom: 5px;
+}
+
+.historyList_Role {
+    display: flex;
     flex-direction: column;
-  }
+    gap: 5px;
+}
+
+.historyItem_Role {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 3px 0;
+}
+
+.historyRole_Role {
+    font-weight: 500;
+    color: #374151;
+}
+
+.historyDate_Role {
+    color: #6b7280;
+    font-style: italic;
+}
+
+.memberActions_Role {
+    margin-top: auto;
+    padding-top: 15px;
+    border-top: 1px dashed #e5e7eb;
+    text-align: right;
+}
+
+.roleModal {
+    padding: 30px;
+}
+
+.roleModal h2 {
+    font-size: 24px;
+    color: #1f2937;
+    margin-bottom: 16px;
+}
+
+.roleModal p {
+    color: #4b5563;
+    margin-bottom: 24px;
+    font-size: 16px;
+}
+
+.roleOptions {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 24px;
+}
+
+.roleOption {
+    display: flex;
+    align-items: flex-start;
+    gap: 15px;
+    padding: 15px;
+    border: 2px solid #e5e7eb;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    background: #f9fafb;
+    position: relative;
+}
+
+.roleOption input[type="radio"]:checked + .roleLabel {
+    border-color: #3b82f6;
+    background: #eff6ff;
+}
+
+.roleOption:hover {
+    border-color: #93c5fd;
+}
+
+.roleOption input[type="radio"] {
+    margin-top: 5px;
+    min-width: 18px;
+    min-height: 18px;
+    accent-color: #3b82f6;
+    position: absolute;
+    top: 15px;
+    left: 15px;
+}
+
+.roleLabel {
+    flex-grow: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding-left: 28px;
+    cursor: pointer;
+}
+
+.roleLabel > div {
+    flex-grow: 1;
+}
+
+.roleLabel strong {
+    font-size: 18px;
+    color: #1f2937;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.roleLabel p {
+    margin: 0;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.modalActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 25px;
+    border-top: 1px solid #e5e7eb;
 }

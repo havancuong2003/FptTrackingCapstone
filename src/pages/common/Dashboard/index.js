@@ -13,15 +13,13 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import styles from "./index.module.scss";
-import client from "../../../utils/axiosClient"; // ✅ axiosClient có withCredentials: true
+import client from "../../../utils/axiosClient";
 import Card from "../../../components/Card/Card";
 import Button from "../../../components/Button/Button";
 import Modal from "../../../components/Modal/Modal";
 
-// ✅ Constants
 const USER_INFO_KEY = "auth_user";
 
-// ✅ Hàm lấy user từ localStorage
 export const getCurrentUser = () => {
   try {
     const raw = localStorage.getItem(USER_INFO_KEY);
@@ -39,9 +37,7 @@ export default function Dashboard() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState("");
 
-  // -------------------------------
-  // DỮ LIỆU GIẢ ĐỊNH CHO BIỂU ĐỒ REPORT
-  // -------------------------------
+
   const reportDataset = {
     SEP490: {
       M1: [
@@ -69,16 +65,12 @@ export default function Dashboard() {
     },
   };
 
-  // -------------------------------
-  // FETCH DỮ LIỆU BẢO VỆ (DÙNG COOKIE)
-  // -------------------------------
   React.useEffect(() => {
     const fetchDefenseData = async () => {
       setLoading(true);
       setError("");
 
       try {
-        // ✅ Không cần token, cookie sẽ tự gửi kèm theo
         const res = await client.get(
           "/Staff/dashboard-majors-groups",
           { withCredentials: true }
@@ -92,7 +84,7 @@ export default function Dashboard() {
 
         setDefenseData(formattedData);
       } catch (err) {
-        console.error("❌ Fetch defense data failed:", err);
+        console.error("Fetch defense data failed:", err);
         setError(
           err?.response?.data?.message ||
             err?.message ||
