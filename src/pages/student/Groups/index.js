@@ -4,7 +4,7 @@ import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import axiosClient from '../../../utils/axiosClient';
 
-export default function SupervisorGroups() {
+export default function StudentGroups() {
     const [groups, setGroups] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [selectedGroup, setSelectedGroup] = React.useState(null);
@@ -14,64 +14,49 @@ export default function SupervisorGroups() {
     const [memberToChangeRole, setMemberToChangeRole] = React.useState(null);
     const [roleChangeModalOpen, setRoleChangeModalOpen] = React.useState(false);
     const [selectedRole, setSelectedRole] = React.useState('');
+    
+    // Mock current user (thư ký)
+    const currentUserId = "SE00003"; // Giả sử user hiện tại là thư ký
 
     React.useEffect(() => {
         const fetchGroups = async () => {
             try {
                 setLoading(true);
                 
-                // Bước 1: Gọi API để lấy danh sách nhóm của supervisor (chỉ có id và name)
-                const groupsResponse = await axiosClient.get('/Mentor/getGroups');
-                console.log("groupsResponse", groupsResponse);
+                // Giả sử student có groupId = 1 (có thể lấy từ context hoặc API khác)
+                const groupId = 1; // TODO: Lấy từ user context hoặc API
                 
-                if (groupsResponse.data.status === 200) {
-                    // Lấy danh sách nhóm cơ bản (chỉ có id và name)
-                    const groupList = groupsResponse.data.data;
+                // Gọi API để lấy nhóm của student hiện tại
+                const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
+                
+                if (response.data.status === 200) {
+                    // Chuyển đổi format data từ API sang format cần thiết
+                    const group = response.data.data;
+                    const formattedGroup = {
+                        id: group.id,
+                        groupCode: group.groupCode,
+                        groupName: group.groupCode,
+                        projectName: group.projectName,
+                        projectCode: group.groupCode,
+                        members: group.students.map(student => ({
+                            id: student.rollNumber,
+                            studentId: student.id, // Lưu studentId để gọi API
+                            name: student.name,
+                            currentRole: student.role === "1" ? 'Member' : (student.role || 'Member'),
+                            email: `${student.rollNumber.toLowerCase()}@student.fpt.edu.vn`
+                        })),
+                        progress: {
+                            completedMilestones: 0,
+                            totalMilestones: 7,
+                            completionPercentage: 0
+                        },
+                        currentMilestone: "Khởi tạo dự án",
+                        nextDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                    };
                     
-                    // Bước 2: Fetch chi tiết cho từng nhóm (students, projectName, etc.)
-                    const detailedGroups = await Promise.all(
-                        groupList.map(async (group) => {
-                            try {
-                                const detailResponse = await axiosClient.get(`/Staff/capstone-groups/${group.id}`);
-                                console.log(`Detail for group ${group.id}:`, detailResponse);
-                                
-                                if (detailResponse.data.status === 200) {
-                                    const groupDetail = detailResponse.data.data;
-                                    return {
-                                        id: group.id,
-                                        groupCode: groupDetail.groupCode,
-                                        groupName: groupDetail.groupCode,
-                                        projectName: groupDetail.projectName,
-                                        projectCode: groupDetail.groupCode,
-                                        members: groupDetail.students.map(student => ({
-                                            id: student.rollNumber,
-                                            studentId: student.id, // Lưu studentId để gọi API
-                                            name: student.name,
-                                            currentRole: student.role === "1" ? 'Member' : (student.role || 'Member'),
-                                            email: `${student.rollNumber.toLowerCase()}@student.fpt.edu.vn`
-                                        })),
-                                        progress: {
-                                            completedMilestones: 0,
-                                            totalMilestones: 7,
-                                            completionPercentage: 0
-                                        },
-                                        currentMilestone: "Khởi tạo dự án",
-                                        nextDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-                                    };
-                                }
-                                return null;
-                            } catch (error) {
-                                console.error(`Error fetching details for group ${group.id}:`, error);
-                                return null;
-                            }
-                        })
-                    );
-                    
-                    // Lọc bỏ các nhóm null
-                    const validGroups = detailedGroups.filter(group => group !== null);
-                    setGroups(validGroups);
+                    setGroups([formattedGroup]);
                 } else {
-                    console.error('Error fetching groups:', groupsResponse.data.message);
+                    console.error('Error fetching groups:', response.data.message);
                     setGroups([]);
                 }
             } catch (error) {
@@ -120,6 +105,18 @@ export default function SupervisorGroups() {
         });
     };
 
+    // Kiểm tra quyền thay đổi role
+    const canChangeRole = (memberId) => {
+        // Thư ký không thể thay đổi role của chính mình
+        if (memberId === currentUserId) {
+            return false;
+        }
+        
+        // Kiểm tra xem user hiện tại có phải là thư ký không
+        const currentUser = selectedGroup?.members.find(m => m.id === currentUserId);
+        return currentUser?.currentRole === 'Secretary';
+    };
+
     // --- LOGIC MODAL CHI TIẾT NHÓM & QUẢN LÝ VAI TRÒ ---
     
     const viewGroupDetails = (group) => {
@@ -128,6 +125,10 @@ export default function SupervisorGroups() {
     };
 
     const openRoleChangeModal = (member) => {
+        if (!canChangeRole(member.id)) {
+            alert('Bạn không có quyền thay đổi role của thành viên này!');
+            return;
+        }
         setMemberToChangeRole(member);
         setSelectedRole(member.currentRole);
         setRoleChangeModalOpen(true);
@@ -181,10 +182,10 @@ export default function SupervisorGroups() {
         }
     };
 
-    // ---------------------------------------------------
-
     const renderMemberCard = (member) => {
         const roleInfo = getRoleInfo(member.currentRole);
+        const canChange = canChangeRole(member.id);
+        
         return (
             <div key={member.id} className={styles.memberCard_Role}>
                 <div className={styles.memberInfo_Role}>
@@ -203,33 +204,51 @@ export default function SupervisorGroups() {
                     </div>
                 </div>
                 
+                <div className={styles.roleHistory_Role}>
+                    <h5>Lịch sử Role</h5>
+                    <div className={styles.historyList_Role}>
+                        {(member.roleHistory || []).slice(-3).map((history, index) => (
+                            <div key={index} className={styles.historyItem_Role}>
+                                <span className={styles.historyRole_Role}>{history.role}</span>
+                                <span className={styles.historyDate_Role}>
+                                    {formatDate(history.assignedDate)}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
                 
                 <div className={styles.memberActions_Role}>
-                    <Button 
-                        size="sm"
-                        onClick={() => openRoleChangeModal(member)}
-                    >
-                        Thay đổi Role
-                    </Button>
+                    {canChange ? (
+                        <Button 
+                            size="sm"
+                            onClick={() => openRoleChangeModal(member)}
+                        >
+                            Thay đổi Role
+                        </Button>
+                    ) : (
+                        <span className={styles.noPermission}>
+                            {member.id === currentUserId ? 'Không thể thay đổi role của chính mình' : 'Không có quyền'}
+                        </span>
+                    )}
                 </div>
             </div>
         );
     };
 
-
     if (loading) {
         return (
             <div className={styles.loading}>
-                <div>Loading groups...</div>
+                <div>Đang tải danh sách nhóm...</div>
             </div>
         );
     }
 
     return (
         <div className={styles.container}>
-            <h1>Nhóm</h1>
+            <h1>Nhóm của tôi</h1>
             <p className={styles.subtitle}>
-                Quản lý và theo dõi các nhóm bạn đang giám sát.
+                Quản lý và theo dõi nhóm của bạn.
             </p>
             
             <div className={styles.groupsList}>
@@ -239,14 +258,12 @@ export default function SupervisorGroups() {
                     
                     return (
                         <div key={group.id} className={styles.groupCard}>
-                            {/* ... Phần hiển thị thông tin nhóm (giữ nguyên) ... */}
                             <div className={styles.groupHeader}>
                                 <div className={styles.groupInfo}>
                                     <h3>{group.groupName}</h3>
                                     <p className={styles.projectName}>{group.projectName}</p>
                                     <p className={styles.projectCode}>Mã nhóm: {group.groupCode}</p>
                                 </div>
-
                             </div>
                             
                             <div className={styles.groupDetails}>
@@ -257,6 +274,7 @@ export default function SupervisorGroups() {
                                             <div key={member.id} className={styles.memberItem}>
                                                 <span className={styles.memberName}>{member.name}</span>
                                                 <span className={styles.memberRoleTag}>{member.currentRole}</span>
+                                                </span>
                                             </div>
                                         ))}
                                     </div>
@@ -299,7 +317,7 @@ export default function SupervisorGroups() {
             
             {groups.length === 0 && (
                 <div className={styles.emptyState}>
-                    <p>Bạn chưa được phân công nhóm nào.</p>
+                    <p>Bạn chưa được phân vào nhóm nào.</p>
                 </div>
             )}
 
@@ -328,7 +346,7 @@ export default function SupervisorGroups() {
                             </Button>
                             <Button onClick={() => {
                                 setGroupDetailModalOpen(false);
-                                window.location.href = `/supervisor/tracking?groupId=${selectedGroup.id}`;
+                                window.location.href = `/student/progress?groupId=${selectedGroup.id}`;
                             }}>
                                 Xem trang tiến độ
                             </Button>
@@ -337,7 +355,7 @@ export default function SupervisorGroups() {
                 )}
             </Modal>
             
-            {/* MODAL THAY ĐỔI VAI TRÒ (DÙNG RIÊNG) */}
+            {/* MODAL THAY ĐỔI VAI TRÒ */}
             <Modal open={roleChangeModalOpen} onClose={() => setRoleChangeModalOpen(false)}>
                 {memberToChangeRole && (
                     <div className={styles.roleModal}>
