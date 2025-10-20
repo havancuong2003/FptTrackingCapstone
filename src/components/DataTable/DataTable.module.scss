@@ -1,13 +1,20 @@
 .tableContainer {
   width: 100%;
+  //max-width: 100%;
+  max-width: 90vw;
+  box-sizing: border-box;
+  display: block;
   background: #fff;
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
+  overflow-x: auto; // always allow horizontal scroll if content overflows
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table {
   width: 100%;
+  min-width: 960px; // allow slightly wider columns; horizontal scroll will handle overflow
   border-collapse: collapse;
   font-size: 14px;
   
@@ -47,6 +54,8 @@
       padding: 12px;
       border-right: 1px solid #f1f3f4;
       vertical-align: middle;
+      word-break: break-word;
+      line-height: 1.5;
       
       &:last-child {
         border-right: none;
@@ -200,10 +209,13 @@
 @media (max-width: 768px) {
   .tableContainer {
     overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
   }
   
   .table {
-    min-width: 600px;
+    max-width: 100%;
+    min-width: 820px; // keep columns a bit wider on mobile; user can scroll
     
     th, td {
       padding: 8px 6px;
