@@ -1,8 +1,13 @@
 const studentMenu = [
   // Chức năng chung (cùng thứ tự với supervisor)
   { 
+    path: "/student/groups", 
+    label: "My Group", 
+    icon: "👥"
+  },
+  { 
     path: "/student/tasks", 
-    label: "Task Management", 
+    label: "My Issues", 
     icon: "✅"
   },
   { 

@@ -263,13 +263,13 @@ export default function SupervisorSchedule() {
   const updateMeeting = async () => {
     try {
       // Mock API call - thay thế bằng API call thực tế
-      console.log('Updating meeting:', {
-        meetingId: groupMeeting?.id,
-        ...editMeetingData,
-        dayOfWeek: selectedDayOfWeek,
-        startTime: selectedStartTime,
-        endTime: selectedEndTime
-      });
+ //     console.log('Updating meeting:', {
+   //     meetingId: groupMeeting?.id,
+     //   ...editMeetingData,
+     //   dayOfWeek: selectedDayOfWeek,
+      //  startTime: selectedStartTime,
+     //   endTime: selectedEndTime
+      //});
       
       // Mock success
       alert('Cập nhật lịch họp thành công!');

@@ -68,13 +68,21 @@ export async function login({ username, password }) {
     const meRes = await client.get('/auth/user-info');
     const meBody = meRes?.data;
     const me = meBody?.data || meBody || null;
+    //console.log('me ',me);
+    
     if (me) {
       const role = me.role || localStorage.getItem(USER_ROLE_KEY) || 'STUDENT';
+      const roleInGroup = me.roleInGroup || me.role_in_group || me.groupRole || null;
      // console.log("me", me);
       localStorage.setItem(USER_ROLE_KEY, role);
       localStorage.setItem(
         USER_INFO_KEY,
-        JSON.stringify({ id: me.id || me.userId || 'u_1', name: me.name || me.fullName || 'User', role })
+        JSON.stringify({ 
+          id: me.id || me.userId || 'u_1', 
+          name: me.name || me.fullName || 'User', 
+          role,
+          roleInGroup 
+        })
       );
 
       // Lưu groupId cho student để dùng cho điều hướng tasks
@@ -85,6 +93,11 @@ export async function login({ username, password }) {
           localStorage.setItem('student_group_id', String(groupId));
         }
       } catch {}
+
+      // Lưu roleInGroup riêng biệt để dễ truy cập
+      if (roleInGroup) {
+        localStorage.setItem('user_role_in_group', String(roleInGroup));
+      }
     }
   } catch {}
 
@@ -109,6 +122,7 @@ export async function logout() {
     localStorage.removeItem(USER_ROLE_KEY);
     localStorage.removeItem(USER_INFO_KEY);
     localStorage.removeItem('student_group_id');
+    localStorage.removeItem('user_role_in_group');
     localStorage.removeItem(CURRENT_SEMESTER_KEY);
     resetLoading();
     return;
@@ -116,6 +130,26 @@ export async function logout() {
   localStorage.removeItem(USER_ROLE_KEY);
   localStorage.removeItem(USER_INFO_KEY);
   localStorage.removeItem('student_group_id');
+  localStorage.removeItem('user_role_in_group');
   localStorage.removeItem(CURRENT_SEMESTER_KEY);
   resetLoading();
+}
+
+// Helper function để lấy roleInGroup từ localStorage
+export function getRoleInGroup() {
+  try {
+    return localStorage.getItem('user_role_in_group') || null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper function để lấy thông tin user đầy đủ bao gồm roleInGroup
+export function getUserInfo() {
+  try {
+    const userInfo = localStorage.getItem(USER_INFO_KEY);
+    return userInfo ? JSON.parse(userInfo) : null;
+  } catch {
+    return null;
+  }
 } 

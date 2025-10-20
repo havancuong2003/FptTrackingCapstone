@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import styles from './TaskDetail.module.scss';
 import Button from '../../../components/Button/Button';
+import BackButton from '../../common/BackButton';
 import axiosClient from '../../../utils/axiosClient';
 
 export default function SupervisorTaskDetail() {
@@ -112,7 +113,9 @@ export default function SupervisorTaskDetail() {
     return (
       <div className={styles.error}>
         <h2>Task not found</h2>
-        <Button onClick={() => navigate(`/supervisor/tasks?groupId=${groupId || '1'}`)}>Back to Tasks</Button>
+        <BackButton to={`/supervisor/tasks?groupId=${groupId || '1'}`}>
+          ← Back to Tasks
+        </BackButton>
       </div>
     );
   }
@@ -121,15 +124,11 @@ export default function SupervisorTaskDetail() {
 
   return (
     <div className={styles.container}>
+      <BackButton to={`/supervisor/tasks?groupId=${groupId || '1'}`}>
+        ← Back to Tasks
+      </BackButton>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate(`/supervisor/tasks?groupId=${groupId || '1'}`)}
-            className={styles.backButton}
-          >
-            ← Back to Tasks
-          </Button>
           <h1>{task.title}</h1>
         </div>
         <div className={styles.supervisorBadge}>

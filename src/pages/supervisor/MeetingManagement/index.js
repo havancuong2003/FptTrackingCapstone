@@ -122,7 +122,7 @@ export default function SupervisorMeetingManagement() {
     
     try {
       // Mock API call
-      console.log('Confirming attendance for meeting:', meetingId, attendanceData[meetingId]);
+    //  console.log('Confirming attendance for meeting:', meetingId, attendanceData[meetingId]);
       alert('Đã xác nhận danh sách tham gia! Danh sách không thể chỉnh sửa nữa.');
       
       // Update meeting status
