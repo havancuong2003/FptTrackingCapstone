@@ -36,10 +36,81 @@ h1 {
 /* ======================================= */
 
 .groupsList {
-  display: grid;
-  /* ĐIỀU CHỈNH: Tăng minmax lên 450px để thẻ nhóm rộng hơn */
-  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); 
-  gap: 40px; /* Tăng khoảng cách */
+  margin-top: 20px;
+}
+
+// Table specific styles
+.groupName {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.projectName {
+  font-size: 12px;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.membersList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.memberItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.memberName {
+  font-weight: 500;
+  color: #333;
+}
+
+.memberRole {
+  background: #007bff;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.progressInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressBar {
+  width: 100%;
+  height: 8px;
+  background: #e9ecef;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.progressText {
+  font-size: 11px;
+  color: #6c757d;
+  text-align: center;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .groupCard {

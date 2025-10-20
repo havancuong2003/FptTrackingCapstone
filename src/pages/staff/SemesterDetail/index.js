@@ -5,6 +5,7 @@ import {
   updateSemester, 
   updateVacationWeeks 
 } from '../../../api/staff/semester';
+import BackButton from '../../common/BackButton';
 import styles from './index.module.scss';
 
 const SemesterDetail = () => {
@@ -181,6 +182,7 @@ const SemesterDetail = () => {
 
   return (
     <div className={styles.container}>
+      <BackButton to="/category-management/semesters" />
       <div className={styles.header}>
         <button onClick={() => navigate('/category-management/semesters')} className={styles.backBtn}>
           ← Quay lại

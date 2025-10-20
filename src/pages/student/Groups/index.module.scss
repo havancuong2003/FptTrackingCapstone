@@ -157,6 +157,12 @@ h1 {
   border: 1px solid #dbeafe;
 }
 
+.memberInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .memberName {
   color: #1f2937;
   font-weight: 600;
@@ -341,42 +347,7 @@ h1 {
     font-size: 12px;
 }
 
-.roleHistory_Role {
-    margin-bottom: 15px;
-}
-
-.roleHistory_Role h5 {
-    font-size: 13px;
-    color: #4b5563;
-    margin: 0 0 10px 0;
-    text-transform: uppercase;
-    font-weight: 600;
-    border-bottom: 1px dotted #e5e7eb;
-    padding-bottom: 5px;
-}
-
-.historyList_Role {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.historyItem_Role {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    padding: 3px 0;
-}
-
-.historyRole_Role {
-    font-weight: 500;
-    color: #374151;
-}
-
-.historyDate_Role {
-    color: #6b7280;
-    font-style: italic;
-}
+/* role history styles removed */
 
 .memberActions_Role {
     margin-top: auto;
@@ -411,6 +382,21 @@ h1 {
     color: #4b5563;
     margin-bottom: 24px;
     font-size: 16px;
+}
+
+.roleInfo {
+    background: #f0f9ff;
+    border: 1px solid #0ea5e9;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 20px;
+    
+    p {
+        margin: 0;
+        color: #0c4a6e;
+        font-size: 14px;
+        line-height: 1.4;
+    }
 }
 
 .roleOptions {

@@ -49,9 +49,11 @@ const StudentMeetingManagement = React.lazy(() => import("../pages/student/Meeti
 const StudentMinutes = React.lazy(() => import("../pages/student/Minutes"));
 const StudentEvaluation = React.lazy(() => import("../pages/student/Evaluation"));
 const StudentDocuments = React.lazy(() => import("../pages/student/Documents"));
+const StudentGroups = React.lazy(() => import("../pages/student/Groups"));
 
 // Supervisor pages
 const SupervisorGroups = React.lazy(() => import("../pages/supervisor/Groups"));
+const SupervisorGroupDetail = React.lazy(() => import("../pages/supervisor/Groups/GroupDetail"));
 const SupervisorMeetings = React.lazy(() => import("../pages/supervisor/Meetings"));
 const SupervisorTracking = React.lazy(() => import("../pages/supervisor/Tracking"));
 const SupervisorTasks = React.lazy(() => import("../pages/supervisor/Tasks"));
@@ -147,6 +149,11 @@ export const routes = [
       protected: true,
       roles: ["STUDENT", "SUPERVISOR"],
     },
+  },
+  {
+    path: "/student/groups",
+    element: StudentGroups,
+    meta: { title: "Nhóm của tôi", protected: true, roles: ["STUDENT"] },
   },
   {
     path: "/ai",
@@ -327,6 +334,15 @@ export const routes = [
     element: SupervisorGroups,
     meta: {
       title: "Groups",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/groups/:groupId",
+    element: SupervisorGroupDetail,
+    meta: {
+      title: "Group Detail",
       protected: true,
       roles: ["SUPERVISOR"],
     },

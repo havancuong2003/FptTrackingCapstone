@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createSemester } from '../../../api/staff/semester';
+import BackButton from '../../common/BackButton';
 import styles from './index.module.scss';
 
 const SemesterManagement = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     startAt: '',
@@ -51,6 +54,7 @@ const SemesterManagement = () => {
 
   return (
     <div className={styles.container}>
+      <BackButton to="/category-management/semesters" />
       <div className={styles.header}>
         <h1>Tạo Kỳ Học Mới</h1>
         <p>Nhập thông tin để tạo kỳ học mới và tính toán các tuần học</p>

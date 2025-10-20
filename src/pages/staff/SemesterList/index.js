@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAllSemesters } from '../../../api/staff/semester';
 import { useNavigate } from 'react-router-dom';
+import DataTable from '../../../components/DataTable/DataTable';
 import styles from './index.module.scss';
 
 const SemesterList = () => {
@@ -107,6 +108,76 @@ const SemesterList = () => {
     }
   };
 
+  const getDuration = (startAt, endAt) => {
+    if (!startAt || !endAt) return 'N/A';
+    try {
+      const start = new Date(startAt);
+      const end = new Date(endAt);
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return `${diffDays} ngày`;
+    } catch (error) {
+      return 'N/A';
+    }
+  };
+
+  const columns = [
+    {
+      key: 'name',
+      title: 'Tên kỳ học',
+      render: (semester) => (
+        <div>
+          <div className={styles.semesterName}>{semester.name}</div>
+          <div className={styles.semesterId}>ID: {semester.id}</div>
+        </div>
+      )
+    },
+    {
+      key: 'startAt',
+      title: 'Ngày bắt đầu',
+      render: (semester) => formatDate(semester.startAt)
+    },
+    {
+      key: 'endAt',
+      title: 'Ngày kết thúc',
+      render: (semester) => formatDate(semester.endAt)
+    },
+    {
+      key: 'duration',
+      title: 'Thời gian',
+      render: (semester) => getDuration(semester.startAt, semester.endAt)
+    },
+    {
+      key: 'description',
+      title: 'Mô tả',
+      render: (semester) => semester.description || 'Không có mô tả'
+    },
+    {
+      key: 'isActive',
+      title: 'Trạng thái',
+      render: (semester) => (
+        <span className={`${styles.statusBadge} ${semester.isActive ? styles.active : styles.inactive}`}>
+          {semester.isActive ? 'Đang hoạt động' : 'Không hoạt động'}
+        </span>
+      )
+    },
+    {
+      key: 'actions',
+      title: 'Thao tác',
+      render: (semester) => (
+        <button 
+          className={styles.actionButton}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSemesterClick(semester.id);
+          }}
+        >
+          Xem chi tiết
+        </button>
+      )
+    }
+  ];
+
   const handleSemesterClick = (semesterId) => {
     navigate(`/category-management/semester/${semesterId}`);
   };
@@ -207,58 +278,13 @@ const SemesterList = () => {
 
       {/* Semester List */}
       <div className={styles.semesterList}>
-        {loading ? (
-          <div className={styles.loading}>Đang tải danh sách kỳ học...</div>
-        ) : filteredSemesters.length === 0 ? (
-          <div className={styles.emptyState}>
-            <p>Không có kỳ học nào</p>
-          </div>
-        ) : (
-          <div className={styles.semesterGrid}>
-            {filteredSemesters.map((semester) => (
-              <div
-                key={semester.id}
-                className={styles.semesterCard}
-                onClick={() => handleSemesterClick(semester.id)}
-              >
-                <div className={styles.semesterHeader}>
-                  <h3>{semester.name}</h3>
-                  <div className={styles.headerRight}>
-                    <span className={`${styles.statusBadge} ${semester.isActive ? styles.active : styles.inactive}`}>
-                      {semester.isActive ? 'Đang hoạt động' : 'Không hoạt động'}
-                    </span>
-                    <span className={styles.semesterId}>ID: {semester.id}</span>
-                  </div>
-                </div>
-
-                <div className={styles.semesterInfo}>
-                  <div className={styles.dateRange}>
-                    <div className={styles.dateItem}>
-                      <strong>Bắt đầu:</strong> {formatDate(semester.startAt)}
-                    </div>
-                    <div className={styles.dateItem}>
-                      <strong>Kết thúc:</strong> {formatDate(semester.endAt)}
-                    </div>
-                  </div>
-
-                  {semester.description && (
-                    <div className={styles.description}>
-                      <strong>Mô tả:</strong> {semester.description}
-                    </div>
-                  )}
-
-                  <div className={styles.duration}>
-                    <strong>Thời gian:</strong> {Math.ceil((new Date(semester.endAt) - new Date(semester.startAt)) / (1000 * 60 * 60 * 24))} ngày
-                  </div>
-                </div>
-
-                <div className={styles.semesterActions}>
-                  <span className={styles.clickHint}>Click để xem chi tiết</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <DataTable
+          columns={columns}
+          data={filteredSemesters}
+          loading={loading}
+          emptyMessage="Không có kỳ học nào"
+          onRowClick={(semester) => handleSemesterClick(semester.id)}
+        />
       </div>
     </div>
   );

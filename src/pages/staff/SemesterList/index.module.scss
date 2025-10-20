@@ -166,128 +166,57 @@
   margin-top: 20px;
 }
 
-.semesterGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-  gap: 20px;
-}
-
-.semesterCard {
-  background: #fff;
-  border: 2px solid #e1e5e9;
-  border-radius: 12px;
-  padding: 20px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  position: relative;
-  
-  &:hover {
-    border-color: #007bff;
-    transform: translateY(-4px);
-    box-shadow: 0 8px 25px rgba(0, 123, 255, 0.15);
-  }
-}
-
-.semesterHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-  
-  h3 {
-    color: #333;
-    font-size: 20px;
-    margin: 0;
-    font-weight: 700;
-  }
-}
-
-.headerRight {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.statusBadge {
-  padding: 4px 8px;
-  border-radius: 6px;
-  font-size: 12px;
+// Table specific styles
+.semesterName {
   font-weight: 600;
-}
-
-.active {
-  background: #d1fae5;
-  color: #065f46;
-  border: 1px solid #10b981;
-}
-
-.inactive {
-  background: #fee2e2;
-  color: #991b1b;
-  border: 1px solid #ef4444;
+  color: #333;
+  margin-bottom: 4px;
 }
 
 .semesterId {
-  background: #e9ecef;
+  font-size: 12px;
   color: #6c757d;
+  background: #f8f9fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.statusBadge {
+  display: inline-block;
   padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  
+  &.active {
+    background-color: #d1fae5;
+    color: #065f46;
+    border: 1px solid #10b981;
+  }
+  
+  &.inactive {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+  }
+}
+
+.actionButton {
+  padding: 6px 12px;
+  border: none;
   border-radius: 4px;
   font-size: 12px;
   font-weight: 500;
-}
-
-.semesterInfo {
-  margin-bottom: 15px;
-}
-
-.dateRange {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.dateItem {
-  font-size: 14px;
-  color: #666;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #007bff;
+  color: white;
   
-  strong {
-    color: #333;
-    font-weight: 600;
+  &:hover {
+    background-color: #0056b3;
   }
-}
-
-.description {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 12px;
-  line-height: 1.4;
-  
-  strong {
-    color: #333;
-    font-weight: 600;
-  }
-}
-
-.duration {
-  font-size: 14px;
-  color: #007bff;
-  font-weight: 600;
-}
-
-.semesterActions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding-top: 15px;
-  border-top: 1px solid #f8f9fa;
-}
-
-.clickHint {
-  color: #007bff;
-  font-size: 14px;
-  font-weight: 500;
-  opacity: 0.8;
 }
 
 @media (max-width: 768px) {
@@ -311,19 +240,7 @@
     grid-template-columns: 1fr;
   }
   
-  .semesterGrid {
-    grid-template-columns: 1fr;
-  }
-  
-  .semesterCard {
-    padding: 15px;
-  }
-  
-  .semesterHeader {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
+  // Table responsive styles are handled by DataTable component
   
   .filterActions {
     flex-direction: column;
@@ -342,7 +259,5 @@
     font-size: 20px;
   }
   
-  .semesterCard {
-    padding: 12px;
-  }
+  // Table responsive styles are handled by DataTable component
 }

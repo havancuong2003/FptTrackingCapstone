@@ -2,7 +2,7 @@ const supervisorMenu = [
   // Chức năng chung (cùng thứ tự với student)
   { 
     path: "/supervisor/tasks", 
-    label: "Task Management", 
+    label: "Issues", 
     icon: "✅"
   },
   { 

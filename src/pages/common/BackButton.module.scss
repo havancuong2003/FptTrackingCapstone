@@ -1,0 +1,63 @@
+// Common Back Button Styles for all pages
+.backButton {
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+  margin-bottom: 20px;
+
+  &:hover {
+    background: #e2e8f0;
+    border-color: #94a3b8;
+    color: #334155;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  &:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+}
+
+// Alternative variant for darker themes
+.backButtonDark {
+  background: #1e293b;
+  color: #f1f5f9;
+  border: 1px solid #334155;
+
+  &:hover {
+    background: #334155;
+    border-color: #475569;
+    color: #ffffff;
+  }
+}
+
+// Small variant
+.backButtonSmall {
+  padding: 6px 12px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+// Large variant
+.backButtonLarge {
+  padding: 12px 20px;
+  font-size: 16px;
+  margin-bottom: 24px;
+}

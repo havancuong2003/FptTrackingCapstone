@@ -1,10 +1,13 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
+import DataTable from '../../../components/DataTable/DataTable';
 import axiosClient from '../../../utils/axiosClient';
 
 export default function SupervisorGroups() {
+    const navigate = useNavigate();
     const [groups, setGroups] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [selectedGroup, setSelectedGroup] = React.useState(null);
@@ -22,7 +25,6 @@ export default function SupervisorGroups() {
                 
                 // Bước 1: Gọi API để lấy danh sách nhóm của supervisor (chỉ có id và name)
                 const groupsResponse = await axiosClient.get('/Mentor/getGroups');
-                console.log("groupsResponse", groupsResponse);
                 
                 if (groupsResponse.data.status === 200) {
                     // Lấy danh sách nhóm cơ bản (chỉ có id và name)
@@ -33,7 +35,7 @@ export default function SupervisorGroups() {
                         groupList.map(async (group) => {
                             try {
                                 const detailResponse = await axiosClient.get(`/Staff/capstone-groups/${group.id}`);
-                                console.log(`Detail for group ${group.id}:`, detailResponse);
+                           //     console.log(`Detail for group ${group.id}:`, detailResponse);
                                 
                                 if (detailResponse.data.status === 200) {
                                     const groupDetail = detailResponse.data.data;
@@ -120,11 +122,83 @@ export default function SupervisorGroups() {
         });
     };
 
+    const columns = [
+        {
+            key: 'projectName',
+            title: 'Tên dự án',
+            render: (group) => (
+                <div className={styles.projectName}>{group.projectName}</div>
+            )
+        },
+        {
+            key: 'groupCode',
+            title: 'Mã nhóm',
+            render: (group) => group.groupCode
+        },
+        {
+            key: 'progress',
+            title: 'Tiến độ',
+            render: (group) => (
+                <div className={styles.progressInfo}>
+                    <div className={styles.progressBar}>
+                        <div 
+                            className={styles.progressFill}
+                            style={{ 
+                                width: `${group.progress.completionPercentage}%`,
+                                backgroundColor: getProgressColor(group.progress.completionPercentage)
+                            }}
+                        ></div>
+                    </div>
+                    <div className={styles.progressText}>
+                        {group.progress.completedMilestones}/{group.progress.totalMilestones} milestones
+                    </div>
+                </div>
+            )
+        },
+        {
+            key: 'currentMilestone',
+            title: 'Milestone hiện tại',
+            render: (group) => group.currentMilestone
+        },
+        {
+            key: 'nextDeadline',
+            title: 'Hạn tiếp theo',
+            render: (group) => formatDate(group.nextDeadline)
+        },
+        {
+            key: 'actions',
+            title: 'Thao tác',
+            render: (group) => (
+                <div className={styles.actionButtons}>
+                    <Button 
+                        size="sm"
+                        variant="secondary"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            viewGroupDetails(group);
+                        }}
+                    >
+                        Chi tiết
+                    </Button>
+                    <Button 
+                        size="sm"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/supervisor/tracking?groupId=${group.id}`;
+                        }}
+                    >
+                        Theo dõi
+                    </Button>
+                </div>
+            )
+        }
+    ];
+
     // --- LOGIC MODAL CHI TIẾT NHÓM & QUẢN LÝ VAI TRÒ ---
     
     const viewGroupDetails = (group) => {
-        setSelectedGroup(group);
-        setGroupDetailModalOpen(true);
+        // Navigate to group detail page instead of modal
+        navigate(`/supervisor/groups/${group.id}`);
     };
 
     const openRoleChangeModal = (member) => {
@@ -233,75 +307,15 @@ export default function SupervisorGroups() {
             </p>
             
             <div className={styles.groupsList}>
-                {groups.map((group) => {
-                    const progressColor = getProgressColor(group.progress.completionPercentage);
-                    const progressText = getProgressText(group.progress.completionPercentage);
-                    
-                    return (
-                        <div key={group.id} className={styles.groupCard}>
-                            {/* ... Phần hiển thị thông tin nhóm (giữ nguyên) ... */}
-                            <div className={styles.groupHeader}>
-                                <div className={styles.groupInfo}>
-                                    <h3>{group.groupName}</h3>
-                                    <p className={styles.projectName}>{group.projectName}</p>
-                                    <p className={styles.projectCode}>Mã nhóm: {group.groupCode}</p>
-                                </div>
-
-                            </div>
-                            
-                            <div className={styles.groupDetails}>
-                                <div className={styles.detailSection}>
-                                    <h4>Thành viên ({group.members.length})</h4>
-                                    <div className={styles.membersList}>
-                                        {group.members.map((member) => (
-                                            <div key={member.id} className={styles.memberItem}>
-                                                <span className={styles.memberName}>{member.name}</span>
-                                                <span className={styles.memberRoleTag}>{member.currentRole}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                                
-                                <div className={styles.detailSection}>
-                                    <h4>Tiến độ</h4>
-                                    <div className={styles.progressInfo}>
-                                        <div className={styles.progressItem}>
-                                            <span>Hoàn thành:</span>
-                                            <span>{group.progress.completedMilestones}/{group.progress.totalMilestones} milestones</span>
-                                        </div>
-                                        <div className={styles.progressItem}>
-                                            <span>Hiện tại:</span>
-                                            <span className={styles.currentMilestone}>{group.currentMilestone}</span>
-                                        </div>
-                                        <div className={styles.progressItem}>
-                                            <span>Hạn tiếp theo:</span>
-                                            <span>{formatDate(group.nextDeadline)}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className={styles.groupActions}>
-                                <Button 
-                                    variant="secondary"
-                                    onClick={() => viewGroupDetails(group)}
-                                >
-                                    Xem chi tiết
-                                </Button>
-                                <Button>
-                                    Theo dõi tiến độ
-                                </Button>
-                            </div>
-                        </div>
-                    );
-                })}
+                <DataTable
+                    columns={columns}
+                    data={groups}
+                    loading={loading}
+                    emptyMessage="Bạn chưa được phân công nhóm nào"
+                    onRowClick={viewGroupDetails}
+                />
             </div>
             
-            {groups.length === 0 && (
-                <div className={styles.emptyState}>
-                    <p>Bạn chưa được phân công nhóm nào.</p>
-                </div>
-            )}
 
             {/* MODAL CHI TIẾT NHÓM & QUẢN LÝ VAI TRÒ */}
             <Modal open={groupDetailModalOpen} onClose={() => setGroupDetailModalOpen(false)}>
