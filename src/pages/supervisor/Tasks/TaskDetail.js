@@ -29,6 +29,24 @@ export default function SupervisorTaskDetail() {
   const currentUser = getCurrentUser();
   const [task, setTask] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
+  const [newComment, setNewComment] = React.useState('');
+  
+  // Get user role from localStorage
+  const getUserRole = () => {
+    try {
+      const authUser = localStorage.getItem('auth_user');
+      if (authUser) {
+        const user = JSON.parse(authUser);
+        return user.role || 'SUPERVISOR';
+      }
+      return 'SUPERVISOR';
+    } catch (error) {
+      return 'SUPERVISOR';
+    }
+  };
+  
+  const userRole = getUserRole();
+  const isSupervisor = userRole === 'SUPERVISOR' || userRole === 'MENTOR';
 
   React.useEffect(() => {
     const fetchTask = async () => {
@@ -57,7 +75,13 @@ export default function SupervisorTaskDetail() {
             progress: parseInt(taskData.process) || 0,
             attachments: taskData.attachments || [],
             comments: taskData.comments || [],
-            history: taskData.history || []
+            history: taskData.history || [],
+            // New fields
+            isMeetingTask: taskData.isMeetingTask || false,
+            meetingId: taskData.meetingId || null,
+            isActive: taskData.isActive !== undefined ? taskData.isActive : true,
+            reviewer: taskData.reviewer || null,
+            reviewerName: taskData.reviewerName || 'No Reviewer'
           };
           
           setTask(mappedTask);
@@ -92,13 +116,63 @@ export default function SupervisorTaskDetail() {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const addComment = async () => {
+    if (!task || !newComment.trim()) return;
+    
+    try {
+      // Gọi API create comment
+      const commentData = {
+        entityName: "Task",
+        entityId: parseInt(taskId),
+        feedback: newComment.trim(),
+        groupId: parseInt(groupId) || 1,
+        author: `HE${currentUser.id}`,
+        authorName: currentUser.name
+      };
+
+      const response = await axiosClient.post('/Student/Comment/create', commentData);
+      
+      if (response.data.status === 200) {
+        const nowIso = new Date().toISOString();
+        const newCommentObj = {
+          id: Date.now(),
+          author: commentData.author,
+          authorName: commentData.authorName,
+          content: newComment.trim(),
+          timestamp: nowIso
+        };
+
+        const newHistoryItem = {
+          id: Date.now() + 1,
+          type: 'comment',
+          detail: `Added comment: ${newComment.trim().substring(0, 50)}...`,
+          at: nowIso,
+          user: commentData.author,
+          action: 'Commented'
+        };
+
+        setTask(prev => ({
+          ...prev,
+          comments: [...(prev.comments || []), newCommentObj],
+          history: [...(prev.history || []), newHistoryItem]
+        }));
+
+        setNewComment('');
+      } else {
+        console.error('Error creating comment:', response.data.message);
+      }
+    } catch (error) {
+      console.error('Error creating comment:', error);
+    }
   };
 
   if (loading) {
@@ -147,12 +221,22 @@ export default function SupervisorTaskDetail() {
             <h2>Task Information</h2>
             <div className={styles.infoGrid}>
               <div className={styles.infoItem}>
+                <label>Task Type:</label>
+                <span className={styles.taskTypeBadge}>
+                  {task.isMeetingTask ? 'Meeting Task' : 'Throughout Task'}
+                </span>
+              </div>
+              <div className={styles.infoItem}>
                 <label>Priority:</label>
                 <span style={{ color: priorityInfo.color, fontWeight: 600 }}>{priorityInfo.text}</span>
               </div>
               <div className={styles.infoItem}>
                 <label>Assignee:</label>
                 <span>{task.assigneeName}</span>
+              </div>
+              <div className={styles.infoItem}>
+                <label>Reviewer:</label>
+                <span>{task.reviewerName}</span>
               </div>
               <div className={styles.infoItem}>
                 <label>Deadline:</label>
@@ -174,13 +258,30 @@ export default function SupervisorTaskDetail() {
                 <div className={styles.progressDisplay}>
                   <span>{task.progress}%</span>
                   <div className={styles.progressBar}>
-                    <div 
+                    <div
                       className={styles.progressFill}
                       style={{ width: `${task.progress}%` }}
                     />
                   </div>
                 </div>
               </div>
+              <div className={styles.infoItem}>
+                <label>Active:</label>
+                <span className={task.isActive ? styles.activeStatus : styles.inactiveStatus}>
+                  {task.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+              {task.isMeetingTask && task.meetingId && (
+                <div className={styles.infoItem}>
+                  <label>Related Meeting:</label>
+                  <Button 
+                    onClick={() => navigate(`/supervisor/meetings/${groupId}?meetingId=${task.meetingId}`)}
+                    className={styles.meetingButton}
+                  >
+                    View Meeting Details
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -196,6 +297,19 @@ export default function SupervisorTaskDetail() {
                   <div className={styles.commentContent}>{comment.content}</div>
                 </div>
               ))}
+            </div>
+            
+            <div className={styles.addComment}>
+              <textarea
+                className={styles.commentTextarea}
+                placeholder="Add a comment..."
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                rows={4}
+              />
+              <Button onClick={addComment} className={styles.addButton}>
+                Add Comment
+              </Button>
             </div>
           </div>
 

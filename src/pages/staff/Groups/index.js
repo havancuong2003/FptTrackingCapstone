@@ -54,7 +54,7 @@ export default function StaffGroups() {
   // Auto load when filters/pageSize change (reset to first block)
   React.useEffect(() => {
     const handle = setTimeout(async () => {
-      // Chỉ reset khi pageSize đổi; filter đổi thì filter client-side (không gọi API)
+      // Only reset when pageSize changes; filter changes apply client-side (no API call)
       setPage(1);
       if (Object.keys(blocks).length === 0 || pageSize * 10 !== Object.values(blocks)[0]?.length) {
         setBlocks({});
@@ -68,7 +68,7 @@ export default function StaffGroups() {
           setLoading(false);
         }
       } else {
-        // Có sẵn block đầu, áp filter client và cắt trang đầu
+        // Have first block available, apply client filter and slice first page
         const filteredRows = applyClientFilters(blocks[0] || [], filters);
         setFiltered(filteredRows);
         setItems(filteredRows.slice(0, pageSize));
@@ -93,14 +93,14 @@ export default function StaffGroups() {
       const res = await sendEmailToGroup(detail.id, emailContent);
       
       if (res.status === 200) {
-        alert('Email đã được gửi thành công!');
+        alert('Email sent successfully!');
         setEmailContent('');
       } else {
-        alert(res.message || 'Có lỗi xảy ra khi gửi email.');
+        alert(res.message || 'An error occurred when sending email.');
       }
     } catch (error) {
       console.error('Error sending email:', error);
-      alert('Có lỗi xảy ra khi gửi email. Vui lòng thử lại.');
+      alert('An error occurred when sending email. Please try again.');
     } finally {
       setSendingEmail(false);
     }
@@ -117,7 +117,7 @@ export default function StaffGroups() {
     const blockIndex = Math.floor(((page - 1) * pageSize) / BLOCK_SIZE);
     const haveBlock = Boolean(blocks[blockIndex]);
     if (haveBlock) {
-      // Áp filter client trước khi cắt trang
+      // Apply client filter before slicing page
       const filteredRows = applyClientFilters(blocks[blockIndex] || [], filters);
       const blockStart = blockIndex * BLOCK_SIZE;
       const globalIndexStart = (page - 1) * pageSize;
@@ -157,7 +157,7 @@ export default function StaffGroups() {
     const pagesPerBlock = Math.max(1, Math.floor(BLOCK_SIZE / pageSize));
     const blockIndex = Math.floor(((page - 1) * pageSize) / BLOCK_SIZE);
     const posInBlock = (page - 1) % pagesPerBlock;
-    const nearEnd = posInBlock >= pagesPerBlock - 2; // 2 trang cuối
+    const nearEnd = posInBlock >= pagesPerBlock - 2; // Last 2 pages
     const nextBlock = blockIndex + 1;
     if (!nearEnd) return;
     if (blocks[nextBlock]) return;
@@ -178,54 +178,54 @@ export default function StaffGroups() {
 
   return (
     <div className={styles.wrap}>
-      <h1>Danh sách nhóm Capstone</h1>
+      <h1>Capstone Groups List</h1>
 
       <div className={styles.filters}>
         <div>
-          <label>Chuyên ngành</label>
+          <label>Major</label>
           <Select value={filters.major} onChange={e => onChangeFilter('major', e.target.value)}>
-            <option value="all">Tất cả</option>
+            <option value="all">All</option>
             {options.majors.map(m => (
               <option key={m} value={m}>{m}</option>
             ))}
           </Select>
         </div>
         <div>
-          <label>Nộp đủ tài liệu</label>
+          <label>Documents Submitted</label>
           <Select value={filters.submitted} onChange={e => onChangeFilter('submitted', e.target.value)}>
-            <option value="all">Tất cả</option>
-            <option value="true">Có</option>
-            <option value="false">Không</option>
+            <option value="all">All</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
           </Select>
         </div>
         <div>
-          <label>Kỳ học</label>
+          <label>Semester</label>
           <Select value={filters.term} onChange={e => onChangeFilter('term', e.target.value)}>
-            <option value="all">Tất cả</option>
+            <option value="all">All</option>
             {options.terms.map(t => (
               <option key={t} value={t}>{t}</option>
             ))}
           </Select>
         </div>
         <div>
-          <label>Mã môn học</label>
+          <label>Course Code</label>
           <Select value={filters.courseCode} onChange={e => onChangeFilter('courseCode', e.target.value)}>
-            <option value="all">Tất cả</option>
+            <option value="all">All</option>
             {options.courseCodes.map(c => (
               <option key={c} value={c}>{c}</option>
             ))}
           </Select>
         </div>
         <div className={styles.searchBox}>
-          <label>Tìm kiếm</label>
+          <label>Search</label>
           <Input
-            placeholder="Mã nhóm / Supervisor / Tên SV / Mã SV"
+            placeholder="Group ID / Supervisor / Student Name / Student ID"
             value={filters.search}
             onChange={e => onChangeFilter('search', e.target.value)}
           />
         </div>
         <div>
-          <label>Số dòng/trang</label>
+          <label>Rows per page</label>
           <Select value={pageSize} onChange={e => { setPage(1); setPageSize(Number(e.target.value)); }}>
             <option value={5}>5</option>
             <option value={10}>10</option>
@@ -238,21 +238,21 @@ export default function StaffGroups() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>STT</th>
-              <th>Mã nhóm</th>
-              <th>Mã môn học</th>
-              <th>Kỳ học</th>
-              <th>Chuyên ngành</th>
-              <th>Tổng số SV</th>
-              <th>GV hướng dẫn</th>
-              <th>Nộp đủ tài liệu</th>
-              <th>Chi tiết</th>
+              <th>No</th>
+              <th>Group ID</th>
+              <th>Course Code</th>
+              <th>Semester</th>
+              <th>Major</th>
+              <th>Total Students</th>
+              <th>Supervisor</th>
+              <th>Documents Submitted</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center' }}>Đang tải...</td>
+                <td colSpan="9" style={{ textAlign: 'center' }}>Loading...</td>
               </tr>
             )}
             {!loading && items.map((g, idx) => (
@@ -266,17 +266,17 @@ export default function StaffGroups() {
                 <td>{(Array.isArray(g.supervisors) ? g.supervisors : (g.supervisor ? [g.supervisor] : [])).join(', ')}</td>
                 <td>
                   <span className={g.submittedDocs ? styles.badgeOk : styles.badgeNo}>
-                    {g.submittedDocs ? 'Đã nộp' : 'Thiếu'}
+                    {g.submittedDocs ? 'Submitted' : 'Missing'}
                   </span>
                 </td>
                 <td>
-                  <Button size="sm" variant="secondary" onClick={() => openDetail(g.id)}>Chi tiết</Button>
+                  <Button size="sm" variant="secondary" onClick={() => openDetail(g.id)}>Details</Button>
                 </td>
               </tr>
             ))}
             {!loading && items.length === 0 && (
               <tr>
-                <td colSpan="9" style={{ textAlign: 'center' }}>Không có dữ liệu</td>
+                <td colSpan="9" style={{ textAlign: 'center' }}>No data found</td>
               </tr>
             )}
           </tbody>
@@ -284,16 +284,16 @@ export default function StaffGroups() {
       </div>
 
       <div className={styles.pagination}>
-        <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Trang trước</Button>
-        <span>Trang {page} / {totalPages}</span>
-        <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>Trang sau</Button>
+        <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous</Button>
+        <span>Page {page} / {totalPages}</span>
+        <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>Next</Button>
       </div>
 
       <Modal open={detailOpen} onClose={() => setDetailOpen(false)}>
-        {!detail && <div>Đang tải...</div>}
+        {!detail && <div>Loading...</div>}
         {detail && (
           <div className={styles.detail}>
-            <h2>Chi tiết nhóm</h2>
+            <h2>Group Details</h2>
             <section>
               <h3>Group Info</h3>
               <p><strong>Group ID:</strong> {detail.id}</p>
@@ -316,10 +316,10 @@ export default function StaffGroups() {
                 <table className={styles.activityTable}>
                   <thead>
                     <tr>
-                      <th>Thời gian</th>
-                      <th>Nội dung</th>
-                      <th>Người thực hiện</th>
-                      <th>Hành động</th>
+                      <th>Duration</th>
+                      <th>Content</th>
+                      <th>Assignee</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -337,10 +337,10 @@ export default function StaffGroups() {
             </section>
             
             <section className={styles.emailSection}>
-              <h3>Gửi email cho nhóm</h3>
+              <h3>Send Email to Group</h3>
               <div className={styles.emailForm}>
                 <div className={styles.emailRecipients}>
-                  <strong>Người nhận:</strong>
+                  <strong>Recipients:</strong>
                   <div className={styles.recipientList}>
                     {(detail.students || []).map(s => (
                       <span key={s.id} className={styles.recipient}>
@@ -355,11 +355,11 @@ export default function StaffGroups() {
                   </div>
                 </div>
                 <div className={styles.emailInput}>
-                  <label htmlFor="emailContent">Nội dung email:</label>
+                  <label htmlFor="emailContent">Email Content:</label>
                   <textarea
                     id="emailContent"
                     className={styles.emailTextarea}
-                    placeholder="Nhập nội dung email bạn muốn gửi cho nhóm..."
+                    placeholder="Enter the email content you want to send to the group..."
                     value={emailContent}
                     onChange={(e) => setEmailContent(e.target.value)}
                     rows={6}
@@ -371,14 +371,14 @@ export default function StaffGroups() {
                     disabled={!emailContent.trim() || sendingEmail}
                     variant="primary"
                   >
-                    {sendingEmail ? 'Đang gửi...' : 'Gửi email'}
+                    {sendingEmail ? 'Sending...' : 'Send Email'}
                   </Button>
                   <Button 
                     onClick={() => setEmailContent('')}
                     variant="secondary"
                     disabled={sendingEmail}
                   >
-                    Xóa nội dung
+                    Clear Content
                   </Button>
                 </div>
               </div>

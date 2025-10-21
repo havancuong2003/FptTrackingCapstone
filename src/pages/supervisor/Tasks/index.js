@@ -29,10 +29,11 @@ export default function SupervisorTasks() {
   const currentUser = getCurrentUser();
   const [tasks, setTasks] = React.useState([]);
   const [milestones, setMilestones] = React.useState([]);
+  const [meetings, setMeetings] = React.useState([]);
   const [groups, setGroups] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
 
-  // Trạng thái search-on-click
+  // Status search-on-click
   const [isSearched, setIsSearched] = React.useState(false);
   
   // Tất cả issues (load khi bấm tìm kiếm)
@@ -43,6 +44,9 @@ export default function SupervisorTasks() {
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
+  const [taskTypeFilter, setTaskTypeFilter] = React.useState('');
+  const [isActiveTask, setIsActiveTask] = React.useState(true);
+  const [viewType, setViewType] = React.useState('project_view'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
 
   // API: lấy milestones theo group
   const fetchMilestonesByGroup = async (gid) => {
@@ -63,12 +67,12 @@ export default function SupervisorTasks() {
         }));
       } else {
         console.error('Error fetching milestones:', response.data.message);
-        alert(`Lỗi lấy milestones: ${response.data.message}`);
+        alert(`Error lấy milestones: ${response.data.message}`);
         return [];
       }
     } catch (error) {
       console.error('Error fetching milestones:', error);
-      alert(`Lỗi kết nối milestones: ${error.message}`);
+      alert(`Error kết nối milestones: ${error.message}`);
       return [];
     }
   };
@@ -91,12 +95,12 @@ export default function SupervisorTasks() {
         }));
       } else {
         console.error('Error fetching students:', response.data.message);
-        alert(`Lỗi lấy danh sách students: ${response.data.message}`);
+        alert(`Error lấy danh sách students: ${response.data.message}`);
         return [];
       }
     } catch (error) {
       console.error('Error fetching students:', error);
-      alert(`Lỗi kết nối lấy students: ${error.message}`);
+      alert(`Error kết nối lấy students: ${error.message}`);
       return [];
     }
   };
@@ -117,12 +121,59 @@ export default function SupervisorTasks() {
         }));
       } else {
         console.error('Error fetching groups:', response.data.message);
-        alert(`Lỗi lấy danh sách groups: ${response.data.message}`);
+        alert(`Error lấy danh sách groups: ${response.data.message}`);
         return [];
       }
     } catch (error) {
       console.error('Error fetching groups:', error);
-      alert(`Lỗi kết nối lấy groups: ${error.message}`);
+      alert(`Error kết nối lấy groups: ${error.message}`);
+      return [];
+    }
+  };
+
+  // API: lấy meetings đã họp cho supervisor
+  // TODO: API này chưa có, tạm thời mock data
+  const fetchCompletedMeetings = async (gid) => {
+    if (!gid) return [];
+    try {
+      // Mock data cho meetings đã hoàn thành
+      const mockMeetings = [
+        {
+          id: 1,
+          description: "Meeting tuần 1 - Review tiến độ dự án",
+          meetingDate: "2024-01-15",
+          startTime: "09:00:00",
+          endTime: "11:00:00"
+        },
+        {
+          id: 2,
+          description: "Meeting tuần 2 - Demo prototype",
+          meetingDate: "2024-01-22",
+          startTime: "14:00:00",
+          endTime: "16:00:00"
+        },
+        {
+          id: 3,
+          description: "Meeting tuần 3 - Code review",
+          meetingDate: "2024-01-29",
+          startTime: "10:00:00",
+          endTime: "12:00:00"
+        },
+        {
+          id: 4,
+          description: "Meeting tuần 4 - Testing và bug fix",
+          meetingDate: "2024-02-05",
+          startTime: "15:00:00",
+          endTime: "17:00:00"
+        }
+      ];
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      return mockMeetings;
+    } catch (error) {
+      console.error('Error fetching meetings:', error);
       return [];
     }
   };
@@ -136,16 +187,19 @@ export default function SupervisorTasks() {
         const groupsData = await fetchSupervisorGroups();
         setGroups(groupsData);
         
-        // Nếu có groupId, load milestones và students
+        // Nếu có groupId, load milestones, students và meetings
         if (groupId) {
-          const [milestoneRes, studentRes] = await Promise.all([
+          const [milestoneRes, studentRes, meetingRes] = await Promise.all([
             fetchMilestonesByGroup(groupId),
             fetchStudentsByGroup(groupId),
+            fetchCompletedMeetings(groupId),
           ]);
           setMilestones(milestoneRes);
+          setMeetings(meetingRes);
           setAssigneeSource(studentRes);
         } else {
           setMilestones([]);
+          setMeetings([]);
           setAssigneeSource([]);
         }
         
@@ -177,7 +231,7 @@ export default function SupervisorTasks() {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -201,11 +255,22 @@ export default function SupervisorTasks() {
   const columns = [
     {
       key: 'title',
-      title: 'Issue',
+      title: 'Task',
       render: (task) => (
         <div>
-          <div className={styles.taskTitle}>{task.title}</div>
-          <div className={styles.taskDescription}>{task.description}</div>
+          <div className={styles.taskTitle}>
+            {task.title}
+            {task.hasDependencies && (
+              <span className={styles.dependencyIcon} title="Có phụ thuộc">
+                🔗
+              </span>
+            )}
+          </div>
+          <div className={styles.taskType}>
+            <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'milestone']}`}>
+              {task.isMeetingTask ? 'Meeting' : 'Milestone'}
+            </span>
+          </div>
         </div>
       )
     },
@@ -345,16 +410,16 @@ export default function SupervisorTasks() {
         
         // Hiển thị thông báo nếu không có task
         if (mappedTasks.length === 0) {
-          alert('Không có issue nào');
+          alert('No tasks found');
         }
       } else {
         console.error('Error fetching tasks:', response.data.message);
-        alert(`Lỗi: ${response.data.message}`);
+        alert(`Error: ${response.data.message}`);
         setAllTasks([]);
       }
     } catch (error) {
       console.error('Error fetching tasks:', error);
-      alert(`Lỗi kết nối: ${error.message}`);
+      alert(`Error kết nối: ${error.message}`);
       setAllTasks([]);
     } finally {
       setLoading(false);
@@ -369,13 +434,13 @@ export default function SupervisorTasks() {
     navigate(url);
       // Auto-call API when group is selected
       setTimeout(async () => {
-        await fetchIssuesForGroup(newGroupId);
+        await fetchTasksForGroup(newGroupId);
       }, 100);
     }
   };
 
   // Fetch issues for specific group
-  const fetchIssuesForGroup = async (gid) => {
+  const fetchTasksForGroup = async (gid) => {
     try {
       setLoading(true);
       
@@ -414,16 +479,16 @@ export default function SupervisorTasks() {
         
         // Hiển thị thông báo nếu không có issue
         if (mappedTasks.length === 0) {
-          alert('Không có issue nào');
+          alert('No tasks found');
         }
       } else {
         console.error('Error fetching issues:', response.data.message);
-        alert(`Lỗi: ${response.data.message}`);
+        alert(`Error: ${response.data.message}`);
         setAllTasks([]);
       }
     } catch (error) {
       console.error('Error fetching issues:', error);
-      alert(`Lỗi kết nối: ${error.message}`);
+      alert(`Error kết nối: ${error.message}`);
       setAllTasks([]);
     } finally {
       setLoading(false);
@@ -440,13 +505,21 @@ export default function SupervisorTasks() {
 
   // Filter tasks dựa trên các filter states
   const filteredTasks = allTasks.filter(task => {
- //   console.log("task", task);
-  //  console.log("milestoneFilter", milestoneFilter);
     const milestoneMatch = milestoneFilter === '' || task.milestoneId?.toString() === milestoneFilter;
     const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
     const statusMatch = statusFilter === '' || task.status === statusFilter;
     const priorityMatch = priorityFilter === '' || task.priority === priorityFilter;
-    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch;
+    
+    // Filter theo loại task dựa trên isMeetingTask
+    let taskTypeMatch = true;
+    if (taskTypeFilter === 'meeting') {
+      taskTypeMatch = task.isMeetingTask === true;
+    } else if (taskTypeFilter === 'milestone') {
+      taskTypeMatch = task.isMeetingTask !== true;
+    }
+    
+    const activeTaskMatch = !isActiveTask || task.isActive === true;
+    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && activeTaskMatch;
   });
 
   const milestoneOptions = milestones.map(m => ({ value: m.id.toString(), label: m.name }));
@@ -462,8 +535,9 @@ export default function SupervisorTasks() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Issues Management - Supervisor View</h1>
+        <h1>Tasks Management - Supervisor View</h1>
       </div>
+
 
       {/* Group Selection - ở đầu dòng */}
       <div className={styles.groupSection}>
@@ -493,7 +567,7 @@ export default function SupervisorTasks() {
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
           <div className={styles.statValue}>{filteredTasks.length}</div>
-              <div className={styles.statLabel}>Total Issues</div>
+              <div className={styles.statLabel}>Total Tasks</div>
         </div>
         <div className={styles.statCard}>
           <div className={styles.statValue}>{todoTasks.length}</div>
@@ -571,6 +645,29 @@ export default function SupervisorTasks() {
                 <option value="done">Done</option>
               </select>
             </div>
+          <div className={styles.controlGroup}>
+            <label>Task Type:</label>
+              <select
+                value={taskTypeFilter}
+                onChange={(e) => setTaskTypeFilter(e.target.value)}
+                className={styles.select}
+              >
+                <option value="">All</option>
+                <option value="milestone">Milestone</option>
+                <option value="meeting">Meeting</option>
+              </select>
+            </div>
+          <div className={styles.controlGroup}>
+            <label>
+              <input
+                type="checkbox"
+                checked={isActiveTask}
+                onChange={(e) => setIsActiveTask(e.target.checked)}
+                className={styles.checkbox}
+              />
+              Active Tasks
+            </label>
+          </div>
             </div>
           </div>
 
@@ -578,7 +675,7 @@ export default function SupervisorTasks() {
           <div className={styles.tableToolbar}>
             <button
               className={styles.refreshButton}
-              onClick={() => fetchIssuesForGroup(groupId)}
+              onClick={() => fetchTasksForGroup(groupId)}
             >
               Refresh
             </button>
@@ -598,7 +695,7 @@ export default function SupervisorTasks() {
       {/* Empty state khi đã chọn group nhưng không có issue */}
       {groupId && filteredTasks.length === 0 && (
         <div className={styles.emptyState}>
-          <div className={styles.emptyTitle}>Không có issue nào</div>
+          <div className={styles.emptyTitle}>No tasks found</div>
           <div className={styles.emptySubtitle}>Thử chọn group khác hoặc thay đổi bộ lọc</div>
         </div>
       )}
@@ -610,7 +707,7 @@ export default function SupervisorTasks() {
             columns={columns}
             data={filteredTasks}
             loading={loading}
-            emptyMessage="Không có issue nào"
+            emptyMessage="No tasks found"
             onRowClick={openTaskDetail}
             showIndex={true}
             indexTitle="No"
