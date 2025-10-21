@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createSemester } from '../../../api/staff/semester';
+import BackButton from '../../common/BackButton';
 import styles from './index.module.scss';
 
 const SemesterManagement = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: '',
     startAt: '',
@@ -34,7 +37,7 @@ const SemesterManagement = () => {
       };
       
       const response = await createSemester(formattedData);
-      setMessage('Tạo kỳ học thành công!');
+      setMessage('Semester created successfully!');
       // Reset form
       setFormData({
         name: '',
@@ -43,7 +46,7 @@ const SemesterManagement = () => {
         description: ''
       });
     } catch (error) {
-      setMessage(`Lỗi: ${error.message || 'Có lỗi xảy ra'}`);
+      setMessage(`Error: ${error.message || 'An error occurred'}`);
     } finally {
       setLoading(false);
     }
@@ -51,14 +54,15 @@ const SemesterManagement = () => {
 
   return (
     <div className={styles.container}>
+      <BackButton to="/category-management/semesters" />
       <div className={styles.header}>
-        <h1>Tạo Kỳ Học Mới</h1>
-        <p>Nhập thông tin để tạo kỳ học mới và tính toán các tuần học</p>
+        <h1>Create New Semester</h1>
+        <p>Enter information to create a new semester and calculate study weeks</p>
       </div>
 
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.formGroup}>
-          <label htmlFor="name">Tên kỳ học *</label>
+          <label htmlFor="name">Semester Name *</label>
           <input
             type="text"
             id="name"
@@ -66,12 +70,12 @@ const SemesterManagement = () => {
             value={formData.name}
             onChange={handleInputChange}
             required
-            placeholder="Ví dụ: Spring 2026"
+            placeholder="Example: Spring 2026"
           />
         </div>
 
         <div className={styles.formGroup}>
-          <label htmlFor="startAt">Ngày bắt đầu *</label>
+          <label htmlFor="startAt">Start Date *</label>
           <input
             type="date"
             id="startAt"
@@ -83,7 +87,7 @@ const SemesterManagement = () => {
         </div>
 
         <div className={styles.formGroup}>
-          <label htmlFor="endAt">Ngày kết thúc *</label>
+          <label htmlFor="endAt">End Date *</label>
           <input
             type="date"
             id="endAt"
@@ -95,19 +99,19 @@ const SemesterManagement = () => {
         </div>
 
         <div className={styles.formGroup}>
-          <label htmlFor="description">Mô tả</label>
+          <label htmlFor="description">Description</label>
           <textarea
             id="description"
             name="description"
             value={formData.description}
             onChange={handleInputChange}
             rows="4"
-            placeholder="Mô tả về kỳ học..."
+            placeholder="Description about the semester..."
           />
         </div>
 
         {message && (
-          <div className={`${styles.message} ${message.includes('Lỗi') ? styles.error : styles.success}`}>
+          <div className={`${styles.message} ${message.includes('Error') ? styles.error : styles.success}`}>
             {message}
           </div>
         )}
@@ -117,7 +121,7 @@ const SemesterManagement = () => {
           className={styles.submitBtn}
           disabled={loading}
         >
-          {loading ? 'Đang tạo...' : 'Tạo Kỳ Học'}
+          {loading ? 'Creating...' : 'Create Semester'}
         </button>
       </form>
     </div>

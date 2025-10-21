@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getAllSemesters } from '../../../api/staff/semester';
 import { useNavigate } from 'react-router-dom';
+import DataTable from '../../../components/DataTable/DataTable';
 import styles from './index.module.scss';
 
 const SemesterList = () => {
@@ -33,7 +34,7 @@ const SemesterList = () => {
         setSemesters(response.data || []);
       }
     } catch (error) {
-      setMessage(`Lỗi khi tải danh sách kỳ học: ${error.message || 'Có lỗi xảy ra'}`);
+      setMessage(`Error loading semesters: ${error.message || 'An error occurred'}`);
     } finally {
       setLoading(false);
     }
@@ -97,7 +98,7 @@ const SemesterList = () => {
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return 'Invalid Date';
-      return date.toLocaleDateString('vi-VN', {
+      return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
@@ -106,6 +107,56 @@ const SemesterList = () => {
       return 'Invalid Date';
     }
   };
+
+
+  const columns = [
+    {
+      key: 'name',
+      title: 'Semester Name',
+      render: (semester) => (
+        <div className={styles.semesterName}>{semester.name}</div>
+      )
+    },
+    {
+      key: 'startAt',
+      title: 'Start Date',
+      render: (semester) => formatDate(semester.startAt)
+    },
+    {
+      key: 'endAt',
+      title: 'End Date',
+      render: (semester) => formatDate(semester.endAt)
+    },
+    {
+      key: 'description',
+      title: 'Description',
+      render: (semester) => semester.description || 'No description'
+    },
+    {
+      key: 'isActive',
+      title: 'Status',
+      render: (semester) => (
+        <span className={`${styles.statusBadge} ${semester.isActive ? styles.active : styles.inactive}`}>
+          {semester.isActive ? 'Active' : 'Inactive'}
+        </span>
+      )
+    },
+    {
+      key: 'actions',
+      title: 'Actions',
+      render: (semester) => (
+        <button 
+          className={styles.actionButton}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSemesterClick(semester.id);
+          }}
+        >
+          View Details
+        </button>
+      )
+    }
+  ];
 
   const handleSemesterClick = (semesterId) => {
     navigate(`/category-management/semester/${semesterId}`);
@@ -118,29 +169,29 @@ const SemesterList = () => {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Danh Sách Kỳ Học</h1>
+        <h1>Semester List</h1>
         <button onClick={handleCreateSemester} className={styles.createBtn}>
-          + Tạo Kỳ Học Mới
+          + Create New Semester
         </button>
       </div>
 
       {/* Filter Section */}
       <div className={styles.filterSection}>
-        <h3>Bộ Lọc</h3>
+        <h3>Filters</h3>
         <div className={styles.filterGrid}>
           <div className={styles.filterGroup}>
-            <label>Tên kỳ học</label>
+            <label>Semester Name</label>
             <input
               type="text"
               name="name"
               value={filters.name}
               onChange={handleFilterChange}
-              placeholder="Nhập tên kỳ học..."
+              placeholder="Enter semester name..."
             />
           </div>
 
           <div className={styles.filterGroup}>
-            <label>Từ ngày</label>
+            <label>From Date</label>
             <input
               type="date"
               name="startAt"
@@ -150,7 +201,7 @@ const SemesterList = () => {
           </div>
 
           <div className={styles.filterGroup}>
-            <label>Đến ngày</label>
+            <label>To Date</label>
             <input
               type="date"
               name="endAt"
@@ -160,30 +211,30 @@ const SemesterList = () => {
           </div>
 
           <div className={styles.filterGroup}>
-            <label>Mô tả</label>
+            <label>Description</label>
             <input
               type="text"
               name="description"
               value={filters.description}
               onChange={handleFilterChange}
-              placeholder="Nhập mô tả..."
+              placeholder="Enter description..."
             />
           </div>
 
           <div className={styles.filterGroup}>
-            <label>Trạng thái</label>
+            <label>Status</label>
             <div className={styles.radioGroup}>
               <label className={styles.radioOption}>
                 <input type="radio" name="isActive" value="" checked={filters.isActive === ''} onChange={handleFilterChange} />
-                Tất cả
+                All
               </label>
               <label className={styles.radioOption}>
                 <input type="radio" name="isActive" value="true" checked={filters.isActive === 'true'} onChange={handleFilterChange} />
-                Đang hoạt động
+                Active
               </label>
               <label className={styles.radioOption}>
                 <input type="radio" name="isActive" value="false" checked={filters.isActive === 'false'} onChange={handleFilterChange} />
-                Không hoạt động
+                Inactive
               </label>
             </div>
           </div>
@@ -191,74 +242,29 @@ const SemesterList = () => {
 
         <div className={styles.filterActions}>
           <button onClick={clearFilters} className={styles.clearBtn}>
-            Xóa Bộ Lọc
+            Clear Filters
           </button>
           <span className={styles.resultCount}>
-            {filteredSemesters.length} kỳ học
+            {filteredSemesters.length} semesters
           </span>
         </div>
       </div>
 
       {message && (
-        <div className={`${styles.message} ${message.includes('Lỗi') ? styles.error : styles.success}`}>
+        <div className={`${styles.message} ${message.includes('Error') ? styles.error : styles.success}`}>
           {message}
         </div>
       )}
 
       {/* Semester List */}
       <div className={styles.semesterList}>
-        {loading ? (
-          <div className={styles.loading}>Đang tải danh sách kỳ học...</div>
-        ) : filteredSemesters.length === 0 ? (
-          <div className={styles.emptyState}>
-            <p>Không có kỳ học nào</p>
-          </div>
-        ) : (
-          <div className={styles.semesterGrid}>
-            {filteredSemesters.map((semester) => (
-              <div
-                key={semester.id}
-                className={styles.semesterCard}
-                onClick={() => handleSemesterClick(semester.id)}
-              >
-                <div className={styles.semesterHeader}>
-                  <h3>{semester.name}</h3>
-                  <div className={styles.headerRight}>
-                    <span className={`${styles.statusBadge} ${semester.isActive ? styles.active : styles.inactive}`}>
-                      {semester.isActive ? 'Đang hoạt động' : 'Không hoạt động'}
-                    </span>
-                    <span className={styles.semesterId}>ID: {semester.id}</span>
-                  </div>
-                </div>
-
-                <div className={styles.semesterInfo}>
-                  <div className={styles.dateRange}>
-                    <div className={styles.dateItem}>
-                      <strong>Bắt đầu:</strong> {formatDate(semester.startAt)}
-                    </div>
-                    <div className={styles.dateItem}>
-                      <strong>Kết thúc:</strong> {formatDate(semester.endAt)}
-                    </div>
-                  </div>
-
-                  {semester.description && (
-                    <div className={styles.description}>
-                      <strong>Mô tả:</strong> {semester.description}
-                    </div>
-                  )}
-
-                  <div className={styles.duration}>
-                    <strong>Thời gian:</strong> {Math.ceil((new Date(semester.endAt) - new Date(semester.startAt)) / (1000 * 60 * 60 * 24))} ngày
-                  </div>
-                </div>
-
-                <div className={styles.semesterActions}>
-                  <span className={styles.clickHint}>Click để xem chi tiết</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <DataTable
+          columns={columns}
+          data={filteredSemesters}
+          loading={loading}
+          emptyMessage="No semesters found"
+          onRowClick={(semester) => handleSemesterClick(semester.id)}
+        />
       </div>
     </div>
   );

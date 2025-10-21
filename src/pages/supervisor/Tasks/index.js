@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
+import DataTable from '../../../components/DataTable/DataTable';
 import axiosClient from '../../../utils/axiosClient';
 
 export default function SupervisorTasks() {
@@ -28,14 +29,14 @@ export default function SupervisorTasks() {
   const currentUser = getCurrentUser();
   const [tasks, setTasks] = React.useState([]);
   const [milestones, setMilestones] = React.useState([]);
+  const [meetings, setMeetings] = React.useState([]);
   const [groups, setGroups] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [viewMode, setViewMode] = React.useState('list'); // list or kanban
 
-  // Trạng thái search-on-click
+  // Status search-on-click
   const [isSearched, setIsSearched] = React.useState(false);
   
-  // Tất cả tasks (load khi bấm tìm kiếm)
+  // Tất cả issues (load khi bấm tìm kiếm)
   const [allTasks, setAllTasks] = React.useState([]);
   
   // Filter states riêng biệt
@@ -43,6 +44,9 @@ export default function SupervisorTasks() {
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
+  const [taskTypeFilter, setTaskTypeFilter] = React.useState('');
+  const [isActiveTask, setIsActiveTask] = React.useState(true);
+  const [viewType, setViewType] = React.useState('project_view'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
 
   // API: lấy milestones theo group
   const fetchMilestonesByGroup = async (gid) => {
@@ -63,12 +67,12 @@ export default function SupervisorTasks() {
         }));
       } else {
         console.error('Error fetching milestones:', response.data.message);
-        alert(`Lỗi lấy milestones: ${response.data.message}`);
+        alert(`Error lấy milestones: ${response.data.message}`);
         return [];
       }
     } catch (error) {
       console.error('Error fetching milestones:', error);
-      alert(`Lỗi kết nối milestones: ${error.message}`);
+      alert(`Error kết nối milestones: ${error.message}`);
       return [];
     }
   };
@@ -91,12 +95,12 @@ export default function SupervisorTasks() {
         }));
       } else {
         console.error('Error fetching students:', response.data.message);
-        alert(`Lỗi lấy danh sách students: ${response.data.message}`);
+        alert(`Error lấy danh sách students: ${response.data.message}`);
         return [];
       }
     } catch (error) {
       console.error('Error fetching students:', error);
-      alert(`Lỗi kết nối lấy students: ${error.message}`);
+      alert(`Error kết nối lấy students: ${error.message}`);
       return [];
     }
   };
@@ -117,12 +121,59 @@ export default function SupervisorTasks() {
         }));
       } else {
         console.error('Error fetching groups:', response.data.message);
-        alert(`Lỗi lấy danh sách groups: ${response.data.message}`);
+        alert(`Error lấy danh sách groups: ${response.data.message}`);
         return [];
       }
     } catch (error) {
       console.error('Error fetching groups:', error);
-      alert(`Lỗi kết nối lấy groups: ${error.message}`);
+      alert(`Error kết nối lấy groups: ${error.message}`);
+      return [];
+    }
+  };
+
+  // API: lấy meetings đã họp cho supervisor
+  // TODO: API này chưa có, tạm thời mock data
+  const fetchCompletedMeetings = async (gid) => {
+    if (!gid) return [];
+    try {
+      // Mock data cho meetings đã hoàn thành
+      const mockMeetings = [
+        {
+          id: 1,
+          description: "Meeting tuần 1 - Review tiến độ dự án",
+          meetingDate: "2024-01-15",
+          startTime: "09:00:00",
+          endTime: "11:00:00"
+        },
+        {
+          id: 2,
+          description: "Meeting tuần 2 - Demo prototype",
+          meetingDate: "2024-01-22",
+          startTime: "14:00:00",
+          endTime: "16:00:00"
+        },
+        {
+          id: 3,
+          description: "Meeting tuần 3 - Code review",
+          meetingDate: "2024-01-29",
+          startTime: "10:00:00",
+          endTime: "12:00:00"
+        },
+        {
+          id: 4,
+          description: "Meeting tuần 4 - Testing và bug fix",
+          meetingDate: "2024-02-05",
+          startTime: "15:00:00",
+          endTime: "17:00:00"
+        }
+      ];
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      return mockMeetings;
+    } catch (error) {
+      console.error('Error fetching meetings:', error);
       return [];
     }
   };
@@ -136,16 +187,19 @@ export default function SupervisorTasks() {
         const groupsData = await fetchSupervisorGroups();
         setGroups(groupsData);
         
-        // Nếu có groupId, load milestones và students
+        // Nếu có groupId, load milestones, students và meetings
         if (groupId) {
-          const [milestoneRes, studentRes] = await Promise.all([
+          const [milestoneRes, studentRes, meetingRes] = await Promise.all([
             fetchMilestonesByGroup(groupId),
             fetchStudentsByGroup(groupId),
+            fetchCompletedMeetings(groupId),
           ]);
           setMilestones(milestoneRes);
+          setMeetings(meetingRes);
           setAssigneeSource(studentRes);
         } else {
           setMilestones([]);
+          setMeetings([]);
           setAssigneeSource([]);
         }
         
@@ -177,7 +231,7 @@ export default function SupervisorTasks() {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -185,12 +239,133 @@ export default function SupervisorTasks() {
     });
   };
 
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'todo':
+        return { color: '#6b7280', text: 'To Do', bgColor: '#f3f4f6' };
+      case 'inProgress':
+        return { color: '#d97706', text: 'In Progress', bgColor: '#fef3c7' };
+      case 'done':
+        return { color: '#059669', text: 'Done', bgColor: '#d1fae5' };
+      default:
+        return { color: '#64748b', text: 'Unknown', bgColor: '#f3f4f6' };
+    }
+  };
+
+  const columns = [
+    {
+      key: 'title',
+      title: 'Task',
+      render: (task) => (
+        <div>
+          <div className={styles.taskTitle}>
+            {task.title}
+            {task.hasDependencies && (
+              <span className={styles.dependencyIcon} title="Có phụ thuộc">
+                🔗
+              </span>
+            )}
+          </div>
+          <div className={styles.taskType}>
+            <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'milestone']}`}>
+              {task.isMeetingTask ? 'Meeting' : 'Milestone'}
+            </span>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'assignee',
+      title: 'Assignee',
+      render: (task) => task.assigneeName
+    },
+    {
+      key: 'milestone',
+      title: 'Milestone',
+      render: (task) => task.milestoneName
+    },
+    {
+      key: 'priority',
+      title: 'Priority',
+      render: (task) => {
+        const priorityInfo = getPriorityInfo(task.priority);
+        return (
+          <span 
+            className={styles.priorityBadge}
+            style={{ 
+              color: priorityInfo.color,
+              backgroundColor: priorityInfo.color + '20'
+            }}
+          >
+            {priorityInfo.text}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'status',
+      title: 'Status',
+      render: (task) => {
+        const statusInfo = getStatusInfo(task.status);
+        return (
+          <span 
+            className={styles.statusBadge}
+            style={{ 
+              color: statusInfo.color,
+              backgroundColor: statusInfo.bgColor
+            }}
+          >
+            {statusInfo.text}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'progress',
+      title: 'Progress',
+      render: (task) => (
+        <div className={styles.progressInfo}>
+          <div className={styles.progressBar}>
+            <div 
+              className={styles.progressFill}
+              style={{ width: `${task.progress}%` }}
+            />
+          </div>
+          <div className={styles.progressText}>{task.progress}%</div>
+        </div>
+      )
+    },
+    {
+      key: 'deadline',
+      title: 'Deadline',
+      render: (task) => formatDate(task.deadline)
+    },
+    {
+      key: 'actions',
+      title: 'Actions',
+      render: (task) => (
+        <div className={styles.actionButtons}>
+          <Button 
+            size="sm"
+            variant="secondary"
+            onClick={(e) => {
+              e.stopPropagation();
+              openTaskDetail(task);
+            }}
+          >
+            Details
+          </Button>
+        </div>
+      )
+    }
+  ];
+
   const openTaskDetail = (task) => {
     const url = `/supervisor/task/group/${groupId}?taskId=${task.id}`;
     navigate(url);
   };
 
-  // Handle search - load all tasks từ API
+  // Handle search - load all issues từ API
   const handleSearch = async () => {
     if (!groupId) {
       alert('Vui lòng chọn group trước');
@@ -200,7 +375,7 @@ export default function SupervisorTasks() {
     try {
       setLoading(true);
       
-      // Gọi API lấy tất cả tasks theo group
+      // Gọi API lấy tất cả issues theo group
       const response = await axiosClient.get(`/Student/Task/get-by-group/${groupId}`);
       
       if (response.data.status === 200) {
@@ -235,37 +410,89 @@ export default function SupervisorTasks() {
         
         // Hiển thị thông báo nếu không có task
         if (mappedTasks.length === 0) {
-          alert('Không có task nào');
+          alert('No tasks found');
         }
       } else {
         console.error('Error fetching tasks:', response.data.message);
-        alert(`Lỗi: ${response.data.message}`);
+        alert(`Error: ${response.data.message}`);
         setAllTasks([]);
       }
     } catch (error) {
       console.error('Error fetching tasks:', error);
-      alert(`Lỗi kết nối: ${error.message}`);
+      alert(`Error kết nối: ${error.message}`);
       setAllTasks([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle reset filters
-  const handleResetFilters = () => {
-    setMilestoneFilter('');
-    setAssigneeFilter('');
-    setPriorityFilter('');
-    setStatusFilter('');
-    setMyTasksOnly(false);
-    setAllTasks([]);
-    setIsSearched(false);
-  };
 
   // Handle group change
-  const handleGroupChange = (newGroupId) => {
+  const handleGroupChange = async (newGroupId) => {
+    if (newGroupId) {
     const url = `/supervisor/tasks?groupId=${newGroupId}`;
     navigate(url);
+      // Auto-call API when group is selected
+      setTimeout(async () => {
+        await fetchTasksForGroup(newGroupId);
+      }, 100);
+    }
+  };
+
+  // Fetch issues for specific group
+  const fetchTasksForGroup = async (gid) => {
+    try {
+      setLoading(true);
+      
+      // Gọi API lấy tất cả issues theo group
+      const response = await axiosClient.get(`/Student/Task/get-by-group/${gid}`);
+      
+      if (response.data.status === 200) {
+        const apiData = response.data.data;
+        const tasksData = Array.isArray(apiData) ? apiData : [];
+        
+        // Map data từ API response sang format frontend
+        const mappedTasks = tasksData.map(task => {
+          return {
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            groupId: task.group?.id?.toString() || gid || '1',
+            assignee: task.assigneeId,
+            assigneeName: task.assigneeName,
+            deadline: task.deadline,
+            priority: task.priority?.toLowerCase() || 'medium',
+            status: task.status === 'ToDo' ? 'todo' : 
+                   task.status === 'InProgress' ? 'inProgress' : 'done',
+            milestoneId: task.milestone?.id || null,
+            milestoneName: task.milestone?.name || 'No Milestone',
+            createdAt: task.createdAt,
+            progress: parseInt(task.process) || 0,
+            attachments: task.attachments || [],
+            comments: task.comments || [],
+            history: task.history || []
+          };
+        });
+
+        setAllTasks(mappedTasks);
+        setIsSearched(true);
+        
+        // Hiển thị thông báo nếu không có issue
+        if (mappedTasks.length === 0) {
+          alert('No tasks found');
+        }
+      } else {
+        console.error('Error fetching issues:', response.data.message);
+        alert(`Error: ${response.data.message}`);
+        setAllTasks([]);
+      }
+    } catch (error) {
+      console.error('Error fetching issues:', error);
+      alert(`Error kết nối: ${error.message}`);
+      setAllTasks([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading) {
@@ -282,10 +509,21 @@ export default function SupervisorTasks() {
     const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
     const statusMatch = statusFilter === '' || task.status === statusFilter;
     const priorityMatch = priorityFilter === '' || task.priority === priorityFilter;
-    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch;
+    
+    // Filter theo loại task dựa trên isMeetingTask
+    let taskTypeMatch = true;
+    if (taskTypeFilter === 'meeting') {
+      taskTypeMatch = task.isMeetingTask === true;
+    } else if (taskTypeFilter === 'milestone') {
+      taskTypeMatch = task.isMeetingTask !== true;
+    }
+    
+    const activeTaskMatch = !isActiveTask || task.isActive === true;
+    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && activeTaskMatch;
   });
 
   const milestoneOptions = milestones.map(m => ({ value: m.id.toString(), label: m.name }));
+//  console.log("milestoneOptions", milestoneOptions);
   const assigneeOptions = assigneeSource.map(s => {
     return { value: s.id, label: s.name }
   });
@@ -297,12 +535,13 @@ export default function SupervisorTasks() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Task Management - Supervisor View</h1>
+        <h1>Tasks Management - Supervisor View</h1>
       </div>
 
-      {/* Group Selection */}
-      <div className={styles.section}>
-        <h2>Chọn Group</h2>
+
+      {/* Group Selection - ở đầu dòng */}
+      <div className={styles.groupSection}>
+        <div className={styles.groupControls}>
           <div className={styles.controlGroup}>
             <label>Group:</label>
           <select
@@ -317,14 +556,18 @@ export default function SupervisorTasks() {
               </option>
             ))}
           </select>
+          </div>
         </div>
       </div>
 
+      {/* Chỉ hiển thị khi đã chọn group */}
+      {groupId && (
+        <>
       {/* Stats Grid */}
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
           <div className={styles.statValue}>{filteredTasks.length}</div>
-          <div className={styles.statLabel}>Total Tasks</div>
+              <div className={styles.statLabel}>Total Tasks</div>
         </div>
         <div className={styles.statCard}>
           <div className={styles.statValue}>{todoTasks.length}</div>
@@ -341,9 +584,11 @@ export default function SupervisorTasks() {
           </div>
 
       {/* Filters */}
-      {groupId && (
-        <div className={styles.header}>
-          <div className={styles.controls}>
+          <div className={styles.filtersSection}>
+            <div className={styles.filtersHeader}>
+              <h3>Filters</h3>
+            </div>
+            <div className={styles.filtersControls}>
           <div className={styles.controlGroup}>
             <label>Milestone:</label>
               <select
@@ -400,239 +645,73 @@ export default function SupervisorTasks() {
                 <option value="done">Done</option>
               </select>
             </div>
+          <div className={styles.controlGroup}>
+            <label>Task Type:</label>
+              <select
+                value={taskTypeFilter}
+                onChange={(e) => setTaskTypeFilter(e.target.value)}
+                className={styles.select}
+              >
+                <option value="">All</option>
+                <option value="milestone">Milestone</option>
+                <option value="meeting">Meeting</option>
+              </select>
+            </div>
+          <div className={styles.controlGroup}>
+            <label>
+              <input
+                type="checkbox"
+                checked={isActiveTask}
+                onChange={(e) => setIsActiveTask(e.target.checked)}
+                className={styles.checkbox}
+              />
+              Active Tasks
+            </label>
+          </div>
+            </div>
+          </div>
+
+          {/* Toolbar ngay trên table */}
+          <div className={styles.tableToolbar}>
             <button
-              className={styles.searchButton}
-              onClick={handleSearch}
+              className={styles.refreshButton}
+              onClick={() => fetchTasksForGroup(groupId)}
             >
-              Tìm kiếm
-            </button>
-            <button
-              className={styles.resetButton}
-              onClick={handleResetFilters}
-            >
-              Reset
+              Refresh
             </button>
           </div>
+        </>
+      )}
+
+
+      {/* Empty state khi chưa chọn group */}
+      {!groupId && (
+        <div className={styles.emptyState}>
+          <div className={styles.emptyTitle}>Chọn group để xem issues</div>
+          <div className={styles.emptySubtitle}>Chọn group từ dropdown bên trên để xem issues</div>
         </div>
       )}
 
-      <div className={styles.viewToggle}>
-        <button 
-          className={`${styles.toggleButton} ${viewMode === 'list' ? styles.active : ''}`}
-          onClick={() => setViewMode('list')}
-        >
-          List View
-        </button>
-        <button 
-          className={`${styles.toggleButton} ${viewMode === 'kanban' ? styles.active : ''}`}
-          onClick={() => setViewMode('kanban')}
-        >
-          Kanban View
-        </button>
-      </div>
-      
-      {/* Empty state khi không có task */}
-      {filteredTasks.length === 0 ? (
+      {/* Empty state khi đã chọn group nhưng không có issue */}
+      {groupId && filteredTasks.length === 0 && (
         <div className={styles.emptyState}>
-          <div className={styles.emptyTitle}>
-            {allTasks.length === 0 ? 
-              "Chọn group và nhấn 'Tìm kiếm' để xem tasks" : 
-              "Không có task nào phù hợp với bộ lọc"
-            }
-              </div>
-          <div className={styles.emptySubtitle}>
-            {allTasks.length === 0 ? 
-              "Chọn group từ dropdown bên trên để xem tasks" : 
-              "Thử thay đổi bộ lọc"
-            }
-          </div>
-          {groupId && (
-            <button className={styles.searchButton} onClick={handleSearch}>
-              {allTasks.length === 0 ? "Tìm kiếm" : "Tìm kiếm lại"}
-            </button>
-          )}
+          <div className={styles.emptyTitle}>No tasks found</div>
+          <div className={styles.emptySubtitle}>Thử chọn group khác hoặc thay đổi bộ lọc</div>
         </div>
-      ) : viewMode === 'list' ? (
-            <div className={styles.tasksList}>
-              {filteredTasks.map((task) => {
-                const priorityInfo = getPriorityInfo(task.priority);
-                return (
-                  <div key={task.id} className={styles.taskCard}>
-                    <div className={styles.taskHeader}>
-                  <h4>{task.title}</h4>
-                  <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
-                            {priorityInfo.text}
-                          </span>
-                        </div>
-                
-                <p className={styles.taskDescription}>{task.description}</p>
-                
-                <div className={styles.taskDetails}>
-                  <div className={styles.detailItem}>
-                    <strong>👤 Assignee:</strong> {task.assigneeName}
-                  </div>
-                  <div className={styles.detailItem}>
-                    <strong>📅 Deadline:</strong> {formatDate(task.deadline)}
-                  </div>
-                  <div className={styles.detailItem}>
-                    <strong>🎯 Milestone:</strong> {task.milestoneName}
-                  </div>
-                        </div>
-                
-                        <div className={styles.progressBar}>
-                          <div className={styles.progressLabel}>Progress: {task.progress}%</div>
-                          <div className={styles.progressTrack}>
-                            <div 
-                              className={styles.progressFill} 
-                              style={{ width: `${task.progress}%` }}
-                            />
-                          </div>
-                        </div>
-                
-                <div className={styles.taskMeta}>
-                  <div className={styles.metaItem}>
-                    <span className={styles.metaLabel}>Created:</span>
-                    <span>{formatDate(task.createdAt)}</span>
-                  </div>
-                  <div className={styles.metaItem}>
-                    <span className={styles.metaLabel}>Attachments:</span>
-                    <span>{task.attachments.length} files</span>
-                  </div>
-                  <div className={styles.metaItem}>
-                    <span className={styles.metaLabel}>Comments:</span>
-                    <span>{task.comments.length}</span>
-                  </div>
-                </div>
-                
-                <div className={styles.taskActions}>
-                  <button 
-                    className={`${styles.actionButton} ${styles.primary}`}
-                    onClick={() => openTaskDetail(task)}
-                  >
-                    View Details
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className={styles.kanbanBoard}>
-          <div className={`${styles.column} ${styles.todo}`}>
-            <div className={styles.columnHeader}>
-              <h3>To Do</h3>
-              <span className={styles.taskCount}>{todoTasks.length}</span>
-                      </div>
-            <div className={styles.taskList}>
-              {todoTasks.map((task) => {
-                const priorityInfo = getPriorityInfo(task.priority);
-                return (
-                  <div key={task.id} className={styles.taskCard}>
-                    <div className={styles.taskHeader}>
-                      <h4>{task.title}</h4>
-                      <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
-                        {priorityInfo.text}
-                      </span>
-                    </div>
-                    <p className={styles.taskDescription}>{task.description}</p>
-                    
-                    <div className={styles.taskDetails}>
-                        <div className={styles.detailItem}>
-                        <strong>👤 Assignee:</strong> {task.assigneeName}
-                        </div>
-                        <div className={styles.detailItem}>
-                        <strong>📅 Deadline:</strong> {formatDate(task.deadline)}
-                      </div>
-                        <div className={styles.detailItem}>
-                        <strong>🎯 Milestone:</strong> {task.milestoneName}
-                      </div>
-                    </div>
-                    
-                    <div className={styles.taskActions}>
-                      <button 
-                        className={`${styles.actionButton} ${styles.primary}`}
-                        onClick={() => openTaskDetail(task)}
-                      >
-                        View Details
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+      )}
 
-          <div className={`${styles.column} ${styles.inProgress}`}>
-            <div className={styles.columnHeader}>
-              <h3>In Progress</h3>
-              <span className={styles.taskCount}>{inProgressTasks.length}</span>
-            </div>
-            <div className={styles.taskList}>
-              {inProgressTasks.map((task) => {
-                const priorityInfo = getPriorityInfo(task.priority);
-                return (
-                  <div key={task.id} className={styles.kanbanCard}>
-                    <div className={styles.kanbanHeader}>
-                    <h4>{task.title}</h4>
-                      <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
-                        {priorityInfo.text}
-                      </span>
-                    </div>
-                    <p className={styles.kanbanDescription}>{task.description}</p>
-                    <div className={styles.kanbanMeta}>
-                      <div className={styles.assigneeInfo}>{task.assigneeName}</div>
-                      <div className={styles.deadlineInfo}>{formatDate(task.deadline)}</div>
-                    </div>
-                    <div className={styles.kanbanActions}>
-                      <Button 
-                        size="sm"
-                        onClick={() => openTaskDetail(task)}
-                      >
-                        View Details
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className={`${styles.column} ${styles.done}`}>
-            <div className={styles.columnHeader}>
-              <h3>Done</h3>
-              <span className={styles.taskCount}>{doneTasks.length}</span>
-              </div>
-            <div className={styles.taskList}>
-              {doneTasks.map((task) => {
-                const priorityInfo = getPriorityInfo(task.priority);
-                return (
-                  <div key={task.id} className={styles.kanbanCard}>
-                    <div className={styles.kanbanHeader}>
-                    <h4>{task.title}</h4>
-                      <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
-                        {priorityInfo.text}
-                      </span>
-                    </div>
-                    <p className={styles.kanbanDescription}>{task.description}</p>
-                    <div className={styles.kanbanMeta}>
-                      <div className={styles.assigneeInfo}>{task.assigneeName}</div>
-                      <div className={styles.completedDate}>
-                        Completed: {formatDate(task.completedAt)}
-                      </div>
-                    </div>
-                    <div className={styles.kanbanActions}>
-                      <Button 
-                        size="sm"
-                        onClick={() => openTaskDetail(task)}
-                      >
-                        View Details
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-        </div>
+      {/* DataTable khi có group và có data */}
+      {groupId && filteredTasks.length > 0 && (
+        <div className={styles.tasksTable}>
+          <DataTable
+            columns={columns}
+            data={filteredTasks}
+            loading={loading}
+            emptyMessage="No tasks found"
+            onRowClick={openTaskDetail}
+            showIndex={true}
+            indexTitle="No"
+          />
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
+import DataTable from '../../../components/DataTable/DataTable';
 import axiosClient from '../../../utils/axiosClient';
 
 export default function StudentTasks() {
@@ -21,23 +22,27 @@ export default function StudentTasks() {
       return null; // Không có user
     } catch (error) {
       console.error('Error parsing auth_user:', error);
-      return null; // Lỗi parse
+      return null; // Error parse
     }
   };
   
   const currentUser = getCurrentUser();
   const [tasks, setTasks] = React.useState([]);
   const [milestones, setMilestones] = React.useState([]);
+  const [meetings, setMeetings] = React.useState([]);
+  const [reviewers, setReviewers] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [taskModal, setTaskModal] = React.useState(false);
-  const [viewMode, setViewMode] = React.useState('list'); // list or kanban
   const [newTask, setNewTask] = React.useState({
     title: '',
     description: '',
     assignee: '',
     priority: '',
     milestoneId: '',
-    deadline: ''
+    meetingId: '',
+    taskType: 'throughout', // 'throughout' or 'meeting'
+    deadline: '',
+    reviewer: ''
   });
   
   // States cho comment và attachment
@@ -45,7 +50,7 @@ export default function StudentTasks() {
   const [newComment, setNewComment] = React.useState('');
   const [newAttachment, setNewAttachment] = React.useState('');
 
-  // Trạng thái search-on-click
+  // Status search-on-click
   const [isSearched, setIsSearched] = React.useState(false);
   
   // Tất cả tasks (load khi bấm tìm kiếm)
@@ -56,7 +61,10 @@ export default function StudentTasks() {
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
-  const [myTasksOnly, setMyTasksOnly] = React.useState(false);
+  const [taskTypeFilter, setTaskTypeFilter] = React.useState('');
+  const [isActiveTask, setIsActiveTask] = React.useState(true);
+  const [myTasksOnly, setMyTasksOnly] = React.useState(true);
+  const [viewType, setViewType] = React.useState('my_tasks'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
   // API: lấy milestones theo group
   const fetchMilestonesByGroup = async (gid) => {
     try {
@@ -77,12 +85,12 @@ export default function StudentTasks() {
         }));
       } else {
         console.error('Error fetching milestones:', response.data.message);
-        alert(`Lỗi lấy milestones: ${response.data.message}`);
+        alert(`Error lấy milestones: ${response.data.message}`);
         return [];
       }
     } catch (error) {
       console.error('Error fetching milestones:', error);
-      alert(`Lỗi kết nối milestones: ${error.message}`);
+      alert(`Error kết nối milestones: ${error.message}`);
       return [];
     }
   };
@@ -106,13 +114,140 @@ export default function StudentTasks() {
         }));
       } else {
         console.error('Error fetching students:', response.data.message);
-        alert(`Lỗi lấy danh sách students: ${response.data.message}`);
+        alert(`Error lấy danh sách students: ${response.data.message}`);
         return [];
       }
     } catch (error) {
       console.error('Error fetching students:', error);
-      alert(`Lỗi kết nối lấy students: ${error.message}`);
+      alert(`Error kết nối lấy students: ${error.message}`);
       return [];
+    }
+  };
+
+  // API: lấy reviewers (supervisors + students) từ group
+  const fetchReviewers = async (gid) => {
+    try {
+      const response = await axiosClient.get(`/Staff/capstone-groups/${gid}`);
+      
+      if (response.data.status === 200) {
+        const groupData = response.data.data;
+        const reviewersList = [];
+        
+        // Add supervisors
+        if (groupData.supervisors && Array.isArray(groupData.supervisors)) {
+          groupData.supervisors.forEach(supervisor => {
+            reviewersList.push({
+              id: `supervisor_${supervisor}`,
+              name: supervisor,
+              type: 'Supervisor'
+            });
+          });
+        }
+        
+        // Add students
+        if (groupData.students && Array.isArray(groupData.students)) {
+          groupData.students.forEach(student => {
+            reviewersList.push({
+              id: `student_${student.id}`,
+              name: student.name,
+              type: 'Student',
+              role: student.role
+            });
+          });
+        }
+        
+        return reviewersList;
+      } else {
+        console.error('Error fetching reviewers:', response.data.message);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching reviewers:', error);
+      return [];
+    }
+  };
+
+  // API: lấy meetings đã họp để tạo meeting tasks
+  // TODO: API này chưa có, tạm thời mock data
+  const fetchCompletedMeetings = async (gid) => {
+    try {
+      // Mock data cho meetings đã hoàn thành
+      const mockMeetings = [
+        {
+          id: 1,
+          description: "Meeting tuần 1 - Review tiến độ dự án",
+          meetingDate: "2024-01-15",
+          startTime: "09:00:00",
+          endTime: "11:00:00"
+        },
+        {
+          id: 2,
+          description: "Meeting tuần 2 - Demo prototype",
+          meetingDate: "2024-01-22",
+          startTime: "14:00:00",
+          endTime: "16:00:00"
+        },
+        {
+          id: 3,
+          description: "Meeting tuần 3 - Code review",
+          meetingDate: "2024-01-29",
+          startTime: "10:00:00",
+          endTime: "12:00:00"
+        },
+        {
+          id: 4,
+          description: "Meeting tuần 4 - Testing và bug fix",
+          meetingDate: "2024-02-05",
+          startTime: "15:00:00",
+          endTime: "17:00:00"
+        }
+      ];
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      return mockMeetings;
+    } catch (error) {
+      console.error('Error fetching meetings:', error);
+      return [];
+    }
+  };
+
+  const fetchTasks = async () => {
+    try {
+      setLoading(true);
+      const response = await axiosClient.get(`/Student/Task/get-by-group/${groupId}`);
+      if (response.data.status === 200) {
+        const apiData = response.data.data;
+        const tasksData = Array.isArray(apiData) ? apiData : [];
+        const mappedTasks = tasksData.map(task => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          groupId: task.group?.id?.toString() || groupId || '1',
+          assignee: task.assigneeId,
+          assigneeName: task.assigneeName,
+          deadline: task.deadline,
+          priority: task.priority?.toLowerCase() || 'medium',
+          status: task.status === 'ToDo' ? 'todo' : 
+                 task.status === 'InProgress' ? 'inProgress' : 'done',
+          milestoneId: task.milestone?.id || null,
+          milestoneName: task.milestone?.name || 'No Milestone',
+          createdAt: task.createdAt,
+          progress: parseInt(task.process) || 0,
+          attachments: task.attachments || [],
+          comments: task.comments || [],
+          history: task.history || []
+        }));
+        setAllTasks(mappedTasks);
+        setIsSearched(true);
+      } else {
+        setAllTasks([]);
+      }
+    } catch (error) {
+      setAllTasks([]);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -120,17 +255,23 @@ export default function StudentTasks() {
     const bootstrapFilters = async () => {
       try {
         setLoading(true);
-        // Load dữ liệu filter trước (milestones/students theo group)
-        const [milestoneRes, studentRes] = await Promise.all([
+        // Load dữ liệu filter trước (milestones/students/meetings/reviewers theo group)
+        const [milestoneRes, studentRes, meetingRes, reviewerRes] = await Promise.all([
           fetchMilestonesByGroup(groupId),
           fetchStudentsByGroup(groupId),
+          fetchCompletedMeetings(groupId),
+          fetchReviewers(groupId),
         ]);
         const milestonesData = milestoneRes;
         const students = studentRes;
+        const meetings = meetingRes;
+        const reviewers = reviewerRes;
         setMilestones(milestonesData);
-        // Không load tasks ở đây nữa, chỉ load khi bấm "Tìm kiếm"
-        setTasks([]);
-        // Lưu danh sách assignee từ API students
+        setMeetings(meetings);
+        setReviewers(reviewers);
+        // Tự động load issues khi vào trang
+        await fetchTasks();
+        // Save danh sách assignee từ API students
         setAssigneeSource(students);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -159,7 +300,7 @@ export default function StudentTasks() {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -167,76 +308,159 @@ export default function StudentTasks() {
     });
   };
 
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'todo':
+        return { color: '#6b7280', text: 'To Do', bgColor: '#f3f4f6' };
+      case 'inProgress':
+        return { color: '#d97706', text: 'In Progress', bgColor: '#fef3c7' };
+      case 'done':
+        return { color: '#059669', text: 'Done', bgColor: '#d1fae5' };
+      default:
+        return { color: '#64748b', text: 'Unknown', bgColor: '#f3f4f6' };
+    }
+  };
+
+  const columns = [
+    {
+      key: 'title',
+      title: 'Task',
+      render: (task) => (
+        <div>
+          <div className={styles.taskTitle}>
+            {task.title}
+            {task.hasDependencies && (
+              <span className={styles.dependencyIcon} title="Có phụ thuộc">
+                🔗
+              </span>
+            )}
+          </div>
+          <div className={styles.taskType}>
+            <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'milestone']}`}>
+              {task.isMeetingTask ? 'Meeting' : 'Milestone'}
+            </span>
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'assignee',
+      title: 'Assignee',
+      render: (task) => task.assigneeName
+    },
+    {
+      key: 'milestone',
+      title: 'Milestone',
+      render: (task) => task.milestoneName
+    },
+    {
+      key: 'priority',
+      title: 'Priority',
+      render: (task) => {
+        const priorityInfo = getPriorityInfo(task.priority);
+        return (
+          <span 
+            className={styles.priorityBadge}
+            style={{ 
+              color: priorityInfo.color,
+              backgroundColor: priorityInfo.color + '20'
+            }}
+          >
+            {priorityInfo.text}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'status',
+      title: 'Status',
+      render: (task) => {
+        const statusInfo = getStatusInfo(task.status);
+        return (
+          <span 
+            className={styles.statusBadge}
+            style={{ 
+              color: statusInfo.color,
+              backgroundColor: statusInfo.bgColor
+            }}
+          >
+            {statusInfo.text}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'progress',
+      title: 'Progress',
+      render: (task) => (
+        <div className={styles.progressInfo}>
+          <div className={styles.progressBar}>
+            <div 
+              className={styles.progressFill}
+              style={{ width: `${task.progress}%` }}
+            />
+          </div>
+          <div className={styles.progressText}>{task.progress}%</div>
+        </div>
+      )
+    },
+    {
+      key: 'deadline',
+      title: 'Deadline',
+      render: (task) => formatDate(task.deadline)
+    },
+    {
+      key: 'actions',
+      title: 'Actions',
+      render: (task) => (
+        <div className={styles.actionButtons}>
+          <Button 
+            size="sm"
+            variant="secondary"
+            onClick={(e) => {
+              e.stopPropagation();
+              openTaskDetail(task);
+            }}
+          >
+            Details
+          </Button>
+          {task.status === 'todo' && (
+            <Button 
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                moveTask(task.id, 'todo', 'inProgress');
+              }}
+            >
+              Start
+            </Button>
+          )}
+          {task.status === 'inProgress' && (
+            <Button 
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                moveTask(task.id, 'inProgress', 'done');
+              }}
+            >
+              Complete
+            </Button>
+          )}
+        </div>
+      )
+    }
+  ];
+
   const openTaskDetail = (task) => {
     const url = `/student/task-detail/${groupId}?taskId=${task.id}`;
     navigate(url);
   };
 
-  // Handle search - load all tasks từ API
-  const handleSearch = async () => {
-    try {
-      setLoading(true);
-      
-      // Gọi API lấy tất cả tasks theo group
-      const response = await axiosClient.get(`/Student/Task/get-by-group/${groupId}`);
-      if (response.data.status === 200) {
-        // Kiểm tra data có tồn tại và không null/undefined
-        const apiData = response.data.data;
-        const tasksData = Array.isArray(apiData) ? apiData : [];
-        // Map data từ API response sang format front
-        const mappedTasks = tasksData.map(task => {
-          console.log("task", task);
-          return {
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            groupId: task.group?.id?.toString() || groupId || '1',
-            assignee: task.assigneeId,
-            assigneeName: task.assigneeName,
-            deadline: task.deadline,
-            priority: task.priority?.toLowerCase() || 'medium',
-            status: task.status === 'ToDo' ? 'todo' : 
-                   task.status === 'InProgress' ? 'inProgress' : 'done',
-            milestoneId: task.milestone?.id || null,
-            milestoneName: task.milestone?.name || 'No Milestone',
-            createdAt: task.createdAt,
-            progress: parseInt(task.process) || 0,
-            attachments: task.attachments || [],
-            comments: task.comments || [],
-            history: task.history || []
-          }});
-
-        setAllTasks(mappedTasks);
-        setIsSearched(true);
-        
-        // Hiển thị thông báo nếu không có task
-        if (mappedTasks.length === 0) {
-          alert('Không có task nào');
-        }
-      } else {
-        console.error('Error fetching tasks:', response.data.message);
-        alert(`Lỗi: ${response.data.message}`);
-        setAllTasks([]);
-      }
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      alert(`Lỗi kết nối: ${error.message}`);
-      setAllTasks([]);
-    } finally {
-      setLoading(false);
-    }
+  // Refresh issues
+  const handleRefresh = async () => {
+    await fetchTasks();
   };
 
-  // Handle reset filters
-  const handleResetFilters = () => {
-    setMilestoneFilter('');
-    setAssigneeFilter('');
-    setPriorityFilter('');
-    setStatusFilter('');
-    setMyTasksOnly(false);
-    setAllTasks([]);
-    setIsSearched(false);
-  };
 
   const createNewTask = async () => {
     if (!newTask.title || !newTask.description || !newTask.assignee || !newTask.priority) {
@@ -244,9 +468,42 @@ export default function StudentTasks() {
       return;
     }
 
+    // Validation cho deadline không được trước thời gian hiện tại
+    if (newTask.deadline) {
+      const deadlineDate = new Date(newTask.deadline);
+      const currentDate = new Date();
+      if (deadlineDate <= currentDate) {
+        alert('Deadline must be after current time');
+        return;
+      }
+    }
+
+    // Validation cho meeting task
+    if (newTask.taskType === 'meeting' && !newTask.meetingId) {
+      alert('Please select a meeting for meeting task');
+      return;
+    }
+
+    // Validation logic: isMeetingTask và meetingId phải đi đôi
+    if (newTask.taskType === 'meeting') {
+      if (!newTask.meetingId) {
+        alert('Meeting Task phải có meetingId');
+        return;
+      }
+    } else {
+      // Throughout Task không được có meetingId
+      if (newTask.meetingId) {
+        alert('Throughout Task không được có meetingId');
+        return;
+      }
+    }
+    
+    // Milestone có thể có cho cả 2 loại task (tùy chọn)
+
     try {
       const selectedMilestone = milestones.find(m => m.id.toString() === newTask.milestoneId);
       const selectedAssignee = assigneeOptions.find(a => a.value === newTask.assignee);
+      const selectedReviewer = reviewers.find(r => r.id === newTask.reviewer);
      
       // Gọi API tạo task
       const taskData = {
@@ -259,7 +516,11 @@ export default function StudentTasks() {
                  newTask.priority === 'medium' ? 'Medium' : 'Low',
         process: '0',
         milestoneId: newTask.milestoneId ? parseInt(newTask.milestoneId) : null,
-        assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null
+        meetingId: newTask.meetingId ? parseInt(newTask.meetingId) : null,
+        taskType: newTask.taskType,
+        assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null,
+        reviewerId: newTask.reviewer || null,
+        reviewerName: selectedReviewer ? selectedReviewer.name : null
       };
       // console.log("taskData", taskData);
       const response = await axiosClient.post('/Student/Task/create', taskData);
@@ -291,19 +552,22 @@ export default function StudentTasks() {
           title: '',
           description: '',
           assignee: '',
-          priority: 'medium',
+          priority: 'low',
           milestoneId: '',
-          deadline: ''
+          meetingId: '',
+          taskType: 'throughout',
+          deadline: '',
+          reviewer: ''
         });
         setTaskModal(false);
         alert('Task created successfully!');
       } else {
         console.error('Error creating task:', response.data.message);
-        alert(`Lỗi tạo task: ${response.data.message}`);
+        alert(`Error tạo task: ${response.data.message}`);
       }
     } catch (error) {
       console.error('Error creating task:', error);
-      alert(`Lỗi tạo task: ${error.message}`);
+      alert(`Error tạo task: ${error.message}`);
     }
   };
 
@@ -338,7 +602,7 @@ export default function StudentTasks() {
       if (response.data.status === 200) {
         const nowIso = new Date().toISOString();
         
-        // Cập nhật state
+        // Update state
         setAllTasks(prev => {
           return prev.map(task => {
             if (task.id === taskId) {
@@ -362,11 +626,11 @@ export default function StudentTasks() {
         alert(`Task moved to ${toStatus}!`);
       } else {
         console.error('Error updating task:', response.data.message);
-        alert(`Lỗi cập nhật task: ${response.data.message}`);
+        alert(`Error cập nhật task: ${response.data.message}`);
       }
     } catch (error) {
       console.error('Error updating task:', error);
-      alert(`Lỗi kết nối cập nhật task: ${error.message}`);
+      alert(`Error kết nối cập nhật task: ${error.message}`);
     }
   };
 
@@ -389,7 +653,7 @@ export default function StudentTasks() {
       if (response.data.status === 200) {
         const nowIso = new Date().toISOString();
         
-        // Cập nhật state
+        // Update state
         setTasks(prev => prev.map(t => {
           if (t.id !== selectedTask.id) return t;
           const next = { ...t };
@@ -425,11 +689,11 @@ export default function StudentTasks() {
         setNewComment('');
       } else {
         console.error('Error creating comment:', response.data.message);
-        alert(`Lỗi tạo comment: ${response.data.message}`);
+        alert(`Error tạo comment: ${response.data.message}`);
       }
     } catch (error) {
       console.error('Error creating comment:', error);
-      alert(`Lỗi kết nối tạo comment: ${error.message}`);
+      alert(`Error kết nối tạo comment: ${error.message}`);
     }
   };
 
@@ -470,7 +734,7 @@ export default function StudentTasks() {
       setNewAttachment('');
     } catch (error) {
       console.error('Error uploading attachment:', error);
-      alert(`Lỗi upload attachment: ${error.message}`);
+      alert(`Error upload attachment: ${error.message}`);
     }
   };
 
@@ -484,16 +748,25 @@ export default function StudentTasks() {
 
   // Filter tasks dựa trên các filter states
   const filteredTasks = allTasks.filter(task => {
-
-    const milestoneMatch = milestoneFilter === '' || task.milestoneId.toString() === milestoneFilter;
+    const milestoneMatch = milestoneFilter === '' || (task.milestoneId && task.milestoneId.toString() === milestoneFilter);
     const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
     const statusMatch = statusFilter === '' || task.status === statusFilter;
     const priorityMatch = priorityFilter === '' || task.priority === priorityFilter;
+    
+    // Filter theo loại task dựa trên isMeetingTask
+    let taskTypeMatch = true;
+    if (taskTypeFilter === 'meeting') {
+      taskTypeMatch = task.isMeetingTask === true;
+    } else if (taskTypeFilter === 'milestone') {
+      taskTypeMatch = task.isMeetingTask !== true;
+    }
+    
     const myTasksMatch = !myTasksOnly || (currentUser && task.assignee === currentUser.id);
-    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && myTasksMatch;
+    const activeTaskMatch = !isActiveTask || task.isActive === true;
+    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && myTasksMatch && activeTaskMatch;
   });
 
-  const milestoneOptions = milestones.map(m => ({ value: m.id.toString(), label: m.name }));
+  const milestoneOptions = milestones.map(m => ({ value: m.id ? m.id.toString() : '', label: m.name }));
   const assigneeOptions = assigneeSource.map(s => {
     return { value: s.id, label: s.name }
   });
@@ -505,7 +778,7 @@ export default function StudentTasks() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Task Management</h1>
+        <h1>My Tasks</h1>
         <button 
           className={styles.createButton}
           onClick={() => setTaskModal(true)}
@@ -513,6 +786,7 @@ export default function StudentTasks() {
           + Create New Task
         </button>
       </div>
+
 
       {/* Stats Grid */}
       <div className={styles.statsGrid}>
@@ -593,6 +867,18 @@ export default function StudentTasks() {
             </select>
           </div>
           <div className={styles.controlGroup}>
+            <label>Task Type:</label>
+            <select
+              value={taskTypeFilter}
+              onChange={(e) => setTaskTypeFilter(e.target.value)}
+              className={styles.select}
+            >
+              <option value="">All</option>
+              <option value="milestone">Milestone</option>
+              <option value="meeting">Meeting</option>
+            </select>
+          </div>
+          <div className={styles.controlGroup}>
             <label>
               <input
                 type="checkbox"
@@ -603,228 +889,44 @@ export default function StudentTasks() {
               Task của tôi
             </label>
           </div>
+          <div className={styles.controlGroup}>
+            <label>
+              <input
+                type="checkbox"
+                checked={isActiveTask}
+                onChange={(e) => setIsActiveTask(e.target.checked)}
+                className={styles.checkbox}
+              />
+              Active Tasks
+            </label>
+          </div>
           <button
             className={styles.searchButton}
-            onClick={handleSearch}
+            onClick={handleRefresh}
           >
-            Tìm kiếm
-          </button>
-          <button
-            className={styles.resetButton}
-            onClick={handleResetFilters}
-          >
-            Reset
+            Refresh
           </button>
         </div>
       </div>
 
-      <div className={styles.viewToggle}>
-        <button 
-          className={`${styles.toggleButton} ${viewMode === 'list' ? styles.active : ''}`}
-          onClick={() => setViewMode('list')}
-        >
-          List View
-        </button>
-        <button 
-          className={`${styles.toggleButton} ${viewMode === 'kanban' ? styles.active : ''}`}
-          onClick={() => setViewMode('kanban')}
-        >
-          Kanban View
-        </button>
-      </div>
 
-      {/* Empty state khi không có task */}
+      {/* Empty state khi không có issue */}
       {filteredTasks.length === 0 ? (
         <div className={styles.emptyState}>
-          <div className={styles.emptyTitle}>Chọn bộ lọc và nhấn 'Tìm kiếm' để xem tasks</div>
-          <button className={styles.searchButton} onClick={handleSearch}>Tìm kiếm</button>
-        </div>
-      ) : viewMode === 'list' ? (
-        <div className={styles.tasksList}>
-          {filteredTasks.map((task) => {
-            const priorityInfo = getPriorityInfo(task.priority);
-            return (
-              <div key={task.id} className={styles.taskCard}>
-                <div className={styles.taskHeader}>
-                  <h4>{task.title}</h4>
-                  <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
-                    {priorityInfo.text}
-                  </span>
-                </div>
-                
-                <p className={styles.taskDescription}>{task.description}</p>
-                
-                <div className={styles.taskDetails}>
-                  <div className={styles.detailItem}>
-                    <strong>👤 Assignee:</strong> {task.assigneeName}
-                  </div>
-                  <div className={styles.detailItem}>
-                    <strong>📅 Deadline:</strong> {formatDate(task.deadline)}
-                  </div>
-                  <div className={styles.detailItem}>
-                    <strong>🎯 Milestone:</strong> {task.milestoneName}
-                  </div>
-                </div>
-                
-                <div className={styles.progressBar}>
-                  <div className={styles.progressLabel}>Progress: {task.progress}%</div>
-                  <div className={styles.progressTrack}>
-                    <div 
-                      className={styles.progressFill}
-                      style={{ width: `${task.progress}%` }}
-                    />
-                  </div>
-                </div>
-                
-                <div className={styles.taskMeta}>
-                  <div className={styles.metaItem}>
-                    <span className={styles.metaLabel}>Created:</span>
-                    <span>{formatDate(task.createdAt)}</span>
-                  </div>
-                  <div className={styles.metaItem}>
-                    <span className={styles.metaLabel}>Attachments:</span>
-                    <span>{task.attachments.length} files</span>
-                  </div>
-                  <div className={styles.metaItem}>
-                    <span className={styles.metaLabel}>Comments:</span>
-                    <span>{task.comments.length}</span>
-                  </div>
-                </div>
-                
-                <div className={styles.taskActions}>
-                  <button 
-                    className={`${styles.actionButton} ${styles.primary}`}
-                    onClick={() => openTaskDetail(task)}
-                  >
-                    View
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+          <div className={styles.emptyTitle}>No tasks found</div>
+          <button className={styles.searchButton} onClick={handleRefresh}>Refresh</button>
         </div>
       ) : (
-        <div className={styles.kanbanBoard}>
-          <div className={`${styles.column} ${styles.todo}`}>
-            <div className={styles.columnHeader}>
-              <h3>To Do</h3>
-              <span className={styles.taskCount}>{todoTasks.length}</span>
-            </div>
-            <div className={styles.taskList}>
-              {todoTasks.map((task) => {
-                const priorityInfo = getPriorityInfo(task.priority);
-                return (
-                  <div key={task.id} className={styles.taskCard}>
-                    <div className={styles.taskHeader}>
-                      <h4>{task.title}</h4>
-                      <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
-                        {priorityInfo.text}
-                      </span>
-                    </div>
-                    <p className={styles.taskDescription}>{task.description}</p>
-                    
-                    <div className={styles.taskDetails}>
-                      <div className={styles.detailItem}>
-                        <strong>👤 Assignee:</strong> {task.assigneeName}
-                      </div>
-                      <div className={styles.detailItem}>
-                        <strong>📅 Deadline:</strong> {formatDate(task.deadline)}
-                      </div>
-                      <div className={styles.detailItem}>
-                        <strong>🎯 Milestone:</strong> {task.milestoneName}
-                      </div>
-                    </div>
-                    
-                    <div className={styles.progressBar}>
-                      <div 
-                        className={styles.progressFill}
-                        style={{ width: `${task.progress}%` }}
-                      />
-                    </div>
-                    
-                    <div className={styles.taskActions}>
-                      <button 
-                        className={`${styles.actionButton} ${styles.primary}`}
-                        onClick={() => moveTask(task.id, 'todo', 'inProgress')}
-                      >
-                        Start Task
-                      </button>
-                      <button 
-                        className={`${styles.actionButton} ${styles.secondary}`}
-                      onClick={() => openTaskDetail(task)}
-                      >
-                        Details
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className={`${styles.column} ${styles.inProgress}`}>
-            <div className={styles.columnHeader}>
-              <h3>In Progress</h3>
-              <span className={styles.taskCount}>{inProgressTasks.length}</span>
-            </div>
-            <div className={styles.taskList}>
-              {inProgressTasks.map((task) => {
-                const priorityInfo = getPriorityInfo(task.priority);
-                return (
-                  <div key={task.id} className={styles.kanbanCard}>
-                    <div className={styles.kanbanHeader}>
-                      <h4>{task.title}</h4>
-                      <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
-                        {priorityInfo.text}
-                      </span>
-                    </div>
-                    <p className={styles.kanbanDescription}>{task.description}</p>
-                    <div className={styles.kanbanMeta}>
-                      <div className={styles.assigneeInfo}>{task.assigneeName}</div>
-                      <div className={styles.deadlineInfo}>{formatDate(task.deadline)}</div>
-                    </div>
-                    <div className={styles.kanbanActions}>
-                      <Button 
-                        size="sm"
-                        onClick={() => moveTask(task.id, 'inProgress', 'done')}
-                      >
-                        Complete
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className={`${styles.column} ${styles.done}`}>
-            <div className={styles.columnHeader}>
-              <h3>Done</h3>
-              <span className={styles.taskCount}>{doneTasks.length}</span>
-            </div>
-            <div className={styles.taskList}>
-              {doneTasks.map((task) => {
-                const priorityInfo = getPriorityInfo(task.priority);
-                return (
-                  <div key={task.id} className={styles.kanbanCard}>
-                    <div className={styles.kanbanHeader}>
-                      <h4>{task.title}</h4>
-                      <span className={`${styles.priority} ${styles[priorityInfo.text.toLowerCase()]}`}>
-                        {priorityInfo.text}
-                      </span>
-                    </div>
-                    <p className={styles.kanbanDescription}>{task.description}</p>
-                    <div className={styles.kanbanMeta}>
-                      <div className={styles.assigneeInfo}>{task.assigneeName}</div>
-                      <div className={styles.completedDate}>
-                        Completed: {formatDate(task.completedAt)}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+        <div className={styles.tasksTable}>
+          <DataTable
+            columns={columns}
+            data={filteredTasks}
+            loading={loading}
+            emptyMessage="No tasks found"
+            onRowClick={openTaskDetail}
+            showIndex={true}
+            indexTitle="No"
+          />
         </div>
       )}
 
@@ -856,10 +958,61 @@ export default function StudentTasks() {
               className={styles.textarea}
               rows={3}
             />
-            <div className={styles.hintText}>Mô tả ngắn gọn công việc cần làm.</div>
           </div>
           
           <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label>
+                Task Type <span className={styles.required}>*</span>
+              </label>
+              <select
+                className={styles.select}
+                value={newTask.taskType}
+                onChange={(e) => {
+                  const newTaskType = e.target.value;
+                  if (newTaskType === 'throughout') {
+                    // Chuyển từ meeting sang xuyên suốt: xóa meetingId, giữ milestoneId
+                    setNewTask({ ...newTask, taskType: newTaskType, meetingId: '' });
+                  } else {
+                    // Chuyển từ xuyên suốt sang meeting: giữ milestoneId
+                    setNewTask({ ...newTask, taskType: newTaskType });
+                  }
+                }}
+              >
+                <option value="throughout">Throughout Task</option>
+                <option value="meeting">Meeting Task</option>
+              </select>
+            </div>
+            
+            <div className={styles.formGroup}>
+              <label>
+                Meeting
+                {newTask.taskType === 'meeting' && <span className={styles.required}>*</span>}
+              </label>
+              {newTask.taskType === 'meeting' ? (
+                <select
+                  className={styles.select}
+                  value={newTask.meetingId}
+                  onChange={(e) => setNewTask({ ...newTask, meetingId: e.target.value })}
+                >
+                  <option value="">Select Meeting</option>
+                  {meetings.map(meeting => (
+                    <option key={meeting.id} value={meeting.id}>
+                      {meeting.description} - {new Date(meeting.meetingDate).toLocaleDateString('en-US')}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  className={styles.select}
+                  value=""
+                  disabled
+                >
+                  <option value="">Not applicable for throughout task</option>
+                </select>
+              )}
+            </div>
+            
             <div className={styles.formGroup}>
               <label>
                 Milestone
@@ -869,7 +1022,7 @@ export default function StudentTasks() {
                 value={newTask.milestoneId}
                 onChange={(e) => setNewTask({ ...newTask, milestoneId: e.target.value })}
               >
-                <option value="">Select Milestone</option>
+                <option value="">Select Milestone (optional)</option>
                 {milestoneOptions.map(option => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
@@ -888,6 +1041,24 @@ export default function StudentTasks() {
                 <option value="">Select Assignee</option>
                 {assigneeOptions.map(option => (
                   <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className={styles.formGroup}>
+              <label>
+                Reviewer
+              </label>
+              <select
+                className={styles.select}
+                value={newTask.reviewer}
+                onChange={(e) => setNewTask({ ...newTask, reviewer: e.target.value })}
+              >
+                <option value="">Select Reviewer</option>
+                {reviewers.map(reviewer => (
+                  <option key={reviewer.id} value={reviewer.id}>
+                    {reviewer.name} ({reviewer.type})
+                  </option>
                 ))}
               </select>
             </div>
