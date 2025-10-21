@@ -1,6 +1,27 @@
 // Import styles từ student Tasks
 @import '../../../pages/student/Tasks/index.module.scss';
 
+// Additional styles for supervisor
+.viewSelector {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 16px;
+
+  .viewType {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    label {
+      font-weight: 600;
+      color: #495057;
+      min-width: 100px;
+    }
+  }
+}
+
 // Override styles cho supervisor
 .container {
   padding: 20px;

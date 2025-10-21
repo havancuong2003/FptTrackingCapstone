@@ -9,12 +9,12 @@ export default function StudentGroups() {
     const [groups, setGroups] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     
-    // Trạng thái cho việc thay đổi vai trò
+    // Status for role changes
     const [memberToChangeRole, setMemberToChangeRole] = React.useState(null);
     const [roleChangeModalOpen, setRoleChangeModalOpen] = React.useState(false);
     const [selectedRole, setSelectedRole] = React.useState('');
     
-    // Lấy thông tin user hiện tại
+    // Get current user info
     const userInfo = getUserInfo();
     const currentUserId = userInfo?.id;
     const currentUserRoleInGroup = getRoleInGroup();
@@ -25,14 +25,20 @@ export default function StudentGroups() {
             try {
                 setLoading(true);
                 
-                // Giả sử student có groupId = 1 (có thể lấy từ context hoặc API khác)
-                const groupId = 1; // TODO: Lấy từ user context hoặc API
+                // Get groupId from localStorage (set during login)
+                const groupId = localStorage.getItem('student_group_id');
                 
-                // Gọi API để lấy nhóm của student hiện tại
+                if (!groupId) {
+                    console.error('No group ID found for student');
+                    setGroups([]);
+                    return;
+                }
+                
+                // Call API to get current student's group
                 const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
                 
                 if (response.data.status === 200) {
-                    // Chuyển đổi format data từ API sang format cần thiết
+                    // Convert API data format to required format
                     const group = response.data.data;
                     const formattedGroup = {
                         id: group.id,
@@ -42,7 +48,7 @@ export default function StudentGroups() {
                         projectCode: group.groupCode,
                         members: group.students.map(student => ({
                             id: student.rollNumber,
-                            studentId: student.id, // Lưu studentId để gọi API
+                            studentId: student.id, // Save studentId để gọi API
                             name: student.name,
                             currentRole: student.role === "1" ? 'Member' : (student.role || 'Member'),
                             email: `${student.rollNumber.toLowerCase()}@student.fpt.edu.vn`
@@ -52,7 +58,7 @@ export default function StudentGroups() {
                             totalMilestones: 7,
                             completionPercentage: 0
                         },
-                        currentMilestone: "Khởi tạo dự án",
+                        currentMilestone: "Project Initialization",
                         nextDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
                     };
                     
@@ -100,33 +106,33 @@ export default function StudentGroups() {
     };
 
     const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('vi-VN', {
+        return new Date(dateString).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric'
         });
     };
 
-    // Kiểm tra quyền thay đổi role
+    // Check role change permissions
     const canChangeRole = (memberId) => {
-        // Chỉ Secretary mới có quyền thay đổi role
+        // Only Secretary can change roles
         if (!isSecretary) {
             return false;
         }
         
-        // Secretary không thể thay đổi role của chính mình
+        // Secretary cannot change their own role
         if (memberId === currentUserId) {
             return false;
         }
         
-        // Secretary có thể thay đổi role của các thành viên khác
+        // Secretary can change roles of other members
         return true;
     };
 
 
     const openRoleChangeModal = (member) => {
         if (!canChangeRole(member.id)) {
-            return; // Không hiện thông báo, chỉ return
+            return; // No notification, just return
         }
         setMemberToChangeRole(member);
         setSelectedRole(member.currentRole);
@@ -137,17 +143,17 @@ export default function StudentGroups() {
         if (!memberToChangeRole || !selectedRole) return;
         
         try {
-            // Tìm group chứa member cần thay đổi role
+            // Find group containing member to change role
             const targetGroup = groups.find(group => 
                 group.members.some(member => member.id === memberToChangeRole.id)
             );
             
             if (!targetGroup) {
-                alert('Không tìm thấy nhóm của thành viên này!');
+                alert('Group not found for this member!');
                 return;
             }
             
-            // Gọi API để thay đổi role
+            // Call API to change role
             const response = await axiosClient.put(`/Staff/update-role?groupId=${targetGroup.id}&studentId=${memberToChangeRole.studentId}`, 
                 `"${selectedRole}"`,
                 {
@@ -160,7 +166,7 @@ export default function StudentGroups() {
             
             
             if (response.data.status === 200) {
-                // Cập nhật trạng thái local sau khi API thành công
+                // Update local state after successful API call
                 const updatedGroups = groups.map(group => {
                     if (group.id === targetGroup.id) {
                         return {
@@ -181,14 +187,14 @@ export default function StudentGroups() {
 
                 setGroups(updatedGroups);
                 
-                alert(`Đã thay đổi role thành ${selectedRole} cho ${memberToChangeRole.name}!`);
+                alert(`Successfully changed role to ${selectedRole} for ${memberToChangeRole.name}!`);
                 setRoleChangeModalOpen(false);
             } else {
-                alert(`Lỗi: ${response.data.message}`);
+                alert(`Error: ${response.data.message}`);
             }
         } catch (error) {
             console.error('Error changing role:', error);
-            alert(`Lỗi khi thay đổi role: ${error.message || 'Có lỗi xảy ra'}`);
+            alert(`Error changing role: ${error.message || 'An error occurred'}`);
         }
     };
 
@@ -222,11 +228,11 @@ export default function StudentGroups() {
                             size="sm"
                             onClick={() => openRoleChangeModal(member)}
                         >
-                            Thay đổi Role
+                            Change Role
                         </Button>
                     ) : (
                         <span className={styles.noPermission}>
-                            {!isSecretary ? 'Chỉ Secretary mới có quyền thay đổi role' : 'Không thể thay đổi role của chính mình'}
+                            {!isSecretary ? 'Only Secretary can change roles' : 'Cannot change your own role'}
                         </span>
                     )}
                 </div>
@@ -237,16 +243,16 @@ export default function StudentGroups() {
     if (loading) {
         return (
             <div className={styles.loading}>
-                <div>Đang tải danh sách nhóm...</div>
+                <div>Loading groups...</div>
             </div>
         );
     }
 
     return (
         <div className={styles.container}>
-            <h1>Nhóm của tôi</h1>
+            <h1>My Group</h1>
             <p className={styles.subtitle}>
-                Quản lý và theo dõi nhóm của bạn.
+                Manage and track your group.
             </p>
             
             <div className={styles.groupsList}>
@@ -260,13 +266,13 @@ export default function StudentGroups() {
                                 <div className={styles.groupInfo}>
                                     <h3>{group.groupName}</h3>
                                     <p className={styles.projectName}>{group.projectName}</p>
-                                    <p className={styles.projectCode}>Mã nhóm: {group.groupCode}</p>
+                                    <p className={styles.projectCode}>Group Code: {group.groupCode}</p>
                                 </div>
                             </div>
                             
                             <div className={styles.groupDetails}>
                                 <div className={styles.detailSection}>
-                                    <h4>Thành viên ({group.members.length})</h4>
+                                    <h4>Members ({group.members.length})</h4>
                                     <div className={styles.membersList}>
                                         {group.members.map((member) => {
                                             const canChange = canChangeRole(member.id);
@@ -281,7 +287,7 @@ export default function StudentGroups() {
                                                             size="sm"
                                                             onClick={() => openRoleChangeModal(member)}
                                                         >
-                                                            Thay đổi Role
+                                                            Change Role
                                                         </Button>
                                                     )}
                                                 </div>
@@ -291,18 +297,18 @@ export default function StudentGroups() {
                                 </div>
                                 
                                 <div className={styles.detailSection}>
-                                    <h4>Tiến độ</h4>
+                                    <h4>Progress</h4>
                                     <div className={styles.progressInfo}>
                                         <div className={styles.progressItem}>
-                                            <span>Hoàn thành:</span>
+                                            <span>Completed:</span>
                                             <span>{group.progress.completedMilestones}/{group.progress.totalMilestones} milestones</span>
                                         </div>
                                         <div className={styles.progressItem}>
-                                            <span>Hiện tại:</span>
+                                            <span>Current:</span>
                                             <span className={styles.currentMilestone}>{group.currentMilestone}</span>
                                         </div>
                                         <div className={styles.progressItem}>
-                                            <span>Hạn tiếp theo:</span>
+                                            <span>Next Deadline:</span>
                                             <span>{formatDate(group.nextDeadline)}</span>
                                         </div>
                                     </div>
@@ -311,7 +317,7 @@ export default function StudentGroups() {
                             
                             <div className={styles.groupActions}>
                                 <Button>
-                                    Theo dõi tiến độ
+                                    Track Progress
                                 </Button>
                             </div>
                         </div>
@@ -321,19 +327,19 @@ export default function StudentGroups() {
             
             {groups.length === 0 && (
                 <div className={styles.emptyState}>
-                    <p>Bạn chưa được phân vào nhóm nào.</p>
+                    <p>You have not been assigned to any group yet.</p>
                 </div>
             )}
 
             
-            {/* MODAL THAY ĐỔI VAI TRÒ */}
+            {/* ROLE CHANGE MODAL */}
             <Modal open={roleChangeModalOpen} onClose={() => setRoleChangeModalOpen(false)}>
                 {memberToChangeRole && (
                     <div className={styles.roleModal}>
-                        <h2>Thay đổi vai trò</h2>
-                        <p>Chọn vai trò mới cho <strong>{memberToChangeRole.name}</strong></p>
+                        <h2>Change Role</h2>
+                        <p>Select new role for <strong>{memberToChangeRole.name}</strong></p>
                         <div className={styles.roleInfo}>
-                            <p><strong>Lưu ý:</strong> Secretary chỉ có thể thay đổi role giữa Leader và Member. Không thể tạo ra Secretary mới.</p>
+                            <p><strong>Note:</strong> Secretary can only change roles between Leader and Member. Cannot create new Secretary.</p>
                         </div>
                         
                         <div className={styles.roleOptions}>
@@ -350,7 +356,7 @@ export default function StudentGroups() {
                                     <label htmlFor={`role-${role}`} className={styles.roleLabel}>
                                         <div>
                                             <strong>{getRoleInfo(role).text}</strong>
-                                            <p>{role === 'Leader' ? 'Trưởng nhóm với quyền quản lý đầy đủ' : 'Thành viên thường với quyền cơ bản'}</p>
+                                            <p>{role === 'Leader' ? 'Group leader with full management rights' : 'Regular members with basic rights'}</p>
                                         </div>
                                     </label>
                                 </div>
@@ -359,10 +365,10 @@ export default function StudentGroups() {
                         
                         <div className={styles.modalActions}>
                             <Button variant="secondary" onClick={() => setRoleChangeModalOpen(false)}>
-                                Hủy
+                                Cancel
                             </Button>
                             <Button onClick={changeRole}>
-                                Xác nhận thay đổi
+                                Confirm Change
                             </Button>
                         </div>
                     </div>

@@ -13,7 +13,7 @@ const SemesterDetail = () => {
   const navigate = useNavigate();
   const [semester, setSemester] = useState(null);
   const [weeks, setWeeks] = useState([]);
-  const [vacationWeeks, setVacationWeeks] = useState([]);
+  const [vacationPeriods, setVacationPeriods] = useState([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [isEditing, setIsEditing] = useState(false);
@@ -47,15 +47,15 @@ const SemesterDetail = () => {
           isActive: Boolean(semesterData.isActive)
         });
         
-        // Lấy danh sách tuần từ response
+        // Get weeks list from response
         setWeeks(semesterData.weeks || []);
         
-        // Lấy các tuần nghỉ từ response (isVacation = true)
+        // Get vacation weeks from response (isVacation = true)
         const vacationWeeks = (semesterData.weeks || []).filter(week => week.isVacation);
         setVacationWeeks(vacationWeeks);
       }
     } catch (error) {
-      setMessage(`Lỗi khi tải chi tiết kỳ học: ${error.message || 'Có lỗi xảy ra'}`);
+      setMessage(`Error loading semester details: ${error.message || 'An error occurred'}`);
     } finally {
       setLoading(false);
     }
@@ -96,12 +96,12 @@ const SemesterDetail = () => {
 
       const response = await updateSemester(id, formattedData);
       if (response.status === 200) {
-        setMessage('Cập nhật thông tin kỳ học thành công!');
+        setMessage('Semester information updated successfully!');
         setIsEditing(false);
         loadSemesterDetail(); // Reload data
       }
     } catch (error) {
-      setMessage(`Lỗi: ${error.message || 'Có lỗi xảy ra'}`);
+      setMessage(`Error: ${error.message || 'An error occurred'}`);
     } finally {
       setLoading(false);
     }
@@ -135,19 +135,19 @@ const SemesterDetail = () => {
       const semesterId = parseInt(id);
 
       if (isNaN(semesterId)) {
-        setMessage('Lỗi: ID kỳ học không hợp lệ');
+        setMessage('Error: Invalid semester ID');
         return;
       }
 
-      // Gửi tất cả tuần với trạng thái isVacation đã cập nhật
+      // Send all weeks with updated isVacation status
       const response = await updateVacationWeeks(semesterId, weeks);
       if (response.status === 200) {
-        setMessage('Cập nhật tuần nghỉ thành công!');
-        // Reload data để đảm bảo sync
+        setMessage('Vacation weeks updated successfully!');
+        // Reload data to ensure sync
         loadSemesterDetail();
       }
     } catch (error) {
-      setMessage(`Lỗi: ${error.message || 'Có lỗi xảy ra'}`);
+      setMessage(`Error: ${error.message || 'An error occurred'}`);
     } finally {
       setLoading(false);
     }
@@ -158,7 +158,7 @@ const SemesterDetail = () => {
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return 'Invalid Date';
-      return date.toLocaleDateString('vi-VN', {
+      return date.toLocaleDateString('en-US', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
@@ -168,44 +168,84 @@ const SemesterDetail = () => {
     }
   };
 
+  // Function to convert solar calendar to lunar calendar (simplified)
+  const getLunarDate = (solarDate) => {
+    // This is a simplified version - in real implementation, you'd use a proper lunar calendar library
+    const date = new Date(solarDate);
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    
+    // Simplified lunar conversion (this is just an example)
+    const lunarYear = year;
+    const lunarMonth = month;
+    const lunarDay = day;
+    
+    return `${lunarYear}/${lunarMonth}/${lunarDay}`;
+  };
+
+  // Add new vacation period
+  const addVacationPeriod = () => {
+    const newPeriod = {
+      id: Date.now(),
+      startDate: '',
+      endDate: '',
+      description: ''
+    };
+    setVacationPeriods(prev => [...prev, newPeriod]);
+  };
+
+  // Remove vacation period
+  const removeVacationPeriod = (id) => {
+    setVacationPeriods(prev => prev.filter(period => period.id !== id));
+  };
+
+  // Update vacation period
+  const updateVacationPeriod = (id, field, value) => {
+    setVacationPeriods(prev => 
+      prev.map(period => 
+        period.id === id 
+          ? { ...period, [field]: value }
+          : period
+      )
+    );
+  };
+
   const isWeekVacation = (week) => {
     return week.isVacation;
   };
 
   if (loading && !semester) {
-    return <div className={styles.loading}>Đang tải chi tiết kỳ học...</div>;
+    return <div className={styles.loading}>Loading semester details...</div>;
   }
 
   if (!semester) {
-    return <div className={styles.error}>Không tìm thấy kỳ học</div>;
+    return <div className={styles.error}>Semester not found</div>;
   }
 
   return (
     <div className={styles.container}>
       <BackButton to="/category-management/semesters" />
       <div className={styles.header}>
-        <button onClick={() => navigate('/category-management/semesters')} className={styles.backBtn}>
-          ← Quay lại
-        </button>
-        <h1>Chi Tiết Kỳ Học</h1>
+        <h1>Semester Details</h1>
         <button onClick={handleEditToggle} className={styles.editBtn}>
-          {isEditing ? 'Hủy' : 'Chỉnh sửa'}
+          {isEditing ? 'Cancel' : 'Edit'}
         </button>
       </div>
 
       {message && (
-        <div className={`${styles.message} ${message.includes('Lỗi') ? styles.error : styles.success}`}>
+        <div className={`${styles.message} ${message.includes('Error') ? styles.error : styles.success}`}>
           {message}
         </div>
       )}
 
       {/* Semester Information */}
       <div className={styles.semesterInfo}>
-        <h2>Thông Tin Kỳ Học</h2>
+        <h2>Semester Information</h2>
         {isEditing ? (
           <div className={styles.editForm}>
             <div className={styles.formGroup}>
-              <label>Tên kỳ học</label>
+              <label>Semester Name</label>
               <input
                 type="text"
                 name="name"
@@ -214,7 +254,7 @@ const SemesterDetail = () => {
               />
             </div>
             <div className={styles.formGroup}>
-              <label>Ngày bắt đầu</label>
+              <label>Start Date</label>
               <input
                 type="date"
                 name="startAt"
@@ -223,7 +263,7 @@ const SemesterDetail = () => {
               />
             </div>
             <div className={styles.formGroup}>
-              <label>Ngày kết thúc</label>
+              <label>End Date</label>
               <input
                 type="date"
                 name="endAt"
@@ -232,7 +272,7 @@ const SemesterDetail = () => {
               />
             </div>
             <div className={styles.formGroup}>
-              <label>Mô tả</label>
+              <label>Description</label>
               <textarea
                 name="description"
                 value={editData.description}
@@ -241,7 +281,7 @@ const SemesterDetail = () => {
               />
             </div>
             <div className={styles.formGroup}>
-              <label>Trạng thái</label>
+              <label>Status</label>
               <div className={styles.radioGroup}>
                 <label className={styles.radioOption}>
                   <input
@@ -251,7 +291,7 @@ const SemesterDetail = () => {
                     checked={editData.isActive === true}
                     onChange={handleEditChange}
                   />
-                  Đang hoạt động
+                  Active
                 </label>
                 <label className={styles.radioOption}>
                   <input
@@ -261,84 +301,123 @@ const SemesterDetail = () => {
                     checked={editData.isActive === false}
                     onChange={handleEditChange}
                   />
-                  Không hoạt động
+                  Inactive
                 </label>
               </div>
             </div>
             <button onClick={handleUpdateSemester} className={styles.updateBtn} disabled={loading}>
-              {loading ? 'Đang cập nhật...' : 'Cập nhật thông tin'}
+              {loading ? 'Updating...' : 'Update Information'}
             </button>
           </div>
         ) : (
           <div className={styles.infoDisplay}>
             <div className={styles.infoItem}>
-              <strong>Trạng thái:</strong> {semester.isActive ? 'Đang hoạt động' : 'Không hoạt động'}
+              <strong>Status:</strong> {semester.isActive ? 'Active' : 'Inactive'}
             </div>
             <div className={styles.infoItem}>
-              <strong>Tên kỳ học:</strong> {semester.name}
+              <strong>Semester Name:</strong> {semester.name}
             </div>
             <div className={styles.infoItem}>
-              <strong>Ngày bắt đầu:</strong> {formatDate(semester.startAt)}
+              <strong>Start Date:</strong> {formatDate(semester.startAt)}
             </div>
             <div className={styles.infoItem}>
-              <strong>Ngày kết thúc:</strong> {formatDate(semester.endAt)}
+              <strong>End Date:</strong> {formatDate(semester.endAt)}
             </div>
             {semester.description && (
               <div className={styles.infoItem}>
-                <strong>Mô tả:</strong> {semester.description}
+                <strong>Description:</strong> {semester.description}
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* Weeks and Vacation Management */}
+      {/* Study Weeks Display */}
       <div className={styles.weeksSection}>
-        <h2>Quản Lý Tuần Học & Tuần Nghỉ</h2>
+        <h2>Study Weeks</h2>
         
         <div className={styles.weeksGrid}>
           {weeks.map((week) => (
-            <div
-              key={week.weekNumber}
-              className={`${styles.weekCard} ${isWeekVacation(week) ? styles.vacationWeek : ''}`}
-              onClick={() => handleWeekToggle(week)}
-            >
-              <div className={styles.weekNumber}>Tuần {week.weekNumber}</div>
+            <div key={week.weekNumber} className={styles.weekCard}>
+              <div className={styles.weekNumber}>Week {week.weekNumber}</div>
               <div className={styles.weekDates}>
-                <div className={styles.startDate}>
-                  <strong>Từ:</strong> {formatDate(week.startAt)}
+                <div className={styles.dateRow}>
+                  <span className={styles.dateLabel}>Start:</span>
+                  <span className={styles.solarDate}>{formatDate(week.startAt)}</span>
+                  <span className={styles.lunarDate}>({getLunarDate(week.startAt)})</span>
                 </div>
-                <div className={styles.endDate}>
-                  <strong>Đến:</strong> {formatDate(week.endAt)}
+                <div className={styles.dateRow}>
+                  <span className={styles.dateLabel}>End:</span>
+                  <span className={styles.solarDate}>{formatDate(week.endAt)}</span>
+                  <span className={styles.lunarDate}>({getLunarDate(week.endAt)})</span>
                 </div>
               </div>
-              {isWeekVacation(week) && (
-                <div className={styles.vacationLabel}>Tuần nghỉ</div>
-              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Vacation Periods Management */}
+      <div className={styles.vacationSection}>
+        <h2>Vacation Periods Management</h2>
+        
+        <div className={styles.vacationPeriods}>
+          {vacationPeriods.map((period) => (
+            <div key={period.id} className={styles.vacationPeriodCard}>
+              <div className={styles.periodHeader}>
+                <h3>Vacation Period</h3>
+                <button 
+                  onClick={() => removeVacationPeriod(period.id)}
+                  className={styles.removeBtn}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div className={styles.periodForm}>
+                <div className={styles.formGroup}>
+                  <label>Start Date</label>
+                  <input
+                    type="date"
+                    value={period.startDate}
+                    onChange={(e) => updateVacationPeriod(period.id, 'startDate', e.target.value)}
+                  />
+                </div>
+                
+                <div className={styles.formGroup}>
+                  <label>End Date</label>
+                  <input
+                    type="date"
+                    value={period.endDate}
+                    onChange={(e) => updateVacationPeriod(period.id, 'endDate', e.target.value)}
+                  />
+                </div>
+                
+                <div className={styles.formGroup}>
+                  <label>Description</label>
+                  <input
+                    type="text"
+                    value={period.description}
+                    onChange={(e) => updateVacationPeriod(period.id, 'description', e.target.value)}
+                    placeholder="Enter vacation description..."
+                  />
+                </div>
+              </div>
             </div>
           ))}
         </div>
 
-        {vacationWeeks.length > 0 && (
-          <div className={styles.vacationInfo}>
-            <h3>Tuần nghỉ đã chọn ({vacationWeeks.length}):</h3>
-            <div className={styles.selectedWeeks}>
-              {vacationWeeks.map((week) => (
-                <span key={week.weekNumber} className={styles.selectedWeek}>
-                  Tuần {week.weekNumber}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className={styles.vacationActions}>
+          <button onClick={addVacationPeriod} className={styles.addPeriodBtn}>
+            + Add Vacation Period
+          </button>
+          
           <button
             onClick={handleUpdateVacation}
             className={styles.updateVacationBtn}
             disabled={loading}
           >
-            {loading ? 'Đang cập nhật...' : 'Cập nhật tuần nghỉ'}
+            {loading ? 'Updating...' : 'Update Vacation Periods'}
           </button>
         </div>
       </div>
