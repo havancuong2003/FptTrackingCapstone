@@ -180,7 +180,7 @@ export default function StaffTasks() {
             onClick={(e) => {
               e.stopPropagation();
               // Handle view details
-              console.log('View task:', task.id);
+           //   console.log('View task:', task.id);
             }}
           >
             View
@@ -190,7 +190,7 @@ export default function StaffTasks() {
             onClick={(e) => {
               e.stopPropagation();
               // Handle edit
-              console.log('Edit task:', task.id);
+       //       console.log('Edit task:', task.id);
             }}
           >
             Edit

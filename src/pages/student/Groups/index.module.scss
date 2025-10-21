@@ -472,3 +472,232 @@ h1 {
     padding-top: 25px;
     border-top: 1px solid #e5e7eb;
 }
+
+/* ======================================= */
+/* RESPONSIVE DESIGN */
+/* ======================================= */
+
+/* Large screens (1200px and up) */
+@media (min-width: 1200px) {
+  .container {
+    padding: 50px;
+  }
+  
+  .groupsList {
+    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+    gap: 50px;
+  }
+}
+
+/* Medium screens (768px to 1199px) */
+@media (max-width: 1199px) {
+  .container {
+    padding: 30px;
+  }
+  
+  .groupsList {
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 30px;
+  }
+  
+  .groupCard {
+    padding: 30px;
+  }
+  
+  .groupDetails {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+}
+
+/* Small screens (576px to 767px) */
+@media (max-width: 767px) {
+  .container {
+    padding: 20px;
+  }
+  
+  h1 {
+    font-size: 28px;
+  }
+  
+  .subtitle {
+    font-size: 16px;
+    margin-bottom: 30px;
+  }
+  
+  .groupsList {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+  
+  .groupCard {
+    padding: 25px;
+  }
+  
+  .groupHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+  
+  .groupProgress {
+    align-self: flex-end;
+    min-width: auto;
+  }
+  
+  .groupDetails {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .memberItem {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 15px;
+  }
+  
+  .memberInfo {
+    width: 100%;
+  }
+  
+  .groupActions {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .membersList_Role {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .memberCard_Role {
+    padding: 15px;
+  }
+  
+  .roleModal {
+    padding: 20px;
+    width: 95vw;
+  }
+  
+  .roleOptions {
+    gap: 12px;
+  }
+  
+  .roleOption {
+    padding: 12px;
+  }
+  
+  .modalActions {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+/* Extra small screens (below 576px) */
+@media (max-width: 575px) {
+  .container {
+    padding: 15px;
+  }
+  
+  h1 {
+    font-size: 24px;
+  }
+  
+  .subtitle {
+    font-size: 14px;
+    margin-bottom: 20px;
+  }
+  
+  .groupCard {
+    padding: 20px;
+  }
+  
+  .groupInfo h3 {
+    font-size: 22px;
+  }
+  
+  .projectName {
+    font-size: 15px;
+  }
+  
+  .projectCode {
+    font-size: 13px;
+  }
+  
+  .progressCircle {
+    width: 70px;
+    height: 70px;
+  }
+  
+  .progressValue {
+    font-size: 20px;
+  }
+  
+  .memberItem {
+    padding: 12px;
+  }
+  
+  .memberName {
+    font-size: 14px;
+  }
+  
+  .memberRoleTag {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+  
+  .memberCard_Role {
+    padding: 12px;
+  }
+  
+  .memberName_Role h4 {
+    font-size: 16px;
+  }
+  
+  .studentCode {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+  
+  .memberEmail_Role {
+    font-size: 12px;
+  }
+  
+  .roleModal {
+    padding: 15px;
+    width: 98vw;
+  }
+  
+  .roleModal h2 {
+    font-size: 20px;
+  }
+  
+  .roleModal p {
+    font-size: 14px;
+  }
+  
+  .roleLabel strong {
+    font-size: 16px;
+  }
+  
+  .roleLabel p {
+    font-size: 12px;
+  }
+}
+
+/* Landscape orientation for mobile */
+@media (max-width: 767px) and (orientation: landscape) {
+  .container {
+    padding: 15px;
+  }
+  
+  .groupCard {
+    padding: 20px;
+  }
+  
+  .groupDetails {
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+}

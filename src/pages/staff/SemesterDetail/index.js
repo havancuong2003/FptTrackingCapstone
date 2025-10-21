@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   getSemesterDetail, 
-  updateSemester, 
-  updateVacationWeeks 
+  updateSemester,
+  getVacationBySemesterId,
+  updateVacationPeriods
 } from '../../../api/staff/semester';
 import BackButton from '../../common/BackButton';
 import styles from './index.module.scss';
@@ -50,9 +51,8 @@ const SemesterDetail = () => {
         // Get weeks list from response
         setWeeks(semesterData.weeks || []);
         
-        // Get vacation weeks from response (isVacation = true)
-        const vacationWeeks = (semesterData.weeks || []).filter(week => week.isVacation);
-        setVacationWeeks(vacationWeeks);
+        // Load vacation periods
+        await loadVacationPeriods();
       }
     } catch (error) {
       setMessage(`Error loading semester details: ${error.message || 'An error occurred'}`);
@@ -107,58 +107,15 @@ const SemesterDetail = () => {
     }
   };
 
-  const handleWeekToggle = (week) => {
-    setWeeks(prevWeeks => {
-      return prevWeeks.map(w => 
-        w.weekNumber === week.weekNumber 
-          ? { ...w, isVacation: !w.isVacation }
-          : w
-      );
-    });
-    
-    setVacationWeeks(prev => {
-      const isSelected = prev.some(w => w.weekNumber === week.weekNumber);
-      if (isSelected) {
-        return prev.filter(w => w.weekNumber !== week.weekNumber);
-      } else {
-        return [...prev, { ...week, isVacation: true }];
-      }
-    });
-  };
 
-  const handleUpdateVacation = async () => {
-    setLoading(true);
-    setMessage('');
 
-    try {
-      // Validate semesterId
-      const semesterId = parseInt(id);
-
-      if (isNaN(semesterId)) {
-        setMessage('Error: Invalid semester ID');
-        return;
-      }
-
-      // Send all weeks with updated isVacation status
-      const response = await updateVacationWeeks(semesterId, weeks);
-      if (response.status === 200) {
-        setMessage('Vacation weeks updated successfully!');
-        // Reload data to ensure sync
-        loadSemesterDetail();
-      }
-    } catch (error) {
-      setMessage(`Error: ${error.message || 'An error occurred'}`);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Common function to format both solar and lunar dates with same format (Vietnamese format)
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return 'Invalid Date';
-      return date.toLocaleDateString('en-US', {
+      return date.toLocaleDateString('vi-VN', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
@@ -168,26 +125,32 @@ const SemesterDetail = () => {
     }
   };
 
-  // Function to convert solar calendar to lunar calendar (simplified)
-  const getLunarDate = (solarDate) => {
-    // This is a simplified version - in real implementation, you'd use a proper lunar calendar library
-    const date = new Date(solarDate);
-    const year = date.getFullYear();
-    const month = date.getMonth() + 1;
-    const day = date.getDate();
-    
-    // Simplified lunar conversion (this is just an example)
-    const lunarYear = year;
-    const lunarMonth = month;
-    const lunarDay = day;
-    
-    return `${lunarYear}/${lunarMonth}/${lunarDay}`;
+  // Load vacation periods from API
+  const loadVacationPeriods = async () => {
+    try {
+      const response = await getVacationBySemesterId(id);
+      if (response.status === 200) {
+        // Format data from API to match UI structure
+        const formattedData = (response.data || []).map((period, index) => ({
+          id: period.id || `api_${index}_${Date.now()}`, // Use API id or generate unique id
+          semesterId: period.semesterId || parseInt(id),
+          startDate: period.startDate ? period.startDate.split('T')[0] : '', // Convert ISO to date input format
+          endDate: period.endDate ? period.endDate.split('T')[0] : '', // Convert ISO to date input format
+          description: period.description || ''
+        }));
+        setVacationPeriods(formattedData);
+      }
+    } catch (error) {
+      alert(`Error loading vacation periods: ${error.message || 'An error occurred'}`);
+      setVacationPeriods([]);
+    }
   };
 
   // Add new vacation period
   const addVacationPeriod = () => {
     const newPeriod = {
       id: Date.now(),
+      semesterId: parseInt(id),
       startDate: '',
       endDate: '',
       description: ''
@@ -196,23 +159,49 @@ const SemesterDetail = () => {
   };
 
   // Remove vacation period
-  const removeVacationPeriod = (id) => {
-    setVacationPeriods(prev => prev.filter(period => period.id !== id));
+  const removeVacationPeriod = (periodId) => {
+    setVacationPeriods(prev => prev.filter(period => period.id !== periodId));
   };
 
   // Update vacation period
-  const updateVacationPeriod = (id, field, value) => {
+  const updateVacationPeriod = (periodId, field, value) => {
     setVacationPeriods(prev => 
       prev.map(period => 
-        period.id === id 
+        period.id === periodId 
           ? { ...period, [field]: value }
           : period
       )
     );
   };
 
-  const isWeekVacation = (week) => {
-    return week.isVacation;
+  // Save vacation periods to API
+  const handleUpdateVacationPeriods = async () => {
+    setLoading(true);
+    setMessage('');
+
+    try {
+      // Filter out periods without required data
+      const validPeriods = vacationPeriods.filter(period => 
+        period.startDate && period.endDate && period.description
+      );
+
+      // Format data for API - only include startDate, endDate, description
+      const formattedData = validPeriods.map(period => ({
+        startDate: new Date(period.startDate).toISOString(),
+        endDate: new Date(period.endDate).toISOString(),
+        description: period.description
+      }));
+
+      const response = await updateVacationPeriods(parseInt(id), formattedData);
+      if (response.status === 200) {
+        setMessage('Vacation periods updated successfully!');
+        await loadVacationPeriods(); // Reload data to get fresh state
+      }
+    } catch (error) {
+      alert(`Error updating vacation periods: ${error.message || 'An error occurred'}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (loading && !semester) {
@@ -344,12 +333,12 @@ const SemesterDetail = () => {
                 <div className={styles.dateRow}>
                   <span className={styles.dateLabel}>Start:</span>
                   <span className={styles.solarDate}>{formatDate(week.startAt)}</span>
-                  <span className={styles.lunarDate}>({getLunarDate(week.startAt)})</span>
+                  <span className={styles.lunarDate}>({formatDate(week.startAtLunar)})</span>
                 </div>
                 <div className={styles.dateRow}>
                   <span className={styles.dateLabel}>End:</span>
                   <span className={styles.solarDate}>{formatDate(week.endAt)}</span>
-                  <span className={styles.lunarDate}>({getLunarDate(week.endAt)})</span>
+                  <span className={styles.lunarDate}>({formatDate(week.endAtLunar)})</span>
                 </div>
               </div>
             </div>
@@ -365,7 +354,7 @@ const SemesterDetail = () => {
           {vacationPeriods.map((period) => (
             <div key={period.id} className={styles.vacationPeriodCard}>
               <div className={styles.periodHeader}>
-                <h3>Vacation Period</h3>
+                <h3>Vacation Period {period.id && typeof period.id === 'number' ? '(From Server)' : '(New)'}</h3>
                 <button 
                   onClick={() => removeVacationPeriod(period.id)}
                   className={styles.removeBtn}
@@ -413,7 +402,7 @@ const SemesterDetail = () => {
           </button>
           
           <button
-            onClick={handleUpdateVacation}
+            onClick={handleUpdateVacationPeriods}
             className={styles.updateVacationBtn}
             disabled={loading}
           >
@@ -421,6 +410,7 @@ const SemesterDetail = () => {
           </button>
         </div>
       </div>
+
     </div>
   );
 };
