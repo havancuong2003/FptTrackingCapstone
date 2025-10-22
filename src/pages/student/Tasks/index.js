@@ -22,13 +22,15 @@ export default function StudentTasks() {
       return null; // Không có user
     } catch (error) {
       console.error('Error parsing auth_user:', error);
-      return null; // Lỗi parse
+      return null; // Error parse
     }
   };
   
   const currentUser = getCurrentUser();
   const [tasks, setTasks] = React.useState([]);
   const [milestones, setMilestones] = React.useState([]);
+  const [meetings, setMeetings] = React.useState([]);
+  const [reviewers, setReviewers] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [taskModal, setTaskModal] = React.useState(false);
   const [newTask, setNewTask] = React.useState({
@@ -37,7 +39,10 @@ export default function StudentTasks() {
     assignee: '',
     priority: '',
     milestoneId: '',
-    deadline: ''
+    meetingId: '',
+    taskType: 'throughout', // 'throughout' or 'meeting'
+    deadline: '',
+    reviewer: ''
   });
   
   // States cho comment và attachment
@@ -45,7 +50,7 @@ export default function StudentTasks() {
   const [newComment, setNewComment] = React.useState('');
   const [newAttachment, setNewAttachment] = React.useState('');
 
-  // Trạng thái search-on-click
+  // Status search-on-click
   const [isSearched, setIsSearched] = React.useState(false);
   
   // Tất cả tasks (load khi bấm tìm kiếm)
@@ -56,7 +61,10 @@ export default function StudentTasks() {
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
+  const [taskTypeFilter, setTaskTypeFilter] = React.useState('');
+  const [isActiveTask, setIsActiveTask] = React.useState(true);
   const [myTasksOnly, setMyTasksOnly] = React.useState(true);
+  const [viewType, setViewType] = React.useState('my_tasks'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
   // API: lấy milestones theo group
   const fetchMilestonesByGroup = async (gid) => {
     try {
@@ -77,12 +85,12 @@ export default function StudentTasks() {
         }));
       } else {
         console.error('Error fetching milestones:', response.data.message);
-        alert(`Lỗi lấy milestones: ${response.data.message}`);
+        alert(`Error lấy milestones: ${response.data.message}`);
         return [];
       }
     } catch (error) {
       console.error('Error fetching milestones:', error);
-      alert(`Lỗi kết nối milestones: ${error.message}`);
+      alert(`Error kết nối milestones: ${error.message}`);
       return [];
     }
   };
@@ -106,23 +114,114 @@ export default function StudentTasks() {
         }));
       } else {
         console.error('Error fetching students:', response.data.message);
-        alert(`Lỗi lấy danh sách students: ${response.data.message}`);
+        alert(`Error lấy danh sách students: ${response.data.message}`);
         return [];
       }
     } catch (error) {
       console.error('Error fetching students:', error);
-      alert(`Lỗi kết nối lấy students: ${error.message}`);
+      alert(`Error kết nối lấy students: ${error.message}`);
       return [];
     }
   };
 
-  const fetchIssues = async () => {
+  // API: lấy reviewers (supervisors + students) từ group
+  const fetchReviewers = async (gid) => {
+    try {
+      const response = await axiosClient.get(`/Staff/capstone-groups/${gid}`);
+      
+      if (response.data.status === 200) {
+        const groupData = response.data.data;
+        const reviewersList = [];
+        
+        // Add supervisors
+        if (groupData.supervisorsInfor && Array.isArray(groupData.supervisorsInfor)) {
+          groupData.supervisorsInfor.forEach(supervisor => {
+        //    console.log("supervisor", supervisor);
+            reviewersList.push({
+              id: `${supervisor.id}`,
+              name: supervisor.name,
+              type: 'Supervisor'
+            });
+          });
+        }
+        
+        // Add students
+        if (groupData.students && Array.isArray(groupData.students)) {
+          groupData.students.forEach(student => {
+            reviewersList.push({
+              id: `${student.id}`,
+              name: student.name,
+              type: 'Student',
+              role: student.role
+            });
+          });
+        }
+        
+        return reviewersList;
+      } else {
+        console.error('Error fetching reviewers:', response.data.message);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching reviewers:', error);
+      return [];
+    }
+  };
+
+  // API: lấy meetings đã họp để tạo meeting tasks
+  // TODO: API này chưa có, tạm thời mock data
+  const fetchCompletedMeetings = async (gid) => {
+    try {
+      // Mock data cho meetings đã hoàn thành
+      const mockMeetings = [
+        {
+          id: 1,
+          description: "Meeting tuần 1 - Review tiến độ dự án",
+          meetingDate: "2024-01-15",
+          startTime: "09:00:00",
+          endTime: "11:00:00"
+        },
+        {
+          id: 2,
+          description: "Meeting tuần 2 - Demo prototype",
+          meetingDate: "2024-01-22",
+          startTime: "14:00:00",
+          endTime: "16:00:00"
+        },
+        {
+          id: 3,
+          description: "Meeting tuần 3 - Code review",
+          meetingDate: "2024-01-29",
+          startTime: "10:00:00",
+          endTime: "12:00:00"
+        },
+        {
+          id: 4,
+          description: "Meeting tuần 4 - Testing và bug fix",
+          meetingDate: "2024-02-05",
+          startTime: "15:00:00",
+          endTime: "17:00:00"
+        }
+      ];
+      
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      return mockMeetings;
+    } catch (error) {
+      console.error('Error fetching meetings:', error);
+      return [];
+    }
+  };
+
+  const fetchTasks = async () => {
     try {
       setLoading(true);
       const response = await axiosClient.get(`/Student/Task/get-by-group/${groupId}`);
       if (response.data.status === 200) {
         const apiData = response.data.data;
         const tasksData = Array.isArray(apiData) ? apiData : [];
+        console.log("tasksData", tasksData);
         const mappedTasks = tasksData.map(task => ({
           id: task.id,
           title: task.title,
@@ -142,6 +241,7 @@ export default function StudentTasks() {
           comments: task.comments || [],
           history: task.history || []
         }));
+
         setAllTasks(mappedTasks);
         setIsSearched(true);
       } else {
@@ -158,17 +258,23 @@ export default function StudentTasks() {
     const bootstrapFilters = async () => {
       try {
         setLoading(true);
-        // Load dữ liệu filter trước (milestones/students theo group)
-        const [milestoneRes, studentRes] = await Promise.all([
+        // Load dữ liệu filter trước (milestones/students/meetings/reviewers theo group)
+        const [milestoneRes, studentRes, meetingRes, reviewerRes] = await Promise.all([
           fetchMilestonesByGroup(groupId),
           fetchStudentsByGroup(groupId),
+          fetchCompletedMeetings(groupId),
+          fetchReviewers(groupId),
         ]);
         const milestonesData = milestoneRes;
         const students = studentRes;
+        const meetings = meetingRes;
+        const reviewers = reviewerRes;
         setMilestones(milestonesData);
+        setMeetings(meetings);
+        setReviewers(reviewers);
         // Tự động load issues khi vào trang
-        await fetchIssues();
-        // Lưu danh sách assignee từ API students
+        await fetchTasks();
+        // Save danh sách assignee từ API students
         setAssigneeSource(students);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -197,7 +303,7 @@ export default function StudentTasks() {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
+    return new Date(dateString).toLocaleDateString('en-US', {
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -221,11 +327,22 @@ export default function StudentTasks() {
   const columns = [
     {
       key: 'title',
-      title: 'Issue',
+      title: 'Task',
       render: (task) => (
         <div>
-          <div className={styles.taskTitle}>{task.title}</div>
-          <div className={styles.taskDescription}>{task.description}</div>
+          <div className={styles.taskTitle}>
+            {task.title}
+            {task.hasDependencies && (
+              <span className={styles.dependencyIcon} title="Có phụ thuộc">
+                🔗
+              </span>
+            )}
+          </div>
+          <div className={styles.taskType}>
+            <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'milestone']}`}>
+              {task.isMeetingTask ? 'Meeting' : 'Milestone'}
+            </span>
+          </div>
         </div>
       )
     },
@@ -344,7 +461,7 @@ export default function StudentTasks() {
 
   // Refresh issues
   const handleRefresh = async () => {
-    await fetchIssues();
+    await fetchTasks();
   };
 
 
@@ -354,9 +471,42 @@ export default function StudentTasks() {
       return;
     }
 
+    // Validation cho deadline không được trước thời gian hiện tại
+    if (newTask.deadline) {
+      const deadlineDate = new Date(newTask.deadline);
+      const currentDate = new Date();
+      if (deadlineDate <= currentDate) {
+        alert('Deadline must be after current time');
+        return;
+      }
+    }
+
+    // Validation cho meeting task
+    if (newTask.taskType === 'meeting' && !newTask.meetingId) {
+      alert('Please select a meeting for meeting task');
+      return;
+    }
+
+    // Validation logic: isMeetingTask và meetingId phải đi đôi
+    if (newTask.taskType === 'meeting') {
+      if (!newTask.meetingId) {
+        alert('Meeting Task phải có meetingId');
+        return;
+      }
+    } else {
+      // Throughout Task không được có meetingId
+      if (newTask.meetingId) {
+        alert('Throughout Task không được có meetingId');
+        return;
+      }
+    }
+    
+    // Milestone có thể có cho cả 2 loại task (tùy chọn)
+
     try {
       const selectedMilestone = milestones.find(m => m.id.toString() === newTask.milestoneId);
       const selectedAssignee = assigneeOptions.find(a => a.value === newTask.assignee);
+      const selectedReviewer = reviewers.find(r => r.id === newTask.reviewer);
      
       // Gọi API tạo task
       const taskData = {
@@ -369,8 +519,13 @@ export default function StudentTasks() {
                  newTask.priority === 'medium' ? 'Medium' : 'Low',
         process: '0',
         milestoneId: newTask.milestoneId ? parseInt(newTask.milestoneId) : null,
-        assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null
+        meetingId: newTask.meetingId ? parseInt(newTask.meetingId) : null,
+        taskType: newTask.taskType,
+        assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null,
+        reviewerId: selectedReviewer ? parseInt(selectedReviewer.id) : null,
+        reviewerName: selectedReviewer ? selectedReviewer.name : null
       };
+    //  console.log("taskData", taskData);
       // console.log("taskData", taskData);
       const response = await axiosClient.post('/Student/Task/create', taskData);
       
@@ -401,19 +556,22 @@ export default function StudentTasks() {
           title: '',
           description: '',
           assignee: '',
-          priority: 'medium',
+          priority: 'low',
           milestoneId: '',
-          deadline: ''
+          meetingId: '',
+          taskType: 'throughout',
+          deadline: '',
+          reviewer: ''
         });
         setTaskModal(false);
         alert('Task created successfully!');
       } else {
         console.error('Error creating task:', response.data.message);
-        alert(`Lỗi tạo task: ${response.data.message}`);
+        alert(`Error tạo task: ${response.data.message}`);
       }
     } catch (error) {
       console.error('Error creating task:', error);
-      alert(`Lỗi tạo task: ${error.message}`);
+      alert(`Error tạo task: ${error.message}`);
     }
   };
 
@@ -448,7 +606,7 @@ export default function StudentTasks() {
       if (response.data.status === 200) {
         const nowIso = new Date().toISOString();
         
-        // Cập nhật state
+        // Update state
         setAllTasks(prev => {
           return prev.map(task => {
             if (task.id === taskId) {
@@ -472,11 +630,11 @@ export default function StudentTasks() {
         alert(`Task moved to ${toStatus}!`);
       } else {
         console.error('Error updating task:', response.data.message);
-        alert(`Lỗi cập nhật task: ${response.data.message}`);
+        alert(`Error cập nhật task: ${response.data.message}`);
       }
     } catch (error) {
       console.error('Error updating task:', error);
-      alert(`Lỗi kết nối cập nhật task: ${error.message}`);
+      alert(`Error kết nối cập nhật task: ${error.message}`);
     }
   };
 
@@ -499,7 +657,7 @@ export default function StudentTasks() {
       if (response.data.status === 200) {
         const nowIso = new Date().toISOString();
         
-        // Cập nhật state
+        // Update state
         setTasks(prev => prev.map(t => {
           if (t.id !== selectedTask.id) return t;
           const next = { ...t };
@@ -535,11 +693,11 @@ export default function StudentTasks() {
         setNewComment('');
       } else {
         console.error('Error creating comment:', response.data.message);
-        alert(`Lỗi tạo comment: ${response.data.message}`);
+        alert(`Error tạo comment: ${response.data.message}`);
       }
     } catch (error) {
       console.error('Error creating comment:', error);
-      alert(`Lỗi kết nối tạo comment: ${error.message}`);
+      alert(`Error kết nối tạo comment: ${error.message}`);
     }
   };
 
@@ -580,7 +738,7 @@ export default function StudentTasks() {
       setNewAttachment('');
     } catch (error) {
       console.error('Error uploading attachment:', error);
-      alert(`Lỗi upload attachment: ${error.message}`);
+      alert(`Error upload attachment: ${error.message}`);
     }
   };
 
@@ -594,13 +752,23 @@ export default function StudentTasks() {
 
   // Filter tasks dựa trên các filter states
   const filteredTasks = allTasks.filter(task => {
-
     const milestoneMatch = milestoneFilter === '' || (task.milestoneId && task.milestoneId.toString() === milestoneFilter);
     const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
     const statusMatch = statusFilter === '' || task.status === statusFilter;
     const priorityMatch = priorityFilter === '' || task.priority === priorityFilter;
+    
+    // Filter theo loại task dựa trên isMeetingTask
+    let taskTypeMatch = true;
+    if (taskTypeFilter === 'meeting') {
+      taskTypeMatch = task.isMeetingTask === true;
+    } else if (taskTypeFilter === 'milestone') {
+      taskTypeMatch = task.isMeetingTask !== true;
+    }
+    
     const myTasksMatch = !myTasksOnly || (currentUser && task.assignee === currentUser.id);
-    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && myTasksMatch;
+    const activeTaskMatch = !isActiveTask || task.isActive === true;
+    console.log("activeTaskMatch", activeTaskMatch);
+    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && myTasksMatch && activeTaskMatch;
   });
 
   const milestoneOptions = milestones.map(m => ({ value: m.id ? m.id.toString() : '', label: m.name }));
@@ -615,14 +783,15 @@ export default function StudentTasks() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>My Issues</h1>
+        <h1>My Tasks</h1>
         <button 
           className={styles.createButton}
           onClick={() => setTaskModal(true)}
         >
-          + Create New Issue
+           Create New Task
         </button>
       </div>
+
 
       {/* Stats Grid */}
       <div className={styles.statsGrid}>
@@ -703,6 +872,18 @@ export default function StudentTasks() {
             </select>
           </div>
           <div className={styles.controlGroup}>
+            <label>Task Type:</label>
+            <select
+              value={taskTypeFilter}
+              onChange={(e) => setTaskTypeFilter(e.target.value)}
+              className={styles.select}
+            >
+              <option value="">All</option>
+              <option value="milestone">Milestone</option>
+              <option value="meeting">Meeting</option>
+            </select>
+          </div>
+          <div className={styles.controlGroup}>
             <label>
               <input
                 type="checkbox"
@@ -710,7 +891,18 @@ export default function StudentTasks() {
                 onChange={(e) => setMyTasksOnly(e.target.checked)}
                 className={styles.checkbox}
               />
-              Issue của tôi
+              Task của tôi
+            </label>
+          </div>
+          <div className={styles.controlGroup}>
+            <label>
+              <input
+                type="checkbox"
+                checked={isActiveTask}
+                onChange={(e) => setIsActiveTask(e.target.checked)}
+                className={styles.checkbox}
+              />
+              Active Tasks
             </label>
           </div>
           <button
@@ -726,7 +918,7 @@ export default function StudentTasks() {
       {/* Empty state khi không có issue */}
       {filteredTasks.length === 0 ? (
         <div className={styles.emptyState}>
-          <div className={styles.emptyTitle}>Không có issue nào</div>
+          <div className={styles.emptyTitle}>No tasks found</div>
           <button className={styles.searchButton} onClick={handleRefresh}>Refresh</button>
         </div>
       ) : (
@@ -735,7 +927,7 @@ export default function StudentTasks() {
             columns={columns}
             data={filteredTasks}
             loading={loading}
-            emptyMessage="Không có issue nào"
+            emptyMessage="No tasks found"
             onRowClick={openTaskDetail}
             showIndex={true}
             indexTitle="No"
@@ -746,16 +938,16 @@ export default function StudentTasks() {
 
       <Modal open={taskModal} onClose={() => setTaskModal(false)}>
         <div className={styles.taskModal}>
-          <h2>Create New Issue</h2>
+          <h2>Create New Task</h2>
           <div className={styles.formGroup}>
             <label>
-              Issue Title <span className={styles.required}>*</span>
+              Task Title <span className={styles.required}>*</span>
             </label>
             <input
               type="text"
               value={newTask.title}
               onChange={(e) => setNewTask({...newTask, title: e.target.value})}
-              placeholder="Enter issue title"
+              placeholder="Enter task title"
               className={styles.input}
             />
           </div>
@@ -767,14 +959,65 @@ export default function StudentTasks() {
             <textarea
               value={newTask.description}
               onChange={(e) => setNewTask({...newTask, description: e.target.value})}
-              placeholder="Enter issue description"
+              placeholder="Enter task description"
               className={styles.textarea}
               rows={3}
             />
-            <div className={styles.hintText}>Mô tả ngắn gọn công việc cần làm.</div>
           </div>
           
           <div className={styles.formRow}>
+            <div className={styles.formGroup}>
+              <label>
+                Task Type <span className={styles.required}>*</span>
+              </label>
+              <select
+                className={styles.select}
+                value={newTask.taskType}
+                onChange={(e) => {
+                  const newTaskType = e.target.value;
+                  if (newTaskType === 'throughout') {
+                    // Chuyển từ meeting sang xuyên suốt: xóa meetingId, giữ milestoneId
+                    setNewTask({ ...newTask, taskType: newTaskType, meetingId: '' });
+                  } else {
+                    // Chuyển từ xuyên suốt sang meeting: giữ milestoneId
+                    setNewTask({ ...newTask, taskType: newTaskType });
+                  }
+                }}
+              >
+                <option value="throughout">Throughout Task</option>
+                <option value="meeting">Meeting Task</option>
+              </select>
+            </div>
+            
+            <div className={styles.formGroup}>
+              <label>
+                Meeting
+                {newTask.taskType === 'meeting' && <span className={styles.required}>*</span>}
+              </label>
+              {newTask.taskType === 'meeting' ? (
+                <select
+                  className={styles.select}
+                  value={newTask.meetingId}
+                  onChange={(e) => setNewTask({ ...newTask, meetingId: e.target.value })}
+                >
+                  <option value="">Select Meeting</option>
+                  {meetings.map(meeting => (
+                    <option key={meeting.id} value={meeting.id}>
+                      {meeting.description} - {new Date(meeting.meetingDate).toLocaleDateString('en-US')}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  className={styles.select}
+                  value=""
+                  disabled
+                >
+                  <option value="">Not applicable for throughout task</option>
+                </select>
+              )}
+            </div>
+            
             <div className={styles.formGroup}>
               <label>
                 Milestone
@@ -784,7 +1027,7 @@ export default function StudentTasks() {
                 value={newTask.milestoneId}
                 onChange={(e) => setNewTask({ ...newTask, milestoneId: e.target.value })}
               >
-                <option value="">Select Milestone</option>
+                <option value="">Select Milestone (optional)</option>
                 {milestoneOptions.map(option => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
@@ -803,6 +1046,24 @@ export default function StudentTasks() {
                 <option value="">Select Assignee</option>
                 {assigneeOptions.map(option => (
                   <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className={styles.formGroup}>
+              <label>
+                Reviewer
+              </label>
+              <select
+                className={styles.select}
+                value={newTask.reviewer}
+                onChange={(e) => setNewTask({ ...newTask, reviewer: e.target.value })}
+              >
+                <option value="">Select Reviewer</option>
+                {reviewers.map(reviewer => (
+                  <option key={reviewer.id} value={reviewer.id}>
+                    {reviewer.name} ({reviewer.type})
+                  </option>
                 ))}
               </select>
             </div>
@@ -847,7 +1108,7 @@ export default function StudentTasks() {
               className={`${styles.modalButton} ${styles.primary}`}
               onClick={createNewTask}
             >
-              Create Issue
+              Create Task
             </button>
           </div>
         </div>

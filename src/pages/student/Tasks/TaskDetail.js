@@ -33,6 +33,23 @@ export default function TaskDetail() {
   const [newComment, setNewComment] = React.useState('');
   const [newAttachment, setNewAttachment] = React.useState('');
   const [attachmentType, setAttachmentType] = React.useState('file');
+  
+  // Get user role from localStorage
+  const getUserRole = () => {
+    try {
+      const authUser = localStorage.getItem('auth_user');
+      if (authUser) {
+        const user = JSON.parse(authUser);
+        return user.role || 'STUDENT';
+      }
+      return 'STUDENT';
+    } catch (error) {
+      return 'STUDENT';
+    }
+  };
+  
+  const userRole = getUserRole();
+  const isSupervisor = userRole === 'SUPERVISOR' || userRole === 'MENTOR';
 
   React.useEffect(() => {
     const fetchTask = async () => {
@@ -60,7 +77,13 @@ export default function TaskDetail() {
             progress: parseInt(taskData.process) || 0,
             attachments: taskData.attachments || [],
             comments: taskData.comments || [],
-            history: taskData.history || []
+            history: taskData.history || [],
+            // New fields
+            isMeetingTask: taskData.isMeetingTask || false,
+            meetingId: taskData.meetingId || null,
+            isActive: taskData.isActive !== undefined ? taskData.isActive : true,
+            reviewer: taskData.reviewer || null,
+            reviewerName: taskData.reviewerName || 'No Reviewer'
           };
         
           setTask(mappedTask);
@@ -325,12 +348,22 @@ export default function TaskDetail() {
             <h2>Task Information</h2>
             <div className={styles.infoGrid}>
               <div className={styles.infoItem}>
+                <label>Task Type:</label>
+                <span className={styles.taskTypeBadge}>
+                  {task.isMeetingTask ? 'Meeting Task' : 'Throughout Task'}
+                </span>
+              </div>
+              <div className={styles.infoItem}>
                 <label>Priority:</label>
                 <span style={{ color: priorityInfo.color, fontWeight: 600 }}>{priorityInfo.text}</span>
               </div>
               <div className={styles.infoItem}>
                 <label>Assignee:</label>
                 <span>{task.assigneeName}</span>
+              </div>
+              <div className={styles.infoItem}>
+                <label>Reviewer:</label>
+                <span>{task.reviewerName}</span>
               </div>
               <div className={styles.infoItem}>
                 <label>Deadline:</label>
@@ -342,30 +375,56 @@ export default function TaskDetail() {
               </div>
               <div className={styles.infoItem}>
                 <label>Status:</label>
-                <select
-                  className={styles.select}
-                  value={task.status}
-                  onChange={(e) => updateTaskStatus(e.target.value)}
-                >
-                  <option value="todo">To Do</option>
-                  <option value="inProgress">In Progress</option>
-                  <option value="done">Done</option>
-                </select>
+                {!isSupervisor ? (
+                  <select
+                    className={styles.select}
+                    value={task.status}
+                    onChange={(e) => updateTaskStatus(e.target.value)}
+                  >
+                    <option value="todo">To Do</option>
+                    <option value="inProgress">In Progress</option>
+                    <option value="done">Done</option>
+                  </select>
+                ) : (
+                  <span className={styles.statusValue}>{task.status === 'todo' ? 'To Do' : 
+                      task.status === 'inProgress' ? 'In Progress' : 'Done'}</span>
+                )}
               </div>
               <div className={styles.infoItem}>
                 <label>Progress:</label>
-                <div className={styles.progressInline}>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    className={styles.numberInput}
-                    value={task.progress}
-                    onChange={(e) => updateProgress(e.target.value)}
-                  />
-                  <span>%</span>
-                </div>
+                {!isSupervisor ? (
+                  <div className={styles.progressInline}>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      className={styles.numberInput}
+                      value={task.progress}
+                      onChange={(e) => updateProgress(e.target.value)}
+                    />
+                    <span>%</span>
+                  </div>
+                ) : (
+                  <span className={styles.progressValue}>{task.progress}%</span>
+                )}
               </div>
+              <div className={styles.infoItem}>
+                <label>Active:</label>
+                <span className={task.isActive ? styles.activeStatus : styles.inactiveStatus}>
+                  {task.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+              {task.isMeetingTask && task.meetingId && (
+                <div className={styles.infoItem}>
+                  <label>Related Meeting:</label>
+                  <Button 
+                    onClick={() => navigate(`/student/meetings/${groupId}?meetingId=${task.meetingId}`)}
+                    className={styles.meetingButton}
+                  >
+                    View Meeting Details
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -468,3 +527,4 @@ export default function TaskDetail() {
     </div>
   );
 }
+
