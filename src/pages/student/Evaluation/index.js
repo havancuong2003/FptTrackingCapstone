@@ -1,183 +1,485 @@
-import React from 'react';
-import styles from './index.module.scss';
+import React from "react";
+import styles from "./index.module.scss";
+import Button from "../../../components/Button/Button";
+import Modal from "../../../components/Modal/Modal";
+import Select from "../../../components/Select/Select";
 
-export default function StudentEvaluation() {
+const API_URL_GROUPS = "https://160.30.21.113:5000/api/v1/Mentor/getGroups";
+const API_URL_MILESTONE =
+  "https://160.30.21.113:5000/api/v1/Student/milestone/group/";
+const API_URL_STUDENTS =
+  "https://160.30.21.113:5000/api/v1/Staff/capstone-groups/";
+
+export default function SupervisorEvaluation() {
   const [evaluations, setEvaluations] = React.useState([]);
+  const [groups, setGroups] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [selectedGroup, setSelectedGroup] = React.useState(null);
+  const [selectedMilestone, setSelectedMilestone] = React.useState("all");
+  const [evaluateModal, setEvaluateModal] = React.useState(false);
+  const [selectedStudent, setSelectedStudent] = React.useState(null);
+  const [newEvaluation, setNewEvaluation] = React.useState({
+    studentId: "",
+    milestoneId: "",
+    comment: "",
+    penaltyCards: [],
+  });
 
+  // Fetch danh sách nhóm
   React.useEffect(() => {
-    const fetchEvaluations = async () => {
+    const fetchGroups = async () => {
+      setLoading(true);
       try {
-        setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const mockData = {
-          "status": 200,
-          "message": "Fetched successfully",
-          "data": [
-            {
-              "id": 1,
-              "studentId": "SE00001",
-              "studentName": "Nguyen Van A",
-              "milestoneId": 1,
-              "milestoneName": "Project Proposal",
-              "comment": "Excellent work on the project proposal. Clear problem statement and well-defined objectives. Good understanding of the requirements.",
-              "penaltyTag": null,
-              "score": 9.5,
-              "createdAt": "2025-10-21T10:00:00Z",
-              "createdBy": "SUPERVISOR001",
-              "createdByName": "Dr. Smith"
-            },
-            {
-              "id": 2,
-              "studentId": "SE00001",
-              "studentName": "Nguyen Van A",
-              "milestoneId": 2,
-              "milestoneName": "System Design Document",
-              "comment": "Good technical design but submitted late. Please improve time management for future milestones.",
-              "penaltyTag": "late-submission",
-              "score": 7.0,
-              "createdAt": "2025-10-29T14:30:00Z",
-              "createdBy": "SUPERVISOR001",
-              "createdByName": "Dr. Smith"
-            }
-          ]
-        };
-        
-        setEvaluations(mockData.data);
-      } catch (error) {
-        console.error('Error fetching evaluations:', error);
+        const res = await fetch(API_URL_GROUPS, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+        });
+        const data = await res.json();
+
+        if (data?.data?.length) {
+          const groupsData = data.data.map((g) => ({
+            groupId: g.id.toString(),
+            groupName: g.name,
+            milestones: [],
+          }));
+          setGroups(groupsData);
+          setSelectedGroup(groupsData[0].groupId);
+        }
+      } catch (err) {
+        console.error("Error fetching groups:", err);
+      }
+    };
+    fetchGroups();
+  }, []);
+
+  // Fetch milestone + students
+  React.useEffect(() => {
+    if (!selectedGroup) return;
+    const fetchGroupDetails = async () => {
+      setLoading(true);
+      try {
+        const [milestoneRes, studentRes] = await Promise.all([
+          fetch(`${API_URL_MILESTONE}${selectedGroup}`, {
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+          }),
+          fetch(`${API_URL_STUDENTS}${selectedGroup}`, {
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+          }),
+        ]);
+
+        const milestoneData = await milestoneRes.json();
+        const studentData = await studentRes.json();
+
+        const students =
+          studentData?.data?.students?.map((s) => ({
+            id: s.id.toString(),
+            name: s.name,
+            role: s.role,
+            penaltyCards: [],
+            evaluations: [],
+          })) || [];
+
+        const milestones =
+          milestoneData?.data?.map((m) => ({
+            id: m.id.toString(),
+            name: m.name,
+            students,
+          })) || [];
+
+        setGroups((prev) =>
+          prev.map((g) =>
+            g.groupId === selectedGroup
+              ? {
+                  ...g,
+                  milestones,
+                  groupName: studentData?.data?.name || g.groupName,
+                }
+              : g
+          )
+        );
+
+        setSelectedMilestone(milestones.length > 0 ? milestones[0].id : "all");
+      } catch (err) {
+        console.error("Error fetching group details:", err);
       } finally {
         setLoading(false);
       }
     };
+    fetchGroupDetails();
+  }, [selectedGroup]);
 
-    fetchEvaluations();
-  }, []);
-
-  const getScoreColor = (score) => {
-    if (score >= 9) return '#059669';
-    if (score >= 7) return '#d97706';
-    return '#dc2626';
-  };
-
-  const getScoreText = (score) => {
-    if (score >= 9) return 'Excellent';
-    if (score >= 7) return 'Good';
-    if (score >= 5) return 'Average';
-    return 'Needs Improvement';
-  };
-
-  const getPenaltyInfo = (penaltyTag) => {
-    if (!penaltyTag) return null;
-    
-    switch (penaltyTag) {
-      case 'late-submission':
-        return { text: 'Late Submission', color: '#d97706' };
-      case 'missing-meeting':
-        return { text: 'Missing Meeting', color: '#dc2626' };
-      case 'poor-quality':
-        return { text: 'Poor Quality', color: '#dc2626' };
+  // UI helper
+  const getPenaltyCardInfo = (type) => {
+    switch (type) {
+      case "late-submission":
+        return { text: "Late Submission", color: "#d97706" };
+      case "missing-meeting":
+        return { text: "Missing Meeting", color: "#dc2626" };
+      case "poor-quality":
+        return { text: "Poor Quality", color: "#dc2626" };
+      case "no-participation":
+        return { text: "No Participation", color: "#dc2626" };
       default:
-        return { text: penaltyTag, color: '#64748b' };
+        return { text: type, color: "#64748b" };
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const getPenaltyInfo = (type) => {
+    switch (type) {
+      case "late-submission":
+        return { text: "Late Submission", color: "#d97706" };
+      case "missing-meeting":
+      case "poor-quality":
+      case "no-participation":
+        return { text: "Serious Infraction", color: "#dc2626" };
+      default:
+        return null;
+    }
   };
 
-  if (loading) {
+  const formatDate = (dateString) =>
+    new Date(dateString).toLocaleDateString("vi-VN", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const selectedGroupData = groups.find((g) => g.groupId === selectedGroup);
+  const selectedMilestoneData = selectedGroupData?.milestones?.find(
+    (m) => selectedMilestone === "all" || m.id === selectedMilestone
+  );
+  const studentsToEvaluate = selectedMilestoneData?.students || [];
+
+  const openEvaluateModal = (student) => {
+    setSelectedStudent(student);
+    setNewEvaluation({
+      studentId: student.id,
+      milestoneId: selectedMilestoneData?.id || "",
+      comment: "",
+      penaltyCards: [],
+    });
+    setEvaluateModal(true);
+  };
+
+  const submitEvaluation = async () => {
+    if (!newEvaluation.studentId || !newEvaluation.comment) {
+      alert("Please fill in all required fields");
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        "https://160.30.21.113:5000/api/v1/Common/Evaluation/create",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            studentId: newEvaluation.studentId,
+            milestoneId: newEvaluation.milestoneId,
+            comment: newEvaluation.comment,
+            penaltyCards: newEvaluation.penaltyCards,
+          }),
+        }
+      );
+
+      if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
+      const result = await res.json();
+      console.log("Evaluation created:", result);
+
+      const evaluation = {
+        id: Date.now(),
+        studentId: newEvaluation.studentId,
+        studentName: selectedStudent?.name,
+        milestoneId: newEvaluation.milestoneId,
+        milestoneName: selectedMilestoneData?.name,
+        comment: newEvaluation.comment,
+        penaltyTag: newEvaluation.penaltyCards[0] || null,
+        createdAt: new Date().toISOString(),
+        createdBy: "Supervisor",
+      };
+
+      setEvaluations((prev) => [evaluation, ...prev]);
+      setEvaluateModal(false);
+      setNewEvaluation({
+        studentId: "",
+        milestoneId: "",
+        comment: "",
+        penaltyCards: [],
+      });
+
+      setGroups((prevGroups) =>
+        prevGroups.map((g) =>
+          g.groupId === selectedGroup
+            ? {
+                ...g,
+                milestones: g.milestones.map((m) =>
+                  m.id === newEvaluation.milestoneId
+                    ? {
+                        ...m,
+                        students: m.students.map((s) =>
+                          s.id === newEvaluation.studentId
+                            ? {
+                                ...s,
+                                evaluations: [
+                                  {
+                                    comment: newEvaluation.comment,
+                                    // thêm các trường khác nếu muốn
+                                  },
+                                  ...(s.evaluations || []),
+                                ],
+                                penaltyCards: newEvaluation.penaltyCards,
+                              }
+                            : s
+                        ),
+                      }
+                    : m
+                ),
+              }
+            : g
+        )
+      );
+
+      alert("Evaluation submitted successfully!");
+    } catch (err) {
+      console.error("Error:", err);
+      alert("Failed to submit evaluation. Please try again.");
+    }
+  };
+
+  if (loading)
     return (
       <div className={styles.loading}>
-        <div>Loading evaluations...</div>
+        <div>Loading evaluation data...</div>
       </div>
     );
-  }
+
+  if (groups.length === 0)
+    return (
+      <div className={styles.loading}>
+        <div>No groups found.</div>
+      </div>
+    );
 
   return (
-    <div className={styles.container}>
-      <h1>Evaluation</h1>
-        <p className={styles.subtitle}>
-          View feedback and evaluations from your supervisor for each milestone.
-        </p>
-      
-      <div className={styles.evaluationsList}>
-        {evaluations.map((evaluation) => {
-          const scoreColor = getScoreColor(evaluation.score);
-          const scoreText = getScoreText(evaluation.score);
-          const penaltyInfo = getPenaltyInfo(evaluation.penaltyTag);
-          
-          return (
-            <div key={evaluation.id} className={styles.evaluationCard}>
-              <div className={styles.evaluationHeader}>
-                <div className={styles.evaluationInfo}>
-                  <h3>{evaluation.milestoneName}</h3>
-                  <p className={styles.evaluationDate}>
-                    Evaluated on {formatDate(evaluation.createdAt)}
-                  </p>
-                </div>
-                <div className={styles.evaluationScore}>
-                  <div 
-                    className={styles.scoreCircle}
-                    style={{ 
-                      backgroundColor: scoreColor,
-                      color: '#fff'
-                    }}
-                  >
-                    {evaluation.score}
+    <>
+      <div className={styles.container}>
+        <div className={styles.header}>
+          <h1>Student Evaluation - Supervisor View</h1>
+          <div className={styles.controls}>
+            <div className={styles.controlGroup}>
+              <label>Group:</label>
+              <Select
+                value={selectedGroup}
+                onChange={setSelectedGroup}
+                options={groups.map((g) => ({
+                  value: g.groupId,
+                  label: `${g.groupName} (${g.groupId})`,
+                }))}
+              />
+            </div>
+            <div className={styles.controlGroup}>
+              <label>Milestone:</label>
+              <Select
+                value={selectedMilestone}
+                onChange={setSelectedMilestone}
+                options={[
+                  { value: "all", label: "All Milestones" },
+                  ...(selectedGroupData?.milestones?.map((m) => ({
+                    value: m.id,
+                    label: m.name,
+                  })) || []),
+                ]}
+              />
+            </div>
+          </div>
+        </div>
+
+        {selectedGroupData && (
+          <div className={styles.evaluationTable}>
+            <h2>Students Evaluation Table</h2>
+            <div className={styles.tableContainer}>
+              <table className={styles.evaluationTable}>
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Role</th>
+                    <th>Penalty Cards</th>
+                    <th>Comment</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentsToEvaluate.map((student) => {
+                    const latestEval = student.evaluations?.[0];
+                    return (
+                      <tr key={student.id}>
+                        <td>
+                          <strong>{student.name}</strong> ({student.id})
+                        </td>
+                        <td>{student.role}</td>
+                        <td>
+                          {student.penaltyCards?.length ? (
+                            student.penaltyCards.map((card, i) => {
+                              const info = getPenaltyCardInfo(card.type);
+                              return (
+                                <span
+                                  key={i}
+                                  className={styles.penaltyCard}
+                                  style={{ backgroundColor: info.color }}
+                                >
+                                  {info.text}
+                                </span>
+                              );
+                            })
+                          ) : (
+                            <span className={styles.noPenalty}>
+                              No penalties
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {latestEval ? (
+                            <div className={styles.commentPreview}>
+                              {latestEval.comment.length > 50
+                                ? latestEval.comment.slice(0, 50) + "..."
+                                : latestEval.comment}
+                            </div>
+                          ) : (
+                            <span className={styles.noComment}>No comment</span>
+                          )}
+                        </td>
+                        <td>
+                          <Button
+                            onClick={() => openEvaluateModal(student)}
+                            size='sm'
+                            variant={latestEval ? "secondary" : "primary"}
+                          >
+                            {latestEval ? "Re-evaluate" : "Evaluate"}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        <div className={styles.evaluationsSection}>
+          <h2>Recent Evaluations</h2>
+          <div className={styles.evaluationsList}>
+            {evaluations.map((evaluation) => {
+              const penaltyInfo = getPenaltyInfo(evaluation.penaltyTag);
+              return (
+                <div key={evaluation.id} className={styles.evaluationCard}>
+                  <h3>{evaluation.studentName}</h3>
+                  <p>{evaluation.milestoneName}</p>
+                  <p>Evaluated on {formatDate(evaluation.createdAt)}</p>
+                  <div className={styles.commentSection}>
+                    <h4>Feedback</h4>
+                    <p>{evaluation.comment}</p>
                   </div>
-                  <div className={styles.scoreText} style={{ color: scoreColor }}>
-                    {scoreText}
-                  </div>
+                  {penaltyInfo && (
+                    <div className={styles.penaltySection}>
+                      <h4>Penalty</h4>
+                      <span
+                        className={styles.penaltyTag}
+                        style={{
+                          backgroundColor: penaltyInfo.color,
+                          color: "#fff",
+                        }}
+                      >
+                        {penaltyInfo.text}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              </div>
-              
-              <div className={styles.evaluationContent}>
-                <div className={styles.commentSection}>
-                  <h4>Mentor Feedback</h4>
-                  <p className={styles.comment}>{evaluation.comment}</p>
-                </div>
-                
-                {penaltyInfo && (
-                  <div className={styles.penaltySection}>
-                    <h4>Penalty Tag</h4>
-                    <span 
-                      className={styles.penaltyTag}
-                      style={{ 
-                        backgroundColor: penaltyInfo.color,
-                        color: '#fff'
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <Modal open={evaluateModal} onClose={() => setEvaluateModal(false)}>
+        {selectedStudent && (
+          <div className={styles.evaluateModal}>
+            <h2>Evaluate Student</h2>
+            <p>
+              {selectedStudent.name} ({selectedStudent.id}) —{" "}
+              {selectedStudent.role}
+            </p>
+            <p>Milestone: {selectedMilestoneData?.name}</p>
+
+            <div className={styles.formGroup}>
+              <label>Comment</label>
+              <textarea
+                value={newEvaluation.comment}
+                onChange={(e) =>
+                  setNewEvaluation({
+                    ...newEvaluation,
+                    comment: e.target.value,
+                  })
+                }
+                placeholder='Write feedback...'
+                className={styles.textarea}
+                rows={4}
+              />
+            </div>
+
+            <div className={styles.formSection}>
+              <h4>Penalty Cards</h4>
+              <div className={styles.penaltyCardsList}>
+                {[
+                  "late-submission",
+                  "missing-meeting",
+                  "poor-quality",
+                  "no-participation",
+                ].map((type) => {
+                  const info = getPenaltyCardInfo(type);
+                  const selected = newEvaluation.penaltyCards.includes(type);
+                  return (
+                    <div
+                      key={type}
+                      className={`${styles.penaltyCardOption} ${
+                        selected ? styles.selected : ""
+                      }`}
+                      onClick={() => {
+                        const updated = selected
+                          ? newEvaluation.penaltyCards.filter((c) => c !== type)
+                          : [...newEvaluation.penaltyCards, type];
+                        setNewEvaluation({
+                          ...newEvaluation,
+                          penaltyCards: updated,
+                        });
                       }}
                     >
-                      {penaltyInfo.text}
-                    </span>
-                  </div>
-                )}
-              </div>
-              
-              <div className={styles.evaluationFooter}>
-                <div className={styles.evaluationMeta}>
-                  <span>Evaluated by: {evaluation.createdByName}</span>
-                  <span>Milestone: {evaluation.milestoneName}</span>
-                </div>
+                      <span>{info.text}</span>
+                      {selected && <span className={styles.checkmark}>✓</span>}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          );
-        })}
-      </div>
-      
-      {evaluations.length === 0 && (
-        <div className={styles.emptyState}>
-          <p>No evaluations available yet.</p>
-          <p>Your mentor will provide feedback after each milestone submission.</p>
-        </div>
-      )}
-    </div>
+
+            <div className={styles.modalActions}>
+              <Button
+                variant='secondary'
+                onClick={() => setEvaluateModal(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={submitEvaluation}>Submit Evaluation</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </>
   );
 }

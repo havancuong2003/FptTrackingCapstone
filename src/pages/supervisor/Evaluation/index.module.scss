@@ -1,641 +1,209 @@
-.container {
-  padding: 20px;
-}
-
-.loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 200px;
-  font-size: 16px;
-  color: #666;
-}
-
-.header {
-  margin-bottom: 24px;
-}
-
-.header h1 {
-  margin: 0 0 16px 0;
-  color: #374151;
-  font-size: 28px;
-}
-
-.controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  align-items: center;
-}
-
-.controlGroup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 150px;
-}
-
-.controlGroup label {
-  font-weight: 600;
-  color: #374151;
-  font-size: 14px;
-  white-space: nowrap;
-}
-
-.groupInfo {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 24px;
-}
-
-.groupInfo h2 {
-  margin: 0 0 16px 0;
-  color: #374151;
-  font-size: 20px;
-}
-
-.statsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 16px;
-}
-
-.statCard {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 16px;
-  text-align: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.statNumber {
-  font-size: 24px;
-  font-weight: 700;
-  color: #1f2937;
-  margin-bottom: 4px;
-}
-
-.statLabel {
-  font-size: 12px;
-  color: #6b7280;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.evaluationTable {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.evaluationTable h2 {
-  margin: 0 0 16px 0;
-  color: #374151;
-  font-size: 20px;
-  padding: 20px 20px 0 20px;
-}
-
-.tableContainer {
-  overflow-x: auto;
-}
-
-.evaluationTable table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.evaluationTable th,
-.evaluationTable td {
-  padding: 12px 16px;
-  text-align: left;
-  border-bottom: 1px solid #e5e7eb;
-  vertical-align: top;
-}
-
-/* === ĐIỀU CHỈNH ĐỘ RỘNG CÁC CỘT === */
-/* Cột 1: Student (15%) */
-.evaluationTable th:nth-child(1),
-.evaluationTable td:nth-child(1) {
-  width: 15%;
-}
-
-/* Cột 2: Role (10%) */
-.evaluationTable th:nth-child(2),
-.evaluationTable td:nth-child(2) {
-  width: 10%;
-}
-
-/* Cột 3: Late Tasks (10%) */
-.evaluationTable th:nth-child(3),
-.evaluationTable td:nth-child(3) {
-  width: 10%;
-}
-
-/* Cột 4: Penalty Cards (20%) */
-.evaluationTable th:nth-child(4),
-.evaluationTable td:nth-child(4) {
-  width: 20%;
-}
-
-/* Cột 5: Comment (35%) */
-.evaluationTable th:nth-child(5),
-.evaluationTable td:nth-child(5) {
-  width: 35%;
-  word-break: break-word;
-}
-
-/* Cột 6: Actions (10%) */
-.evaluationTable th:nth-child(6),
-.evaluationTable td:nth-child(6) {
-  width: 10%;
-}
-
-.evaluationTable th {
-  background: #f8fafc;
-  font-weight: 600;
-  color: #374151;
-  font-size: 14px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.evaluationTable td {
-  font-size: 14px;
-  color: #374151;
-}
-
-.studentInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.studentId {
-  color: #6b7280;
-  font-size: 12px;
-}
-
-.roleTag {
-  background: #e0f2fe;
-  color: #0277bd;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.attendanceInfo {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.attendanceIcon {
-  font-size: 14px;
-}
-
-.attendanceText {
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.lateTasksCount {
-  color: #d97706;
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.penaltyCards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-
-.penaltyCard {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 6px;
-  border-radius: 3px;
-  color: #fff;
-  font-size: 10px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.noPenalty {
-  color: #059669;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.scoreInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.scoreValue {
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.scoreText {
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.noScore, .noComment {
-  color: #6b7280;
-  font-size: 12px;
-  font-style: italic;
-}
-
-.commentPreview {
-  max-width: 200px;
-  color: #374151;
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.actionButtons {
-  display: flex;
-  gap: 8px;
-}
-
-.studentsSection, .evaluationsSection {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 20px;
-}
-
-.studentsSection h2, .evaluationsSection h2 {
-  margin: 0 0 20px 0;
-  color: #374151;
-  font-size: 20px;
-}
-
-.studentsList, .evaluationsList {
-  display: grid;
-  gap: 16px;
-}
-
-.studentCard, .evaluationCard {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.studentInfo h3 {
-  margin: 0 0 4px 0;
-  color: #374151;
-  font-size: 16px;
-}
-
-.studentGroup {
-  margin: 0 0 12px 0;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-.milestonesList h4 {
-  margin: 0 0 8px 0;
-  color: #374151;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.milestoneItem {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px solid #f1f5f9;
-  
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.milestoneName {
-  color: #374151;
-  font-size: 13px;
-}
-
-.milestoneStatus {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: capitalize;
-}
-
-.studentActions {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.evaluationHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.evaluationInfo h3 {
-  margin: 0 0 4px 0;
-  color: #374151;
-  font-size: 16px;
-}
-
-.evaluationMilestone {
-  margin: 0 0 4px 0;
-  color: #3b82f6;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.evaluationDate {
-  margin: 0;
-  color: #6b7280;
-  font-size: 12px;
-}
-
-.evaluationScore {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.scoreCircle {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: bold;
-}
-
-.scoreText {
-  font-size: 12px;
-  font-weight: 600;
-  text-align: center;
-}
-
-.evaluationContent {
-  margin-bottom: 16px;
-}
-
-.commentSection, .penaltySection {
-  margin-bottom: 12px;
-  
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.commentSection h4, .penaltySection h4 {
-  margin: 0 0 8px 0;
-  color: #374151;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.comment {
-  margin: 0;
-  color: #374151;
-  line-height: 1.6;
-  font-size: 14px;
-}
-
-.penaltyTag {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.evaluationActions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.evaluateModal {
-  max-width: 700px;
-  width: 100%;
-}
-
-.evaluateModal h2 {
-  margin: 0 0 16px 0;
-  color: #374151;
-  font-size: 24px;
-}
-
-.studentInfo {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-  padding: 16px;
-  margin-bottom: 20px;
-}
-
-.studentInfo h3 {
-  margin: 0 0 8px 0;
-  color: #374151;
-  font-size: 18px;
-}
-
-.studentInfo p {
-  margin: 0;
-  color: #6b7280;
-  font-size: 14px;
-}
-
-.evaluationForm {
-  margin-bottom: 20px;
-}
-
-.formSection {
-  margin-bottom: 24px;
-  padding: 16px;
-  background: #f8fafc;
-  border-radius: 6px;
-  border: 1px solid #e2e8f0;
-}
-
-.formSection h4 {
-  margin: 0 0 16px 0;
-  color: #374151;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.formRow {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-
-.penaltyCardsList {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.penaltyCardOption {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px;
-  border: 2px solid #e5e7eb;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: #fff;
-  
-  &:hover {
-    border-color: #3b82f6;
-    background: #f0f9ff;
-  }
-  
-  &.selected {
-    border-color: #3b82f6;
-    background: #dbeafe;
-  }
-}
-
-.penaltyIcon {
-  font-size: 16px;
-}
-
-.penaltyText {
-  flex: 1;
-  font-weight: 500;
-  color: #374151;
-}
-
-.checkmark {
-  color: #059669;
-  font-weight: 700;
-  font-size: 16px;
-}
-
-.formGroup {
-  margin-bottom: 16px;
-}
-
-.formGroup label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 600;
-  color: #374151;
-  font-size: 14px;
-}
-
-.input, .textarea, .select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-  font-family: inherit;
-  
-  &:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
-}
-
-.textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.modalActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 24px;
-  padding-top: 16px;
-  border-top: 1px solid #e5e7eb;
-}
-
-@media (max-width: 1024px) {
-  .sections {
-    grid-template-columns: 1fr;
-    gap: 24px;
-  }
-}
-
-@media (max-width: 768px) {
-  .controls {
-    flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
-  }
-
-  .controlGroup {
-    min-width: auto;
-    justify-content: space-between;
-  }
-
-  .statsGrid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .tableContainer {
-    overflow-x: auto;
-  }
-
-  .evaluationTable th,
-  .evaluationTable td {
-    padding: 8px 12px;
-    font-size: 12px;
-  }
-
-  .formRow {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .penaltyCardsList {
-    grid-template-columns: 1fr;
-  }
-
-  .penaltyCardOption {
-    padding: 10px;
-  }
-
-  .evaluationHeader {
-    flex-direction: column;
-    gap: 12px;
+/* Định nghĩa biến màu */
+:root {
+    --excellent-color: #28a745; /* Màu xanh lá cho Excellent */
+    --late-color: #fd7e14; /* Màu cam cho Late Submission */
+    --text-color-dark: #333;
+    --text-color-light: #6c757d;
+    --border-color: #e0e0e0;
+    --bg-white: #fff;
+    --bg-light-gray: #f7f7f7;
+    --link-color: #007bff;
+}
+
+/* === GENERAL STYLES === */
+.evaluation-container {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-light-gray);
+    padding: 0;
+    min-height: 100vh;
+}
+
+/* === HEADER (Evaluation) - CHỮ ĐEN NỀN TRẮNG === */
+.evaluation-header-white {
+    background-color: var(--bg-white); /* Nền trắng */
+    color: var(--text-color-dark); /* Chữ đen */
+    padding: 30px 50px;
+    border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.evaluation-header-white .header-content {
+    display: flex;
     align-items: center;
-  }
-
-  .evaluationScore {
-    flex-direction: row;
-    gap: 12px;
-  }
+    margin-bottom: 10px;
 }
 
- 
+.evaluation-header-white .icon-document {
+    color: var(--text-color-dark); /* Icon màu đen */
+    margin-right: 15px;
+}
+
+.evaluation-header-white h1 {
+    font-size: 2.2rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.evaluation-header-white p {
+    font-size: 1.05rem;
+    color: var(--text-color-light);
+    margin: 0;
+    padding-left: 45px; /* Căn lề với chữ H1 */
+}
+
+/* === MAIN CONTENT === */
+.evaluation-main-content {
+    padding: 30px 50px;
+    max-width: 1000px; 
+    margin: 0 auto;
+}
+
+/* === MILESTONE CARD === */
+.milestone-card {
+    background-color: var(--bg-white);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    padding: 25px;
+    margin-bottom: 30px;
+    border: 1px solid var(--border-color);
+}
+
+.milestone-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.milestone-card h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text-color-dark);
+    margin: 0;
+}
+
+/* Status Tag (EXCELLENT, LATE SUBMISSION) */
+.status-tag {
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: var(--bg-white);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-tag.excellent {
+    background-color: var(--excellent-color);
+}
+
+.status-tag.late {
+    background-color: var(--late-color);
+}
+
+/* Evaluation Date */
+.evaluation-date {
+    font-size: 0.9rem;
+    color: var(--text-color-light);
+    margin: 0 0 20px 0;
+    display: flex;
+    align-items: center;
+}
+
+.evaluation-date .icon {
+    color: var(--text-color-light);
+    margin-right: 5px;
+}
+
+/* Feedback Section */
+.feedback-section {
+    background-color: var(--bg-light-gray);
+    border-left: 4px solid #ccd5e0; /* Màu viền xám nhạt */
+    padding: 15px 20px;
+    margin-top: 15px;
+    border-radius: 4px;
+}
+
+.feedback-section h3 {
+    font-size: 0.8rem;
+    color: var(--text-color-light);
+    font-weight: bold;
+    text-transform: uppercase;
+    margin: 0 0 5px 0;
+}
+
+.feedback-section .feedback-text {
+    font-size: 0.95rem;
+    color: var(--text-color-dark);
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Card Footer */
+.card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    border-top: 1px dashed var(--border-color);
+    padding-top: 15px;
+}
+
+.evaluated-by {
+    font-size: 0.9rem;
+    color: var(--text-color-light);
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+.evaluated-by .icon {
+    color: var(--text-color-light);
+    margin-right: 5px;
+}
+
+.evaluated-by strong {
+    font-weight: 600;
+    color: var(--text-color-dark);
+}
+
+.milestone-link {
+    font-size: 0.9rem;
+    color: var(--link-color);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .evaluation-header-white {
+        padding: 20px;
+    }
+
+    .evaluation-header-white p {
+        padding-left: 0;
+        margin-top: 10px;
+    }
+
+    .evaluation-main-content {
+        padding: 20px;
+    }
+
+    .milestone-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .status-tag {
+        margin-top: 10px;
+    }
+
+    .card-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .milestone-link {
+        margin-top: 10px;
+    }
+}

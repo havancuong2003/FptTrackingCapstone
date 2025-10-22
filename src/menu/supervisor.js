@@ -22,7 +22,7 @@ const supervisorMenu = [
   },
   { 
     path: "/supervisor/evaluation", 
-    label: "Evaluation System", 
+    label: "Evaluation", 
     icon: "⭐"
   },
   // Chức năng riêng của supervisor
