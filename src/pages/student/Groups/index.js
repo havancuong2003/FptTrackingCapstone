@@ -114,14 +114,15 @@ export default function StudentGroups() {
     };
 
     // Check role change permissions
-    const canChangeRole = (memberId) => {
+    const canChangeRole = (member) => {
         // Only Secretary can change roles
         if (!isSecretary) {
             return false;
         }
         
         // Secretary cannot change their own role
-        if (memberId === currentUserId) {
+        // Compare using studentId (actual user ID) instead of rollNumber
+        if (member.studentId === currentUserId) {
             return false;
         }
         
@@ -131,7 +132,7 @@ export default function StudentGroups() {
 
 
     const openRoleChangeModal = (member) => {
-        if (!canChangeRole(member.id)) {
+        if (!canChangeRole(member)) {
             return; // No notification, just return
         }
         setMemberToChangeRole(member);
@@ -200,7 +201,7 @@ export default function StudentGroups() {
 
     const renderMemberCard = (member) => {
         const roleInfo = getRoleInfo(member.currentRole);
-        const canChange = canChangeRole(member.id);
+        const canChange = canChangeRole(member);
         
         return (
             <div key={member.id} className={styles.memberCard_Role}>
@@ -275,7 +276,7 @@ export default function StudentGroups() {
                                     <h4>Members ({group.members.length})</h4>
                                     <div className={styles.membersList}>
                                         {group.members.map((member) => {
-                                            const canChange = canChangeRole(member.id);
+                                            const canChange = canChangeRole(member);
                                             return (
                                                 <div key={member.id} className={styles.memberItem}>
                                                     <div className={styles.memberInfo}>
