@@ -1,209 +1,646 @@
-/* Định nghĩa biến màu */
-:root {
-    --excellent-color: #28a745; /* Màu xanh lá cho Excellent */
-    --late-color: #fd7e14; /* Màu cam cho Late Submission */
-    --text-color-dark: #333;
-    --text-color-light: #6c757d;
-    --border-color: #e0e0e0;
-    --bg-white: #fff;
-    --bg-light-gray: #f7f7f7;
-    --link-color: #007bff;
+.container {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  background: #f8fafc;
+  min-height: 100vh;
 }
 
-/* === GENERAL STYLES === */
-.evaluation-container {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: var(--bg-light-gray);
-    padding: 0;
-    min-height: 100vh;
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  font-size: 18px;
+  color: #64748b;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* === HEADER (Evaluation) - CHỮ ĐEN NỀN TRẮNG === */
-.evaluation-header-white {
-    background-color: var(--bg-white); /* Nền trắng */
-    color: var(--text-color-dark); /* Chữ đen */
-    padding: 30px 50px;
-    border-bottom: 1px solid var(--border-color);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+.header {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
 }
 
-.evaluation-header-white .header-content {
-    display: flex;
-    align-items: center;
-    margin-bottom: 10px;
+.header h1 {
+  margin: 0 0 20px 0;
+  color: #1e293b;
+  font-size: 32px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.evaluation-header-white .icon-document {
-    color: var(--text-color-dark); /* Icon màu đen */
-    margin-right: 15px;
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+  background: #f8fafc;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
-.evaluation-header-white h1 {
-    font-size: 2.2rem;
-    font-weight: 600;
-    margin: 0;
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 200px;
 }
 
-.evaluation-header-white p {
-    font-size: 1.05rem;
-    color: var(--text-color-light);
-    margin: 0;
-    padding-left: 45px; /* Căn lề với chữ H1 */
+.controlGroup label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+  white-space: nowrap;
+  min-width: 60px;
 }
 
-/* === MAIN CONTENT === */
-.evaluation-main-content {
-    padding: 30px 50px;
-    max-width: 1000px; 
-    margin: 0 auto;
+.groupInfo {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
-/* === MILESTONE CARD === */
-.milestone-card {
-    background-color: var(--bg-white);
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-    padding: 25px;
-    margin-bottom: 30px;
-    border: 1px solid var(--border-color);
+.groupInfo h2 {
+  margin: 0 0 20px 0;
+  color: #1e293b;
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  padding: 16px 20px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
 }
 
-.milestone-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
 }
 
-.milestone-card h2 {
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: var(--text-color-dark);
-    margin: 0;
+.statCard {
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
 }
 
-/* Status Tag (EXCELLENT, LATE SUBMISSION) */
-.status-tag {
-    padding: 6px 12px;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    color: var(--bg-white);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+.statCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
-.status-tag.excellent {
-    background-color: var(--excellent-color);
+.statNumber {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
-.status-tag.late {
-    background-color: var(--late-color);
+.statLabel {
+  font-size: 13px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
 }
 
-/* Evaluation Date */
-.evaluation-date {
-    font-size: 0.9rem;
-    color: var(--text-color-light);
-    margin: 0 0 20px 0;
-    display: flex;
-    align-items: center;
+.evaluationTable {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
 }
 
-.evaluation-date .icon {
-    color: var(--text-color-light);
-    margin-right: 5px;
+.evaluationTable h2 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 24px;
+  font-weight: 700;
+  padding: 24px 24px 16px 24px;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-bottom: 1px solid #e2e8f0;
 }
 
-/* Feedback Section */
-.feedback-section {
-    background-color: var(--bg-light-gray);
-    border-left: 4px solid #ccd5e0; /* Màu viền xám nhạt */
-    padding: 15px 20px;
-    margin-top: 15px;
-    border-radius: 4px;
+.tableContainer {
+  overflow-x: auto;
+  border-radius: 0 0 12px 12px;
 }
 
-.feedback-section h3 {
-    font-size: 0.8rem;
-    color: var(--text-color-light);
-    font-weight: bold;
-    text-transform: uppercase;
-    margin: 0 0 5px 0;
+.evaluationTable table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  min-width: 900px;
 }
 
-.feedback-section .feedback-text {
-    font-size: 0.95rem;
-    color: var(--text-color-dark);
-    line-height: 1.5;
-    margin: 0;
+.evaluationTable th,
+.evaluationTable td {
+  padding: 16px 20px;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
 }
 
-/* Card Footer */
-.card-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 20px;
-    border-top: 1px dashed var(--border-color);
-    padding-top: 15px;
+.evaluationTable th {
+  background: #f8fafc;
+  font-weight: 700;
+  color: #374151;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #e2e8f0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-.evaluated-by {
-    font-size: 0.9rem;
-    color: var(--text-color-light);
-    margin: 0;
-    display: flex;
-    align-items: center;
+.evaluationTable td {
+  font-size: 14px;
+  color: #374151;
+  background: #fff;
+  transition: background-color 0.2s ease;
 }
 
-.evaluated-by .icon {
-    color: var(--text-color-light);
-    margin-right: 5px;
+.evaluationTable tbody tr:hover td {
+  background: #f8fafc;
 }
 
-.evaluated-by strong {
-    font-weight: 600;
-    color: var(--text-color-dark);
+.evaluationTable tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.milestone-link {
-    font-size: 0.9rem;
-    color: var(--link-color);
-    cursor: pointer;
-    text-decoration: none;
+.studentInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-/* Responsive adjustments */
+.studentId {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.roleTag {
+  background: linear-gradient(135deg, #e0f2fe, #b3e5fc);
+  color: #0277bd;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid #b3e5fc;
+}
+
+.lateTasksCount {
+  color: #d97706;
+  font-weight: 700;
+  font-size: 13px;
+  background: #fef3c7;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #fde68a;
+}
+
+.penaltyCards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.penaltyCard {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s ease;
+}
+
+.penaltyCard:hover {
+  transform: translateY(-1px);
+}
+
+.noPenalty {
+  color: #059669;
+  font-size: 13px;
+  font-weight: 600;
+  background: #ecfdf5;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #d1fae5;
+}
+
+.commentPreview {
+  max-width: 300px;
+  color: #374151;
+  font-size: 13px;
+  line-height: 1.5;
+  background: #f8fafc;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.noComment {
+  color: #64748b;
+  font-size: 12px;
+  font-style: italic;
+  background: #f8fafc;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.actionButtons {
+  display: flex;
+  gap: 8px;
+}
+
+.evaluationsSection {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+}
+
+.evaluationsSection h2 {
+  margin: 0 0 24px 0;
+  color: #1e293b;
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  padding: 16px 20px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.evaluationsList {
+  display: grid;
+  gap: 20px;
+}
+
+.evaluationCard {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s ease;
+}
+
+.evaluationCard:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.evaluationHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.evaluationInfo h3 {
+  margin: 0 0 4px 0;
+  color: #1e293b;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.evaluationMilestone {
+  margin: 0 0 4px 0;
+  color: #3b82f6;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.evaluationDate {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.evaluationScore {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.scoreCircle {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.scoreText {
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.evaluationContent {
+  margin-bottom: 16px;
+}
+
+.commentSection, .penaltySection {
+  margin-bottom: 12px;
+}
+
+.commentSection h4, .penaltySection h4 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.comment {
+  margin: 0;
+  color: #374151;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.penaltyTag {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #fff;
+}
+
+.evaluationActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.evaluateModal {
+  max-width: 800px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.evaluateModal h2 {
+  margin: 0 0 20px 0;
+  color: #1e293b;
+  font-size: 28px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.studentInfo {
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.studentInfo h3 {
+  margin: 0 0 8px 0;
+  color: #1e293b;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.studentInfo p {
+  margin: 0;
+  color: #64748b;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.evaluationForm {
+  margin-bottom: 20px;
+}
+
+.formSection {
+  margin-bottom: 24px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.formSection h4 {
+  margin: 0 0 20px 0;
+  color: #1e293b;
+  font-size: 18px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.formGroup {
+  margin-bottom: 20px;
+}
+
+.formGroup label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 15px;
+}
+
+.input, .textarea, .select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 15px;
+  font-family: inherit;
+  background: #fff;
+  transition: all 0.2s ease;
+}
+
+.input:focus, .textarea:focus, .select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  background: #f8fafc;
+}
+
+.input:hover, .textarea:hover, .select:hover {
+  border-color: #cbd5e1;
+}
+
+.textarea {
+  resize: vertical;
+  min-height: 120px;
+  line-height: 1.6;
+}
+
+.penaltyCardsList {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.penaltyCardOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.penaltyCardOption:hover {
+  border-color: #3b82f6;
+  background: #f0f9ff;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.penaltyCardOption.selected {
+  border-color: #3b82f6;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2);
+  transform: translateY(-2px);
+}
+
+.penaltyText {
+  flex: 1;
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+}
+
+.checkmark {
+  color: #059669;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 2px solid #e2e8f0;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  padding: 20px;
+  border-radius: 0 0 12px 12px;
+  margin: 32px -20px -20px -20px;
+}
+
+@media (max-width: 1024px) {
+  .statsGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
-    .evaluation-header-white {
-        padding: 20px;
-    }
+  .container {
+    padding: 16px;
+  }
 
-    .evaluation-header-white p {
-        padding-left: 0;
-        margin-top: 10px;
-    }
+  .controls {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
 
-    .evaluation-main-content {
-        padding: 20px;
-    }
+  .controlGroup {
+    min-width: auto;
+    justify-content: space-between;
+  }
 
-    .milestone-info {
-        flex-direction: column;
-        align-items: flex-start;
-    }
+  .statsGrid {
+    grid-template-columns: 1fr;
+  }
 
-    .status-tag {
-        margin-top: 10px;
-    }
+  .tableContainer {
+    overflow-x: auto;
+  }
 
-    .card-footer {
-        flex-direction: column;
-        align-items: flex-start;
-    }
+  .evaluationTable th,
+  .evaluationTable td {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
 
-    .milestone-link {
-        margin-top: 10px;
-    }
+  .penaltyCardsList {
+    grid-template-columns: 1fr;
+  }
+
+  .penaltyCardOption {
+    padding: 12px;
+  }
+
+  .evaluationHeader {
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .evaluationScore {
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .modalActions {
+    flex-direction: column;
+    gap: 12px;
+  }
 }
