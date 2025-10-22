@@ -4,6 +4,8 @@ import client from '../../utils/axiosClient';
 export async function getAllSemesters() {
   try {
     const response = await client.get('/Staff/semester/getall');
+    console.log("response getAllSemesters", response.data);
+    
     return response.data;
   } catch (error) {
     throw error;
@@ -62,22 +64,24 @@ export async function getCurrentSemester() {
   }
 }
 
-// Cập nhật tuần nghỉ
-export async function updateVacationWeeks(semesterId, weeks) {
+// Lấy danh sách vacation periods của semester
+export async function getVacationBySemesterId(semesterId) {
   try {
-    // Chỉ gửi weekNumber và isVacation cho mỗi tuần
-    const formattedWeeks = weeks.map(week => ({
-      weekNumber: week.weekNumber,
-      isVacation: week.isVacation
-    }));
-    
-    const response = await client.post('/Staff/semester/vacation', {
-      semesterId,
-      weeks: formattedWeeks
-    });
+    const response = await client.get(`/Staff/semester/getVacationBySemesterId/${semesterId}`);
     return response.data;
   } catch (error) {
-    console.error("error updateVacationWeeks", error);
+    console.error('Error in getVacationBySemesterId:', error);
+    throw error;
+  }
+}
+
+// Cập nhật vacation periods
+export async function updateVacationPeriods(semesterId, vacationData) {
+  try {
+    const response = await client.put(`/Staff/semester/${semesterId}/vacations`, vacationData);
+    return response.data;
+  } catch (error) {
+    console.error('Error in updateVacationPeriods:', error);
     throw error;
   }
 }

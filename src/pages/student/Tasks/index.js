@@ -134,11 +134,12 @@ export default function StudentTasks() {
         const reviewersList = [];
         
         // Add supervisors
-        if (groupData.supervisors && Array.isArray(groupData.supervisors)) {
-          groupData.supervisors.forEach(supervisor => {
+        if (groupData.supervisorsInfor && Array.isArray(groupData.supervisorsInfor)) {
+          groupData.supervisorsInfor.forEach(supervisor => {
+        //    console.log("supervisor", supervisor);
             reviewersList.push({
-              id: `supervisor_${supervisor}`,
-              name: supervisor,
+              id: `${supervisor.id}`,
+              name: supervisor.name,
               type: 'Supervisor'
             });
           });
@@ -148,7 +149,7 @@ export default function StudentTasks() {
         if (groupData.students && Array.isArray(groupData.students)) {
           groupData.students.forEach(student => {
             reviewersList.push({
-              id: `student_${student.id}`,
+              id: `${student.id}`,
               name: student.name,
               type: 'Student',
               role: student.role
@@ -220,6 +221,7 @@ export default function StudentTasks() {
       if (response.data.status === 200) {
         const apiData = response.data.data;
         const tasksData = Array.isArray(apiData) ? apiData : [];
+        console.log("tasksData", tasksData);
         const mappedTasks = tasksData.map(task => ({
           id: task.id,
           title: task.title,
@@ -239,6 +241,7 @@ export default function StudentTasks() {
           comments: task.comments || [],
           history: task.history || []
         }));
+
         setAllTasks(mappedTasks);
         setIsSearched(true);
       } else {
@@ -519,9 +522,10 @@ export default function StudentTasks() {
         meetingId: newTask.meetingId ? parseInt(newTask.meetingId) : null,
         taskType: newTask.taskType,
         assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null,
-        reviewerId: newTask.reviewer || null,
+        reviewerId: selectedReviewer ? parseInt(selectedReviewer.id) : null,
         reviewerName: selectedReviewer ? selectedReviewer.name : null
       };
+    //  console.log("taskData", taskData);
       // console.log("taskData", taskData);
       const response = await axiosClient.post('/Student/Task/create', taskData);
       
@@ -763,6 +767,7 @@ export default function StudentTasks() {
     
     const myTasksMatch = !myTasksOnly || (currentUser && task.assignee === currentUser.id);
     const activeTaskMatch = !isActiveTask || task.isActive === true;
+    console.log("activeTaskMatch", activeTaskMatch);
     return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && myTasksMatch && activeTaskMatch;
   });
 
@@ -783,7 +788,7 @@ export default function StudentTasks() {
           className={styles.createButton}
           onClick={() => setTaskModal(true)}
         >
-          + Create New Task
+           Create New Task
         </button>
       </div>
 
