@@ -407,3 +407,56 @@
     }
   }
 }
+
+/* Email Modal Styles */
+.emailList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  min-height: 44px;
+}
+
+.emailTag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #3b82f6;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.removeEmail {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
+}
+
+.removeEmail:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.ccInfo {
+  margin-bottom: 8px;
+  
+  small {
+    color: #6b7280;
+    font-size: 12px;
+    font-style: italic;
+  }
+}
