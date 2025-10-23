@@ -51,7 +51,7 @@ export default function StudentGroups() {
                             studentId: student.id, // Save studentId để gọi API
                             name: student.name,
                             currentRole: student.role === "1" ? 'Member' : (student.role || 'Member'),
-                            email: `${student.rollNumber.toLowerCase()}@student.fpt.edu.vn`
+                            email: student.email || ''
                         })),
                         progress: {
                             completedMilestones: 0,
@@ -78,19 +78,6 @@ export default function StudentGroups() {
         fetchGroups();
     }, []);
 
-    const getProgressColor = (percentage) => {
-        if (percentage >= 80) return '#059669';
-        if (percentage >= 60) return '#d97706';
-        if (percentage >= 40) return '#f59e0b';
-        return '#dc2626';
-    };
-    
-    const getProgressText = (percentage) => {
-        if (percentage >= 80) return 'Excellent';
-        if (percentage >= 60) return 'Good';
-        if (percentage >= 40) return 'Average';
-        return 'Needs Attention';
-    };
 
     const getRoleInfo = (role) => {
         switch (role) {
@@ -105,13 +92,6 @@ export default function StudentGroups() {
         }
     };
 
-    const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
 
     // Check role change permissions
     const canChangeRole = (member) => {
@@ -163,7 +143,6 @@ export default function StudentGroups() {
                     }
                 }
             );
-          //  console.log('response ',response);
             
             
             if (response.data.status === 200) {
@@ -258,16 +237,15 @@ export default function StudentGroups() {
             
             <div className={styles.groupsList}>
                 {groups.map((group) => {
-                    const progressColor = getProgressColor(group.progress.completionPercentage);
-                    const progressText = getProgressText(group.progress.completionPercentage);
-                    
                     return (
                         <div key={group.id} className={styles.groupCard}>
                             <div className={styles.groupHeader}>
                                 <div className={styles.groupInfo}>
                                     <h3>{group.groupName}</h3>
                                     <p className={styles.projectName}>{group.projectName}</p>
-                                    <p className={styles.projectCode}>Group Code: {group.groupCode}</p>
+                                    {group.groupCode !== group.groupName && (
+                                        <p className={styles.projectCode}>Group Code: {group.groupCode}</p>
+                                    )}
                                 </div>
                             </div>
                             
@@ -281,6 +259,7 @@ export default function StudentGroups() {
                                                 <div key={member.id} className={styles.memberItem}>
                                                     <div className={styles.memberInfo}>
                                                         <span className={styles.memberName}>{member.name}</span>
+                                                        <span className={styles.memberEmail}>{member.email}</span>
                                                         <span className={styles.memberRoleTag}>{member.currentRole}</span>
                                                     </div>
                                                     {canChange && (
@@ -297,30 +276,8 @@ export default function StudentGroups() {
                                     </div>
                                 </div>
                                 
-                                <div className={styles.detailSection}>
-                                    <h4>Progress</h4>
-                                    <div className={styles.progressInfo}>
-                                        <div className={styles.progressItem}>
-                                            <span>Completed:</span>
-                                            <span>{group.progress.completedMilestones}/{group.progress.totalMilestones} milestones</span>
-                                        </div>
-                                        <div className={styles.progressItem}>
-                                            <span>Current:</span>
-                                            <span className={styles.currentMilestone}>{group.currentMilestone}</span>
-                                        </div>
-                                        <div className={styles.progressItem}>
-                                            <span>Next Deadline:</span>
-                                            <span>{formatDate(group.nextDeadline)}</span>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                             
-                            <div className={styles.groupActions}>
-                                <Button>
-                                    Track Progress
-                                </Button>
-                            </div>
                         </div>
                     );
                 })}

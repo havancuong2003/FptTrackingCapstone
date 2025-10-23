@@ -6,7 +6,7 @@ import axiosClient from '../../../utils/axiosClient';
 
 export default function SupervisorSchedule() {
   const { groupId: urlGroupId } = useParams();
-  const groupId = urlGroupId || '1'; // Mock groupId nếu không có
+  const groupId = urlGroupId || '1';
   
   // Lấy thông tin user từ localStorage
   const getCurrentUser = () => {
@@ -15,62 +15,45 @@ export default function SupervisorSchedule() {
       if (authUser) {
         return JSON.parse(authUser);
       }
-      // Mock user nếu không có trong localStorage
-      return {
-        id: 1,
-        name: 'Supervisor A',
-        role: 'supervisor'
-      };
+      
     } catch (error) {
       console.error('Error parsing auth_user:', error);
-      // Mock user fallback
-      return {
-        id: 1,
-        name: 'Supervisor A',
-        role: 'supervisor'
-      };
+    
     }
   };
   
   const currentUser = getCurrentUser();
   const [loading, setLoading] = React.useState(false);
-  const [selectedDate, setSelectedDate] = React.useState(null);
-  const [selectedTimeSlots, setSelectedTimeSlots] = React.useState([]);
-  const [userSchedules, setUserSchedules] = React.useState({});
-  const [groupMembers, setGroupMembers] = React.useState([]);
-  const [finalMeetingTime, setFinalMeetingTime] = React.useState(null);
-  const [isSupervisor, setIsSupervisor] = React.useState(true);
-  const [isFinalized, setIsFinalized] = React.useState(false);
-  const [timeInterval, setTimeInterval] = React.useState(60); // 30, 60, 120 phút
   const [availableGroups, setAvailableGroups] = React.useState([]);
   const [selectedGroup, setSelectedGroup] = React.useState('');
-  const [selectedDayOfWeek, setSelectedDayOfWeek] = React.useState('');
-  const [selectedStartTime, setSelectedStartTime] = React.useState('');
-  const [selectedEndTime, setSelectedEndTime] = React.useState('');
-  const [groupMeeting, setGroupMeeting] = React.useState(null); // Lịch họp hiện tại
-  const [isEditingMeeting, setIsEditingMeeting] = React.useState(false); // Đang chỉnh sửa lịch họp
-  const [editMeetingData, setEditMeetingData] = React.useState({
+  const [group, setGroup] = React.useState(null);
+  const [members, setMembers] = React.useState([]);
+  const [memberSchedules, setMemberSchedules] = React.useState({});
+  const [isFinalized, setIsFinalized] = React.useState(false);
+  const [finalMeeting, setFinalMeeting] = React.useState(null);
+  const [meetingSchedule, setMeetingSchedule] = React.useState(null);
+  const [isSupervisor, setIsSupervisor] = React.useState(true);
+  const [isEditing, setIsEditing] = React.useState(false);
+  
+  // Meeting form data
+  const [meetingData, setMeetingData] = React.useState({
+    day: '',
+    time: '',
     meetingLink: ''
   });
 
-  // Tạo time slots dựa trên khoảng thời gian
-  const generateTimeSlots = (interval) => {
-    const slots = [];
-    const startHour = 8;
-    const endHour = 20;
-    
-    for (let hour = startHour; hour < endHour; hour++) {
-      for (let minute = 0; minute < 60; minute += interval) {
-        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        slots.push(timeString);
-      }
-    }
-    return slots;
-  };
+  // Days of the week
+  const daysOfWeek = [
+    { id: 1, name: 'Thứ 2', value: 'monday' },
+    { id: 2, name: 'Thứ 3', value: 'tuesday' },
+    { id: 3, name: 'Thứ 4', value: 'wednesday' },
+    { id: 4, name: 'Thứ 5', value: 'thursday' },
+    { id: 5, name: 'Thứ 6', value: 'friday' },
+    { id: 6, name: 'Thứ 7', value: 'saturday' },
+    { id: 7, name: 'Chủ nhật', value: 'sunday' }
+  ];
 
-  const timeSlots = generateTimeSlots(timeInterval);
-
-  // API: Lấy danh sách nhóm
+  // Fetch available groups for supervisor
   const fetchAvailableGroups = async () => {
     try {
       setLoading(true);
@@ -88,663 +71,513 @@ export default function SupervisorSchedule() {
         setAvailableGroups(mappedGroups);
       } else {
         console.error('Error fetching groups:', response.data.message);
-        alert(`Lỗi lấy danh sách nhóm: ${response.data.message}`);
+        setAvailableGroups([]);
       }
     } catch (error) {
       console.error('Error fetching groups:', error);
-      alert(`Lỗi kết nối: ${error.message}`);
+      setAvailableGroups([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // API: Lấy thông tin nhóm và sinh viên
-  const fetchGroupDetails = async (groupId) => {
+  // Load selected group data
+  const loadSelectedGroupData = async (groupId) => {
+    setLoading(true);
     try {
-      setLoading(true);
+      // API call lấy chi tiết group theo pattern từ Groups
       const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
       
       if (response.data.status === 200) {
-        const groupData = response.data.data;
-        const students = groupData.students || [];
+        const groupDetail = response.data.data;
+        // Format group data theo structure thực tế từ API
+        const formattedGroup = {
+          id: groupDetail.id || groupId,
+          groupCode: groupDetail.groupCode,
+          groupName: groupDetail.groupCode,
+          projectName: groupDetail.projectName,
+          projectCode: groupDetail.groupCode,
+          semesterId: groupDetail.semesterId,
+          supervisors: groupDetail.supervisors,
+          supervisorsInfor: groupDetail.supervisorsInfor,
+          status: groupDetail.status,
+          risk: groupDetail.risk,
+          members: groupDetail.students.map(student => ({
+            id: student.id,
+            studentId: student.id,
+            rollNumber: student.rollNumber,
+            name: student.name,
+            email: student.email,
+            role: student.role
+          }))
+        };
         
-        const mappedMembers = students.map(student => ({
-          id: student.id,
-          name: student.name,
-          studentId: student.studentId || student.id,
-          email: student.email || '',
-          role: student.role || 'member'
-        }));
+        setGroup(formattedGroup);
+        setMembers(formattedGroup.members);
         
-        setGroupMembers(mappedMembers);
-        return mappedMembers;
+        
+        // Fetch student free time slots
+        await fetchStudentFreeTimeSlots(groupId);
       } else {
-        console.error('Error fetching group details:', response.data.message);
-        alert(`Lỗi lấy thông tin nhóm: ${response.data.message}`);
-        return [];
+        console.error('Error fetching group data:', response.data.message);
+        setGroup({ id: groupId, name: 'Group ' + groupId });
+      }
+      
+      // Check if meeting schedule exists
+      try {
+        const scheduleResponse = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
+        if (scheduleResponse.data && scheduleResponse.data.id) {
+          setMeetingSchedule(scheduleResponse.data);
+          setIsFinalized(true);
+          
+          // Load existing meeting data for editing
+          setMeetingData({
+            day: scheduleResponse.data.dayOfWeek || '',
+            time: scheduleResponse.data.time || '',
+            meetingLink: scheduleResponse.data.meetingLink || ''
+          });
+        }
+      } catch (error) {
+        console.error('No existing schedule found');
       }
     } catch (error) {
-      console.error('Error fetching group details:', error);
-      alert(`Lỗi kết nối: ${error.message}`);
-      return [];
+      console.error('Error loading group data:', error);
+      setGroup({ id: groupId, name: 'Group ' + groupId });
     } finally {
       setLoading(false);
     }
   };
 
-  // API: Lấy lịch rảnh của sinh viên theo thứ trong tuần
-  const fetchStudentSchedule = async (studentId) => {
+  // Fetch student free time slots
+  const fetchStudentFreeTimeSlots = async (groupId) => {
     try {
-      // Mock API call - thực tế sẽ gọi API thật
-      // const response = await axiosClient.get(`/Student/schedule/${studentId}`);
+      const response = await axiosClient.get(`/Student/Meeting/groups/${groupId}/schedule/free-time`);
       
-      // Mock data cho demo - tạo lịch rảnh theo thứ trong tuần
-      const mockSchedules = {};
-      
-      // Định nghĩa các thứ trong tuần
-      const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-      
-      // Định nghĩa các khoảng thời gian có thể rảnh
-      const possibleTimeRanges = [
-        { start: 8, end: 10, label: "8:00-10:00" },
-        { start: 9, end: 11, label: "9:00-11:00" },
-        { start: 10, end: 12, label: "10:00-12:00" },
-        { start: 11, end: 13, label: "11:00-13:00" },
-        { start: 13, end: 15, label: "13:00-15:00" },
-        { start: 14, end: 16, label: "14:00-16:00" },
-        { start: 15, end: 17, label: "15:00-17:00" },
-        { start: 16, end: 18, label: "16:00-18:00" },
-        { start: 19, end: 21, label: "19:00-21:00" },
-        { start: 20, end: 22, label: "20:00-22:00" }
-      ];
-      
-      // Tạo lịch rảnh cho từng thứ trong tuần
-      daysOfWeek.forEach(dayOfWeek => {
-        const availableSlots = [];
+      if (response.data && response.data.success === 200) {
+        const apiData = response.data.data;
         
-        // 60% chance có mỗi khoảng thời gian rảnh
-        possibleTimeRanges.forEach(range => {
-          if (Math.random() > 0.4) {
-            availableSlots.push(range.label);
+        // Lưu dữ liệu của tất cả thành viên để hiển thị
+        const memberSchedulesData = {};
+        apiData.forEach(studentData => {
+          if (studentData.freeTimeSlots.length > 0) {
+            const schedule = {};
+            studentData.freeTimeSlots.forEach(dayData => {
+              schedule[dayData.dayOfWeek.toLowerCase()] = dayData.timeSlots;
+            });
+            memberSchedulesData[studentData.studentId] = schedule;
           }
         });
-        
-        mockSchedules[dayOfWeek] = availableSlots;
-      });
-      
-      return mockSchedules;
+        setMemberSchedules(memberSchedulesData);
+        return memberSchedulesData;
+      }
+      return {};
     } catch (error) {
-      console.error('Error fetching student schedule:', error);
+      console.error('No student free time slots found');
       return {};
     }
   };
 
-  // Load danh sách nhóm khi component mount
+  // Finalize/Update meeting schedule
+  const handleFinalizeMeeting = async () => {
+    if (!meetingData.day || !meetingData.time || !meetingData.meetingLink) {
+      alert('Vui lòng điền đầy đủ thông tin lịch họp');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const meetingScheduleData = {
+        id: meetingSchedule?.id || null, // Use existing ID if updating
+        isActive: true,
+        meetingLink: meetingData.meetingLink,
+        time: meetingData.time,
+        dayOfWeek: meetingData.day.toLowerCase(),
+      };
+      
+      const response = await axiosClient.post(`/Student/Meeting/schedule/finalize/update`, meetingScheduleData);
+      
+      if (response.data) {
+        setMeetingSchedule(response.data);
+        setIsFinalized(true);
+        alert(isFinalized ? 'Đã cập nhật lịch họp thành công!' : 'Đã xác nhận lịch họp thành công!');
+      } else {
+        alert('Có lỗi xảy ra khi xác nhận lịch họp');
+      }
+    } catch (error) {
+      console.error('Error finalizing meeting:', error);
+      alert('Có lỗi xảy ra khi xác nhận lịch họp');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Update meeting data
+  const updateMeetingData = (field, value) => {
+    setMeetingData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Toggle edit mode
+  const toggleEditMode = () => {
+    if (!isEditing) {
+      // Khi bắt đầu edit, populate form với data hiện tại
+      setMeetingData({
+        day: meetingSchedule?.dayOfWeek || '',
+        time: meetingSchedule?.time || '',
+        meetingLink: meetingSchedule?.meetingLink || ''
+      });
+    }
+    setIsEditing(!isEditing);
+  };
+
+  // Save meeting changes
+  const saveMeetingChanges = async () => {
+    setLoading(true);
+    try {
+      const finalMeetingData = {
+        finalMeeting: {
+          day: meetingData.day,
+          time: meetingData.time,
+          meetingLink: meetingData.meetingLink
+        }
+      };
+      
+      const response = await axiosClient.post(`/Student/Meeting/groups/${selectedGroup}/schedule/finalize`, finalMeetingData);
+      let data = response.data.data.finalMeeting;
+      if (data) {
+        // Map response data to meetingSchedule format
+        const updatedMeetingSchedule = {
+          id: data.id,
+          dayOfWeek: data.day,
+          time: data.time,
+          meetingLink: data.meetingLink,
+          createAt: data.finalizedAt,
+          isActive: true
+        };
+        
+        setMeetingSchedule(updatedMeetingSchedule);
+        setIsFinalized(true);
+        setIsEditing(false);
+        alert('Đã cập nhật lịch họp thành công!');
+      }
+    } catch (error) {
+      console.error('Error saving meeting changes:', error);
+      alert('Có lỗi xảy ra khi cập nhật lịch họp');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Toggle finalized status
+  const toggleFinalizedStatus = async () => {
+    setLoading(true);
+    try {
+      const meetingScheduleData = {
+        id: meetingSchedule?.id || null,
+        isActive: !isFinalized, // Toggle active status
+        meetingLink: meetingSchedule?.meetingLink || meetingData.meetingLink,
+        time: meetingSchedule?.time || meetingData.time,
+        dayOfWeek: meetingSchedule?.dayOfWeek || meetingData.day.toLowerCase(),
+      };
+      
+      const response = await axiosClient.post(`/Student/Meeting/schedule/finalize/update`, meetingScheduleData);
+      
+      if (response.data) {
+        setMeetingSchedule(response.data);
+        setIsFinalized(!isFinalized);
+        setIsEditing(false);
+        alert(isFinalized ? 'Đã hủy xác nhận lịch họp!' : 'Đã xác nhận lịch họp!');
+      }
+    } catch (error) {
+      console.error('Error toggling meeting status:', error);
+      alert('Có lỗi xảy ra khi thay đổi trạng thái lịch họp');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle group selection
+  const handleGroupSelect = async (groupId) => {
+    setSelectedGroup(groupId);
+    if (groupId) {
+      await loadSelectedGroupData(groupId);
+    } else {
+      setGroup(null);
+      setMembers([]);
+      setIsFinalized(false);
+      setFinalMeeting(null);
+    }
+  };
+
+  // Load available groups when component mounts
   React.useEffect(() => {
     fetchAvailableGroups();
   }, []);
 
-
-
-  // Xử lý khi chọn nhóm
-  const handleGroupSelect = async (groupId) => {
-    setSelectedGroup(groupId);
-    setSelectedDate(null);
-    setSelectedTimeSlots([]);
-    setUserSchedules({});
-    setFinalMeetingTime(null);
-    setIsFinalized(false);
-    
-    if (groupId) {
-      const members = await fetchGroupDetails(groupId);
-      // Load lịch rảnh của tất cả thành viên
-      if (members && members.length > 0) {
-        await loadAllMembersSchedules(members);
-      }
-      // Load lịch họp của nhóm
-      await loadGroupMeeting();
-    }
-  };
-
-  // Load lịch rảnh của tất cả thành viên theo thứ trong tuần
-  const loadAllMembersSchedules = async (members) => {
-    setLoading(true);
-    try {
-      const schedules = {};
-      
-      // Load lịch cho từng thành viên theo thứ trong tuần
-      for (const member of members) {
-        const memberSchedule = await fetchStudentSchedule(member.id);
-        schedules[member.id] = memberSchedule;
-      }
-      
-      setUserSchedules(schedules);
-    } catch (error) {
-      console.error('Error loading all members schedules:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch lịch họp hiện tại của nhóm
-  const fetchGroupMeeting = async (groupId) => {
-    try {
-      // Mock data - thay thế bằng API call thực tế
-      const mockMeeting = {
-        id: 1,
-        groupId: parseInt(groupId),
-        dayOfWeek: "monday",
-        startTime: "09:00:00",
-        endTime: "11:00:00",
-        meetingLink: "https://meet.google.com/abc-defg-hij"
-      };
-      
-      return mockMeeting;
-    } catch (error) {
-      console.error('Error fetching group meeting:', error);
-      return null;
-    }
-  };
-
-  // Load lịch họp của nhóm
-  const loadGroupMeeting = async () => {
-    if (selectedGroup) {
-      const meeting = await fetchGroupMeeting(selectedGroup);
-      setGroupMeeting(meeting);
-      if (meeting) {
-        setEditMeetingData({
-          meetingLink: meeting.meetingLink || ''
-        });
-      }
-    }
-  };
-
-  // Update lịch họp
-  const updateMeeting = async () => {
-    try {
-      // Mock API call - thay thế bằng API call thực tế
- //     console.log('Updating meeting:', {
-   //     meetingId: groupMeeting?.id,
-     //   ...editMeetingData,
-     //   dayOfWeek: selectedDayOfWeek,
-      //  startTime: selectedStartTime,
-     //   endTime: selectedEndTime
-      //});
-      
-      // Mock success
-      alert('Cập nhật lịch họp thành công!');
-      setIsEditingMeeting(false);
-      
-      // Reload lịch họp
-      await loadGroupMeeting();
-    } catch (error) {
-      console.error('Error updating meeting:', error);
-      alert('Có lỗi xảy ra khi cập nhật lịch họp');
-    }
-  };
-
-  // Lấy lịch của tất cả thành viên trong nhóm
-  const fetchGroupSchedules = async (date) => {
-    if (!selectedGroup || groupMembers.length === 0) return;
-    
-    setLoading(true);
-    try {
-      const schedules = {};
-      
-      for (const member of groupMembers) {
-        const memberSchedule = await fetchStudentSchedule(member.id, date);
-        schedules[member.id] = memberSchedule;
-      }
-      
-      setUserSchedules(schedules);
-    } catch (error) {
-      console.error('Error fetching group schedules:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Xử lý khi chọn ngày
-  const handleDateSelect = (date) => {
-    setSelectedDate(date);
-    setSelectedTimeSlots([]);
-    setFinalMeetingTime(null);
-    fetchGroupSchedules(date);
-  };
-
-  // Xử lý khi chọn time slot
-  const handleTimeSlotSelect = (timeSlot) => {
-    if (selectedTimeSlots.includes(timeSlot)) {
-      setSelectedTimeSlots(prev => prev.filter(slot => slot !== timeSlot));
-    } else {
-      setSelectedTimeSlots(prev => [...prev, timeSlot]);
-    }
-  };
-
-  // Tìm khung giờ chung của tất cả thành viên
-  const findCommonTimeSlots = () => {
-    if (!selectedDate || groupMembers.length === 0) return [];
-    
-    const allSchedules = Object.values(userSchedules);
-    if (allSchedules.length === 0) return [];
-    
-    // Tìm khung giờ có trong tất cả lịch
-    const commonSlots = allSchedules[0].filter(slot => 
-      allSchedules.every(schedule => schedule.includes(slot))
-    );
-    
-    return commonSlots;
-  };
-
-  // Tìm khung giờ phổ biến (ít nhất 80% thành viên rảnh)
-  const findPopularTimeSlots = () => {
-    if (!selectedDate || groupMembers.length === 0) return [];
-    
-    const allSchedules = Object.values(userSchedules);
-    if (allSchedules.length === 0) return [];
-    
-    const threshold = Math.ceil(allSchedules.length * 0.8);
-    const slotCounts = {};
-    
-    allSchedules.forEach(schedule => {
-      schedule.forEach(slot => {
-      slotCounts[slot] = (slotCounts[slot] || 0) + 1;
-      });
-    });
-    
-    return Object.entries(slotCounts)
-      .filter(([slot, count]) => count >= threshold)
-      .map(([slot]) => slot);
-  };
-
-  // API: Chốt lịch họp
-  const finalizeMeeting = async () => {
-    if (!selectedGroup) {
-      alert('Vui lòng chọn nhóm');
-      return;
-    }
-    
-    if (!selectedDayOfWeek || !selectedStartTime || !selectedEndTime) {
-      alert('Vui lòng chọn đầy đủ thông tin thời gian họp');
-      return;
-    }
-    
-    try {
-      setLoading(true);
-      
-      // Gọi API xác nhận lịch họp
-      const meetingData = {
-        groupId: parseInt(selectedGroup),
-        dayOfWeek: selectedDayOfWeek,
-        startTime: selectedStartTime,
-        endTime: selectedEndTime,
-        supervisorId: currentUser.id,
-        supervisorName: currentUser.name,
-        finalizedAt: new Date().toISOString()
-      };
-      
-      // Mock API call - thực tế sẽ gọi API thật
-      // const response = await axiosClient.post('/Supervisor/meeting/finalize', meetingData);
-      
-      // Mock response
-    setTimeout(() => {
-        setFinalMeetingTime({
-          dayOfWeek: selectedDayOfWeek,
-          startTime: selectedStartTime,
-          endTime: selectedEndTime,
-          finalizedAt: new Date().toISOString(),
-          groupId: selectedGroup
-        });
-        setIsFinalized(true);
-        alert(`Đã xác nhận lịch họp cho nhóm ${availableGroups.find(g => g.id.toString() === selectedGroup)?.name} vào ${selectedDayOfWeek} từ ${selectedStartTime} đến ${selectedEndTime}`);
-      setLoading(false);
-    }, 1000);
-      
-    } catch (error) {
-      console.error('Error finalizing meeting:', error);
-      alert(`Lỗi xác nhận lịch: ${error.message}`);
-      setLoading(false);
-    }
-  };
-
-  // Hủy xác nhận lịch
-  const cancelFinalization = () => {
-    setFinalMeetingTime(null);
-    setIsFinalized(false);
-    setSelectedTimeSlots([]);
-  };
-
-  // Format ngày
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  // Lấy thông tin khả dụng của một thành viên
-  const getMemberAvailability = (memberId) => {
-    return userSchedules[memberId] || [];
-  };
-
-  // Kiểm tra xem một khung giờ có phổ biến không
-  const isPopularSlot = (timeSlot) => {
-    const popularSlots = findPopularTimeSlots();
-    return popularSlots.includes(timeSlot);
-  };
-
-  // Kiểm tra xem một khung giờ có chung không
-  const isCommonSlot = (timeSlot) => {
-    const commonSlots = findCommonTimeSlots();
-    return commonSlots.includes(timeSlot);
-  };
-
-  if (loading) {
-    return (
-      <div className={styles.loading}>
-        <div>Đang tải lịch...</div>
-      </div>
-    );
+  if (loading && !group) {
+    return <div className={styles.loading}>Loading...</div>;
   }
+
+  // Không cần return sớm nữa, luôn hiển thị group selector
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Schedule Management - Supervisor</h1>
-        <p>Quản lý lịch họp nhóm và xác nhận khung giờ phù hợp</p>
-      </div>
-
-        {/* Group Selection */}
-        <div className={styles.section}>
-          <h2>Chọn nhóm</h2>
-          <div className={styles.groupSelector}>
-            <select
-              value={selectedGroup}
-            onChange={(e) => handleGroupSelect(e.target.value)}
-              className={styles.groupSelect}
-            disabled={loading}
-            >
-              <option value="">Chọn nhóm</option>
-            {availableGroups.map(group => (
-                <option key={group.id} value={group.id}>
-                {group.name}
-                </option>
-              ))}
-            </select>
+        <h1>Lịch họp Nhóm</h1>
+        <div className={styles.headerControls}>
+          <div className={styles.supervisorBadge}>
+            Giảng viên: {currentUser.name}
           </div>
         </div>
+      </div>
 
+      {/* Group Selection - Luôn hiển thị */}
+      <div className={styles.section}>
+        <h2>Chọn nhóm</h2>
+        <div className={styles.groupSelector}>
+          <select
+            value={selectedGroup}
+            onChange={(e) => handleGroupSelect(e.target.value)}
+            className={styles.groupSelect}
+            disabled={loading}
+          >
+            <option value="">Chọn nhóm</option>
+            {availableGroups.map(group => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
 
-      {/* Selected Group Info */}
-        {selectedGroup && (
-          <div className={styles.section}>
-          <h2>Thông tin nhóm đã chọn</h2>
-          <div className={styles.groupInfo}>
-            <h3>{availableGroups.find(g => g.id.toString() === selectedGroup)?.name}</h3>
-            <p>Số thành viên: {groupMembers.length}</p>
-            <div className={styles.membersList}>
-              {groupMembers.map(member => (
-                <div key={member.id} className={styles.memberItem}>
-                  <span className={styles.memberName}>{member.name}</span>
-                  <span className={styles.memberId}>({member.studentId})</span>
+      {/* Chỉ hiển thị nội dung khi có group được chọn */}
+      {selectedGroup && group && (
+        <>
+          {/* Meeting Schedule Status - Always show at top */}
+          <div className={styles.meetingStatusSection}>
+            {isFinalized && meetingSchedule ? (
+              <div className={styles.finalizedMeeting}>
+                <div className={styles.finalizedHeader}>
+                  <h3>Lịch họp đã được xác nhận</h3>
                 </div>
-              ))}
-            </div>
-            </div>
-          </div>
-        )}
-
-      {/* Lịch rảnh của thành viên */}
-      {selectedGroup && (
-          <div className={styles.section}>
-          <h2>Lịch rảnh của thành viên</h2>
-          <div className={styles.membersList}>
-            {groupMembers.map(member => {
-              const memberSchedules = userSchedules[member.id] || {};
-              const hasVoted = Object.keys(memberSchedules).length > 0;
-              
-              // Mapping từ dayOfWeek sang tên tiếng Việt
-              const dayNameMapping = {
-                'monday': 'Thứ hai',
-                'tuesday': 'Thứ ba', 
-                'wednesday': 'Thứ tư',
-                'thursday': 'Thứ năm',
-                'friday': 'Thứ sáu',
-                'saturday': 'Thứ bảy',
-                'sunday': 'Chủ nhật'
-              };
-              
-              return (
-                <div key={member.id} className={styles.memberCard}>
-                  <div className={styles.memberInfo}>
-                    <h4>{member.name} ({member.studentId})</h4>
-                    <span className={styles.voteStatus}>
-                      {hasVoted ? 'Đã vote' : 'Chưa vote'}
-                    </span>
-                  </div>
-                  <div className={styles.memberSchedule}>
-                    {Object.entries(memberSchedules).map(([dayOfWeek, slots]) => (
-                      <div key={dayOfWeek} className={styles.daySchedule}>
-                        <div className={styles.dayLabel}>
-                          {dayNameMapping[dayOfWeek] || dayOfWeek}
-                  </div>
-                        <div className={styles.scheduleSlots}>
-                    {slots.map(slot => (
-                            <span key={slot} className={styles.scheduleSlot}>{slot}</span>
-                    ))}
-                  </div>
+                <div className={styles.meetingInfo}>
+                  {isEditing ? (
+                    <div className={styles.editForm}>
+                      <div className={styles.formRow}>
+                        <div className={styles.formGroup}>
+                          <label>Chọn thứ</label>
+                          <select
+                            value={meetingData.day}
+                            onChange={(e) => updateMeetingData('day', e.target.value)}
+                            className={styles.daySelect}
+                          >
+                            <option value="">-- Chọn thứ --</option>
+                            {daysOfWeek.map(day => (
+                              <option key={day.id} value={day.value}>{day.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className={styles.formGroup}>
+                          <label>Giờ bắt đầu</label>
+                          <input
+                            type="time"
+                            value={meetingData.time}
+                            onChange={(e) => updateMeetingData('time', e.target.value)}
+                            className={styles.timeInput}
+                            placeholder="VD: 14:00"
+                          />
+                        </div>
+                      </div>
+                      <div className={styles.formGroup}>
+                        <label>Link Google Meet</label>
+                        <input
+                          type="url"
+                          value={meetingData.meetingLink}
+                          onChange={(e) => updateMeetingData('meetingLink', e.target.value)}
+                          className={styles.meetingLinkInput}
+                          placeholder="https://meet.google.com/..."
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className={styles.infoRow}>
+                        <span className={styles.infoLabel}>Thời gian:</span>
+                        <span className={styles.infoValue}>{meetingSchedule.dayOfWeek} - {meetingSchedule.time}</span>
+                      </div>
+                      <div className={styles.infoRow}>
+                        <span className={styles.infoLabel}>Ngày tạo:</span>
+                        <span className={styles.infoValue}>{new Date(meetingSchedule.createAt).toLocaleDateString('vi-VN')}</span>
+                      </div>
+                      {meetingSchedule.meetingLink && (
+                        <div className={styles.infoRow}>
+                          <span className={styles.infoLabel}>Meeting Link:</span>
+                          <button 
+                            onClick={() => window.open(meetingSchedule.meetingLink, '_blank')}
+                            className={styles.meetingLinkButton}
+                          >
+                            Click để tham gia
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              ))}
-                    {!hasVoted && (
-                      <div className={styles.noVoteMessage}>
-                        Thành viên chưa vote lịch rảnh
+                <div className={styles.meetingActions}>
+                  {isEditing ? (
+                    <div className={styles.editActions}>
+                      <button 
+                        onClick={saveMeetingChanges}
+                        className={styles.saveButton}
+                        disabled={loading}
+                      >
+                        {loading ? 'Đang lưu...' : 'Lưu lịch họp'}
+                      </button>
+                      <button 
+                        onClick={toggleEditMode}
+                        className={styles.cancelButton}
+                        disabled={loading}
+                      >
+                        Hủy
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={toggleEditMode}
+                      className={styles.editButton}
+                    >
+                      Chỉnh sửa lịch họp
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className={styles.notFinalized}>
+                <h3>⏰ Lịch họp chưa được xác nhận</h3>
+                <p>Vui lòng xem lịch rảnh của các thành viên và xác nhận lịch họp.</p>
+              </div>
+            )}
           </div>
-        )}
-                  </div>
+
+          <div className={styles.instruction}>
+            <span>Xem lịch rảnh của các thành viên và xác nhận lịch họp chung</span>
+          </div>
+
+          {/* Student Free Time Slots */}
+          <div className={styles.freeTimeSection}>
+            <h2>Lịch rảnh của các thành viên</h2>
+            
+            <div className={styles.freeTimeSlots}>
+              {members.map((member) => {
+                const memberSchedule = memberSchedules[member.id] || {};
+                const hasSchedule = Object.keys(memberSchedule).length > 0;
+                
+                return (
+                  <div key={member.id} className={styles.memberCard}>
+                    <div className={styles.memberHeader}>
+                      <h3>{member.name}</h3>
+                      <div className={styles.memberStatus}>
+                        {hasSchedule ? 'Đã cập nhật lịch' : 'Chưa cập nhật lịch'}
+                      </div>
+                    </div>
+                    <div className={styles.memberInfo}>
+                      <p>Email: {member.email}</p>
+                      <p>Roll Number: {member.rollNumber}</p>
+                    </div>
+                    <div className={styles.memberSchedule}>
+                      {hasSchedule ? (
+                        <div className={styles.scheduleGrid}>
+                          {daysOfWeek.map(day => {
+                            const dayKey = day.value;
+                            const timeSlots = memberSchedule[dayKey] || [];
+                            
+                            return (
+                              <div key={day.id} className={styles.daySchedule}>
+                                <div className={styles.dayLabel}>{day.name}</div>
+                                <div className={styles.scheduleSlots}>
+                                  {timeSlots.length > 0 ? (
+                                    timeSlots.map((slot, index) => (
+                                      <div key={index} className={styles.scheduleSlot}>{slot}</div>
+                                    ))
+                                  ) : (
+                                    <div className={styles.noSlots}>Không có</div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className={styles.noSchedule}>
+                          Thành viên chưa cập nhật thời gian rảnh
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
           </div>
-        )}
 
-      {/* Xác nhận lịch họp */}
-      {selectedGroup && !isFinalized && (
-          <div className={styles.section}>
-          <h2>Xác nhận lịch họp</h2>
-          <div className={styles.finalizeForm}>
-            <div className={styles.finalizeInfo}>
-              <p>Dựa trên lịch rảnh của các thành viên, bạn có thể xác nhận lịch họp cho nhóm.</p>
-            </div>
-            
-            <div className={styles.timeSelection}>
-              <h3>Chọn thời gian họp</h3>
-              <div className={styles.timeInputs}>
-                <div className={styles.timeInputGroup}>
-                  <label>Thứ trong tuần:</label>
-                  <select 
-                    value={selectedDayOfWeek || ''} 
-                    onChange={(e) => setSelectedDayOfWeek(e.target.value)}
-                    className={styles.timeSelect}
-                  >
-                    <option value="">Chọn thứ</option>
-                    <option value="monday">Thứ hai</option>
-                    <option value="tuesday">Thứ ba</option>
-                    <option value="wednesday">Thứ tư</option>
-                    <option value="thursday">Thứ năm</option>
-                    <option value="friday">Thứ sáu</option>
-                    <option value="saturday">Thứ bảy</option>
-                    <option value="sunday">Chủ nhật</option>
-                  </select>
-                  </div>
-                
-                <div className={styles.timeInputGroup}>
-                  <label>Giờ bắt đầu:</label>
-                  <input
-                    type="time"
-                    value={selectedStartTime || ''}
-                    onChange={(e) => setSelectedStartTime(e.target.value)}
-                    className={styles.timeInput}
-                  />
-                </div>
-                
-                <div className={styles.timeInputGroup}>
-                  <label>Giờ kết thúc:</label>
-                  <input
-                    type="time"
-                    value={selectedEndTime || ''}
-                    onChange={(e) => setSelectedEndTime(e.target.value)}
-                    className={styles.timeInput}
-                  />
-                </div>
-              </div>
-            </div>
-            
-            <div className={styles.meetingLinkSection}>
-              <h3>Link họp</h3>
-              <div className={styles.linkInputGroup}>
-                <label>Google Meet Link:</label>
-                <input
-                  type="url"
-                  value={editMeetingData.meetingLink || ''}
-                  onChange={(e) => setEditMeetingData(prev => ({...prev, meetingLink: e.target.value}))}
-                  className={styles.linkInput}
-                  placeholder="https://meet.google.com/..."
-                />
-              </div>
-            </div>
-            
-            <div className={styles.finalizeActions}>
-              <Button 
-                onClick={finalizeMeeting}
-                disabled={loading || !selectedDayOfWeek || !selectedStartTime || !selectedEndTime}
-                className={styles.finalizeButton}
-              >
-                {loading ? 'Đang xử lý...' : 'Chốt lịch họp'}
-              </Button>
-            </div>
-            </div>
-          </div>
-        )}
-
-      {/* Final Meeting Time */}
-      {finalMeetingTime && (
-          <div className={styles.section}>
-            <h2>Lịch họp đã xác nhận</h2>
-          <div className={styles.finalMeeting}>
-            <div className={styles.finalMeetingInfo}>
-              <h3>Nhóm: {availableGroups.find(g => g.id.toString() === selectedGroup)?.name}</h3>
-              <div className={styles.meetingDetails}>
-                <p><strong>Thứ:</strong> {finalMeetingTime.dayOfWeek}</p>
-                <p><strong>Thời gian:</strong> {finalMeetingTime.startTime} - {finalMeetingTime.endTime}</p>
-                <p className={styles.finalizedAt}>
-                  Chốt lúc: {new Date(finalMeetingTime.finalizedAt).toLocaleString('vi-VN')}
-                </p>
-              </div>
-                    </div>
-            <div className={styles.finalMeetingActions}>
-              <Button 
-                variant="secondary" 
-                onClick={cancelFinalization}
-                disabled={!isSupervisor}
-              >
-                Hủy xác nhận lịch
-              </Button>
-                </div>
-            </div>
-          </div>
-        )}
-
-        {/* Hiển thị lịch họp hiện tại */}
-        {selectedGroup && groupMeeting && (
-          <div className={styles.section}>
-            <h2>Lịch họp hiện tại</h2>
-            <div className={styles.meetingCard}>
-              <div className={styles.meetingDetails}>
-                <div className={styles.detailRow}>
-                  <div className={styles.detailItem}>
-                    <strong>Thứ:</strong>
-                    <span>{groupMeeting.dayOfWeek === 'monday' ? 'Thứ hai' :
-                           groupMeeting.dayOfWeek === 'tuesday' ? 'Thứ ba' :
-                           groupMeeting.dayOfWeek === 'wednesday' ? 'Thứ tư' :
-                           groupMeeting.dayOfWeek === 'thursday' ? 'Thứ năm' :
-                           groupMeeting.dayOfWeek === 'friday' ? 'Thứ sáu' :
-                           groupMeeting.dayOfWeek === 'saturday' ? 'Thứ bảy' : 'Chủ nhật'}</span>
-                  </div>
-                  <div className={styles.detailItem}>
-                    <strong>Thời gian:</strong>
-                    <span>{groupMeeting.startTime} - {groupMeeting.endTime}</span>
-        </div>
-      </div>
-                <div className={styles.detailRow}>
-                  <div className={styles.detailItem}>
-                    <strong>Link họp:</strong>
-                    <span>{groupMeeting.meetingLink}</span>
-                  </div>
-              </div>
-            </div>
-              <div className={styles.meetingActions}>
-                <Button 
-                  onClick={() => setIsEditingMeeting(true)}
-                  className={styles.editButton}
-                >
-                  Chỉnh sửa lịch họp
-                </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-        {/* Form chỉnh sửa lịch họp */}
-        {isEditingMeeting && (
-          <div className={styles.section}>
-            <h2>Chỉnh sửa lịch họp</h2>
-            <div className={styles.editForm}>
-              <div className={styles.formRow}>
+          {/* Meeting Finalization/Update Form - Only show when not finalized */}
+          {!isFinalized && (
+            <div className={styles.meetingSection}>
+              <h2>Xác nhận lịch họp</h2>
+              
+              <div className={styles.meetingForm}>
                 <div className={styles.formGroup}>
-                  <label>Link họp:</label>
+                  <label>Chọn thứ</label>
+                  <select
+                    value={meetingData.day}
+                    onChange={(e) => updateMeetingData('day', e.target.value)}
+                    className={styles.daySelect}
+                  >
+                    <option value="">-- Chọn thứ --</option>
+                    {daysOfWeek.map(day => (
+                      <option key={day.id} value={day.value}>{day.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Giờ bắt đầu</label>
+                  <input
+                    type="time"
+                    value={meetingData.time}
+                    onChange={(e) => updateMeetingData('time', e.target.value)}
+                    className={styles.timeInput}
+                    placeholder="VD: 14:00"
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Link Google Meet</label>
                   <input
                     type="url"
-                    value={editMeetingData.meetingLink}
-                    onChange={(e) => setEditMeetingData(prev => ({...prev, meetingLink: e.target.value}))}
-                    className={styles.formInput}
+                    value={meetingData.meetingLink}
+                    onChange={(e) => updateMeetingData('meetingLink', e.target.value)}
+                    className={styles.meetingLinkInput}
                     placeholder="https://meet.google.com/..."
                   />
                 </div>
-              </div>
-              
-              <div className={styles.formActions}>
-                <Button 
-                  onClick={updateMeeting}
-                  className={styles.saveButton}
-                >
-                  Lưu thay đổi
-                </Button>
-                <Button 
-                  variant="secondary"
-                  onClick={() => setIsEditingMeeting(false)}
-                className={styles.cancelButton}
-                >
-                  Hủy
-                </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
-        {/* Instructions */}
-        <div className={styles.instructions}>
-          <h3>Hướng dẫn sử dụng:</h3>
-          <ul>
-          <li><strong>Bước 1:</strong> Chọn nhóm cần đặt lịch họp</li>
-          <li><strong>Bước 2:</strong> Xem lịch rảnh của tất cả thành viên theo thứ trong tuần</li>
-          <li><strong>Bước 3:</strong> Chốt lịch họp dựa trên lịch rảnh đã xem</li>
-          <li><strong>Lưu ý:</strong> Lịch rảnh được hiển thị theo thứ (Thứ hai, Thứ ba, v.v.) thay vì ngày cụ thể</li>
-          </ul>
-        </div>
+                <div className={styles.formActions}>
+                  <button
+                    onClick={handleFinalizeMeeting}
+                    className={styles.finalizeBtn}
+                    disabled={loading}
+                  >
+                    {loading ? 'Đang xử lý...' : 'Xác nhận lịch họp'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
