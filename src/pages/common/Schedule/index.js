@@ -51,6 +51,7 @@ export default function Schedule() {
   const [freeTimeSlots, setFreeTimeSlots] = useState([]);
   // Bỏ timeInterval - không cần nữa
   const [isFinalized, setIsFinalized] = useState(false);
+  const [meetingSchedule, setMeetingSchedule] = useState(null);
   const [finalMeeting, setFinalMeeting] = useState(null);
   const [members, setMembers] = useState([]);
   const [memberSchedules, setMemberSchedules] = useState({});
@@ -83,9 +84,28 @@ export default function Schedule() {
     }
   }, [currentUser]);
 
+  // Check if meeting schedule exists
+  const checkMeetingSchedule = async () => {
+    try {
+      const response = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
+      if (response.data && response.data.id) {
+        setMeetingSchedule(response.data);
+        setIsFinalized(true);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('No meeting schedule found');
+      return false;
+    }
+  };
+
   const loadGroupData = async () => {
     setLoading(true);
     try {
+      // Check if meeting schedule already exists
+      const hasSchedule = await checkMeetingSchedule();
+      
       // API call lấy chi tiết group theo pattern từ Groups
       const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
       
@@ -117,7 +137,6 @@ export default function Schedule() {
         setGroup(formattedGroup);
         setMembers(formattedGroup.members);
         
-        console.log("Loaded group data:", formattedGroup);
       } else {
         console.error('Error fetching group data:', response.data.message);
         setGroup({ id: groupId, name: 'Group ' + groupId });
@@ -125,24 +144,44 @@ export default function Schedule() {
       
       // Fetch existing free time slots
       try {
-        const freeTimeResponse = await axiosClient.get(`/groups/${groupId}/schedule/free-time`);
-        if (freeTimeResponse.data && freeTimeResponse.data.length > 0) {
-          // Convert backend data to frontend format
-          const formattedSlots = freeTimeResponse.data.map((item, index) => ({
-            id: `day-${index + 1}`,
-            day: item.day,
-            timeSlots: item.timeSlots.map((time, timeIndex) => ({
-              id: `time-${timeIndex + 1}`,
-              time: time,
-              isEditing: false,
-              isValid: true
-            }))
-          }));
-          setFreeTimeSlots(formattedSlots);
-          console.log("Loaded existing free time slots:", formattedSlots);
+        const freeTimeResponse = await axiosClient.get(`/Student/Meeting/groups/${groupId}/schedule/free-time`);
+        
+        if (freeTimeResponse.data && freeTimeResponse.data.success === 200) {
+          const apiData = freeTimeResponse.data.data;
+          
+          // Tìm thời gian rảnh của user hiện tại
+          const currentStudentId = parseInt(localStorage.getItem('student_id')) || parseInt(currentUser?.id);
+          const currentStudentData = apiData.find(item => item.studentId === currentStudentId);
+          
+          if (currentStudentData && currentStudentData.freeTimeSlots.length > 0) {
+            // Convert backend data to frontend format
+            const formattedSlots = currentStudentData.freeTimeSlots.map((item, index) => ({
+              id: `day-${index + 1}`,
+              day: item.dayOfWeek.toLowerCase(), // Convert to lowercase for consistency
+              timeSlots: item.timeSlots.map((time, timeIndex) => ({
+                id: `time-${timeIndex + 1}`,
+                time: time,
+                isEditing: false,
+                isValid: true
+              }))
+            }));
+            setFreeTimeSlots(formattedSlots);
+          }
+          
+          // Lưu dữ liệu của tất cả thành viên để hiển thị
+          const memberSchedulesData = {};
+          apiData.forEach(studentData => {
+            if (studentData.freeTimeSlots.length > 0) {
+              const schedule = {};
+              studentData.freeTimeSlots.forEach(dayData => {
+                schedule[dayData.dayOfWeek.toLowerCase()] = dayData.timeSlots;
+              });
+              memberSchedulesData[studentData.studentId] = schedule;
+            }
+          });
+          setMemberSchedules(memberSchedulesData);
         }
       } catch (error) {
-        console.log('No existing free time slots found');
       }
     } catch (error) {
       console.error('Error loading group data:', error);
@@ -265,7 +304,6 @@ export default function Schedule() {
       alert('Vui lòng thêm ít nhất một thứ');
       return;
     }
-
     // Validate all days have day and time slots
     const validDays = freeTimeSlots.filter(day => 
       day.day && 
@@ -284,20 +322,22 @@ export default function Schedule() {
       const studentId = parseInt(localStorage.getItem('student_id')) || parseInt(currentUser?.id);
       const groupIdInt = parseInt(groupId);
       
-      // Format data theo yêu cầu: studentId, groupId, day, timeSlots
-      const formattedData = validDays.map(day => ({
-        studentId: studentId,
-        groupId: groupIdInt,
-        day: day.day,
-        timeSlots: day.timeSlots.map(slot => slot.time)
-      }));
-      
-      console.log("Data gửi xuống backend:", formattedData);
-      
+      // Format data theo yêu cầu backend: đúng format backend cần
+      const formattedData = {
+        freeTimeSlots: validDays.map(day => ({
+          studentId: studentId,
+          groupId: groupIdInt,
+          dayOfWeek: day.day.charAt(0).toUpperCase() + day.day.slice(1), // Capitalize first letter
+          timeSlots: [{
+            dayOfWeek: day.day.charAt(0).toUpperCase() + day.day.slice(1),
+            timeSlots: day.timeSlots.map(slot => slot.time)
+          }]
+        }))
+      };
+
       // API call với data đã format
-      await axiosClient.post(`/groups/${groupId}/schedule/free-time`, {
-        freeTimeSlots: formattedData
-      });
+     const response = await axiosClient.post(`/Student/Meeting/groups/${groupId}/schedule/free-time`, formattedData);
+
       
       alert('Đã lưu thời gian rảnh thành công!');
     } catch (error) {
@@ -311,10 +351,33 @@ export default function Schedule() {
   const handleFinalizeSchedule = async () => {
     setLoading(true);
     try {
-      // API call với groupId từ localStorage
-      const response = await axiosClient.post(`/groups/${groupId}/schedule/finalize`);
-      setFinalMeeting(response.data);
-      setIsFinalized(true);
+      // Get selected time and day from form
+      const selectedDay = document.querySelector('select[name="dayOfWeek"]')?.value;
+      const selectedTime = document.querySelector('input[name="time"]')?.value;
+      const meetingLink = document.querySelector('input[name="meetingLink"]')?.value || '';
+      
+      if (!selectedDay || !selectedTime) {
+        alert('Vui lòng chọn ngày và giờ họp');
+        return;
+      }
+      
+      const meetingData = {
+        id: meetingSchedule?.id || null, // Use existing ID if updating
+        isActive: true,
+        meetingLink: meetingLink,
+        time: selectedTime,
+        dayOfWeek: selectedDay.toLowerCase(),
+        createdByName: currentUser.name
+      };
+      
+      // API call để tạo hoặc cập nhật lịch họp
+      const response = await axiosClient.post(`/Student/Meeting/schedule/finalize/update`, meetingData);
+      
+      if (response.data) {
+        setMeetingSchedule(response.data);
+        setIsFinalized(true);
+        alert('Lịch họp đã được xác nhận thành công!');
+      }
     } catch (error) {
       console.error('Error finalizing schedule:', error);
       alert('Có lỗi xảy ra khi xác nhận lịch họp');
@@ -334,14 +397,14 @@ export default function Schedule() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Lịch họp Nhóm</h1>
+        <h1>Lịch họp Nhóm</h1>     {isSupervisor && (
         <div className={styles.headerControls}>
-          {isSupervisor && (
+     
             <div className={styles.supervisorBadge}>
               Giảng viên: {currentUser.name}
             </div>
-          )}
-        </div>
+          
+        </div>)}
       </div>
 
       {!isFinalized ? (
@@ -353,27 +416,33 @@ export default function Schedule() {
           <div className={styles.finalized}>
           <div className={styles.finalizedContent}>
               <h3>Lịch họp đã được xác nhận!</h3>
-              <p>Thời gian: {finalMeeting?.day} - {finalMeeting?.time}</p>
-              <a 
-                href={finalMeeting?.meetingLink} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className={styles.meetingLinkButton}
-              >
-                Tham gia cuộc họp
-              </a>
+              <p>Thời gian: {meetingSchedule?.dayOfWeek} - {meetingSchedule?.time}</p>
+              <p>Ngày tạo: {new Date(meetingSchedule?.createAt).toLocaleDateString('vi-VN')}</p>
+              {meetingSchedule?.meetingLink && (
+                <a 
+                  href={meetingSchedule?.meetingLink} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className={styles.meetingLinkButton}
+                >
+                  Tham gia cuộc họp
+                </a>
+              )}
             </div>
           </div>
         </div>
         )}
 
-      <div className={styles.instruction}>
-        <span>Click dấu + để thêm thứ, sau đó thêm giờ rảnh cho từng thứ</span>
-      </div>
+      {!isFinalized && (
+        <div className={styles.instruction}>
+          <span>Click dấu + để thêm thứ, sau đó thêm giờ rảnh cho từng thứ</span>
+        </div>
+      )}
 
-      {/* Free Time Slots Management */}
-      <div className={styles.freeTimeSection}>
-        <h2>Thời gian rảnh của bạn</h2>
+      {/* Free Time Slots Management - Hide when finalized */}
+      {!isFinalized && (
+        <div className={styles.freeTimeSection}>
+          <h2>Thời gian rảnh của bạn</h2>
         
         <div className={styles.freeTimeSlots}>
           {freeTimeSlots.map((day) => (
@@ -478,31 +547,55 @@ export default function Schedule() {
           </button>
         </div>
       </div>
+      )}
 
         <div className={styles.groupOverview}>
         <h2>Thành viên nhóm</h2>
           <div className={styles.membersList}>
-          {members.map(member => (
+          {members.map(member => {
+            const memberSchedule = memberSchedules[member.id] || {};
+            const hasSchedule = Object.keys(memberSchedule).length > 0;
+            
+            return (
               <div key={member.id} className={styles.memberCard}>
                 <div className={styles.memberInfo}>
-                <h4>{member.name}</h4>
-                <div className={styles.voteStatus}>
-                  {memberSchedules[member.id] ? 'Đã vote' : 'Chưa vote'}
-                </div>
+                  <h4>{member.name}</h4>
+                  <div className={styles.voteStatus}>
+                    {hasSchedule ? 'Đã cập nhật lịch' : 'Chưa cập nhật lịch'}
+                  </div>
                 </div>
                 <div className={styles.memberSchedule}>
-                <div className={styles.daySchedule}>
-                  <div className={styles.dayLabel}>Thứ 2</div>
-                        <div className={styles.scheduleSlots}>
-                    {memberSchedules[member.id]?.monday?.map(slot => (
-                      <div key={slot} className={styles.scheduleSlot}>{slot}</div>
-                          ))}
-                        </div>
-                      </div>
-                {/* Repeat for other days */}
+                  {hasSchedule ? (
+                    <div className={styles.scheduleGrid}>
+                      {daysOfWeek.map(day => {
+                        const dayKey = day.value;
+                        const timeSlots = memberSchedule[dayKey] || [];
+                        
+                        return (
+                          <div key={day.id} className={styles.daySchedule}>
+                            <div className={styles.dayLabel}>{day.name}</div>
+                            <div className={styles.scheduleSlots}>
+                              {timeSlots.length > 0 ? (
+                                timeSlots.map((slot, index) => (
+                                  <div key={index} className={styles.scheduleSlot}>{slot}</div>
+                                ))
+                              ) : (
+                                <div className={styles.noSlots}>Không có</div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className={styles.noSchedule}>
+                      Thành viên chưa cập nhật thời gian rảnh
+                    </div>
+                  )}
                 </div>
               </div>
-            ))}
+            );
+          })}
         </div>
           </div>
 
@@ -517,9 +610,15 @@ export default function Schedule() {
             />
                 <select className={styles.timeSelect}>
                   <option value="">Chọn giờ</option>
-              {generateTimeSlots(timeInterval).map(slot => (
-                <option key={slot.id} value={slot.id}>{slot.label}</option>
-                  ))}
+                  <option value="08:00">08:00</option>
+                  <option value="09:00">09:00</option>
+                  <option value="10:00">10:00</option>
+                  <option value="11:00">11:00</option>
+                  <option value="13:00">13:00</option>
+                  <option value="14:00">14:00</option>
+                  <option value="15:00">15:00</option>
+                  <option value="16:00">16:00</option>
+                  <option value="17:00">17:00</option>
                 </select>
             <button 
               onClick={handleFinalizeSchedule}

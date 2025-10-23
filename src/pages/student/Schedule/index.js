@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styles from './index.module.scss';
+import axiosClient from '../../../utils/axiosClient';
 
 export default function StudentSchedule() {
   const [loading, setLoading] = useState(false);
@@ -10,6 +11,9 @@ export default function StudentSchedule() {
   const [teamAvailability, setTeamAvailability] = useState({});
   const [suggestedSlots, setSuggestedSlots] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [meetingSchedule, setMeetingSchedule] = useState(null);
+  const [isFinalized, setIsFinalized] = useState(false);
+  const [showOthersSchedule, setShowOthersSchedule] = useState(true);
 
   // Mock data
   const mockTeamMembers = [
@@ -37,9 +41,30 @@ export default function StudentSchedule() {
     { value: 'sunday', label: 'Chủ nhật' }
   ];
 
+  // Check if meeting schedule exists
+  const checkMeetingSchedule = async () => {
+    try {
+      const groupId = localStorage.getItem('student_group_id') || '1';
+      const response = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
+      if (response.data && response.data.id) {
+        setMeetingSchedule(response.data);
+        setIsFinalized(true);
+        setShowOthersSchedule(false); // Hide others' schedule when finalized
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('No meeting schedule found');
+      return false;
+    }
+  };
+
   useEffect(() => {
     setTeamMembers(mockTeamMembers);
     setAvailableSlots(mockTimeSlots);
+    
+    // Check if meeting schedule already exists
+    checkMeetingSchedule();
   }, []);
 
   const handleDayOfWeekChange = (dayOfWeek) => {
@@ -58,42 +83,120 @@ export default function StudentSchedule() {
     });
   };
 
-  const handleSubmitAvailability = () => {
+  const handleSubmitAvailability = async () => {
     if (!selectedDayOfWeek || selectedTimeSlots.length === 0) {
       alert('Vui lòng chọn thứ và ít nhất một khung giờ rảnh');
       return;
     }
 
-    // Simulate API call
     setLoading(true);
-    setTimeout(() => {
-      setTeamAvailability(prev => ({
-        ...prev,
-        [selectedDayOfWeek]: {
-          ...prev[selectedDayOfWeek],
-          [localStorage.getItem('userId') || 'SE00001']: selectedTimeSlots
-        }
-      }));
+    try {
+      const studentId = localStorage.getItem('student_id') || localStorage.getItem('userId');
+      const groupId = localStorage.getItem('student_group_id');
+      
+      if (!studentId || !groupId) {
+        alert('Không tìm thấy thông tin sinh viên hoặc nhóm');
+        return;
+      }
+
+      const response = await axiosClient.post(`/Student/Meeting/groups/${groupId}/schedule/free-time`, {
+        freeTimeSlots: [{
+          studentId: parseInt(studentId),
+          groupId: parseInt(groupId),
+          dayOfWeek: selectedDayOfWeek,
+          timeSlots: selectedTimeSlots
+        }]
+      });
+
+      if (response.data.success) {
+        setTeamAvailability(prev => ({
+          ...prev,
+          [selectedDayOfWeek]: {
+            ...prev[selectedDayOfWeek],
+            [studentId]: selectedTimeSlots
+          }
+        }));
+        alert('Đã cập nhật lịch rảnh thành công!');
+      } else {
+        alert('Có lỗi xảy ra khi cập nhật lịch rảnh');
+      }
+    } catch (error) {
+      console.error('Error submitting availability:', error);
+      alert('Có lỗi xảy ra khi cập nhật lịch rảnh');
+    } finally {
       setLoading(false);
-      alert('Đã cập nhật lịch rảnh thành công!');
-    }, 1000);
+    }
   };
 
-  const handleSuggestSlots = () => {
+  const handleSuggestSlots = async () => {
     if (!selectedDayOfWeek) {
       alert('Vui lòng chọn thứ trước');
       return;
     }
 
-    // Simulate finding common available slots
-    const commonSlots = ['09:00', '14:00', '16:00', '19:00'];
-    setSuggestedSlots(commonSlots);
-    setShowSuggestions(true);
+    try {
+      const groupId = localStorage.getItem('student_group_id');
+      if (!groupId) {
+        alert('Không tìm thấy thông tin nhóm');
+        return;
+      }
+
+      const response = await axiosClient.get(`/Student/Meeting/groups/${groupId}/schedule/free-time`);
+      if (response.data.success && response.data.data) {
+        // Tìm các khung giờ chung của tất cả thành viên
+        const allSlots = response.data.data
+          .filter(slot => slot.day === selectedDayOfWeek)
+          .map(slot => slot.timeSlots)
+          .flat();
+        
+        // Đếm số lần xuất hiện của mỗi khung giờ
+        const slotCounts = {};
+        allSlots.forEach(slot => {
+          slotCounts[slot] = (slotCounts[slot] || 0) + 1;
+        });
+        
+        // Lấy các khung giờ xuất hiện nhiều nhất
+        const commonSlots = Object.keys(slotCounts)
+          .filter(slot => slotCounts[slot] > 1)
+          .sort((a, b) => slotCounts[b] - slotCounts[a])
+          .slice(0, 4);
+        
+        setSuggestedSlots(commonSlots);
+        setShowSuggestions(true);
+      } else {
+        alert('Không thể lấy thông tin lịch rảnh của nhóm');
+      }
+    } catch (error) {
+      console.error('Error fetching team availability:', error);
+      alert('Có lỗi xảy ra khi lấy thông tin lịch rảnh');
+    }
   };
 
-  const handleAcceptSuggestion = (suggestedSlot) => {
-    alert(`Đã chọn khung giờ: ${suggestedSlot} ${dayOfWeekOptions.find(d => d.value === selectedDayOfWeek)?.label}`);
-    // Here would be API call to confirm meeting time
+  const handleAcceptSuggestion = async (suggestedSlot) => {
+    try {
+      // Get groupId from localStorage
+      const groupId = localStorage.getItem('student_group_id') || '1';
+      
+      // API call to confirm meeting time
+      const meetingData = {
+        id: meetingSchedule?.id || null, // Use existing ID if updating
+        isActive: true,
+        meetingLink: meetingSchedule?.meetingLink || '', // Keep existing link if updating
+        time: suggestedSlot,
+        dayOfWeek: selectedDayOfWeek.toLowerCase()
+      };
+      
+      const response = await axiosClient.post(`/Student/Meeting/schedule/finalize/update`, meetingData);
+      
+      if (response.data) {
+        setMeetingSchedule(response.data);
+        setIsFinalized(true);
+        alert(`Đã xác nhận lịch họp: ${suggestedSlot} ${dayOfWeekOptions.find(d => d.value === selectedDayOfWeek)?.label}`);
+      }
+    } catch (error) {
+      console.error('Error confirming meeting time:', error);
+      alert('Có lỗi xảy ra khi xác nhận lịch họp');
+    }
   };
 
   const getMemberAvailability = (memberId, dayOfWeek) => {
@@ -114,6 +217,29 @@ export default function StudentSchedule() {
     return (
       <div className={styles.loading}>
         <div>Đang xử lý...</div>
+      </div>
+    );
+  }
+
+  // Show finalized meeting info if exists
+  if (isFinalized && meetingSchedule) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.finalizedMeeting}>
+          <h2>Lịch họp đã được xác nhận!</h2>
+          <div className={styles.meetingInfo}>
+            <p><strong>Thời gian:</strong> {meetingSchedule.dayOfWeek} - {meetingSchedule.time}</p>
+            <p><strong>Tạo bởi:</strong> {meetingSchedule.createdByName}</p>
+            <p><strong>Ngày tạo:</strong> {new Date(meetingSchedule.createAt).toLocaleDateString('vi-VN')}</p>
+            {meetingSchedule.meetingLink && (
+              <p><strong>Meeting Link:</strong> 
+                <a href={meetingSchedule.meetingLink} target="_blank" rel="noopener noreferrer">
+                  {meetingSchedule.meetingLink}
+                </a>
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -172,8 +298,8 @@ export default function StudentSchedule() {
           </div>
         )}
 
-        {/* Team Availability Overview */}
-        {selectedDayOfWeek && (
+        {/* Team Availability Overview - Only show if not finalized or showOthersSchedule is true */}
+        {selectedDayOfWeek && (!isFinalized || showOthersSchedule) && (
           <div className={styles.section}>
             <h2>Tình hình nhóm</h2>
             <div className={styles.teamOverview}>
@@ -200,8 +326,34 @@ export default function StudentSchedule() {
           </div>
         )}
 
-        {/* Suggested Meeting Times */}
-        {selectedDayOfWeek && (
+        {/* Own Schedule - Show when finalized */}
+        {selectedDayOfWeek && isFinalized && !showOthersSchedule && (
+          <div className={styles.section}>
+            <h2>Lịch rảnh của bạn</h2>
+            <div className={styles.ownSchedule}>
+              <p>Lịch họp đã được xác nhận. Bạn chỉ có thể xem lịch rảnh của mình.</p>
+              <div className={styles.memberCard}>
+                <div className={styles.memberInfo}>
+                  <h4>Lịch rảnh của bạn</h4>
+                </div>
+                <div className={styles.memberAvailability}>
+                  {selectedTimeSlots.length > 0 ? (
+                    <div className={styles.availableSlots}>
+                      {selectedTimeSlots.map(slot => (
+                        <span key={slot} className={styles.availableSlot}>{slot}</span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className={styles.noAvailability}>Chưa cập nhật</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Suggested Meeting Times - Only show if not finalized */}
+        {selectedDayOfWeek && !isFinalized && (
           <div className={styles.section}>
             <h2>Đề xuất khung giờ họp</h2>
             <button 

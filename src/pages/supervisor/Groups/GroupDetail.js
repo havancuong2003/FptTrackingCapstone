@@ -10,9 +10,14 @@ export default function GroupDetail() {
     const navigate = useNavigate();
     const [group, setGroup] = React.useState(null);
     const [loading, setLoading] = React.useState(true);
-    const [emailContent, setEmailContent] = React.useState('');
-    const [emailSubject, setEmailSubject] = React.useState('');
+    const [emailData, setEmailData] = React.useState({
+        to: [],
+        subject: '',
+        body: '',
+        cc: []
+    });
     const [showEmailComposer, setShowEmailComposer] = React.useState(false);
+    const [emailLoading, setEmailLoading] = React.useState(false);
     const [showRoleModal, setShowRoleModal] = React.useState(false);
     const [selectedMember, setSelectedMember] = React.useState(null);
     const [newRole, setNewRole] = React.useState('');
@@ -38,8 +43,10 @@ export default function GroupDetail() {
                         studentId: student.id,
                         name: student.name,
                         currentRole: student.role === "1" ? 'Member' : (student.role || 'Member'),
-                        email: `${student.rollNumber.toLowerCase()}@student.fpt.edu.vn`
+                        email: student.email || ''
                     })),
+                    supervisors: groupData.supervisors || [],
+                    supervisorsInfor: groupData.supervisorsInfor || [],
                     progress: {
                         completedMilestones: 0,
                         totalMilestones: 7,
@@ -135,6 +142,86 @@ export default function GroupDetail() {
         }
     };
 
+    // Email functions
+    const openEmailComposer = () => {
+        if (!group) return;
+        
+        // Pre-populate with group member emails
+        const memberEmails = group.members.map(member => member.email);
+        
+        // Get supervisor emails for CC
+        const supervisorEmails = [];
+        if (group.supervisorsInfor && group.supervisorsInfor.length > 0) {
+            group.supervisorsInfor.forEach(supervisor => {
+                if (supervisor.email) {
+                    supervisorEmails.push(supervisor.email);
+                }
+            });
+        }
+        
+        setEmailData({
+            to: memberEmails,
+            subject: `Message from Supervisor - Group ${group.groupName}`,
+            body: '',
+            cc: supervisorEmails
+        });
+        setShowEmailComposer(true);
+    };
+
+    const updateEmailData = (field, value) => {
+        setEmailData(prev => ({
+            ...prev,
+            [field]: value
+        }));
+    };
+
+    const sendEmail = async () => {
+        if (!emailData.to.length || !emailData.subject || !emailData.body) {
+            alert('Vui lòng điền đầy đủ thông tin email');
+            return;
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        const allEmails = [...emailData.to, ...emailData.cc];
+        const invalidEmails = allEmails.filter(email => email && !emailRegex.test(email));
+        
+        if (invalidEmails.length > 0) {
+            alert(`Email không hợp lệ: ${invalidEmails.join(', ')}`);
+            return;
+        }
+
+        setEmailLoading(true);
+        try {
+
+            const response = await axiosClient.post('/Mail/send-mails', {
+                to: emailData.to,
+                subject: emailData.subject,
+                body: emailData.body,
+                cc: emailData.cc
+            });
+            
+            if (response.status === 200 || response.data) {
+                alert('Email đã được gửi thành công!');
+                setShowEmailComposer(false);
+                setEmailData({
+                    to: [],
+                    subject: '',
+                    body: '',
+                    cc: []
+                });
+            } else {
+                alert('Có lỗi xảy ra khi gửi email');
+            }
+        } catch (error) {
+            console.error('Error sending email:', error);
+            console.error('Error response:', error.response?.data);
+            alert(`Lỗi gửi email: ${error.response?.data?.message || error.message || 'Có lỗi xảy ra'}`);
+        } finally {
+            setEmailLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className={styles.loading}>
@@ -163,7 +250,7 @@ export default function GroupDetail() {
                 </div>
                 <div className={styles.headerRight}>
                     <Button 
-                        onClick={() => setShowEmailComposer(true)}
+                        onClick={openEmailComposer}
                     >
                         Gửi email cho nhóm
                     </Button>
@@ -233,36 +320,51 @@ export default function GroupDetail() {
                         
                         <div className={styles.modalContent}>
                             <div className={styles.formGroup}>
-                                <label>Tiêu đề email:</label>
-                                <input
-                                    type="text"
-                                    value={emailSubject}
-                                    onChange={(e) => setEmailSubject(e.target.value)}
-                                    placeholder="Nhập tiêu đề email"
-                                    className={styles.input}
-                                />
-                            </div>
-                            
-                            <div className={styles.formGroup}>
-                                <label>Nội dung email:</label>
-                                <textarea
-                                    value={emailContent}
-                                    onChange={(e) => setEmailContent(e.target.value)}
-                                    placeholder="Nhập nội dung email..."
-                                    className={styles.textarea}
-                                    rows={10}
-                                />
-                            </div>
-                            
-                            <div className={styles.recipients}>
-                                <label>Người nhận:</label>
+                                <label>Người nhận (To)</label>
                                 <div className={styles.recipientsList}>
                                     {group.members.map(member => (
-                                        <span key={member.id} className={styles.recipient}>
+                                        <div key={member.id} className={styles.recipient}>
                                             {member.name} ({member.email})
-                                        </span>
+                                        </div>
                                     ))}
                                 </div>
+                            </div>
+
+                            <div className={styles.formGroup}>
+                                <label>CC (Giảng viên)</label>
+                                <div className={styles.recipientsList}>
+                                    {group.supervisorsInfor && group.supervisorsInfor.length > 0 ? (
+                                        group.supervisorsInfor.map((supervisor, index) => (
+                                            <div key={index} className={styles.recipient}>
+                                                {supervisor.name || supervisor.fullName} ({supervisor.email})
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className={styles.noRecipients}>Không có thông tin giảng viên</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className={styles.formGroup}>
+                                <label>Subject</label>
+                                <input
+                                    type="text"
+                                    value={emailData.subject}
+                                    onChange={(e) => updateEmailData('subject', e.target.value)}
+                                    className={styles.input}
+                                    placeholder="Email subject"
+                                />
+                            </div>
+
+                            <div className={styles.formGroup}>
+                                <label>Message</label>
+                                <textarea
+                                    value={emailData.body}
+                                    onChange={(e) => updateEmailData('body', e.target.value)}
+                                    className={styles.textarea}
+                                    placeholder="Type your message here..."
+                                    rows={6}
+                                />
                             </div>
                         </div>
                         
@@ -273,8 +375,8 @@ export default function GroupDetail() {
                             >
                                 Hủy
                             </Button>
-                            <Button onClick={handleSendEmail}>
-                                Gửi email
+                            <Button onClick={sendEmail} disabled={emailLoading}>
+                                {emailLoading ? 'Đang gửi...' : 'Gửi email'}
                             </Button>
                         </div>
                     </div>

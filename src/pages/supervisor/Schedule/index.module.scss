@@ -797,10 +797,123 @@
   }
 }
 
+// Meeting Status Section
+.meetingStatusSection {
+  margin-bottom: 24px;
+}
+
+.finalizedMeeting {
+  background: #fff;
+  border: 2px solid #10b981;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.finalizedHeader {
+  margin-bottom: 20px;
+  
+  h3 {
+    color: #10b981;
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+}
+
+.meetingInfo {
+  margin-bottom: 20px;
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.infoLabel {
+  font-weight: 600;
+  color: #374151;
+  min-width: 120px;
+  margin-right: 12px;
+}
+
+.infoValue {
+  color: #1f2937;
+  font-weight: 500;
+}
+
+.meetingLinkButton {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+  
+  &:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+  }
+}
+
+.instruction {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 24px;
+  text-align: center;
+  
+  span {
+    color: #64748b;
+    font-size: 16px;
+    font-weight: 500;
+  }
+}
+
+.notFinalized {
+  background: #fef3c7;
+  border: 2px solid #f59e0b;
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  
+  h3 {
+    color: #92400e;
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+  }
+  
+  p {
+    color: #92400e;
+    margin: 0;
+    font-weight: 500;
+  }
+}
+
 .meetingActions {
   margin-top: 20px;
   padding-top: 20px;
   border-top: 1px solid #e2e8f0;
+}
+
+.editActions {
+  display: flex;
+  gap: 12px;
 }
 
 .editButton {
@@ -819,6 +932,52 @@
     background: linear-gradient(135deg, #2563eb, #1d4ed8);
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+  }
+}
+
+.saveButton {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, #059669, #047857);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.cancelButton {
+  background: #6b7280;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background: #4b5563;
+    transform: translateY(-2px);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 }
 
@@ -1056,5 +1215,194 @@
   .modal {
     padding: 24px;
     width: 95%;
+  }
+}
+
+/* Free Time Section Styles - Copy from common Schedule */
+.freeTimeSection {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  margin-bottom: 32px;
+  border: 1px solid #e2e8f0;
+}
+
+.freeTimeSection h2 {
+  margin: 0 0 24px 0;
+  color: #1e293b;
+  font-size: 24px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.freeTimeSlots {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.memberCard {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.memberCard:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.memberHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.memberHeader h3 {
+  margin: 0;
+  color: #1e293b;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.memberStatus {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #059669;
+  box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);
+}
+
+.memberInfo {
+  margin-bottom: 20px;
+}
+
+.memberInfo p {
+  margin: 4px 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.memberSchedule {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.scheduleGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.daySchedule {
+  text-align: center;
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.daySchedule:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.dayLabel {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 8px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.scheduleSlots {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scheduleSlot {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #059669;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(5, 150, 105, 0.2);
+  margin-bottom: 4px;
+  display: inline-block;
+  min-width: 50px;
+  text-align: center;
+}
+
+.noSlots {
+  color: #9ca3af;
+  font-size: 11px;
+  font-style: italic;
+  padding: 8px;
+  background: #f8fafc;
+  border-radius: 4px;
+  border: 1px dashed #d1d5db;
+}
+
+.noSchedule {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+  font-style: italic;
+}
+
+/* Additional responsive styles for schedule grid */
+@media (max-width: 768px) {
+  .scheduleGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .memberSchedule {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .scheduleGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  
+  .daySchedule {
+    padding: 8px;
+  }
+  
+  .dayLabel {
+    font-size: 10px;
+  }
+  
+  .scheduleSlot {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  
+  .noSlots {
+    font-size: 10px;
+    padding: 6px;
   }
 }

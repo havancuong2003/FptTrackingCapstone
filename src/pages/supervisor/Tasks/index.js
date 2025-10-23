@@ -28,7 +28,7 @@ export default function SupervisorTasks() {
   
   const currentUser = getCurrentUser();
   const [tasks, setTasks] = React.useState([]);
-  const [milestones, setMilestones] = React.useState([]);
+  const [deliverables, setDeliverables] = React.useState([]);
   const [meetings, setMeetings] = React.useState([]);
   const [groups, setGroups] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -40,7 +40,7 @@ export default function SupervisorTasks() {
   const [allTasks, setAllTasks] = React.useState([]);
   
   // Filter states riêng biệt
-  const [milestoneFilter, setMilestoneFilter] = React.useState('');
+  const [deliverableFilter, setDeliverableFilter] = React.useState('');
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
@@ -48,31 +48,31 @@ export default function SupervisorTasks() {
   const [isActiveTask, setIsActiveTask] = React.useState(true);
   const [viewType, setViewType] = React.useState('project_view'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
 
-  // API: lấy milestones theo group
-  const fetchMilestonesByGroup = async (gid) => {
+  // API: lấy deliverables theo group
+  const fetchDeliverablesByGroup = async (gid) => {
     if (!gid) return [];
     try {
-      const response = await axiosClient.get(`/Student/milestone/group/${gid}`);
+      const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
       
       if (response.data.status === 200) {
         const apiData = response.data.data;
-        const milestonesData = Array.isArray(apiData) ? apiData : [];
+        const deliverablesData = Array.isArray(apiData) ? apiData : [];
         
-        return milestonesData.map(milestone => ({
-          id: milestone.id,
-          name: milestone.name,
+        return deliverablesData.map(deliverable => ({
+          id: deliverable.id,
+          name: deliverable.name,
           groupId: gid,
-          description: milestone.description,
-          deadline: milestone.deadline
+          description: deliverable.description,
+          deadline: deliverable.deadline
         }));
       } else {
-        console.error('Error fetching milestones:', response.data.message);
-        alert(`Error lấy milestones: ${response.data.message}`);
+        console.error('Error fetching deliverables:', response.data.message);
+        alert(`Error lấy deliverables: ${response.data.message}`);
         return [];
       }
     } catch (error) {
-      console.error('Error fetching milestones:', error);
-      alert(`Error kết nối milestones: ${error.message}`);
+      console.error('Error fetching deliverables:', error);
+      alert(`Error kết nối deliverables: ${error.message}`);
       return [];
     }
   };
@@ -189,16 +189,16 @@ export default function SupervisorTasks() {
         
         // Nếu có groupId, load milestones, students và meetings
         if (groupId) {
-          const [milestoneRes, studentRes, meetingRes] = await Promise.all([
-            fetchMilestonesByGroup(groupId),
+          const [deliverableRes, studentRes, meetingRes] = await Promise.all([
+            fetchDeliverablesByGroup(groupId),
             fetchStudentsByGroup(groupId),
             fetchCompletedMeetings(groupId),
           ]);
-          setMilestones(milestoneRes);
+          setDeliverables(deliverableRes);
           setMeetings(meetingRes);
           setAssigneeSource(studentRes);
         } else {
-          setMilestones([]);
+          setDeliverables([]);
           setMeetings([]);
           setAssigneeSource([]);
         }
@@ -267,8 +267,8 @@ export default function SupervisorTasks() {
             )}
           </div>
           <div className={styles.taskType}>
-            <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'milestone']}`}>
-              {task.isMeetingTask ? 'Meeting' : 'Milestone'}
+            <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'deliverable']}`}>
+              {task.isMeetingTask ? 'Meeting' : 'Deliverable'}
             </span>
           </div>
         </div>
@@ -280,9 +280,9 @@ export default function SupervisorTasks() {
       render: (task) => task.assigneeName
     },
     {
-      key: 'milestone',
-      title: 'Milestone',
-      render: (task) => task.milestoneName
+      key: 'deliverable',
+      title: 'Deliverable',
+      render: (task) => task.deliverableName
     },
     {
       key: 'priority',
@@ -395,8 +395,8 @@ export default function SupervisorTasks() {
             priority: task.priority?.toLowerCase() || 'medium',
             status: task.status === 'ToDo' ? 'todo' : 
                    task.status === 'InProgress' ? 'inProgress' : 'done',
-            milestoneId: task.milestone?.id || null,
-            milestoneName: task.milestone?.name || 'No Milestone',
+            deliverableId: task.deliverable?.id || null,
+            deliverableName: task.deliverable?.name || 'No Deliverable',
             createdAt: task.createdAt,
             progress: parseInt(task.process) || 0,
             attachments: task.attachments || [],
@@ -464,8 +464,8 @@ export default function SupervisorTasks() {
             priority: task.priority?.toLowerCase() || 'medium',
             status: task.status === 'ToDo' ? 'todo' : 
                    task.status === 'InProgress' ? 'inProgress' : 'done',
-            milestoneId: task.milestone?.id || null,
-            milestoneName: task.milestone?.name || 'No Milestone',
+            deliverableId: task.deliverable?.id || null,
+            deliverableName: task.deliverable?.name || 'No Deliverable',
             createdAt: task.createdAt,
             progress: parseInt(task.process) || 0,
             attachments: task.attachments || [],
@@ -505,7 +505,7 @@ export default function SupervisorTasks() {
 
   // Filter tasks dựa trên các filter states
   const filteredTasks = allTasks.filter(task => {
-    const milestoneMatch = milestoneFilter === '' || task.milestoneId?.toString() === milestoneFilter;
+    const deliverableMatch = deliverableFilter === '' || task.deliverableId?.toString() === deliverableFilter;
     const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
     const statusMatch = statusFilter === '' || task.status === statusFilter;
     const priorityMatch = priorityFilter === '' || task.priority === priorityFilter;
@@ -514,16 +514,15 @@ export default function SupervisorTasks() {
     let taskTypeMatch = true;
     if (taskTypeFilter === 'meeting') {
       taskTypeMatch = task.isMeetingTask === true;
-    } else if (taskTypeFilter === 'milestone') {
+    } else if (taskTypeFilter === 'deliverable') {
       taskTypeMatch = task.isMeetingTask !== true;
     }
     
     const activeTaskMatch = !isActiveTask || task.isActive === true;
-    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && activeTaskMatch;
+    return deliverableMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && activeTaskMatch;
   });
 
-  const milestoneOptions = milestones.map(m => ({ value: m.id.toString(), label: m.name }));
-//  console.log("milestoneOptions", milestoneOptions);
+  const deliverableOptions = deliverables.map(d => ({ value: d.id.toString(), label: d.name }));
   const assigneeOptions = assigneeSource.map(s => {
     return { value: s.id, label: s.name }
   });
@@ -590,14 +589,14 @@ export default function SupervisorTasks() {
             </div>
             <div className={styles.filtersControls}>
           <div className={styles.controlGroup}>
-            <label>Milestone:</label>
+            <label>Deliverable:</label>
               <select
-                value={milestoneFilter}
-                onChange={(e) => setMilestoneFilter(e.target.value)}
+                value={deliverableFilter}
+                onChange={(e) => setDeliverableFilter(e.target.value)}
                 className={styles.select}
               >
                 <option value="">All</option>
-                {milestoneOptions.map(option => (
+                {deliverableOptions.map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
@@ -653,7 +652,7 @@ export default function SupervisorTasks() {
                 className={styles.select}
               >
                 <option value="">All</option>
-                <option value="milestone">Milestone</option>
+                <option value="deliverable">Deliverable</option>
                 <option value="meeting">Meeting</option>
               </select>
             </div>
