@@ -31,31 +31,7 @@ export async function login({ username, password }) {
     throw new Error('Thiếu thông tin đăng nhập');
   }
 
-  // // Mock login cho testing
-  // if (username === 'abc' && password === '123') {
-  //   console.log('Mock login: abc/123 detected, setting as staff');
-  //   const mockUser = {
-  //     id: 'mock_staff_1',
-  //     name: 'Mock Staff User',
-  //     role: 'STAFF'
-  //   };
-  //   localStorage.setItem(USER_ROLE_KEY, 'STAFF');
-  //   localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser));
-  //   return { message: 'Mock login successfully' };
-  // }
 
-  // // Mock login cho SUPERVISOR testing
-  // if (username === 'supervisor' && password === '123') {
-  //   console.log('Mock login: supervisor/123 detected, setting as supervisor');
-  //   const mockUser = {
-  //     id: 'mock_supervisor_1',
-  //     name: 'Mock Supervisor User',
-  //     role: 'SUPERVISOR'
-  //   };
-  //   localStorage.setItem(USER_ROLE_KEY, 'SUPERVISOR');
-  //   localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser));
-  //   return { message: 'Mock login successfully' };
-  // }
 
   try {
     const res = await client.post('/auth/login', { userName : username, password });
@@ -68,12 +44,11 @@ export async function login({ username, password }) {
     const meRes = await client.get('/auth/user-info');
     const meBody = meRes?.data;
     const me = meBody?.data || meBody || null;
-    //console.log('me ',me);
     
     if (me) {
       const role = me.role || localStorage.getItem(USER_ROLE_KEY) || 'STUDENT';
       const roleInGroup = me.roleInGroup || me.role_in_group || me.groupRole || null;
-     // console.log("me", me);
+
       localStorage.setItem(USER_ROLE_KEY, role);
       localStorage.setItem(
         USER_INFO_KEY,

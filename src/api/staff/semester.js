@@ -4,7 +4,6 @@ import client from '../../utils/axiosClient';
 export async function getAllSemesters() {
   try {
     const response = await client.get('/Staff/semester/getall');
-    console.log("response getAllSemesters", response.data);
     
     return response.data;
   } catch (error) {
