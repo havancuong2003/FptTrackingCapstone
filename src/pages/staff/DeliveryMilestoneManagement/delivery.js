@@ -2,6 +2,7 @@ import React from "react";
 import Select from "../../../components/Select/Select";
 import Input from "../../../components/Input/Input";
 import Button from "../../../components/Button/Button";
+import DataTable from "../../../components/DataTable/DataTable";
 import Modal from "../../../components/Modal/Modal";
 import client from "../../../utils/axiosClient";
 import { formatDate } from "../../../utils/date";
@@ -123,6 +124,182 @@ export default function Delivery() {
     }, [selectedMajorId, currentSemester?.id]);
 
     const selectedMajor = React.useMemo(() => majors.find((m) => String(m.id) === String(selectedMajorId)) || null, [majors, selectedMajorId]);
+
+    // Define columns for milestones DataTable
+    const milestoneColumns = [
+        {
+            key: 'index',
+            title: '#',
+            render: (milestone, index) => (
+                <span style={{ 
+                    fontWeight: 600, 
+                    color: "#64748b",
+                    fontSize: 14
+                }}>
+                    {index + 1}
+                </span>
+            ),
+            headerStyle: { width: '50px', textAlign: 'center' },
+            cellStyle: { textAlign: 'center' }
+        },
+        {
+            key: 'name',
+            title: 'Milestone',
+            render: (milestone) => (
+                <div>
+                    <div style={{ 
+                        fontWeight: 600, 
+                        color: !milestone.deadline ? "#92400e" : "#374151",
+                        fontSize: 14,
+                        lineHeight: 1.3
+                    }}>
+                        {milestone.name}
+                    </div>
+                    {milestone.description && (
+                        <div style={{ 
+                            fontSize: 12, 
+                            color: !milestone.deadline ? "#a16207" : "#64748b", 
+                            marginTop: 2,
+                            lineHeight: 1.3
+                        }}>
+                            {milestone.description}
+                        </div>
+                    )}
+                </div>
+            ),
+            headerStyle: { width: '300px' }
+        },
+        {
+            key: 'deadline',
+            title: 'Deadline',
+            render: (milestone) => (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    {milestone.deadline ? (
+                        <div style={{ color: "#059669", fontWeight: 600, fontSize: 14 }}>
+                            {milestone.deadline}
+                        </div>
+                    ) : (
+                        <span style={{ 
+                            color: "#dc2626", 
+                            fontWeight: 600,
+                            background: "#fee2e2",
+                            padding: "2px 6px",
+                            borderRadius: 8,
+                            fontSize: 14,
+                        }}>
+                            No deadline set
+                        </span>
+                    )}
+                </div>
+            ),
+            headerStyle: { width: '120px' }
+        },
+        {
+            key: 'items',
+            title: 'Items',
+            render: (milestone) => (
+                <span style={{ 
+                    fontWeight: 600, 
+                    color: "#374151",
+                    background: "#f1f5f9",
+                    padding: "4px 8px",
+                    borderRadius: 8,
+                    fontSize: 14
+                }}>
+                    {milestone.items ? milestone.items.length : 0} items
+                </span>
+            ),
+            headerStyle: { width: '75px', textAlign: 'center' },
+            cellStyle: { textAlign: 'center' }
+        },
+        {
+            key: 'actions',
+            title: 'Action',
+            render: (milestone) => (
+                <Button 
+                    variant="primary" 
+                    size="sm" 
+                    onClick={() => openEditMilestone(milestone)}
+                    style={{ fontSize: 14, padding: "6px 12px", fontWeight: "600" }}
+                >
+                    {milestone.deadline ? "Edit" : "Set"}
+                </Button>
+            ),
+            headerStyle: { width: '75px', textAlign: 'center' },
+            cellStyle: { textAlign: 'center' }
+        }
+    ];
+
+    // Define columns for deliverables DataTable
+    const deliverablesColumns = [
+        {
+            key: 'index',
+            title: '#',
+            render: (deliverable, index) => (
+                <span style={{ 
+                    fontWeight: 600, 
+                    color: "#64748b",
+                    fontSize: 14
+                }}>
+                    {index + 1}
+                </span>
+            ),
+            headerStyle: { width: '50zpx', textAlign: 'center' },
+            cellStyle: { textAlign: 'center' }
+        },
+        {
+            key: 'name',
+            title: 'Milestone',
+            render: (deliverable) => (
+                <div>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{deliverable.name}</div>
+                    {deliverable.description && (
+                        <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{deliverable.description}</div>
+                    )}
+                </div>
+            ),
+            headerStyle: { width: '250px' }
+        },
+        {
+            key: 'endAt',
+            title: 'Deadline',
+            render: (deliverable) => (
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    {deliverable.endAt ? (
+                        <div style={{ color: "#059669", fontWeight: 600, fontSize: 14 }}>{formatDate(deliverable.endAt)}</div>
+                    ) : (
+                        <span style={{ color: "#dc2626", fontWeight: 600, background: "#fee2e2", padding: "2px 6px", borderRadius: 8, fontSize: 14 }}>No deadline</span>
+                    )}
+                </div>
+            ),
+            headerStyle: { width: '120px' }
+        },
+        {
+            key: 'items',
+            title: 'Items',
+            render: (deliverable) => (
+                <span style={{ fontWeight: 600, color: "#374151", background: "#f1f5f9", padding: "4px 8px", borderRadius: 8, fontSize: 14 }}>
+                    {Array.isArray(deliverable.deliveryItems) ? deliverable.deliveryItems.length : 0} items
+                </span>
+            ),
+            headerStyle: { width: '150px', textAlign: 'center' },
+            cellStyle: { textAlign: 'center' }
+        },
+        {
+            key: 'itemNames',
+            title: 'Item names',
+            render: (deliverable) => (
+                Array.isArray(deliverable.deliveryItems) && deliverable.deliveryItems.length > 0 ? (
+                    <div style={{ fontSize: 14 }}>
+                        {deliverable.deliveryItems.map((it) => it.name).join(', ')}
+                    </div>
+                ) : (
+                    <span style={{ color: "#64748b", fontSize: 14 }}>No items</span>
+                )
+            ),
+            headerStyle: { width: '300px' }
+        }
+    ];
 
     function openEditMilestone(milestone) {
         // Extract current deadline info if exists
@@ -300,98 +477,13 @@ export default function Delivery() {
             <p style={{ marginTop: 0, color: "#64748b" }}>Manage and track delivery timelines for Capstone milestones.</p>
 
             {/* Milestone List */}
-            <div style={{ border: "1px solid #bfdbfe", borderTop: "4px solid #3b82f6", borderRadius: 10, overflow: "hidden", marginBottom: 24, boxShadow: "0 2px 10px rgba(59,130,246,0.08)" }}>
-                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 13 }}>
-                    <thead style={{ background: "#eff6ff" }}>
-                        <tr>
-                            <th style={{ textAlign: "left", padding: "8px 12px", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: 13 }}>Milestone</th>
-                            <th style={{ textAlign: "left", padding: "8px 12px", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: 13 }}>Deadline</th>
-                            <th style={{ textAlign: "center", padding: "8px 12px", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: 13 }}>Items</th>
-                            <th style={{ textAlign: "center", padding: "8px 12px", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: 13, width: "120px" }}>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {milestones.map((milestone, idx) => (
-                            <tr 
-                                key={milestone.id} 
-                                style={{ 
-                                    background: !milestone.deadline ? "#fef3c7" : "#fff",
-                                    borderBottom: "1px solid #f1f5f9"
-                                }}
-                            >
-                                <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9" }}>
-                                    <div>
-                                        <div style={{ 
-                                            fontWeight: 600, 
-                                            color: !milestone.deadline ? "#92400e" : "#374151",
-                                            fontSize: 14,
-                                            lineHeight: 1.3
-                                        }}>
-                                            {milestone.name}
-                                        </div>
-                                        {milestone.description && (
-                                            <div style={{ 
-                                                fontSize: 11, 
-                                                color: !milestone.deadline ? "#a16207" : "#64748b", 
-                                                marginTop: 2,
-                                                lineHeight: 1.3
-                                            }}>
-                                                {milestone.description}
-                                            </div>
-                                        )}
-                                    </div>
-                                </td>
-                                <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9" }}>
-                                    {milestone.deadline ? (
-                                        <div style={{ color: "#059669", fontWeight: 600, fontSize: 12 }}>
-                                             {milestone.deadline}
-                                        </div>
-                                    ) : (
-                                        <span style={{ 
-                                            color: "#dc2626", 
-                                            fontWeight: 600,
-                                            background: "#fee2e2",
-                                            padding: "2px 6px",
-                                            borderRadius: 8,
-                                            fontSize: 11
-                                        }}>
-                                            No deadline set
-                                        </span>
-                                    )}
-                                </td>
-                                <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9", textAlign: "center" }}>
-                                    <span style={{ 
-                                        fontWeight: 600, 
-                                        color: "#374151",
-                                        background: "#f1f5f9",
-                                        padding: "2px 6px",
-                                        borderRadius: 8,
-                                        fontSize: 11
-                                    }}>
-                                        {milestone.items ? milestone.items.length : 0} items
-                                    </span>
-                                </td>
-                                <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9", textAlign: "center" }}>
-                                    <Button 
-                                        variant="primary" 
-                                        size="sm" 
-                                        onClick={() => openEditMilestone(milestone)}
-                                        style={{ fontSize: 11, padding: "4px 8px" }}
-                                    >
-                                        {milestone.deadline ? "Edit" : "Set"}
-                                    </Button>
-                                </td>
-                            </tr>
-                        ))}
-                        {milestones.length === 0 && (
-                            <tr>
-                                <td colSpan={4} style={{ padding: 32, textAlign: "center", color: "#64748b" }}>
-                                    No milestones found for selected major
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+            <div style={{ marginBottom: 24 }}>
+                <DataTable
+                    columns={milestoneColumns}
+                    data={milestones}
+                    emptyMessage="No milestones found for selected major"
+                    showIndex={false}
+                />
             </div>
 
 
@@ -606,58 +698,12 @@ export default function Delivery() {
                     <div style={{ color: "#64748b", fontSize: 13, marginBottom: 12 }}>No current semester found.</div>
                 )}
 
-                <div style={{ border: "1px solid #bbf7d0", borderTop: "4px solid #10b981", borderRadius: 10, overflow: "hidden", boxShadow: "0 2px 10px rgba(16,185,129,0.08)" }}>
-                    <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, fontSize: 13 }}>
-                        <thead style={{ background: "#ecfdf5" }}>
-                            <tr>
-                                <th style={{ textAlign: "left", padding: "8px 12px", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: 13 }}>Milestone</th>
-                                <th style={{ textAlign: "left", padding: "8px 12px", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: 13 }}>Deadline (endAt)</th>
-                                <th style={{ textAlign: "center", padding: "8px 12px", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: 13 }}>Items</th>
-                                <th style={{ textAlign: "left", padding: "8px 12px", borderBottom: "1px solid #e5e7eb", fontWeight: 600, fontSize: 13 }}>Item names</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {deliverables.map((d) => (
-                                <tr key={d.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                                    <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9" }}>
-                                        <div style={{ fontWeight: 600, fontSize: 14 }}>{d.name}</div>
-                                        {d.description && (
-                                            <div style={{ fontSize: 11, color: "#64748b", marginTop: 2 }}>{d.description}</div>
-                                        )}
-                                    </td>
-                                    <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9" }}>
-                                        {d.endAt ? (
-                                            <div style={{ color: "#059669", fontWeight: 600, fontSize: 12 }}>{formatDate(d.endAt)}</div>
-                                        ) : (
-                                            <span style={{ color: "#dc2626", fontWeight: 600, background: "#fee2e2", padding: "2px 6px", borderRadius: 8, fontSize: 11 }}>No deadline</span>
-                                        )}
-                                    </td>
-                                    <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9", textAlign: "center" }}>
-                                        <span style={{ fontWeight: 600, color: "#374151", background: "#f1f5f9", padding: "2px 6px", borderRadius: 8, fontSize: 11 }}>
-                                            {Array.isArray(d.deliveryItems) ? d.deliveryItems.length : 0} items
-                                        </span>
-                                    </td>
-                                    <td style={{ padding: "8px 12px", borderBottom: "1px solid #f1f5f9" }}>
-                                        {Array.isArray(d.deliveryItems) && d.deliveryItems.length > 0 ? (
-                                            <div style={{ fontSize: 12 }}>
-                                                {d.deliveryItems.map((it) => it.name).join(', ')}
-                                            </div>
-                                        ) : (
-                                            <span style={{ color: "#64748b", fontSize: 12 }}>No items</span>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                            {deliverables.length === 0 && (
-                                <tr>
-                                    <td colSpan={4} style={{ padding: 24, textAlign: "center", color: "#64748b" }}>
-                                        No deliverables for selected major in this semester
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                <DataTable
+                    columns={deliverablesColumns}
+                    data={deliverables}
+                    emptyMessage="No deliverables for selected major in this semester"
+                    showIndex={false}
+                />
             </div>
         </div>
     );

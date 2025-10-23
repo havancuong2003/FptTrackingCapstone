@@ -6,23 +6,12 @@ import Select from '../../../components/Select/Select';
 import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const TIME_SLOTS = [
-  { label: '00:00-04:00', start: 0, end: 4 },
-  { label: '04:00-08:00', start: 4, end: 8 },
-  { label: '08:00-12:00', start: 8, end: 12 },
-  { label: '12:00-16:00', start: 12, end: 16 },
-  { label: '16:00-20:00', start: 16, end: 20 },
-  { label: '20:00-24:00', start: 20, end: 24 }
-];
 
 export default function StudentMilestones() {
   const [userInfo, setUserInfo] = React.useState(null);
   const [groupInfo, setGroupInfo] = React.useState(null);
   const [semesterInfo, setSemesterInfo] = React.useState(null);
-  const [weeks, setWeeks] = React.useState([]);
   const [milestones, setMilestones] = React.useState([]);
-  const [selectedWeek, setSelectedWeek] = React.useState(1);
   const [loading, setLoading] = React.useState(true);
   const [selectedMilestone, setSelectedMilestone] = React.useState(null);
   const [detailModal, setDetailModal] = React.useState(false);
@@ -69,7 +58,7 @@ export default function StudentMilestones() {
     return () => { mounted = false; };
   }, [userInfo?.groupId]);
 
-  // Load semester info and weeks
+  // Load semester info
   React.useEffect(() => {
     let mounted = true;
     async function loadSemesterInfo() {
@@ -79,14 +68,9 @@ export default function StudentMilestones() {
         const semester = res?.data?.data || null;
         if (!mounted) return;
         setSemesterInfo(semester);
-        setWeeks(semester?.weeks || []);
-        if (semester?.weeks?.length > 0) {
-          setSelectedWeek(semester.weeks[0].weekNumber);
-        }
       } catch {
         if (!mounted) return;
         setSemesterInfo(null);
-        setWeeks([]);
       }
     }
     loadSemesterInfo();
@@ -114,46 +98,11 @@ export default function StudentMilestones() {
 
   // Set loading false when all data loaded
   React.useEffect(() => {
-    if (userInfo && groupInfo && semesterInfo && weeks.length > 0) {
+    if (userInfo && groupInfo && semesterInfo) {
       setLoading(false);
     }
-  }, [userInfo, groupInfo, semesterInfo, weeks]);
+  }, [userInfo, groupInfo, semesterInfo]);
 
-  // Get milestones for selected week
-  const getMilestonesForWeek = () => {
-    if (!selectedWeek || !milestones.length) return [];
-    
-    const selectedWeekData = weeks.find(w => w.weekNumber === selectedWeek);
-    if (!selectedWeekData) return [];
-    
-    const weekStart = new Date(selectedWeekData.startAt);
-    const weekEnd = new Date(selectedWeekData.endAt);
-    
-    return milestones.filter(milestone => {
-      if (!milestone.endAt) return false;
-      const deadline = new Date(milestone.endAt);
-      return deadline >= weekStart && deadline <= weekEnd;
-    });
-  };
-
-  // Get milestone for specific day and time slot
-  const getMilestoneForSlot = (day, timeSlot) => {
-    const weekMilestones = getMilestonesForWeek();
-    if (!weekMilestones.length) return null;
-    
-    const deadline = new Date(weekMilestones[0].endAt);
-    const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const hour = deadline.getHours();
-    
-    // Convert Sunday=0 to Monday=0 format
-    const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-    
-    if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-      return weekMilestones[0];
-    }
-    
-    return null;
-  };
 
   const openDetailModal = async (milestone) => {
     setSelectedMilestone(milestone);
@@ -288,13 +237,13 @@ export default function StudentMilestones() {
   return (
     <div style={{ padding: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Milestones Calendar</h1>
+        <h1 style={{ margin: 0, fontSize: 24 }}>Milestones Management</h1>
         {groupInfo && (
           <div style={{ fontSize: 14, color: '#64748b' }}>
             Group: {groupInfo.projectName}
-                </div>
+          </div>
         )}
-              </div>
+      </div>
               
       {semesterInfo && (
         <div style={{ 
@@ -330,132 +279,6 @@ export default function StudentMilestones() {
         </div>
       )}
 
-      {/* Week Selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>Week:</span>
-        <select 
-          value={selectedWeek} 
-          onChange={(e) => setSelectedWeek(Number(e.target.value))}
-          style={{
-            padding: "8px 12px",
-            border: "1px solid #d1d5db",
-            borderRadius: "6px",
-            fontSize: "14px",
-            backgroundColor: "white",
-            outline: "none",
-            minWidth: 120,
-            maxWidth: 300
-          }}
-        >
-          {weeks.map((week) => (
-            <option 
-              key={week.weekNumber} 
-              value={week.weekNumber}
-              disabled={week.isVacation}
-              style={{ 
-                color: week.isVacation ? '#9ca3af' : '#000',
-                backgroundColor: week.isVacation ? '#f3f4f6' : '#fff'
-              }}
-            >
-              Week {week.weekNumber} ({formatDate(week.startAt, 'DD/MM/YYYY')}-{formatDate(week.endAt, 'DD/MM/YYYY')}) {week.isVacation ? '(Vacation)' : ''}
-            </option>
-          ))}
-        </select>
-      </div>
-
-              
-      {/* Calendar Table */}
-      <div style={{ 
-        border: '1px solid #e5e7eb', 
-        borderRadius: 8, 
-        overflow: 'hidden',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
-      }}>
-        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-          <thead style={{ background: '#f9fafb' }}>
-            <tr>
-              <th style={{ 
-                padding: '12px 8px', 
-                borderBottom: '1px solid #e5e7eb', 
-                fontWeight: 600, 
-                fontSize: 12,
-                width: '80px'
-              }}>
-                Time
-              </th>
-              {DAYS.map((day) => (
-                <th key={day} style={{ 
-                  padding: '12px 8px', 
-                  borderBottom: '1px solid #e5e7eb', 
-                  fontWeight: 600, 
-                  fontSize: 12,
-                  textAlign: 'center'
-                }}>
-                  {day}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {TIME_SLOTS.map((timeSlot, slotIndex) => (
-              <tr key={timeSlot.label}>
-                <td style={{ 
-                  padding: '8px', 
-                  borderBottom: '1px solid #f1f5f9', 
-                  fontSize: 11, 
-                  fontWeight: 600,
-                  background: '#f8fafc',
-                  textAlign: 'center'
-                }}>
-                  {timeSlot.label}
-                </td>
-                {DAYS.map((day, dayIndex) => {
-                  const milestone = getMilestoneForSlot(dayIndex, timeSlot);
-                  return (
-                    <td key={day} style={{ 
-                      padding: '8px', 
-                      borderBottom: '1px solid #f1f5f9',
-                      borderRight: '1px solid #f1f5f9',
-                      minHeight: '60px',
-                      verticalAlign: 'top'
-                    }}>
-                      {milestone ? (
-                        <div 
-                          style={{ 
-                            background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
-                                       getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
-                                       getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                            border: `1px solid ${getStatusColor(milestone.status)}`,
-                            borderRadius: 4,
-                            padding: 4,
-                            cursor: 'pointer',
-                            fontSize: 9,
-                            maxHeight: '50px',
-                            overflow: 'hidden'
-                          }}
-                          onClick={() => openDetailModal(milestone)}
-                        >
-                          <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
-                            {milestone.name.length > 20 ? milestone.name.substring(0, 20) + '...' : milestone.name}
-                          </div>
-                          <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
-                            {getStatusText(milestone.status)}
-                          </div>
-                          <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
-                            {formatDate(milestone.endAt, 'HH:mm')}
-              </div>
-            </div>
-                      ) : (
-                        <div style={{ height: '40px' }}></div>
-                      )}
-                    </td>
-          );
-        })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
 
       {/* Summary Tables - Side by Side */}
       <div style={{ display: 'flex', gap: 16, marginTop: 24 }}>
