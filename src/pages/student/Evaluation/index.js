@@ -1,485 +1,281 @@
 import React from "react";
 import styles from "./index.module.scss";
 import Button from "../../../components/Button/Button";
-import Modal from "../../../components/Modal/Modal";
-import Select from "../../../components/Select/Select";
+import Card from "../../../components/Card/Card";
+import DataTable from "../../../components/DataTable/DataTable";
+import axiosClient from "../../../utils/axiosClient";
 
-const API_URL_GROUPS = "https://160.30.21.113:5000/api/v1/Mentor/getGroups";
-const API_URL_MILESTONE =
-  "https://160.30.21.113:5000/api/v1/Student/milestone/group/";
-const API_URL_STUDENTS =
-  "https://160.30.21.113:5000/api/v1/Staff/capstone-groups/";
-
-export default function SupervisorEvaluation() {
+export default function StudentEvaluation() {
   const [evaluations, setEvaluations] = React.useState([]);
-  const [groups, setGroups] = React.useState([]);
+  const [milestones, setMilestones] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [selectedGroup, setSelectedGroup] = React.useState(null);
   const [selectedMilestone, setSelectedMilestone] = React.useState("all");
-  const [evaluateModal, setEvaluateModal] = React.useState(false);
-  const [selectedStudent, setSelectedStudent] = React.useState(null);
-  const [newEvaluation, setNewEvaluation] = React.useState({
-    studentId: "",
-    milestoneId: "",
-    comment: "",
-    penaltyCards: [],
-  });
 
-  // Fetch danh sách nhóm
+  // ------------------ Fetch Milestones ------------------
   React.useEffect(() => {
-    const fetchGroups = async () => {
+    const fetchMilestones = async () => {
       setLoading(true);
       try {
-        const res = await fetch(API_URL_GROUPS, {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-        });
-        const data = await res.json();
-
-        if (data?.data?.length) {
-          const groupsData = data.data.map((g) => ({
-            groupId: g.id.toString(),
-            groupName: g.name,
-            milestones: [],
-          }));
-          setGroups(groupsData);
-          setSelectedGroup(groupsData[0].groupId);
+        console.log('Fetching milestones for student');
+        const response = await axiosClient.get('/Student/milestone');
+        
+        console.log('Milestones API response:', response.data);
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        // Kiểm tra nếu response.data là array trực tiếp
+        if (Array.isArray(response.data)) {
+          console.log('API returned array directly:', response.data);
+          setMilestones(response.data);
+        } else if (response.data.status === 200) {
+          const milestonesData = response.data.data || [];
+          console.log('Setting milestones (with status):', milestonesData);
+          setMilestones(milestonesData);
+        } else {
+          console.error('Failed to fetch milestones:', response.data.message);
+          console.error('Full response:', response.data);
+          setMilestones([]);
         }
       } catch (err) {
-        console.error("Error fetching groups:", err);
-      }
-    };
-    fetchGroups();
-  }, []);
-
-  // Fetch milestone + students
-  React.useEffect(() => {
-    if (!selectedGroup) return;
-    const fetchGroupDetails = async () => {
-      setLoading(true);
-      try {
-        const [milestoneRes, studentRes] = await Promise.all([
-          fetch(`${API_URL_MILESTONE}${selectedGroup}`, {
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-          }),
-          fetch(`${API_URL_STUDENTS}${selectedGroup}`, {
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-          }),
-        ]);
-
-        const milestoneData = await milestoneRes.json();
-        const studentData = await studentRes.json();
-
-        const students =
-          studentData?.data?.students?.map((s) => ({
-            id: s.id.toString(),
-            name: s.name,
-            role: s.role,
-            penaltyCards: [],
-            evaluations: [],
-          })) || [];
-
-        const milestones =
-          milestoneData?.data?.map((m) => ({
-            id: m.id.toString(),
-            name: m.name,
-            students,
-          })) || [];
-
-        setGroups((prev) =>
-          prev.map((g) =>
-            g.groupId === selectedGroup
-              ? {
-                  ...g,
-                  milestones,
-                  groupName: studentData?.data?.name || g.groupName,
-                }
-              : g
-          )
-        );
-
-        setSelectedMilestone(milestones.length > 0 ? milestones[0].id : "all");
-      } catch (err) {
-        console.error("Error fetching group details:", err);
+        console.error('Error fetching milestones:', err);
+        console.error('Error details:', err.response?.data);
+        console.error('Error status:', err.response?.status);
+        
+        // Sử dụng mock data khi API lỗi
+        console.log('Using mock milestones data');
+        const mockMilestones = [
+          { id: "1", name: "Milestone 1: Project Introduction" },
+          { id: "2", name: "Milestone 2: Project Planning" },
+          { id: "3", name: "Milestone 3: Requirement Analysis" },
+          { id: "4", name: "Milestone 4: System Design" },
+          { id: "5", name: "Milestone 5: Implementation" }
+        ];
+        setMilestones(mockMilestones);
       } finally {
         setLoading(false);
       }
     };
-    fetchGroupDetails();
-  }, [selectedGroup]);
 
-  // UI helper
-  const getPenaltyCardInfo = (type) => {
-    switch (type) {
-      case "late-submission":
-        return { text: "Late Submission", color: "#d97706" };
-      case "missing-meeting":
-        return { text: "Missing Meeting", color: "#dc2626" };
-      case "poor-quality":
-        return { text: "Poor Quality", color: "#dc2626" };
-      case "no-participation":
-        return { text: "No Participation", color: "#dc2626" };
-      default:
-        return { text: type, color: "#64748b" };
-    }
-  };
+    fetchMilestones();
+  }, []);
 
-  const getPenaltyInfo = (type) => {
-    switch (type) {
-      case "late-submission":
-        return { text: "Late Submission", color: "#d97706" };
-      case "missing-meeting":
-      case "poor-quality":
-      case "no-participation":
-        return { text: "Serious Infraction", color: "#dc2626" };
-      default:
-        return null;
-    }
-  };
-
-  const formatDate = (dateString) =>
-    new Date(dateString).toLocaleDateString("vi-VN", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-
-  const selectedGroupData = groups.find((g) => g.groupId === selectedGroup);
-  const selectedMilestoneData = selectedGroupData?.milestones?.find(
-    (m) => selectedMilestone === "all" || m.id === selectedMilestone
-  );
-  const studentsToEvaluate = selectedMilestoneData?.students || [];
-
-  const openEvaluateModal = (student) => {
-    setSelectedStudent(student);
-    setNewEvaluation({
-      studentId: student.id,
-      milestoneId: selectedMilestoneData?.id || "",
-      comment: "",
-      penaltyCards: [],
-    });
-    setEvaluateModal(true);
-  };
-
-  const submitEvaluation = async () => {
-    if (!newEvaluation.studentId || !newEvaluation.comment) {
-      alert("Please fill in all required fields");
-      return;
-    }
-
+  // ------------------ Fetch All Evaluations ------------------
+  const [allEvaluations, setAllEvaluations] = React.useState([]);
+  
+  const fetchAllEvaluations = async () => {
+    setLoading(true);
     try {
-      const res = await fetch(
-        "https://160.30.21.113:5000/api/v1/Common/Evaluation/create",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            studentId: newEvaluation.studentId,
-            milestoneId: newEvaluation.milestoneId,
-            comment: newEvaluation.comment,
-            penaltyCards: newEvaluation.penaltyCards,
-          }),
-        }
-      );
-
-      if (!res.ok) throw new Error(`HTTP Error ${res.status}`);
-      const result = await res.json();
-      console.log("Evaluation created:", result);
-
-      const evaluation = {
-        id: Date.now(),
-        studentId: newEvaluation.studentId,
-        studentName: selectedStudent?.name,
-        milestoneId: newEvaluation.milestoneId,
-        milestoneName: selectedMilestoneData?.name,
-        comment: newEvaluation.comment,
-        penaltyTag: newEvaluation.penaltyCards[0] || null,
-        createdAt: new Date().toISOString(),
-        createdBy: "Supervisor",
-      };
-
-      setEvaluations((prev) => [evaluation, ...prev]);
-      setEvaluateModal(false);
-      setNewEvaluation({
-        studentId: "",
-        milestoneId: "",
-        comment: "",
-        penaltyCards: [],
-      });
-
-      setGroups((prevGroups) =>
-        prevGroups.map((g) =>
-          g.groupId === selectedGroup
-            ? {
-                ...g,
-                milestones: g.milestones.map((m) =>
-                  m.id === newEvaluation.milestoneId
-                    ? {
-                        ...m,
-                        students: m.students.map((s) =>
-                          s.id === newEvaluation.studentId
-                            ? {
-                                ...s,
-                                evaluations: [
-                                  {
-                                    comment: newEvaluation.comment,
-                                    // thêm các trường khác nếu muốn
-                                  },
-                                  ...(s.evaluations || []),
-                                ],
-                                penaltyCards: newEvaluation.penaltyCards,
-                              }
-                            : s
-                        ),
-                      }
-                    : m
-                ),
-              }
-            : g
-        )
-      );
-
-      alert("Evaluation submitted successfully!");
+      console.log('Fetching all evaluations for student');
+      const response = await axiosClient.get('/Common/Evaluation/getEvaluationFromDeliverableByStudent');
+      
+      console.log('All evaluations API response:', response.data);
+      
+      // Kiểm tra nếu response.data là array trực tiếp
+      if (Array.isArray(response.data)) {
+        console.log('API returned array directly:', response.data);
+        setAllEvaluations(response.data);
+        setEvaluations(response.data);
+      } else if (response.data.status === 200) {
+        const evaluationsData = response.data.data || [];
+        console.log('Setting all evaluations (with status):', evaluationsData);
+        setAllEvaluations(evaluationsData);
+        setEvaluations(evaluationsData);
+      } else {
+        console.error('Failed to fetch evaluations:', response.data.message);
+        setAllEvaluations([]);
+        setEvaluations([]);
+      }
     } catch (err) {
-      console.error("Error:", err);
-      alert("Failed to submit evaluation. Please try again.");
+      console.error('Error fetching evaluations:', err);
+      console.error('Error details:', err.response?.data);
+      setAllEvaluations([]);
+      setEvaluations([]);
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (loading)
-    return (
-      <div className={styles.loading}>
-        <div>Loading evaluation data...</div>
-      </div>
-    );
+  // ------------------ Fetch All Evaluations on Mount ------------------
+  React.useEffect(() => {
+    fetchAllEvaluations();
+  }, []);
 
-  if (groups.length === 0)
-    return (
-      <div className={styles.loading}>
-        <div>No groups found.</div>
-      </div>
+  // ------------------ Filter Evaluations when milestone changes ------------------
+  React.useEffect(() => {
+    console.log('=== Filtering evaluations by milestone ===');
+    console.log('selectedMilestone:', selectedMilestone);
+    console.log('allEvaluations:', allEvaluations);
+    
+    if (selectedMilestone === "all") {
+      console.log('Showing all evaluations');
+      setEvaluations(allEvaluations);
+    } else {
+      // Tìm milestone name từ milestones array
+      const selectedMilestoneData = milestones.find(m => m.id === selectedMilestone);
+      const milestoneName = selectedMilestoneData?.name;
+      
+      console.log('Selected milestone name:', milestoneName);
+      
+      if (milestoneName) {
+        const filteredEvaluations = allEvaluations.filter(evaluation => 
+          evaluation.deliverableName === milestoneName
+        );
+        console.log('Filtered evaluations:', filteredEvaluations);
+        setEvaluations(filteredEvaluations);
+      } else {
+        console.log('Milestone name not found, showing all evaluations');
+        setEvaluations(allEvaluations);
+      }
+    }
+  }, [selectedMilestone, allEvaluations, milestones]);
+
+  // ------------------ Table Columns ------------------
+  const columns = [
+    {
+      key: 'stt',
+      title: 'STT',
+      render: (_, index) => index + 1
+    },
+    {
+      key: 'feedback',
+      title: 'Nhận xét',
+      render: (evaluation) => (
+        <div className={styles.feedbackContent}>
+          <p className={styles.feedbackText}>{evaluation.feedback}</p>
+        </div>
+      )
+    },
+    {
+      key: 'supervisor',
+      title: 'Giảng viên',
+      render: (evaluation) => (
+        <div className={styles.supervisorInfo}>
+          <span className={styles.supervisorName}>{evaluation.evaluatorName}</span>
+        </div>
+      )
+    },
+    {
+      key: 'penaltyCards',
+      title: 'Thẻ phạt',
+      render: (evaluation) => {
+        if (evaluation.penaltyCards && evaluation.penaltyCards.length > 0) {
+          return (
+            <div className={styles.penaltyCardsList}>
+              {evaluation.penaltyCards.map((cardName, index) => (
+                <span
+                  key={index}
+                  className={styles.penaltyTag}
+                  style={{
+                    backgroundColor: "#ef4444",
+                    color: "#fff",
+                    marginRight: "4px",
+                    fontSize: "12px",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    display: "inline-block",
+                    marginBottom: "4px"
+                  }}
+                >
+                  {cardName}
+                </span>
+              ))}
+            </div>
+          );
+        }
+        
+        return <span className={styles.noPenalty}>Không có thẻ phạt</span>;
+      }
+    }
+  ];
+
+  // ------------------ Summary Statistics ------------------
+  const getSummaryStats = () => {
+    const totalEvaluations = evaluations.length;
+    const totalPenalties = evaluations.reduce((count, evaluation) => 
+      count + (evaluation.penaltyCards ? evaluation.penaltyCards.length : 0), 0
     );
+    
+    return {
+      totalEvaluations,
+      totalPenalties
+    };
+  };
+
+  const stats = getSummaryStats();
+
+  if (loading && evaluations.length === 0) {
+    return <div className={styles.loading}>Đang tải dữ liệu...</div>;
+  }
 
   return (
-    <>
-      <div className={styles.container}>
-        <div className={styles.header}>
-          <h1>Student Evaluation - Supervisor View</h1>
-          <div className={styles.controls}>
-            <div className={styles.controlGroup}>
-              <label>Group:</label>
-              <Select
-                value={selectedGroup}
-                onChange={setSelectedGroup}
-                options={groups.map((g) => ({
-                  value: g.groupId,
-                  label: `${g.groupName} (${g.groupId})`,
-                }))}
-              />
-            </div>
-            <div className={styles.controlGroup}>
-              <label>Milestone:</label>
-              <Select
-                value={selectedMilestone}
-                onChange={setSelectedMilestone}
-                options={[
-                  { value: "all", label: "All Milestones" },
-                  ...(selectedGroupData?.milestones?.map((m) => ({
-                    value: m.id,
-                    label: m.name,
-                  })) || []),
-                ]}
-              />
-            </div>
-          </div>
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <h1>Đánh giá của Mentor</h1>
+        <p className={styles.subtitle}>
+          Xem nhận xét và thẻ phạt từ mentor theo từng milestone
+        </p>
+      </div>
+
+      {/* ------------------ Controls ------------------ */}
+      <div className={styles.controls}>
+        <div className={styles.controlGroup}>
+          <label>Chọn Milestone:</label>
+          <select
+            value={selectedMilestone}
+            onChange={(e) => setSelectedMilestone(e.target.value)}
+            className={styles.select}
+          >
+            <option value="all">Tất cả Milestones</option>
+            {milestones.map((milestone) => (
+              <option key={milestone.id} value={milestone.id}>
+                {milestone.name}
+              </option>
+            ))}
+          </select>
         </div>
+        
+      </div>
 
-        {selectedGroupData && (
-          <div className={styles.evaluationTable}>
-            <h2>Students Evaluation Table</h2>
-            <div className={styles.tableContainer}>
-              <table className={styles.evaluationTable}>
-                <thead>
-                  <tr>
-                    <th>Student</th>
-                    <th>Role</th>
-                    <th>Penalty Cards</th>
-                    <th>Comment</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {studentsToEvaluate.map((student) => {
-                    const latestEval = student.evaluations?.[0];
-                    return (
-                      <tr key={student.id}>
-                        <td>
-                          <strong>{student.name}</strong> ({student.id})
-                        </td>
-                        <td>{student.role}</td>
-                        <td>
-                          {student.penaltyCards?.length ? (
-                            student.penaltyCards.map((card, i) => {
-                              const info = getPenaltyCardInfo(card.type);
-                              return (
-                                <span
-                                  key={i}
-                                  className={styles.penaltyCard}
-                                  style={{ backgroundColor: info.color }}
-                                >
-                                  {info.text}
-                                </span>
-                              );
-                            })
-                          ) : (
-                            <span className={styles.noPenalty}>
-                              No penalties
-                            </span>
-                          )}
-                        </td>
-                        <td>
-                          {latestEval ? (
-                            <div className={styles.commentPreview}>
-                              {latestEval.comment.length > 50
-                                ? latestEval.comment.slice(0, 50) + "..."
-                                : latestEval.comment}
-                            </div>
-                          ) : (
-                            <span className={styles.noComment}>No comment</span>
-                          )}
-                        </td>
-                        <td>
-                          <Button
-                            onClick={() => openEvaluateModal(student)}
-                            size='sm'
-                            variant={latestEval ? "secondary" : "primary"}
-                          >
-                            {latestEval ? "Re-evaluate" : "Evaluate"}
-                          </Button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+      {/* ------------------ Summary Cards ------------------ */}
+      <div className={styles.summaryCards}>
+        <Card className={styles.summaryCard}>
+          <div className={styles.summaryContent}>
+            <h3>Tổng số đánh giá</h3>
+            <div className={styles.summaryNumber}>{stats.totalEvaluations}</div>
+          </div>
+        </Card>
+        
+        <Card className={styles.summaryCard}>
+          <div className={styles.summaryContent}>
+            <h3>Tổng số thẻ phạt</h3>
+            <div className={styles.summaryNumber}>{stats.totalPenalties}</div>
+          </div>
+        </Card>
+      </div>
+
+      {/* ------------------ Evaluations Table ------------------ */}
+      <div className={styles.evaluationsSection}>
+        <h2>Bảng đánh giá cá nhân</h2>
+        <div className={styles.tableContainer}>
+          {selectedMilestone === "all" ? (
+            <div className={styles.noSelection}>
+              <div className={styles.noSelectionContent}>
+                <h3>Chọn một milestone để xem đánh giá</h3>
+                <p>Vui lòng chọn milestone cụ thể để xem nhận xét và thẻ phạt từ mentor.</p>
+              </div>
             </div>
-          </div>
-        )}
-
-        <div className={styles.evaluationsSection}>
-          <h2>Recent Evaluations</h2>
-          <div className={styles.evaluationsList}>
-            {evaluations.map((evaluation) => {
-              const penaltyInfo = getPenaltyInfo(evaluation.penaltyTag);
-              return (
-                <div key={evaluation.id} className={styles.evaluationCard}>
-                  <h3>{evaluation.studentName}</h3>
-                  <p>{evaluation.milestoneName}</p>
-                  <p>Evaluated on {formatDate(evaluation.createdAt)}</p>
-                  <div className={styles.commentSection}>
-                    <h4>Feedback</h4>
-                    <p>{evaluation.comment}</p>
-                  </div>
-                  {penaltyInfo && (
-                    <div className={styles.penaltySection}>
-                      <h4>Penalty</h4>
-                      <span
-                        className={styles.penaltyTag}
-                        style={{
-                          backgroundColor: penaltyInfo.color,
-                          color: "#fff",
-                        }}
-                      >
-                        {penaltyInfo.text}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={evaluations}
+              loading={loading}
+              emptyMessage="Chưa có đánh giá nào cho milestone này"
+              showIndex={false}
+            />
+          )}
         </div>
       </div>
 
-      <Modal open={evaluateModal} onClose={() => setEvaluateModal(false)}>
-        {selectedStudent && (
-          <div className={styles.evaluateModal}>
-            <h2>Evaluate Student</h2>
-            <p>
-              {selectedStudent.name} ({selectedStudent.id}) —{" "}
-              {selectedStudent.role}
-            </p>
-            <p>Milestone: {selectedMilestoneData?.name}</p>
-
-            <div className={styles.formGroup}>
-              <label>Comment</label>
-              <textarea
-                value={newEvaluation.comment}
-                onChange={(e) =>
-                  setNewEvaluation({
-                    ...newEvaluation,
-                    comment: e.target.value,
-                  })
-                }
-                placeholder='Write feedback...'
-                className={styles.textarea}
-                rows={4}
-              />
-            </div>
-
-            <div className={styles.formSection}>
-              <h4>Penalty Cards</h4>
-              <div className={styles.penaltyCardsList}>
-                {[
-                  "late-submission",
-                  "missing-meeting",
-                  "poor-quality",
-                  "no-participation",
-                ].map((type) => {
-                  const info = getPenaltyCardInfo(type);
-                  const selected = newEvaluation.penaltyCards.includes(type);
-                  return (
-                    <div
-                      key={type}
-                      className={`${styles.penaltyCardOption} ${
-                        selected ? styles.selected : ""
-                      }`}
-                      onClick={() => {
-                        const updated = selected
-                          ? newEvaluation.penaltyCards.filter((c) => c !== type)
-                          : [...newEvaluation.penaltyCards, type];
-                        setNewEvaluation({
-                          ...newEvaluation,
-                          penaltyCards: updated,
-                        });
-                      }}
-                    >
-                      <span>{info.text}</span>
-                      {selected && <span className={styles.checkmark}>✓</span>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className={styles.modalActions}>
-              <Button
-                variant='secondary'
-                onClick={() => setEvaluateModal(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={submitEvaluation}>Submit Evaluation</Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-    </>
+    </div>
   );
 }

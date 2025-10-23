@@ -25,6 +25,11 @@ const supervisorMenu = [
     label: "Evaluation", 
     icon: "⭐"
   },
+  { 
+    path: "/supervisor/penalty-management", 
+    label: "Penalty Management", 
+    icon: "⚠️"
+  },
   // Chức năng riêng của supervisor
   { 
     path: "/supervisor/groups", 
