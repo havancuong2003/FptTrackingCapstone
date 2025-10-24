@@ -223,7 +223,6 @@ export default function StudentTasks() {
       if (response.data.status === 200) {
         const apiData = response.data.data;
         const tasksData = Array.isArray(apiData) ? apiData : [];
-          console.log("tasksData", tasksData);
         const mappedTasks = tasksData.map(task => ({
           id: task.id,
           title: task.title,
@@ -510,19 +509,16 @@ export default function StudentTasks() {
       const selectedDeliverable = deliverables.find(d => d.id.toString() === newTask.deliverableId);
         const selectedAssignee = assigneeOptions.find(a => 
         {
-          console.log("a", a);
-          console.log("newTask.assignee", parseInt(newTask.assignee));
+
           return a.value.toString() === newTask.assignee.toString();
         });
         const selectedReviewer = reviewers.find(r =>
           {
-            console.log("r", r);
-            console.log("newTask.reviewer", parseInt(newTask.reviewer));
+
             return r.id.toString() === newTask.reviewer.toString();
           }
         );
-        console.log("selectedAssignee", selectedAssignee);
-        console.log("selectedReviewer", selectedReviewer);
+
       
       // Gửi email thông báo trước khi tạo task
       try {
