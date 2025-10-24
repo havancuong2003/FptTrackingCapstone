@@ -489,7 +489,7 @@ export default function SupervisorSchedule() {
               </div>
             ) : (
               <div className={styles.notFinalized}>
-                <h3>⏰ Lịch họp chưa được xác nhận</h3>
+                <h3> Lịch họp chưa được xác nhận</h3>
                 <p>Vui lòng xem lịch rảnh của các thành viên và xác nhận lịch họp.</p>
               </div>
             )}
