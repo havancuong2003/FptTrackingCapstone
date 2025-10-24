@@ -43,9 +43,11 @@ export default function StudentMilestones() {
   React.useEffect(() => {
     let mounted = true;
     async function loadGroupInfo() {
-      if (!userInfo?.groupId) return;
+      if (!userInfo?.groups || userInfo.groups.length === 0) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${userInfo.groupId}`);
+        // Lấy group đầu tiên từ danh sách groups
+        const groupId = userInfo.groups[0];
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
         const group = res?.data?.data || null;
         if (!mounted) return;
         setGroupInfo(group);
@@ -56,7 +58,7 @@ export default function StudentMilestones() {
     }
     loadGroupInfo();
     return () => { mounted = false; };
-  }, [userInfo?.groupId]);
+  }, [userInfo?.groups]);
 
   // Load semester info
   React.useEffect(() => {
@@ -81,9 +83,11 @@ export default function StudentMilestones() {
   React.useEffect(() => {
     let mounted = true;
     async function loadMilestones() {
-      if (!userInfo?.groupId) return;
+      if (!userInfo?.groups || userInfo.groups.length === 0) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groupId}`);
+        // Lấy group đầu tiên từ danh sách groups
+        const groupId = userInfo.groups[0];
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${groupId}`);
         const list = Array.isArray(res?.data) ? res.data : [];
         if (!mounted) return;
         setMilestones(list);
@@ -94,7 +98,7 @@ export default function StudentMilestones() {
     }
     loadMilestones();
     return () => { mounted = false; };
-  }, [userInfo?.groupId]);
+  }, [userInfo?.groups]);
 
   // Set loading false when all data loaded
   React.useEffect(() => {
@@ -110,7 +114,7 @@ export default function StudentMilestones() {
     
     // Load milestone details
     try {
-      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groupId}&deliverableId=${milestone.id}`);
+      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${milestone.id}`);
       setMilestoneDetails(res?.data || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
@@ -132,7 +136,7 @@ export default function StudentMilestones() {
       formData.append('file', selectedFile);
       
       const res = await client.post(
-        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groupId}&deliveryItemId=${deliveryItemId}`,
+        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}`,
         formData,
         {
           headers: {
@@ -142,7 +146,7 @@ export default function StudentMilestones() {
       );
       
       // Reload milestones after successful upload
-      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groupId}`);
+      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groups[0]}`);
       const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
       setMilestones(list);
       
@@ -154,7 +158,7 @@ export default function StudentMilestones() {
       
       // Reload milestone details after successful upload
       if (selectedMilestone) {
-        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groupId}&deliverableId=${selectedMilestone.id}`);
+        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
         setMilestoneDetails(detailRes?.data || null);
       }
       
@@ -197,7 +201,7 @@ export default function StudentMilestones() {
         alert('Xóa file thành công!');
         // Reload milestone details
         if (selectedMilestone) {
-          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groupId}&deliverableId=${selectedMilestone.id}`);
+          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
           setMilestoneDetails(detailRes?.data || null);
         }
       }
@@ -222,6 +226,8 @@ export default function StudentMilestones() {
         return '#d97706'; // Orange/Yellow
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
+      case 'REJECTED':
+        return '#dc2626'; // Red
       default:
         return '#64748b'; // Gray
     }
@@ -237,6 +243,8 @@ export default function StudentMilestones() {
         return '⏳ Pending Review';
       case 'UNSUBMITTED':
         return '✗ Unsubmitted';
+      case 'REJECTED':
+        return '❌ Rejected';
       default:
         return '❓ Unknown';
     }

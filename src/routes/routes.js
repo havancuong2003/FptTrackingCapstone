@@ -63,6 +63,7 @@ const SupervisorEvaluation = React.lazy(() => import("../pages/supervisor/Evalua
 const SupervisorDocuments = React.lazy(() => import("../pages/supervisor/Documents"));
 const SupervisorSchedule = React.lazy(() => import("../pages/supervisor/Schedule"));
 const SupervisorMeetingManagement = React.lazy(() => import("../pages/supervisor/MeetingManagement"));
+const SupervisorCalendar = React.lazy(() => import("../pages/supervisor/Calendar"));
 export const routes = [
   {
     path: "/",
@@ -420,4 +421,13 @@ export const routes = [
       roles: ["SUPERVISOR"],
     },
   },
+  {
+    path: "/supervisor/calendar",
+    element: SupervisorCalendar,
+    meta: {
+      title: "Calendar",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  }
 ];

@@ -1,5 +1,10 @@
 const supervisorMenu = [
   // Chức năng chung (cùng thứ tự với student)
+  {
+    path: "/supervisor/calendar", 
+    label: "Calendar", 
+    icon: "📅"
+  },
   { 
     path: "/supervisor/tasks", 
     label: "Issues", 

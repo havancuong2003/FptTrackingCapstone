@@ -46,11 +46,11 @@ export default function StudentMeetingManagement() {
         setUserRole(userData.roleInGroup || userData.role);
         
         // Lấy danh sách meetings sau khi có thông tin user
-        if (userData.groupId) {
-          console.log('Fetching meetings for group:', userData.groupId);
-          await fetchMeetings(userData.groupId);
+        if (userData.groups && userData.groups.length > 0) {
+          console.log('Fetching meetings for group:', userData.groups[0]);
+          await fetchMeetings(userData.groups[0]);
         } else {
-          console.log('No groupId found in user data');
+          console.log('No groups found in user data');
           setLoading(false);
         }
       } else {
@@ -112,6 +112,35 @@ export default function StudentMeetingManagement() {
 
   const joinMeeting = (meetingLink) => {
     window.open(meetingLink, '_blank');
+  };
+
+  // Hàm toggle isMeeting status
+  const toggleMeetingStatus = async (meeting) => {
+    if (!isSecretary) return;
+    
+    try {
+      const newStatus = !meeting.isMeeting;
+      const response = await client.put(
+        `${API_BASE_URL}/Student/Meeting/update-is-meeting/${meeting.id}`,
+        newStatus,
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      if (response.data.message === 'Cập nhật IsMeeting thành công.') {
+      // Refresh meetings data
+      if (userInfo?.groups && userInfo.groups.length > 0) {
+        await fetchMeetings(userInfo.groups[0]);
+      }
+        alert(newStatus ? 'Đã đánh dấu buổi họp đã diễn ra!' : 'Đã hủy đánh dấu buổi họp!');
+      }
+    } catch (error) {
+      console.error('Error updating meeting status:', error);
+      alert('Có lỗi xảy ra khi cập nhật trạng thái buổi họp!');
+    }
   };
 
   const downloadMinutes = (minutes) => {
@@ -178,8 +207,8 @@ export default function StudentMeetingManagement() {
     const now = new Date();
     const meetingDate = new Date(meeting.meetingDate);
     
-    // Nếu đã có biên bản họp -> màu xanh nhạt
-    if (meeting.hasMinute) {
+    // Nếu đã họp -> màu xanh nhạt
+    if (meeting.isMeeting === true) {
       return '#f0fdf4'; // Xanh nhạt
     }
     
@@ -201,8 +230,8 @@ export default function StudentMeetingManagement() {
     const now = new Date();
     const meetingDate = new Date(meeting.meetingDate);
     
-    // Nếu đã có biên bản họp -> border xanh
-    if (meeting.hasMinute) {
+    // Nếu đã họp -> border xanh
+    if (meeting.isMeeting === true) {
       return '#10b981'; // Xanh lá
     }
     
@@ -224,7 +253,7 @@ export default function StudentMeetingManagement() {
     const now = new Date();
     const meetingDate = new Date(meeting.meetingDate);
     
-    if (meeting.hasMinute) {
+    if (meeting.isMeeting === true) {
       return 'Completed';
     } else if (meetingDate < now) {
       return 'Past';
@@ -235,7 +264,7 @@ export default function StudentMeetingManagement() {
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'Completed': return 'Đã có biên bản';
+      case 'Completed': return 'Đã họp';
       case 'Past': return 'Đã qua';
       case 'Upcoming': return 'Sắp diễn ra';
       default: return 'Không xác định';
@@ -385,8 +414,8 @@ export default function StudentMeetingManagement() {
       }
       
       // Refresh meetings data
-      if (userInfo?.groupId) {
-        await fetchMeetings(userInfo.groupId);
+      if (userInfo?.groups && userInfo.groups.length > 0) {
+        await fetchMeetings(userInfo.groups[0]);
       }
       
       closeMinuteModal();
@@ -407,8 +436,8 @@ export default function StudentMeetingManagement() {
       alert('Xóa biên bản họp thành công!');
       
       // Refresh meetings data
-      if (userInfo?.groupId) {
-        await fetchMeetings(userInfo.groupId);
+      if (userInfo?.groups && userInfo.groups.length > 0) {
+        await fetchMeetings(userInfo.groups[0]);
       }
       
       closeMinuteModal();
@@ -521,7 +550,7 @@ export default function StudentMeetingManagement() {
               <strong>Vai trò:</strong> {userInfo.roleInGroup || userInfo.role}
             </span>
             <span style={{ fontSize: '14px', color: '#374151' }}>
-              <strong>Nhóm:</strong> {userInfo.groupId}
+              <strong>Nhóm:</strong> {userInfo.groups && userInfo.groups.length > 0 ? userInfo.groups[0] : 'N/A'}
             </span>
           </div>
         )}
@@ -572,11 +601,11 @@ export default function StudentMeetingManagement() {
                     {formattedDate} - {meeting.time}
                   </p>
               </div>
-              <div className={styles.meetingStatus}>
+              <div className={styles.meetingStatus} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span 
                   className={styles.statusBadge}
                     style={{ 
-                      backgroundColor: meeting.hasMinute ? '#10b981' : 
+                      backgroundColor: meeting.isMeeting === true ? '#10b981' : 
                                      status === 'Upcoming' ? '#f59e0b' : '#6b7280',
                       color: 'white',
                       padding: '4px 8px',
@@ -588,6 +617,49 @@ export default function StudentMeetingManagement() {
                   >
                     {getStatusText(status)}
                 </span>
+                
+                {isSecretary && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ fontSize: '10px', color: '#6b7280' }}>Đã họp:</span>
+                    <label style={{ 
+                      position: 'relative', 
+                      display: 'inline-block', 
+                      width: '32px', 
+                      height: '18px',
+                      cursor: 'pointer'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={meeting.isMeeting === true}
+                        onChange={() => toggleMeetingStatus(meeting)}
+                        style={{ opacity: 0, width: 0, height: 0 }}
+                      />
+                      <span style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: meeting.isMeeting === true ? '#10b981' : '#ccc',
+                        borderRadius: '18px',
+                        transition: '0.3s',
+                        cursor: 'pointer'
+                      }}>
+                        <span style={{
+                          position: 'absolute',
+                          content: '""',
+                          height: '14px',
+                          width: '14px',
+                          left: meeting.isMeeting === true ? '18px' : '2px',
+                          bottom: '2px',
+                          backgroundColor: 'white',
+                          borderRadius: '50%',
+                          transition: '0.3s'
+                        }}></span>
+                      </span>
+                    </label>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -623,7 +695,7 @@ export default function StudentMeetingManagement() {
                 </div>
               </div>
 
-                {meeting.hasMinute && meeting.minuteData && (
+                {meeting.minuteData && (
                   <div className={styles.minutesSection} style={{
                     padding: '8px 10px',
                     backgroundColor: '#f0fdf4',
@@ -675,12 +747,12 @@ export default function StudentMeetingManagement() {
                   Tham gia họp
                 </Button>
                 
-                {meeting.hasMinute ? (
+                {meeting.minuteData ? (
                   <Button 
                     onClick={() => openMinuteModal(meeting)}
                     className={styles.minuteButton}
                     style={{
-                      backgroundColor: meeting.hasMinute ? '#10b981' : '#8b5cf6',
+                      backgroundColor: '#10b981',
                       color: 'white',
                       border: 'none',
                       padding: '8px 16px',

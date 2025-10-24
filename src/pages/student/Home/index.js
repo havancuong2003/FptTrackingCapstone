@@ -20,13 +20,20 @@ export default function StudentHome() {
   const [semesterInfo, setSemesterInfo] = React.useState(null);
   const [weeks, setWeeks] = React.useState([]);
   const [milestones, setMilestones] = React.useState([]);
+  const [tasks, setTasks] = React.useState([]);
+  const [meetings, setMeetings] = React.useState([]);
   const [selectedWeek, setSelectedWeek] = React.useState(1);
   const [loading, setLoading] = React.useState(true);
   const [selectedMilestone, setSelectedMilestone] = React.useState(null);
+  const [selectedTask, setSelectedTask] = React.useState(null);
+  const [selectedMeeting, setSelectedMeeting] = React.useState(null);
   const [detailModal, setDetailModal] = React.useState(false);
+  const [taskModal, setTaskModal] = React.useState(false);
+  const [meetingModal, setMeetingModal] = React.useState(false);
   const [milestoneDetails, setMilestoneDetails] = React.useState(null);
   const [uploading, setUploading] = React.useState(false);
   const [selectedFile, setSelectedFile] = React.useState(null);
+  const [minuteData, setMinuteData] = React.useState(null);
 
   // Load user info
   React.useEffect(() => {
@@ -50,9 +57,11 @@ export default function StudentHome() {
   React.useEffect(() => {
     let mounted = true;
     async function loadGroupInfo() {
-      if (!userInfo?.groupId) return;
+      if (!userInfo?.groups || userInfo.groups.length === 0) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${userInfo.groupId}`);
+        // Lấy group đầu tiên từ danh sách groups
+        const groupId = userInfo.groups[0];
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
         const group = res?.data?.data || null;
         if (!mounted) return;
         setGroupInfo(group);
@@ -63,7 +72,7 @@ export default function StudentHome() {
     }
     loadGroupInfo();
     return () => { mounted = false; };
-  }, [userInfo?.groupId]);
+  }, [userInfo?.groups]);
 
   // Load semester info and weeks
   React.useEffect(() => {
@@ -93,9 +102,11 @@ export default function StudentHome() {
   React.useEffect(() => {
     let mounted = true;
     async function loadMilestones() {
-      if (!userInfo?.groupId) return;
+      if (!userInfo?.groups || userInfo.groups.length === 0) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groupId}`);
+        // Lấy group đầu tiên từ danh sách groups
+        const groupId = userInfo.groups[0];
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${groupId}`);
         const list = Array.isArray(res?.data) ? res.data : [];
         if (!mounted) return;
         setMilestones(list);
@@ -106,7 +117,53 @@ export default function StudentHome() {
     }
     loadMilestones();
     return () => { mounted = false; };
-  }, [userInfo?.groupId]);
+  }, [userInfo?.groups]);
+
+  // Load tasks
+  React.useEffect(() => {
+    let mounted = true;
+    async function loadTasks() {
+      if (!userInfo?.groups || userInfo.groups.length === 0) return;
+      try {
+        // Lấy group đầu tiên từ danh sách groups
+        const groupId = userInfo.groups[0];
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Task/get-by-group/${groupId}`);
+        if (res.data.status === 200) {
+          const tasksData = res.data.data;
+          if (!mounted) return;
+          setTasks(tasksData || []);
+        }
+      } catch {
+        if (!mounted) return;
+        setTasks([]);
+      }
+    }
+    loadTasks();
+    return () => { mounted = false; };
+  }, [userInfo?.groups]);
+
+  // Load meetings
+  React.useEffect(() => {
+    let mounted = true;
+    async function loadMeetings() {
+      if (!userInfo?.groups || userInfo.groups.length === 0) return;
+      try {
+        // Lấy group đầu tiên từ danh sách groups
+        const groupId = userInfo.groups[0];
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Meeting/group/${groupId}/schedule-dates`);
+        if (res.data.status === 200) {
+          const meetingsData = res.data.data;
+          if (!mounted) return;
+          setMeetings(meetingsData || []);
+        }
+      } catch {
+        if (!mounted) return;
+        setMeetings([]);
+      }
+    }
+    loadMeetings();
+    return () => { mounted = false; };
+  }, [userInfo?.groups]);
 
   // Set loading false when all data loaded
   React.useEffect(() => {
@@ -125,6 +182,9 @@ export default function StudentHome() {
     const weekStart = new Date(selectedWeekData.startAt);
     const weekEnd = new Date(selectedWeekData.endAt);
     
+    // Set week end to 23:59:59 to include the entire last day
+    weekEnd.setHours(23, 59, 59, 999);
+    
     return milestones.filter(milestone => {
       if (!milestone.endAt) return false;
       const deadline = new Date(milestone.endAt);
@@ -132,20 +192,129 @@ export default function StudentHome() {
     });
   };
 
+  // Get meetings for selected week
+  const getMeetingsForWeek = () => {
+    if (!selectedWeek || !meetings.length) return [];
+    
+    const selectedWeekData = weeks.find(w => w.weekNumber === selectedWeek);
+    if (!selectedWeekData) return [];
+    
+    const weekStart = new Date(selectedWeekData.startAt);
+    const weekEnd = new Date(selectedWeekData.endAt);
+    
+    // Set week end to 23:59:59 to include the entire last day
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    return meetings.filter(meeting => {
+      const meetingDate = new Date(meeting.meetingDate);
+      return meetingDate >= weekStart && meetingDate <= weekEnd;
+    });
+  };
+
+  // Get tasks for selected week
+  const getTasksForWeek = () => {
+    if (!selectedWeek || !tasks.length) return [];
+    
+    const selectedWeekData = weeks.find(w => w.weekNumber === selectedWeek);
+    if (!selectedWeekData) {
+      console.log('No week data found for week:', selectedWeek);
+      return [];
+    }
+    
+    console.log('Selected week data:', selectedWeekData);
+    const weekStart = new Date(selectedWeekData.startAt);
+    const weekEnd = new Date(selectedWeekData.endAt);
+    
+    // Set week end to 23:59:59 to include the entire last day
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    console.log('Selected week:', selectedWeek);
+    console.log('Week start:', weekStart);
+    console.log('Week end (adjusted):', weekEnd);
+    console.log('All tasks:', tasks.length);
+    
+    const weekTasks = tasks.filter(task => {
+      if (!task.deadline) return false;
+      const deadline = new Date(task.deadline);
+      console.log(`Task ${task.id} deadline:`, deadline);
+      console.log(`Week start: ${weekStart}, Week end: ${weekEnd}`);
+      console.log(`Deadline >= weekStart: ${deadline >= weekStart}`);
+      console.log(`Deadline <= weekEnd: ${deadline <= weekEnd}`);
+      console.log(`Is in range: ${deadline >= weekStart && deadline <= weekEnd}`);
+      return deadline >= weekStart && deadline <= weekEnd;
+    });
+    
+    console.log('Week tasks found:', weekTasks.length);
+    return weekTasks;
+  };
+
   // Get milestone for specific day and time slot
   const getMilestoneForSlot = (day, timeSlot) => {
     const weekMilestones = getMilestonesForWeek();
     if (!weekMilestones.length) return null;
     
-    const deadline = new Date(weekMilestones[0].endAt);
-    const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const hour = deadline.getHours();
+    // Tìm milestone phù hợp với ngày và giờ
+    for (const milestone of weekMilestones) {
+      const deadline = new Date(milestone.endAt);
+      const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const hour = deadline.getHours();
+      
+      // Convert Sunday=0 to Monday=0 format
+      const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      
+      if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
+        return milestone;
+      }
+    }
     
-    // Convert Sunday=0 to Monday=0 format
-    const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    return null;
+  };
+
+  // Get meeting for specific day and time slot
+  const getMeetingForSlot = (day, timeSlot) => {
+    const weekMeetings = getMeetingsForWeek();
+    if (!weekMeetings.length) return null;
     
-    if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-      return weekMilestones[0];
+    // Tìm meeting phù hợp với ngày và giờ
+    for (const meeting of weekMeetings) {
+      const meetingDate = new Date(meeting.meetingDate);
+      const dayOfWeek = meetingDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const hour = parseInt(meeting.time.split(':')[0]);
+      
+      // Convert Sunday=0 to Monday=0 format
+      const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      
+      if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
+        return meeting;
+      }
+    }
+    
+    return null;
+  };
+
+  // Get task for specific day and time slot
+  const getTaskForSlot = (day, timeSlot) => {
+    const weekTasks = getTasksForWeek();
+    if (!weekTasks.length) return null;
+    
+    console.log(`Looking for task in day ${day}, time slot ${timeSlot.start}-${timeSlot.end}`);
+    console.log('Week tasks:', weekTasks.length);
+    
+    // Tìm task phù hợp với ngày và giờ
+    for (const task of weekTasks) {
+      const deadline = new Date(task.deadline);
+      const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
+      const hour = deadline.getHours();
+      
+      // Convert Sunday=0 to Monday=0 format
+      const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      
+      console.log(`Task ${task.id}: deadline=${deadline}, dayOfWeek=${dayOfWeek}, adjustedDay=${adjustedDay}, hour=${hour}`);
+      
+      if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
+        console.log(`Found matching task: ${task.id}`);
+        return task;
+      }
     }
     
     return null;
@@ -161,6 +330,8 @@ export default function StudentHome() {
         return '#d97706'; // Orange/Yellow
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
+      case 'REJECTED':
+        return '#dc2626'; // Red
       default:
         return '#64748b'; // Gray
     }
@@ -176,8 +347,56 @@ export default function StudentHome() {
         return '⏳ Pending Review';
       case 'UNSUBMITTED':
         return '✗ Unsubmitted';
+      case 'REJECTED':
+        return '❌ Rejected';
       default:
         return '❓ Unknown';
+    }
+  };
+
+  const getTaskStatusColor = (status) => {
+    switch (status) {
+      case 'ToDo':
+        return '#64748b'; // Gray
+      case 'InProgress':
+        return '#d97706'; // Orange
+      case 'Done':
+        return '#059669'; // Green
+      case 'InReview':
+        return '#3b82f6'; // Blue
+      default:
+        return '#64748b'; // Gray
+    }
+  };
+
+  const getTaskStatusText = (status) => {
+    switch (status) {
+      case 'ToDo':
+        return '📋 To Do';
+      case 'InProgress':
+        return '🔄 In Progress';
+      case 'Done':
+        return '✅ Done';
+      case 'InReview':
+        return '👀 In Review';
+      default:
+        return '❓ Unknown';
+    }
+  };
+
+  const getMeetingStatusColor = (meeting) => {
+    if (meeting.isMeeting === true) {
+      return '#059669'; // Green - completed
+    } else {
+      return '#d97706'; // Orange - not yet held
+    }
+  };
+
+  const getMeetingStatusText = (meeting) => {
+    if (meeting.isMeeting === true) {
+      return '✅ Completed';
+    } else {
+      return '⏳ Not Yet Held';
     }
   };
 
@@ -187,12 +406,51 @@ export default function StudentHome() {
     
     // Load milestone details
     try {
-      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groupId}&deliverableId=${milestone.id}`);
+      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${milestone.id}`);
       setMilestoneDetails(res?.data || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
       setMilestoneDetails(null);
     }
+  };
+
+  const openTaskModal = (task) => {
+    setSelectedTask(task);
+    setTaskModal(true);
+  };
+
+  const openMeetingModal = async (meeting) => {
+    setSelectedMeeting(meeting);
+    setMeetingModal(true);
+    
+    // Fetch meeting minute if exists
+    try {
+      const response = await client.get(`https://160.30.21.113:5000/api/v1/MeetingMinute?meetingDateId=${meeting.id}`);
+      if (response.data.status === 200 && response.data.data) {
+        setMinuteData(response.data.data);
+      } else {
+        setMinuteData(null);
+      }
+    } catch (error) {
+      console.error('Error fetching meeting minute:', error);
+      setMinuteData(null);
+    }
+  };
+
+  const closeTaskModal = () => {
+    setTaskModal(false);
+    setSelectedTask(null);
+  };
+
+  const closeMeetingModal = () => {
+    setMeetingModal(false);
+    setSelectedMeeting(null);
+    setMinuteData(null);
+  };
+
+  // Join meeting
+  const joinMeeting = (meetingLink) => {
+    window.open(meetingLink, '_blank');
   };
 
   const handleFileSelect = (event) => {
@@ -201,7 +459,7 @@ export default function StudentHome() {
   };
 
   const handleUpload = async (deliveryItemId) => {
-    if (!selectedFile || !userInfo?.groupId) return;
+    if (!selectedFile || !userInfo?.groups || userInfo.groups.length === 0) return;
     
     setUploading(true);
     try {
@@ -209,7 +467,7 @@ export default function StudentHome() {
       formData.append('file', selectedFile);
       
       const res = await client.post(
-        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groupId}&deliveryItemId=${deliveryItemId}`,
+        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}`,
         formData,
         {
           headers: {
@@ -219,7 +477,7 @@ export default function StudentHome() {
       );
       
       // Reload milestones after successful upload
-      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groupId}`);
+      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groups[0]}`);
       const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
       setMilestones(list);
       
@@ -231,7 +489,7 @@ export default function StudentHome() {
       
       // Reload milestone details after successful upload
       if (selectedMilestone) {
-        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groupId}&deliverableId=${selectedMilestone.id}`);
+        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
         setMilestoneDetails(detailRes?.data || null);
       }
       
@@ -274,7 +532,7 @@ export default function StudentHome() {
         alert('Xóa file thành công!');
         // Reload milestone details
         if (selectedMilestone) {
-          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groupId}&deliverableId=${selectedMilestone.id}`);
+          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
           setMilestoneDetails(detailRes?.data || null);
         }
       }
@@ -417,6 +675,9 @@ export default function StudentHome() {
                 </td>
                 {DAYS.map((day, dayIndex) => {
                   const milestone = getMilestoneForSlot(dayIndex, timeSlot);
+                  const meeting = getMeetingForSlot(dayIndex, timeSlot);
+                  const task = getTaskForSlot(dayIndex, timeSlot);
+                  
                   return (
                     <td key={day} style={{ 
                       padding: '8px', 
@@ -425,44 +686,120 @@ export default function StudentHome() {
                       minHeight: '60px',
                       verticalAlign: 'top'
                     }}>
-                      {milestone ? (
-                        <div 
-                          onClick={() => openDetailModal(milestone)}
-                          style={{ 
-                            background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
-                                       getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
-                                       getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                            border: `1px solid ${getStatusColor(milestone.status)}`,
-                            borderRadius: 4,
-                            padding: 4,
-                            cursor: 'pointer',
-                            fontSize: 9,
-                            maxHeight: '50px',
-                            overflow: 'hidden',
-                            transition: 'all 0.2s ease'
-                          }}
-                          onMouseEnter={(e) => {
-                            e.target.style.transform = 'scale(1.02)';
-                            e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.target.style.transform = 'scale(1)';
-                            e.target.style.boxShadow = 'none';
-                          }}
-                        >
-                          <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
-                            {milestone.name.length > 20 ? milestone.name.substring(0, 20) + '...' : milestone.name}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        {/* Milestone */}
+                        {milestone && (
+                          <div 
+                            onClick={() => openDetailModal(milestone)}
+                            style={{ 
+                              background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
+                                         getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
+                                         getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                              border: `1px solid ${getStatusColor(milestone.status)}`,
+                              borderRadius: 4,
+                              padding: 4,
+                              cursor: 'pointer',
+                              fontSize: 9,
+                              maxHeight: '50px',
+                              overflow: 'hidden',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.transform = 'scale(1.02)';
+                              e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.transform = 'scale(1)';
+                              e.target.style.boxShadow = 'none';
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
+                              📊 {milestone.name.length > 20 ? milestone.name.substring(0, 20) + '...' : milestone.name}
+                            </div>
+                            <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                              {getStatusText(milestone.status)}
+                            </div>
+                            <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                              {formatDate(milestone.endAt, 'HH:mm')}
+                            </div>
                           </div>
-                          <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
-                            {getStatusText(milestone.status)}
+                        )}
+                        
+                        {/* Meeting */}
+                        {meeting && (
+                          <div 
+                            onClick={() => openMeetingModal(meeting)}
+                            style={{ 
+                              background: getMeetingStatusColor(meeting) === '#059669' ? '#ecfdf5' : 
+                                         getMeetingStatusColor(meeting) === '#dc2626' ? '#fee2e2' : '#fef3c7',
+                              border: `1px solid ${getMeetingStatusColor(meeting)}`,
+                              borderRadius: 4,
+                              padding: 4,
+                              cursor: 'pointer',
+                              fontSize: 9,
+                              maxHeight: '50px',
+                              overflow: 'hidden',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.transform = 'scale(1.02)';
+                              e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.transform = 'scale(1)';
+                              e.target.style.boxShadow = 'none';
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, color: getMeetingStatusColor(meeting), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
+                              📅 {meeting.description.length > 20 ? meeting.description.substring(0, 20) + '...' : meeting.description}
+                            </div>
+                            <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
+                              {getMeetingStatusText(meeting)}
+                            </div>
+                            <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
+                              {meeting.time}
+                            </div>
                           </div>
-                          <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
-                            {formatDate(milestone.endAt, 'HH:mm')}
+                        )}
+                        
+                        {/* Task */}
+                        {task && (
+                          <div 
+                            onClick={() => openTaskModal(task)}
+                            style={{ 
+                              background: getTaskStatusColor(task.status) === '#059669' ? '#ecfdf5' : 
+                                         getTaskStatusColor(task.status) === '#dc2626' ? '#fee2e2' :
+                                         getTaskStatusColor(task.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                              border: `1px solid ${getTaskStatusColor(task.status)}`,
+                              borderRadius: 4,
+                              padding: 4,
+                              cursor: 'pointer',
+                              fontSize: 9,
+                              maxHeight: '50px',
+                              overflow: 'hidden',
+                              transition: 'all 0.2s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.transform = 'scale(1.02)';
+                              e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.transform = 'scale(1)';
+                              e.target.style.boxShadow = 'none';
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, color: getTaskStatusColor(task.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
+                              📋 {task.title.length > 20 ? task.title.substring(0, 20) + '...' : task.title}
+                            </div>
+                            <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
+                              {getTaskStatusText(task.status)}
+                            </div>
+                            <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
+                              {formatDate(task.deadline, 'HH:mm')}
+                            </div>
                           </div>
-                        </div>
-                      ) : (
-                        <div style={{ height: '40px' }}></div>
-                      )}
+                        )}
+                      </div>
                     </td>
                   );
                 })}
@@ -470,6 +807,35 @@ export default function StudentHome() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Debug Info */}
+      <div style={{ marginTop: 24, background: '#f3f4f6', padding: 16, borderRadius: 8 }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Debug Info</h3>
+        <div style={{ fontSize: 12, color: '#374151' }}>
+          <div>Total Tasks: {tasks.length}</div>
+          <div>Tasks in current week: {getTasksForWeek().length}</div>
+          <div>Selected Week: {selectedWeek}</div>
+          <div style={{ marginTop: 8 }}>
+            <strong>Week Data:</strong>
+            {weeks.slice(0, 3).map(week => (
+              <div key={week.weekNumber} style={{ marginTop: 4, padding: 4, background: '#dbeafe', borderRadius: 4 }}>
+                <div>Week {week.weekNumber}: {new Date(week.startAt).toLocaleDateString()} - {new Date(week.endAt).toLocaleDateString()}</div>
+                <div>Raw: {week.startAt} to {week.endAt}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <strong>All Tasks with deadlines:</strong>
+            {tasks.slice(0, 5).map(task => (
+              <div key={task.id} style={{ marginTop: 4, padding: 4, background: '#e5e7eb', borderRadius: 4 }}>
+                <div>Task {task.id}: {task.title}</div>
+                <div>Deadline: {new Date(task.deadline).toLocaleString()}</div>
+                <div>Raw deadline: {task.deadline}</div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Quick Summary */}
@@ -716,6 +1082,337 @@ export default function StudentHome() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
               <Button variant="ghost" onClick={() => setDetailModal(false)}>
                 Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Task Modal */}
+      <Modal open={taskModal} onClose={closeTaskModal}>
+        {selectedTask && (
+          <div style={{ padding: 24, maxWidth: '95vw', width: '1200px', maxHeight: '80vh', overflow: 'auto' }}>
+            <h2 style={{ margin: '0 0 16px 0', fontSize: 20 }}>Task Details</h2>
+            
+            <div style={{ display: 'flex', gap: 24, marginBottom: 20 }}>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Task Information</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div><strong>Title:</strong> {selectedTask.title}</div>
+                  <div><strong>Description:</strong> {selectedTask.description}</div>
+                  <div><strong>Deadline:</strong> {formatDate(selectedTask.deadline, 'YYYY-MM-DD HH:mm')}</div>
+                  <div><strong>Priority:</strong> {selectedTask.priority}</div>
+                  <div><strong>Status:</strong> 
+                    <span style={{ 
+                      color: getTaskStatusColor(selectedTask.status), 
+                      marginLeft: '8px',
+                      background: getTaskStatusColor(selectedTask.status) === '#059669' ? '#ecfdf5' : 
+                                 getTaskStatusColor(selectedTask.status) === '#dc2626' ? '#fee2e2' :
+                                 getTaskStatusColor(selectedTask.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontSize: 12
+                    }}>
+                      {getTaskStatusText(selectedTask.status)}
+                    </span>
+                  </div>
+                  <div><strong>Progress:</strong> {selectedTask.process}%</div>
+                  <div><strong>Task Type:</strong> {selectedTask.taskType || 'N/A'}</div>
+                  <div><strong>Is Meeting Task:</strong> {selectedTask.isMeetingTask ? 'Yes' : 'No'}</div>
+                </div>
+              </div>
+              
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Assignment</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div><strong>Assignee:</strong> {selectedTask.assigneeName || 'N/A'}</div>
+                  <div><strong>Reviewer:</strong> {selectedTask.reviewerName || 'N/A'}</div>
+                  <div><strong>Created by:</strong> {selectedTask.createdByName || 'N/A'}</div>
+                  <div><strong>Created at:</strong> {selectedTask.createdAt ? formatDate(selectedTask.createdAt, 'YYYY-MM-DD HH:mm') : 'N/A'}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Milestone Information */}
+            {selectedTask.milestone && (
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Related Milestone</h3>
+                <div style={{ 
+                  background: '#f0f9ff', 
+                  border: '1px solid #0ea5e9', 
+                  borderRadius: 8, 
+                  padding: 16 
+                }}>
+                  <div><strong>Milestone:</strong> {selectedTask.milestone.name}</div>
+                  <div><strong>Description:</strong> {selectedTask.milestone.description}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Comments */}
+            {selectedTask.comments && selectedTask.comments.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Comments ({selectedTask.comments.length})</h3>
+                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                  {selectedTask.comments.map((comment, index) => (
+                    <div key={index} style={{
+                      background: '#f9fafb',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 6,
+                      padding: 12,
+                      marginBottom: 8
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <strong style={{ fontSize: 13 }}>{comment.authorName}</strong>
+                        <span style={{ fontSize: 12, color: '#64748b' }}>
+                          {formatDate(comment.timestamp, 'DD/MM/YYYY HH:mm')}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: '#374151' }}>{comment.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* History */}
+            {selectedTask.history && selectedTask.history.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Task History</h3>
+                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                  {selectedTask.history.map((history, index) => (
+                    <div key={index} style={{
+                      background: '#f9fafb',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 6,
+                      padding: 12,
+                      marginBottom: 8
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <strong style={{ fontSize: 13 }}>{history.action}</strong>
+                        <span style={{ fontSize: 12, color: '#64748b' }}>
+                          {formatDate(history.at, 'DD/MM/YYYY HH:mm')}
+                        </span>
+                      </div>
+                      <p style={{ margin: 0, fontSize: 13, color: '#374151' }}>{history.detail}</p>
+                      {history.user && (
+                        <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#64748b' }}>
+                          User: {history.user}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
+              <Button variant="ghost" onClick={closeTaskModal}>
+                Đóng
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Meeting Modal */}
+      <Modal open={meetingModal} onClose={closeMeetingModal}>
+        {selectedMeeting && (
+          <div style={{ 
+            padding: 24, 
+            maxWidth: '95vw', 
+            width: '1200px', 
+            maxHeight: '90vh', 
+            overflow: 'auto',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            <div style={{ marginBottom: 16 }}>
+              <h2 style={{ margin: '0 0 8px 0', fontSize: 20 }}>
+                {minuteData ? 'Xem biên bản họp' : 'Thông tin cuộc họp'} - {selectedMeeting.description}
+              </h2>
+              {minuteData && (
+                <div style={{ fontSize: 14, color: '#64748b' }}>
+                  <div><strong>Tạo bởi:</strong> {minuteData.createBy}</div>
+                  <div><strong>Ngày tạo:</strong> {formatDate(minuteData.createAt, 'YYYY-MM-DD HH:mm')}</div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ 
+              display: 'flex', 
+              gap: 24, 
+              marginBottom: 20,
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ 
+                flex: '1 1 300px',
+                minWidth: '300px'
+              }}>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Thông tin cuộc họp</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div><strong>Mô tả:</strong> {selectedMeeting.description}</div>
+                  <div><strong>Ngày:</strong> {formatDate(selectedMeeting.meetingDate, 'YYYY-MM-DD')}</div>
+                  <div><strong>Giờ:</strong> {selectedMeeting.time}</div>
+                  <div><strong>Thứ:</strong> {selectedMeeting.dayOfWeek}</div>
+                  <div><strong>Trạng thái:</strong> 
+                    <span style={{ 
+                      color: getMeetingStatusColor(selectedMeeting), 
+                      marginLeft: '8px',
+                      background: getMeetingStatusColor(selectedMeeting) === '#059669' ? '#ecfdf5' : '#fef3c7',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontSize: 12
+                    }}>
+                      {getMeetingStatusText(selectedMeeting)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div style={{ 
+                flex: '1 1 300px',
+                minWidth: '300px'
+              }}>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Link cuộc họp</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Button
+                    onClick={() => joinMeeting(selectedMeeting.meetingLink)}
+                    style={{
+                      background: '#3b82f6',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      fontWeight: 500
+                    }}
+                  >
+                    Tham gia cuộc họp
+                  </Button>
+                </div>
+                <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>
+                  Link: {selectedMeeting.meetingLink}
+                </div>
+              </div>
+            </div>
+
+            {/* Meeting Minute */}
+            {minuteData ? (
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Biên bản họp</h3>
+                <div style={{ 
+                  background: '#f0fdf4', 
+                  border: '1px solid #bbf7d0', 
+                  borderRadius: 8, 
+                  padding: 16 
+                }}>
+                  <div style={{ marginBottom: 16 }}>
+                    <div style={{ fontSize: 13, color: '#065f46', marginBottom: 4 }}>
+                      <strong>Tạo bởi:</strong> {minuteData.createBy}
+                    </div>
+                    <div style={{ fontSize: 13, color: '#065f46' }}>
+                      <strong>Ngày tạo:</strong> {formatDate(minuteData.createAt, 'DD/MM/YYYY HH:mm')}
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    <div>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Thời gian</h4>
+                      <div style={{ fontSize: 13, color: '#374151' }}>
+                        <div><strong>Bắt đầu:</strong> {formatDate(minuteData.startAt, 'DD/MM/YYYY HH:mm')}</div>
+                        <div><strong>Kết thúc:</strong> {formatDate(minuteData.endAt, 'DD/MM/YYYY HH:mm')}</div>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Danh sách tham gia</h4>
+                      <div style={{ 
+                        fontSize: 13, 
+                        color: '#374151', 
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        padding: '12px',
+                        background: 'rgba(255,255,255,0.5)',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        minHeight: '80px'
+                      }}>
+                        {minuteData.attendance || 'N/A'}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Nội dung cuộc họp</h4>
+                      <div style={{ 
+                        fontSize: 13, 
+                        color: '#374151', 
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        padding: '12px',
+                        background: 'rgba(255,255,255,0.5)',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        minHeight: '120px'
+                      }}>
+                        {minuteData.meetingContent || 'N/A'}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Vấn đề cần giải quyết</h4>
+                      <div style={{ 
+                        fontSize: 13, 
+                        color: '#374151', 
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        padding: '12px',
+                        background: 'rgba(255,255,255,0.5)',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        minHeight: '80px'
+                      }}>
+                        {minuteData.issue || 'N/A'}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Ghi chú khác</h4>
+                      <div style={{ 
+                        fontSize: 13, 
+                        color: '#374151', 
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        padding: '12px',
+                        background: 'rgba(255,255,255,0.5)',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        minHeight: '80px'
+                      }}>
+                        {minuteData.other || 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div style={{ 
+                background: '#fef3c7', 
+                border: '1px solid #f59e0b', 
+                borderRadius: 8, 
+                padding: 16,
+                marginBottom: 20
+              }}>
+                <p style={{ margin: 0, fontSize: 14, color: '#92400e' }}>
+                  Chưa có biên bản họp cho cuộc họp này.
+                </p>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
+              <Button variant="ghost" onClick={closeMeetingModal}>
+                Đóng
               </Button>
             </div>
           </div>
