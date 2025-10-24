@@ -5,6 +5,7 @@ import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
 import axiosClient from '../../../utils/axiosClient';
+import { sendTaskNotification } from '../../../api/email';
 
 export default function SupervisorTasks() {
   const navigate = useNavigate();
@@ -45,7 +46,7 @@ export default function SupervisorTasks() {
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
   const [taskTypeFilter, setTaskTypeFilter] = React.useState('');
-  const [isActiveTask, setIsActiveTask] = React.useState(true);
+  const [activeFilter, setActiveFilter] = React.useState('active'); // 'all', 'active', 'inactive'
   const [viewType, setViewType] = React.useState('project_view'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
 
   // API: lấy deliverables theo group
@@ -401,7 +402,8 @@ export default function SupervisorTasks() {
             progress: parseInt(task.process) || 0,
             attachments: task.attachments || [],
             comments: task.comments || [],
-            history: task.history || []
+            history: task.history || [],
+            isActive: task.isActive !== undefined ? task.isActive : true // Thêm trường isActive từ API
           };
         });
 
@@ -470,7 +472,8 @@ export default function SupervisorTasks() {
             progress: parseInt(task.process) || 0,
             attachments: task.attachments || [],
             comments: task.comments || [],
-            history: task.history || []
+            history: task.history || [],
+            isActive: task.isActive !== undefined ? task.isActive : true // Thêm trường isActive từ API
           };
         });
 
@@ -514,11 +517,18 @@ export default function SupervisorTasks() {
     let taskTypeMatch = true;
     if (taskTypeFilter === 'meeting') {
       taskTypeMatch = task.isMeetingTask === true;
-    } else if (taskTypeFilter === 'deliverable') {
+    } else if (taskTypeFilter === 'throughout') {
       taskTypeMatch = task.isMeetingTask !== true;
     }
     
-    const activeTaskMatch = !isActiveTask || task.isActive === true;
+    // Filter theo trạng thái active
+    let activeTaskMatch = true;
+    if (activeFilter === 'active') {
+      activeTaskMatch = task.isActive === true;
+    } else if (activeFilter === 'inactive') {
+      activeTaskMatch = task.isActive === false;
+    }
+    // Nếu activeFilter === 'all' thì activeTaskMatch = true (hiển thị tất cả)
     return deliverableMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && activeTaskMatch;
   });
 
@@ -652,20 +662,21 @@ export default function SupervisorTasks() {
                 className={styles.select}
               >
                 <option value="">All</option>
-                <option value="deliverable">Deliverable</option>
+                <option value="deliverable">Throughout </option>
                 <option value="meeting">Meeting</option>
               </select>
             </div>
           <div className={styles.controlGroup}>
-            <label>
-              <input
-                type="checkbox"
-                checked={isActiveTask}
-                onChange={(e) => setIsActiveTask(e.target.checked)}
-                className={styles.checkbox}
-              />
-              Active Tasks
-            </label>
+            <label>Task Status:</label>
+            <select
+              value={activeFilter}
+              onChange={(e) => setActiveFilter(e.target.value)}
+              className={styles.select}
+            >
+              <option value="all">All Tasks</option>
+              <option value="active">Active Tasks</option>
+              <option value="inactive">Inactive Tasks</option>
+            </select>
           </div>
             </div>
           </div>
