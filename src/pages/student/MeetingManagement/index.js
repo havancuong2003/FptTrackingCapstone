@@ -3,13 +3,13 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Input from '../../../components/Input/Input';
 import Textarea from '../../../components/Textarea/Textarea';
-import axios from 'axios';
+import client from '../../../utils/axiosClient';
 
 export default function StudentMeetingManagement() {
   const [meetings, setMeetings] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedMeeting, setSelectedMeeting] = React.useState(null);
-  const [userRole, setUserRole] = React.useState('student'); // student, secretary, supervisor
+  const [userRole, setUserRole] = React.useState('Student'); // Student, Secretary, Supervisor
   const [showMinuteModal, setShowMinuteModal] = React.useState(false);
   const [minuteData, setMinuteData] = React.useState(null);
   const [isEditing, setIsEditing] = React.useState(false);
@@ -23,90 +23,92 @@ export default function StudentMeetingManagement() {
     other: ''
   });
   const [formErrors, setFormErrors] = React.useState({});
+  const [meetingMinutes, setMeetingMinutes] = React.useState({}); // Lưu trữ meeting minutes theo meetingId
 
-  // Mock data cho meetings
-  const mockMeetings = [
-    {
-      id: 1,
-      weekNumber: 1,
-      meetingDate: '2024-01-15',
-      dayOfWeek: 'Thứ hai',
-      startTime: '08:00',
-      endTime: '10:00',
-      meetingLink: 'https://meet.google.com/abc-defg-hij',
-      status: 'NotYet', // NotYet, Completed, Cancelled
-      attendance: [
-        { userId: 1, name: 'Nguyễn Văn A', status: 'Present' },
-        { userId: 2, name: 'Trần Thị B', status: 'Absent' },
-        { userId: 3, name: 'Lê Văn C', status: 'Present' }
-      ]
-    },
-    {
-      id: 2,
-      weekNumber: 2,
-      meetingDate: '2024-01-22',
-      dayOfWeek: 'Thứ hai',
-      startTime: '08:00',
-      endTime: '10:00',
-      meetingLink: 'https://meet.google.com/abc-defg-hij',
-      status: 'Completed',
-      attendance: [
-        { userId: 1, name: 'Nguyễn Văn A', status: 'Present' },
-        { userId: 2, name: 'Trần Thị B', status: 'Present' },
-        { userId: 3, name: 'Lê Văn C', status: 'Absent' }
-      ]
-    },
-    {
-      id: 3,
-      weekNumber: 3,
-      meetingDate: '2024-01-29',
-      dayOfWeek: 'Thứ hai',
-      startTime: '08:00',
-      endTime: '10:00',
-      meetingLink: 'https://meet.google.com/abc-defg-hij',
-      status: 'Completed',
-      attendance: [
-        { userId: 1, name: 'Nguyễn Văn A', status: 'Present' },
-        { userId: 2, name: 'Trần Thị B', status: 'Present' },
-        { userId: 3, name: 'Lê Văn C', status: 'Present' }
-      ]
-    }
-  ];
+  // API Base URL
+  const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
 
   React.useEffect(() => {
-    // Mock API call
-    setTimeout(() => {
-      setMeetings(mockMeetings);
-      setLoading(false);
-    }, 1000);
-    
-    // Lấy thông tin user
+    // Lấy thông tin user và meetings
     fetchUserInfo();
   }, []);
 
   const fetchUserInfo = async () => {
-    // Mock data để test UI - Bạn có thể thay đổi roleInGroup để test
-    // 'Secretary' - có quyền tạo/sửa/xóa
-    // 'Student' - chỉ xem được
-    setUserInfo({ id: 1, name: 'Nguyễn Văn A', role: 'Student', roleInGroup: 'Secretary', groupId: 1 });
-    setUserRole('Secretary');
-  };
-
-  const getCurrentUser = () => {
     try {
-      const authUser = localStorage.getItem('auth_user');
-      if (authUser) {
-        return JSON.parse(authUser);
+      console.log('Fetching user info...');
+      const response = await client.get(`${API_BASE_URL}/auth/user-info`);
+      console.log('User info response:', response.data);
+      
+      if (response.data.status === 200) {
+        const userData = response.data.data;
+        console.log('User data:', userData);
+        setUserInfo(userData);
+        setUserRole(userData.roleInGroup || userData.role);
+        
+        // Lấy danh sách meetings sau khi có thông tin user
+        if (userData.groupId) {
+          console.log('Fetching meetings for group:', userData.groupId);
+          await fetchMeetings(userData.groupId);
+        } else {
+          console.log('No groupId found in user data');
+          setLoading(false);
+        }
+      } else {
+        console.log('User info API returned non-200 status:', response.data.status);
+        setLoading(false);
       }
-      return { id: 1, name: 'Nguyễn Văn A', role: 'student' };
     } catch (error) {
-      return { id: 1, name: 'Nguyễn Văn A', role: 'student' };
+      console.error('Error fetching user info:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      setLoading(false);
     }
   };
 
-  const currentUser = getCurrentUser();
+  // Lấy danh sách meetings
+  const fetchMeetings = async (groupId) => {
+    try {
+      console.log('Fetching meetings for group:', groupId);
+      const response = await client.get(`${API_BASE_URL}/Student/Meeting/group/${groupId}/schedule-dates`);
+      console.log('Meetings response:', response.data);
+      
+      if (response.data.status === 200) {
+        const meetingsData = response.data.data;
+        console.log('Meetings data:', meetingsData);
+        
+        if (meetingsData && meetingsData.length > 0) {
+          // Chuyển đổi dữ liệu và lấy meeting minutes cho từng meeting
+          const meetingsWithMinutes = await Promise.all(
+            meetingsData.map(async (meeting) => {
+              console.log('Fetching minute for meeting:', meeting.id);
+              const meetingMinute = await fetchMeetingMinute(meeting.id);
+              return {
+                ...meeting,
+                hasMinute: !!meetingMinute,
+                minuteData: meetingMinute
+              };
+            })
+          );
+          
+          console.log('Meetings with minutes:', meetingsWithMinutes);
+          setMeetings(meetingsWithMinutes);
+        } else {
+          console.log('No meetings found');
+          setMeetings([]);
+        }
+        setLoading(false);
+      } else {
+        console.log('Meetings API returned non-200 status:', response.data.status);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error fetching meetings:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      setLoading(false);
+    }
+  };
+
   const isSecretary = userRole === 'Secretary';
-  const isSupervisor = currentUser.role === 'supervisor';
+  const isSupervisor = userInfo?.role === 'Supervisor';
 
   const joinMeeting = (meetingLink) => {
     window.open(meetingLink, '_blank');
@@ -121,60 +123,121 @@ export default function StudentMeetingManagement() {
   };
 
   // Hàm lấy biên bản họp
-  const fetchMeetingMinute = async (meetingId) => {
-    // Mock data để test UI
-    if (meetingId === 2) {
-      return {
-        id: 1,
-        startAt: "2024-01-22T08:00:00.000Z",
-        endAt: "2024-01-22T10:00:00.000Z",
-        createBy: "Nguyễn Văn A",
-        createAt: "2024-01-22T10:15:00.000Z",
-        attendance: "Nguyễn Văn A, Trần Thị B, Lê Văn C",
-        issue: "Thảo luận về tiến độ dự án và các vấn đề kỹ thuật",
-        meetingContent: "1. Báo cáo tiến độ tuần 2\n2. Thảo luận về database design\n3. Phân công nhiệm vụ cho tuần 3\n4. Giải quyết các vấn đề kỹ thuật",
-        other: "Cần liên hệ với mentor để hỏi về authentication flow"
-      };
+  const fetchMeetingMinute = async (meetingDateId) => {
+    try {
+      const response = await client.get(`${API_BASE_URL}/MeetingMinute?meetingDateId=${meetingDateId}`);
+      if (response.data.status === 200) {
+        return response.data.data; // Có thể là null nếu chưa có biên bản
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching meeting minute:', error);
+      return null;
     }
-    // Meeting 3 chưa có biên bản để test tạo mới
-    return null;
   };
 
   // Hàm tạo biên bản họp
   const createMeetingMinute = async (data) => {
-    // Mock để test UI
-    console.log('Creating meeting minute:', data);
-    return { status: 200, message: 'Success' };
+    try {
+      console.log('Creating meeting minute with data:', data);
+      console.log('API URL:', `${API_BASE_URL}/MeetingMinute`);
+      const response = await client.post(`${API_BASE_URL}/MeetingMinute`, data);
+      console.log('API response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Error creating meeting minute:', error);
+      console.error('Error details:', error.response?.data || error.message);
+      throw error;
+    }
   };
 
   // Hàm cập nhật biên bản họp
   const updateMeetingMinute = async (data) => {
-    // Mock để test UI
-    console.log('Updating meeting minute:', data);
-    return { status: 200, message: 'Success' };
+    try {
+      const response = await client.put(`${API_BASE_URL}/MeetingMinute`, data);
+      return response.data;
+    } catch (error) {
+      console.error('Error updating meeting minute:', error);
+      throw error;
+    }
   };
 
   // Hàm xóa biên bản họp
   const deleteMeetingMinute = async (minuteId) => {
-    // Mock để test UI
-    console.log('Deleting meeting minute:', minuteId);
-    return { status: 200, message: 'Success' };
+    try {
+      const response = await client.delete(`${API_BASE_URL}/MeetingMinute/${minuteId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting meeting minute:', error);
+      throw error;
+    }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'NotYet': return '#f59e0b';
-      case 'Completed': return '#10b981';
-      case 'Cancelled': return '#ef4444';
-      default: return '#6b7280';
+  // Hàm xác định màu sắc cho meeting card
+  const getMeetingCardColor = (meeting) => {
+    const now = new Date();
+    const meetingDate = new Date(meeting.meetingDate);
+    
+    // Nếu đã có biên bản họp -> màu xanh nhạt
+    if (meeting.hasMinute) {
+      return '#f0fdf4'; // Xanh nhạt
+    }
+    
+    // Nếu chưa họp và gần nhất -> màu vàng nhạt
+    if (meetingDate > now) {
+      const timeDiff = meetingDate - now;
+      const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
+      if (daysDiff <= 7) { // Trong vòng 7 ngày tới
+        return '#fefce8'; // Vàng nhạt
+      }
+    }
+    
+    // Mặc định -> màu trắng
+    return '#ffffff';
+  };
+
+  // Hàm xác định border color cho meeting card
+  const getMeetingCardBorderColor = (meeting) => {
+    const now = new Date();
+    const meetingDate = new Date(meeting.meetingDate);
+    
+    // Nếu đã có biên bản họp -> border xanh
+    if (meeting.hasMinute) {
+      return '#10b981'; // Xanh lá
+    }
+    
+    // Nếu chưa họp và gần nhất -> border vàng
+    if (meetingDate > now) {
+      const timeDiff = meetingDate - now;
+      const daysDiff = timeDiff / (1000 * 60 * 60 * 24);
+      if (daysDiff <= 7) { // Trong vòng 7 ngày tới
+        return '#f59e0b'; // Vàng
+      }
+    }
+    
+    // Mặc định -> border xám
+    return '#e5e7eb';
+  };
+
+  // Hàm xác định trạng thái meeting
+  const getMeetingStatus = (meeting) => {
+    const now = new Date();
+    const meetingDate = new Date(meeting.meetingDate);
+    
+    if (meeting.hasMinute) {
+      return 'Completed';
+    } else if (meetingDate < now) {
+      return 'Past';
+    } else {
+      return 'Upcoming';
     }
   };
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'NotYet': return 'Chưa họp';
-      case 'Completed': return 'Đã họp';
-      case 'Cancelled': return 'Đã hủy';
+      case 'Completed': return 'Đã có biên bản';
+      case 'Past': return 'Đã qua';
+      case 'Upcoming': return 'Sắp diễn ra';
       default: return 'Không xác định';
     }
   };
@@ -185,9 +248,10 @@ export default function StudentMeetingManagement() {
     setSelectedMeeting(meeting);
     setShowMinuteModal(true);
     
-    // Kiểm tra xem đã có biên bản chưa
-    const existingMinute = await fetchMeetingMinute(meeting.id);
+    // Sử dụng dữ liệu đã có hoặc fetch mới
+    const existingMinute = meeting.minuteData || await fetchMeetingMinute(meeting.id);
     console.log('Existing minute:', existingMinute);
+    
     if (existingMinute) {
       setMinuteData(existingMinute);
       setFormData({
@@ -211,6 +275,8 @@ export default function StudentMeetingManagement() {
       });
       setIsEditing(false);
     }
+    
+    console.log('Modal opened, isEditing:', false, 'formData initialized');
   };
 
   // Hàm đóng modal
@@ -232,6 +298,7 @@ export default function StudentMeetingManagement() {
 
   // Hàm xử lý thay đổi input
   const handleInputChange = (field, value) => {
+    console.log('Input changed:', field, value);
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -248,6 +315,7 @@ export default function StudentMeetingManagement() {
 
   // Hàm validate form
   const validateForm = () => {
+    console.log('Validating form with data:', formData);
     const errors = {};
     
     if (!formData.startAt) {
@@ -266,19 +334,30 @@ export default function StudentMeetingManagement() {
       errors.endAt = 'Thời gian kết thúc phải sau thời gian bắt đầu';
     }
     
+    console.log('Validation errors:', errors);
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   // Hàm lưu biên bản họp
   const saveMeetingMinute = async () => {
+    console.log('Save meeting minute clicked!');
+    console.log('Form data:', formData);
+    console.log('Form errors:', formErrors);
+    console.log('Is editing:', isEditing);
+    console.log('Minute data:', minuteData);
+    console.log('Selected meeting:', selectedMeeting);
+    
     if (!validateForm()) {
+      console.log('Form validation failed');
       return;
     }
     
     try {
+      if (isEditing && minuteData) {
+        // Cập nhật biên bản họp
       const data = {
-        meetingId: selectedMeeting.id,
+          id: minuteData.id,
         startAt: new Date(formData.startAt).toISOString(),
         endAt: new Date(formData.endAt).toISOString(),
         attendance: formData.attendance,
@@ -286,13 +365,28 @@ export default function StudentMeetingManagement() {
         meetingContent: formData.meetingContent,
         other: formData.other
       };
-      
-      if (isEditing && minuteData) {
+        console.log('Updating meeting minute with data:', data);
         await updateMeetingMinute(data);
         alert('Cập nhật biên bản họp thành công!');
       } else {
+        // Tạo biên bản họp mới
+        const data = {
+          meetingDateId: selectedMeeting.id,
+          startAt: new Date(formData.startAt).toISOString(),
+          endAt: new Date(formData.endAt).toISOString(),
+          attendance: formData.attendance,
+          issue: formData.issue,
+          meetingContent: formData.meetingContent,
+          other: formData.other
+        };
+        console.log('Creating meeting minute with data:', data);
         await createMeetingMinute(data);
         alert('Tạo biên bản họp thành công!');
+      }
+      
+      // Refresh meetings data
+      if (userInfo?.groupId) {
+        await fetchMeetings(userInfo.groupId);
       }
       
       closeMinuteModal();
@@ -311,6 +405,12 @@ export default function StudentMeetingManagement() {
     try {
       await deleteMeetingMinute(minuteData.id);
       alert('Xóa biên bản họp thành công!');
+      
+      // Refresh meetings data
+      if (userInfo?.groupId) {
+        await fetchMeetings(userInfo.groupId);
+      }
+      
       closeMinuteModal();
     } catch (error) {
       alert('Có lỗi xảy ra khi xóa biên bản họp!');
@@ -320,141 +420,336 @@ export default function StudentMeetingManagement() {
 
   // Debug state
   console.log('Current state:', { 
+    loading,
+    meetings: meetings.length,
+    userInfo,
+    userRole, 
+    isSecretary,
     showMinuteModal, 
     selectedMeeting, 
-    userRole, 
-    isSecretary 
+    formData,
+    formErrors,
+    isEditing,
+    minuteData
   });
 
   if (loading) {
     return (
       <div className={styles.loading}>
-        <div>Loading meetings...</div>
+        <div>Đang tải dữ liệu...</div>
+      </div>
+    );
+  }
+
+  // Hiển thị thông báo nếu không có meetings
+  if (!loading && meetings.length === 0) {
+  return (
+    <div className={styles.container}>
+      <div className={styles.header}>
+        <h1>Meeting Management</h1>
+        <p>Quản lý các buổi họp nhóm</p>
+          {userInfo && (
+            <div className={styles.userInfo}>
+              <p><strong>Người dùng:</strong> {userInfo.name}</p>
+              <p><strong>Vai trò:</strong> {userInfo.roleInGroup || userInfo.role}</p>
+            </div>
+          )}
+        </div>
+        <div className={styles.noData}>
+          <h3>Không có cuộc họp nào</h3>
+          <p>Hiện tại chưa có cuộc họp nào được lên lịch cho nhóm của bạn.</p>
+          {!userInfo && (
+            <div style={{ color: 'red', marginTop: '10px' }}>
+              <p><strong>Lỗi:</strong> Không thể lấy thông tin người dùng. Vui lòng kiểm tra:</p>
+              <ul style={{ textAlign: 'left', display: 'inline-block' }}>
+                <li>Đã đăng nhập chưa?</li>
+                <li>Token có hợp lệ không?</li>
+                <li>API có hoạt động không?</li>
+              </ul>
+          <Button 
+            onClick={() => {
+                  setLoading(true);
+                  fetchUserInfo();
+            }}
+                style={{ marginTop: '10px' }}
+          >
+                Thử lại
+          </Button>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <h1>Meeting Management</h1>
-        <p>Quản lý các buổi họp nhóm</p>
-        <div className={styles.roleToggle}>
-          <Button 
-            onClick={() => {
-              const newRole = userRole === 'Secretary' ? 'Student' : 'Secretary';
-              setUserRole(newRole);
-              setUserInfo(prev => ({ ...prev, roleInGroup: newRole }));
-            }}
-            className={styles.toggleButton}
-          >
-            Toggle Role: {userRole === 'Secretary' ? 'Secretary → Student' : 'Student → Secretary'}
-          </Button>
-        </div>
+      <div className={styles.header} style={{
+        background: 'white',
+        padding: '24px',
+        borderRadius: '8px',
+        marginBottom: '20px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        border: '1px solid #e5e7eb'
+      }}>
+        <h1 style={{ 
+          margin: '0 0 8px 0', 
+          fontSize: '24px', 
+          fontWeight: '600',
+          color: '#1f2937'
+        }}>
+          Meeting Management
+        </h1>
+        <p style={{ 
+          margin: '0 0 16px 0', 
+          fontSize: '14px', 
+          color: '#6b7280'
+        }}>
+          Quản lý các buổi họp nhóm
+        </p>
+        
+        {userInfo && (
+          <div className={styles.userInfo} style={{
+            display: 'flex',
+            gap: '16px',
+            flexWrap: 'wrap'
+          }}>
+            <span style={{ fontSize: '14px', color: '#374151' }}>
+              <strong>Người dùng:</strong> {userInfo.name}
+            </span>
+            <span style={{ fontSize: '14px', color: '#374151' }}>
+              <strong>Vai trò:</strong> {userInfo.roleInGroup || userInfo.role}
+            </span>
+            <span style={{ fontSize: '14px', color: '#374151' }}>
+              <strong>Nhóm:</strong> {userInfo.groupId}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className={styles.meetingsList}>
-        {meetings.map((meeting) => (
-          <div key={meeting.id} className={styles.meetingCard}>
+        {meetings.map((meeting) => {
+          const meetingDate = new Date(meeting.meetingDate);
+          const formattedDate = meetingDate.toLocaleDateString('vi-VN', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+          const status = getMeetingStatus(meeting);
+          const cardColor = getMeetingCardColor(meeting);
+          
+          const borderColor = getMeetingCardBorderColor(meeting);
+          
+          return (
+            <div 
+              key={meeting.id} 
+              className={styles.meetingCard}
+              style={{ 
+                backgroundColor: cardColor,
+                border: `1px solid ${borderColor}`,
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '12px',
+                boxShadow: '0 1px 4px rgba(0, 0, 0, 0.1)'
+              }}
+            >
             <div className={styles.meetingHeader}>
               <div className={styles.meetingInfo}>
-                <h3>Tuần {meeting.weekNumber} - {meeting.meetingDate}</h3>
-                <p className={styles.meetingTime}>
-                  {meeting.dayOfWeek} {meeting.startTime} - {meeting.endTime}
-                </p>
+                  <h3 style={{ 
+                    margin: '0 0 4px 0', 
+                    fontSize: '16px', 
+                    fontWeight: '600',
+                    color: '#1f2937'
+                  }}>
+                    {meeting.description}
+                  </h3>
+                  <p className={styles.meetingTime} style={{
+                    margin: '0 0 8px 0',
+                    fontSize: '13px',
+                    color: '#6b7280'
+                  }}>
+                    {formattedDate} - {meeting.time}
+                  </p>
               </div>
               <div className={styles.meetingStatus}>
                 <span 
                   className={styles.statusBadge}
-                  style={{ backgroundColor: getStatusColor(meeting.status) }}
-                >
-                  {getStatusText(meeting.status)}
+                    style={{ 
+                      backgroundColor: meeting.hasMinute ? '#10b981' : 
+                                     status === 'Upcoming' ? '#f59e0b' : '#6b7280',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      textTransform: 'uppercase'
+                    }}
+                  >
+                    {getStatusText(status)}
                 </span>
               </div>
             </div>
 
-            <div className={styles.meetingDetails}>
-              <div className={styles.detailRow}>
-                <div className={styles.detailItem}>
-                  <strong>Link họp:</strong>
+              <div className={styles.meetingDetails} style={{ marginBottom: '12px' }}>
+                <div className={styles.detailRow} style={{ marginBottom: '8px' }}>
+                  <div className={styles.detailItem} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '6px 10px',
+                    backgroundColor: '#f8fafc',
+                    borderRadius: '6px',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <strong style={{ fontSize: '13px', color: '#374151' }}>Link họp:</strong>
                   <a 
                     href={meeting.meetingLink} 
                     target="_blank" 
                     rel="noopener noreferrer"
                     className={styles.meetingLink}
+                      style={{
+                        color: '#3b82f6',
+                        textDecoration: 'none',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        padding: '2px 6px',
+                        backgroundColor: '#dbeafe',
+                        borderRadius: '4px'
+                      }}
                   >
                     Tham gia cuộc họp
                   </a>
                 </div>
               </div>
 
-              {meeting.attendance && meeting.attendance.length > 0 && (
-                <div className={styles.attendanceSection}>
-                  <h4>Danh sách tham gia:</h4>
-                  <div className={styles.attendanceList}>
-                    {meeting.attendance.map((member) => (
-                      <div key={member.userId} className={styles.attendanceItem}>
-                        <span className={styles.memberName}>{member.name}</span>
-                        <span 
-                          className={`${styles.attendanceStatus} ${
-                            member.status === 'Present' ? styles.present : styles.absent
-                          }`}
-                        >
-                          {member.status === 'Present' ? 'Có mặt' : 'Vắng mặt'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {meeting.minutes && (
-                <div className={styles.minutesSection}>
-                  <h4>Biên bản họp:</h4>
-                  <div className={styles.minutesInfo}>
-                    <p><strong>File:</strong> {meeting.minutes.fileName}</p>
-                    <p><strong>Upload bởi:</strong> {meeting.minutes.uploadedBy}</p>
-                    <p><strong>Thời gian:</strong> {new Date(meeting.minutes.uploadedAt).toLocaleString('vi-VN')}</p>
-                    <Button 
-                      onClick={() => downloadMinutes(meeting.minutes)}
-                      className={styles.downloadButton}
-                    >
-                      Tải xuống biên bản
-                    </Button>
+                {meeting.hasMinute && meeting.minuteData && (
+                  <div className={styles.minutesSection} style={{
+                    padding: '8px 10px',
+                    backgroundColor: '#f0fdf4',
+                    borderRadius: '6px',
+                    border: '1px solid #bbf7d0'
+                  }}>
+                    <h4 style={{ 
+                      margin: '0 0 4px 0', 
+                      fontSize: '13px', 
+                      fontWeight: '600',
+                      color: '#065f46'
+                    }}>
+                      Biên bản họp:
+                    </h4>
+                    <div className={styles.minutesInfo} style={{ fontSize: '12px', color: '#047857' }}>
+                      <p style={{ margin: '2px 0' }}>
+                        <strong>Tạo bởi:</strong> {meeting.minuteData.createBy}
+                      </p>
+                      <p style={{ margin: '2px 0' }}>
+                        <strong>Thời gian tạo:</strong> {new Date(meeting.minuteData.createAt).toLocaleString('vi-VN')}
+                      </p>
                   </div>
                 </div>
               )}
             </div>
 
-            <div className={styles.meetingActions}>
-              {meeting.status === 'NotYet' && (
+              <div className={styles.meetingActions} style={{
+                display: 'flex',
+                gap: '8px',
+                justifyContent: 'flex-end',
+                marginTop: '12px',
+                paddingTop: '12px',
+                borderTop: '1px solid #e5e7eb'
+              }}>
                 <Button 
                   onClick={() => joinMeeting(meeting.meetingLink)}
                   className={styles.joinButton}
+                  style={{
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
                 >
                   Tham gia họp
                 </Button>
-              )}
-              
-              {meeting.status === 'Completed' && (
-                <Button 
-                  onClick={() => openMinuteModal(meeting)}
-                  className={styles.minuteButton}
-                >
-                  {isSecretary ? 'Quản lý biên bản' : 'Xem biên bản'}
-                </Button>
-              )}
+                
+                {meeting.hasMinute ? (
+                  <Button 
+                    onClick={() => openMinuteModal(meeting)}
+                    className={styles.minuteButton}
+                    style={{
+                      backgroundColor: meeting.hasMinute ? '#10b981' : '#8b5cf6',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {isSecretary ? 'Quản lý biên bản' : 'Xem biên bản'}
+                  </Button>
+                ) : isSecretary ? (
+                  <Button 
+                    onClick={() => openMinuteModal(meeting)}
+                    className={styles.minuteButton}
+                    style={{
+                      backgroundColor: '#8b5cf6',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Tạo biên bản họp
+                  </Button>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {showMinuteModal && selectedMeeting && (
-        <div className={styles.modalOverlay} onClick={closeMinuteModal}>
-          <div className={styles.minuteModal} onClick={(e) => e.stopPropagation()}>
+        <div 
+          className={styles.modalOverlay} 
+          onClick={closeMinuteModal}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <div 
+            className={styles.minuteModal} 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '800px',
+              width: '90%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+            }}
+          >
             <div className={styles.modalHeader}>
               <h3>
-                {isEditing ? 'Chỉnh sửa biên bản họp' : 'Tạo biên bản họp'} - Tuần {selectedMeeting.weekNumber}
+                {isEditing ? 'Chỉnh sửa biên bản họp' : 'Tạo biên bản họp'} - {selectedMeeting.description}
               </h3>
               {minuteData && (
                 <div className={styles.minuteInfo}>
@@ -541,7 +836,10 @@ export default function StudentMeetingManagement() {
                     </Button>
                   )}
                   <Button 
-                    onClick={saveMeetingMinute}
+                    onClick={() => {
+                      console.log('Button clicked!');
+                      saveMeetingMinute();
+                    }}
                     className={styles.saveButton}
                   >
                     {isEditing ? 'Cập nhật' : 'Tạo biên bản'}

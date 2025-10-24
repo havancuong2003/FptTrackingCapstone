@@ -186,6 +186,27 @@ export default function StudentMilestones() {
     }
   };
 
+  const deleteAttachment = async (attachmentId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa file này?')) {
+      return;
+    }
+    
+    try {
+      const response = await client.delete(`https://160.30.21.113:5000/api/v1/upload/milestone?attachmentId=${attachmentId}`);
+      if (response.data.status === 200) {
+        alert('Xóa file thành công!');
+        // Reload milestone details
+        if (selectedMilestone) {
+          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groupId}&deliverableId=${selectedMilestone.id}`);
+          setMilestoneDetails(detailRes?.data || null);
+        }
+      }
+    } catch (error) {
+      console.error('Error deleting attachment:', error);
+      alert('Có lỗi xảy ra khi xóa file. Vui lòng thử lại.');
+    }
+  };
+
   const getLatestAttachment = (attachments) => {
     if (!attachments || attachments.length === 0) return null;
     return attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
@@ -347,6 +368,7 @@ export default function StudentMilestones() {
                   <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Milestone</th>
                   <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Deadline</th>
                   <th style={{ textAlign: 'center', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Status</th>
+                  <th style={{ textAlign: 'center', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -377,11 +399,35 @@ export default function StudentMilestones() {
                         {getStatusText(milestone.status)}
                       </span>
                     </td>
+                    <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                      <button
+                        onClick={() => openDetailModal(milestone)}
+                        style={{
+                          background: '#3b82f6',
+                          color: 'white',
+                          border: 'none',
+                          padding: '6px 12px',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = '#2563eb';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = '#3b82f6';
+                        }}
+                      >
+                        Detail
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {milestones.length === 0 && (
                   <tr>
-                    <td colSpan={3} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan={4} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
                       No milestones found
                     </td>
                   </tr>
@@ -403,20 +449,21 @@ export default function StudentMilestones() {
                   <div><strong>Name:</strong> {selectedMilestone.name}</div>
                   <div><strong>Description:</strong> {selectedMilestone.description}</div>
                   <div><strong>Deadline:</strong> {formatDate(selectedMilestone.endAt, 'YYYY-MM-DD HH:mm')}</div>
-                <div><strong>Status:</strong> 
-                  <span style={{ 
-                    color: getStatusColor(selectedMilestone.status), 
-                    marginLeft: '8px',
-                    background: getStatusColor(selectedMilestone.status) === '#059669' ? '#ecfdf5' : 
-                               getStatusColor(selectedMilestone.status) === '#dc2626' ? '#fee2e2' :
-                               getStatusColor(selectedMilestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                    padding: '2px 6px',
-                    borderRadius: 4,
-                    fontSize: 12
-                  }}>
-                    {getStatusText(selectedMilestone.status)}
-                </span>
-                </div>
+                  <div><strong>Status:</strong> 
+                    <span style={{ 
+                      color: getStatusColor(selectedMilestone.status), 
+                      marginLeft: '8px',
+                      background: getStatusColor(selectedMilestone.status) === '#059669' ? '#ecfdf5' : 
+                                 getStatusColor(selectedMilestone.status) === '#dc2626' ? '#fee2e2' :
+                                 getStatusColor(selectedMilestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      fontSize: 12
+                    }}>
+                      {getStatusText(selectedMilestone.status)}
+                    </span>
+                  </div>
+                  <div><strong>Note:</strong> {milestoneDetails?.note || 'Chưa có ghi chú nào từ giảng viên'}</div>
                 </div>
               </div>
               
@@ -488,52 +535,78 @@ export default function StudentMilestones() {
                         )}
                       </div>
 
-                      {/* Latest Attachment */}
+                      {/* All Attachments */}
                       {item.attachments && item.attachments.length > 0 && (
                         <div>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                            <h5 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Current Version:</h5>
-                            {item.attachments.length > 1 && (
-                              <Button
-                                onClick={() => showHistory(item)}
-                                variant="ghost"
-                                style={{ fontSize: 11, padding: '4px 8px' }}
-                              >
-                                View History ({item.attachments.length} versions)
-                              </Button>
-                            )}
-                          </div>
+                          <h5 style={{ margin: '0 0 8px 0', fontSize: 13, fontWeight: 600 }}>
+                            Files ({item.attachments.length}):
+                          </h5>
                           
-                          {(() => {
-                            const latestAttachment = getLatestAttachment(item.attachments);
-                            return latestAttachment ? (
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '8px 12px',
-                                background: 'white',
-                                border: '1px solid #d1d5db',
-                                borderRadius: 4
-                              }}>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 12, fontWeight: 500, wordBreak: 'break-all' }}>
-                                    {latestAttachment.path.split('/').pop()}
+                          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                            {item.attachments
+                              .sort((a, b) => new Date(b.createAt) - new Date(a.createAt))
+                              .map((attachment, index) => {
+                                const isLatest = index === 0;
+                                return (
+                                  <div key={attachment.id} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px 12px',
+                                    background: isLatest ? '#f0f9ff' : 'white',
+                                    border: isLatest ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                                    borderRadius: 4,
+                                    marginBottom: 8
+                                  }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                        <div style={{ fontSize: 12, fontWeight: 500, wordBreak: 'break-all' }}>
+                                          {attachment.path.split('/').pop()}
+                                        </div>
+                                        {isLatest && (
+                                          <span style={{
+                                            background: '#3b82f6',
+                                            color: 'white',
+                                            padding: '2px 6px',
+                                            borderRadius: 4,
+                                            fontSize: 10,
+                                            fontWeight: 600
+                                          }}>
+                                            CURRENT
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: '#64748b' }}>
+                                        Uploaded by {attachment.userName} on {formatDate(attachment.createAt, 'DD/MM/YYYY HH:mm')}
+                                      </div>
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                      <Button
+                                        onClick={() => downloadFile(attachment)}
+                                        variant="ghost"
+                                        style={{ fontSize: 11, padding: '4px 8px' }}
+                                      >
+                                        Download
+                                      </Button>
+                                      {!isLatest && (
+                                        <Button
+                                          onClick={() => deleteAttachment(attachment.id)}
+                                          variant="ghost"
+                                          style={{ 
+                                            fontSize: 11, 
+                                            padding: '4px 8px',
+                                            color: '#dc2626',
+                                            background: '#fee2e2'
+                                          }}
+                                        >
+                                          Delete
+                                        </Button>
+                                      )}
+                                    </div>
                                   </div>
-                                  <div style={{ fontSize: 11, color: '#64748b' }}>
-                                    Uploaded by {latestAttachment.userName} on {formatDate(latestAttachment.createAt, 'DD/MM/YYYY HH:mm')}
-                                  </div>
-                                </div>
-                                <Button
-                                  onClick={() => downloadFile(latestAttachment)}
-                                  variant="ghost"
-                                  style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
-                                >
-                                  Download
-                                </Button>
-                              </div>
-                            ) : null;
-                          })()}
+                                );
+                              })}
+                          </div>
                         </div>
                       )}
                     </div>
