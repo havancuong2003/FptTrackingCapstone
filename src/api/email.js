@@ -31,8 +31,8 @@ export const sendEmail = async (emailData) => {
         
         if (invalidEmails.length > 0) {
             throw new Error(`Invalid email format: ${invalidEmails.join(', ')}`);
-        }
-
+        }       
+        console.log("emailData send email ", emailData);
         const response = await axiosClient.post('/Mail/send-mails', {
             to: emailData.to,
             subject: emailData.subject,
@@ -127,7 +127,6 @@ export const sendMeetingNotification = async (meetingData) => {
             body: body,
             cc: meetingData.cc || []
         };
-
         return await sendEmail(emailData);
     } catch (error) {
         console.error('Error sending meeting notification:', error);

@@ -5,6 +5,7 @@ import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
 import axiosClient from '../../../utils/axiosClient';
+import { sendTaskNotification } from '../../../api/email';
 
 export default function StudentTasks() {
   const navigate = useNavigate();
@@ -62,7 +63,7 @@ export default function StudentTasks() {
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
   const [taskTypeFilter, setTaskTypeFilter] = React.useState('');
-  const [isActiveTask, setIsActiveTask] = React.useState(true);
+  const [activeFilter, setActiveFilter] = React.useState('active'); // 'all', 'active', 'inactive'
   const [myTasksOnly, setMyTasksOnly] = React.useState(true);
   const [viewType, setViewType] = React.useState('my_tasks'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
   // API: lấy deliverables theo group
@@ -139,6 +140,7 @@ export default function StudentTasks() {
             reviewersList.push({
               id: `${supervisor.id}`,
               name: supervisor.name,
+              email: supervisor.email,
               type: 'Supervisor'
             });
           });
@@ -150,6 +152,7 @@ export default function StudentTasks() {
             reviewersList.push({
               id: `${student.id}`,
               name: student.name,
+              email: student.email,
               type: 'Student',
               role: student.role
             });
@@ -220,6 +223,7 @@ export default function StudentTasks() {
       if (response.data.status === 200) {
         const apiData = response.data.data;
         const tasksData = Array.isArray(apiData) ? apiData : [];
+          console.log("tasksData", tasksData);
         const mappedTasks = tasksData.map(task => ({
           id: task.id,
           title: task.title,
@@ -237,7 +241,8 @@ export default function StudentTasks() {
           progress: parseInt(task.process) || 0,
           attachments: task.attachments || [],
           comments: task.comments || [],
-          history: task.history || []
+          history: task.history || [],
+          isActive: task.isActive !== undefined ? task.isActive : true // Thêm trường isActive từ API
         }));
 
         setAllTasks(mappedTasks);
@@ -503,9 +508,54 @@ export default function StudentTasks() {
 
     try {
       const selectedDeliverable = deliverables.find(d => d.id.toString() === newTask.deliverableId);
-      const selectedAssignee = assigneeOptions.find(a => a.value === newTask.assignee);
-      const selectedReviewer = reviewers.find(r => r.id === newTask.reviewer);
-     
+        const selectedAssignee = assigneeOptions.find(a => 
+        {
+          console.log("a", a);
+          console.log("newTask.assignee", parseInt(newTask.assignee));
+          return a.value.toString() === newTask.assignee.toString();
+        });
+        const selectedReviewer = reviewers.find(r =>
+          {
+            console.log("r", r);
+            console.log("newTask.reviewer", parseInt(newTask.reviewer));
+            return r.id.toString() === newTask.reviewer.toString();
+          }
+        );
+        console.log("selectedAssignee", selectedAssignee);
+        console.log("selectedReviewer", selectedReviewer);
+      
+      // Gửi email thông báo trước khi tạo task
+      try {
+        const emailRecipients = [];
+        
+        // Thêm email của assignee từ assigneeOptions
+        if (selectedAssignee?.email) {
+          emailRecipients.push(selectedAssignee.email);
+        }
+        
+        // Thêm email của reviewer từ reviewers
+        if (selectedReviewer?.email) {
+          emailRecipients.push(selectedReviewer.email);
+        }
+        console.log("emailRecipients", emailRecipients);
+        
+        if (emailRecipients.length > 0) {
+          await sendTaskNotification({
+            recipients: emailRecipients,
+            subject: `[Capstone Project] Task mới được tạo: ${newTask.title}`,
+            taskName: newTask.title,
+            deadline: new Date(newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)).toLocaleDateString('vi-VN'),
+            description: newTask.description
+          });
+          
+        } else {
+          console.log('No email recipients found');
+        }
+      } catch (emailError) {
+        console.error('Error sending email notification:', emailError);
+        // Không hiển thị lỗi email cho user, chỉ log
+      }
+      
       // Gọi API tạo task
       const taskData = {
         groupId: parseInt(groupId) || 1,
@@ -702,13 +752,7 @@ export default function StudentTasks() {
     if (!selectedTask || !newAttachment.trim()) return;
     
     try {
-      // Giả sử có API upload attachment
-      // const formData = new FormData();
-      // formData.append('file', newAttachment);
-      // formData.append('taskId', selectedTask.id);
-      // formData.append('groupId', groupId);
-      // const response = await axiosClient.post('/Student/Task/upload-attachment', formData);
-      
+
       // Tạm thời xử lý local vì chưa có API upload attachment
       const nowIso = new Date().toISOString();
       
@@ -758,20 +802,26 @@ export default function StudentTasks() {
     let taskTypeMatch = true;
     if (taskTypeFilter === 'meeting') {
       taskTypeMatch = task.isMeetingTask === true;
-    } else if (taskTypeFilter === 'deliverable') {
+    } else if (taskTypeFilter === 'throughout') {
       taskTypeMatch = task.isMeetingTask !== true;
     }
     
     const myTasksMatch = !myTasksOnly || (currentUser && task.assignee === currentUser.id);
-    const activeTaskMatch = !isActiveTask || task.isActive === true;
+    // Filter theo trạng thái active
+    let activeTaskMatch = true;
+    if (activeFilter === 'active') {
+      activeTaskMatch = task.isActive === true;
+    } else if (activeFilter === 'inactive') {
+      activeTaskMatch = task.isActive === false;
+    }
+    // Nếu activeFilter === 'all' thì activeTaskMatch = true (hiển thị tất cả)
     return deliverableMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && myTasksMatch && activeTaskMatch;
   });
 
   const deliverableOptions = deliverables.map(d => ({ value: d.id ? d.id.toString() : '', label: d.name }));
   const assigneeOptions = assigneeSource.map(s => {
-    return { value: s.id, label: s.name }
+    return { value: s.id, label: s.name  , email: s.email}
   });
-
   const todoTasks = filteredTasks.filter(task => task.status === 'todo');
   const inProgressTasks = filteredTasks.filter(task => task.status === 'inProgress');
   const doneTasks = filteredTasks.filter(task => task.status === 'done');
@@ -875,7 +925,7 @@ export default function StudentTasks() {
               className={styles.select}
             >
               <option value="">All</option>
-              <option value="deliverable">Deliverable</option>
+              <option value="throughout">Throughout</option>
               <option value="meeting">Meeting</option>
             </select>
           </div>
@@ -891,15 +941,16 @@ export default function StudentTasks() {
             </label>
           </div>
           <div className={styles.controlGroup}>
-            <label>
-              <input
-                type="checkbox"
-                checked={isActiveTask}
-                onChange={(e) => setIsActiveTask(e.target.checked)}
-                className={styles.checkbox}
-              />
-              Active Tasks
-            </label>
+            <label>Task Status:</label>
+            <select
+              value={activeFilter}
+              onChange={(e) => setActiveFilter(e.target.value)}
+              className={styles.select}
+            >
+              <option value="all">All Tasks</option>
+              <option value="active">Active Tasks</option>
+              <option value="inactive">Inactive Tasks</option>
+            </select>
           </div>
           <button
             className={styles.searchButton}

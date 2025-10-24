@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import axiosClient from '../../../utils/axiosClient';
+import { sendMeetingNotification } from '../../../api/email';
 
 export default function SupervisorSchedule() {
   const { groupId: urlGroupId } = useParams();
@@ -199,6 +200,38 @@ export default function SupervisorSchedule() {
       if (response.data) {
         setMeetingSchedule(response.data);
         setIsFinalized(true);
+        
+        // Gửi email thông báo cho sinh viên trong group
+        try {
+          const studentEmails = members.map(member => member.email).filter(email => email);
+          if (studentEmails.length > 0) {
+            const dayNames = {
+              'monday': 'Thứ 2',
+              'tuesday': 'Thứ 3', 
+              'wednesday': 'Thứ 4',
+              'thursday': 'Thứ 5',
+              'friday': 'Thứ 6',
+              'saturday': 'Thứ 7',
+              'sunday': 'Chủ nhật'
+            };
+            
+            const meetingTime = `${dayNames[meetingData.day.toLowerCase()]} - ${meetingData.time}`;
+            
+            await sendMeetingNotification({
+              recipients: studentEmails,
+              subject: `[${group.groupName || 'Capstone Project'}] Thông báo lịch họp nhóm`,
+              meetingTime: meetingTime,
+              meetingLink: meetingData.meetingLink,
+              message: `Giảng viên ${currentUser.name} đã xác nhận lịch họp nhóm. Vui lòng tham gia đúng giờ.`
+            });
+            
+            console.log('Email notification sent to students');
+          }
+        } catch (emailError) {
+          console.error('Error sending email notification:', emailError);
+          // Không hiển thị lỗi email cho user, chỉ log
+        }
+        
         alert(isFinalized ? 'Đã cập nhật lịch họp thành công!' : 'Đã xác nhận lịch họp thành công!');
       } else {
         alert('Có lỗi xảy ra khi xác nhận lịch họp');
