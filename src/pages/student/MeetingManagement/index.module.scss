@@ -15,9 +15,29 @@
   }
   
   p {
-    margin: 0;
+    margin: 0 0 16px 0;
     color: #64748b;
     font-size: 1rem;
+  }
+}
+
+.roleToggle {
+  margin-top: 16px;
+}
+
+.toggleButton {
+  background: #f59e0b;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: #d97706;
   }
 }
 
@@ -304,6 +324,151 @@
   justify-content: flex-end;
 }
 
+// Modal Overlay
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+// Minute Modal Styles
+.minuteButton {
+  background: #8b5cf6;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: #7c3aed;
+  }
+}
+
+.minuteModal {
+  background: white;
+  border-radius: 12px;
+  max-width: 800px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.modalHeader {
+  padding: 24px 24px 0 24px;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 24px;
+  
+  h3 {
+    margin: 0 0 16px 0;
+    color: #1e293b;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+}
+
+.minuteInfo {
+  background: #f8fafc;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  
+  p {
+    margin: 0 0 4px 0;
+    color: #64748b;
+    font-size: 0.875rem;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+    
+    strong {
+      color: #374151;
+    }
+  }
+}
+
+.modalBody {
+  padding: 0 24px;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  
+  label {
+    margin-bottom: 8px;
+    color: #374151;
+    font-size: 0.875rem;
+    font-weight: 600;
+    
+    &::after {
+      content: '';
+    }
+  }
+}
+
+.modalFooter {
+  padding: 24px;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  background: #f8fafc;
+  border-radius: 0 0 12px 12px;
+}
+
+.saveButton {
+  background: #059669;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: #047857;
+  }
+}
+
+.deleteButton {
+  background: #dc2626;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: #b91c1c;
+  }
+}
+
 // Responsive
 @media (max-width: 768px) {
   .container {
@@ -323,5 +488,24 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
+  }
+  
+  .minuteModal {
+    max-width: 95%;
+    margin: 20px;
+  }
+  
+  .formRow {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .modalFooter {
+    flex-direction: column;
+    gap: 8px;
+    
+    button {
+      width: 100%;
+    }
   }
 }

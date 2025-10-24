@@ -2,6 +2,7 @@ import React from "react";
 import Select from "../../../components/Select/Select";
 import Input from "../../../components/Input/Input";
 import Button from "../../../components/Button/Button";
+import DataTable from "../../../components/DataTable/DataTable";
 import client from "../../../utils/axiosClient";
 import Modal from "../../../components/Modal/Modal";
 
@@ -109,6 +110,48 @@ function Milestone() {
     }, [filtered, page]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+
+    // Define columns for DataTable
+    const columns = [
+        {
+            key: 'name',
+            title: 'Milestone Name',
+            render: (milestone) => (
+                <div style={{ fontWeight: "600", fontSize: "14px", color: "#1f2937" }}>
+                    {milestone.name}
+                </div>
+            )
+        },
+        {
+            key: 'description',
+            title: 'Description',
+            render: (milestone) => (
+                <div style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.5" }}>
+                    {milestone.description || <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No description</span>}
+                </div>
+            )
+        },
+        {
+            key: 'actions',
+            title: 'Action',
+            render: (milestone) => (
+                <Button 
+                    size="sm" 
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        openEdit(milestone);
+                    }}
+                    style={{
+                        padding: "6px 12px",
+                        fontSize: "13px",
+                        fontWeight: "500"
+                    }}
+                >
+                    Edit
+                </Button>
+            )
+        }
+    ];
 
     function openEdit(item) {
         setEditingItem({ ...item, code: selectedMajor?.code || "" });
@@ -254,10 +297,9 @@ function Milestone() {
         <div style={{ padding: 16 }}>
             <div
                 style={{
-                    display: "grid",
-                    gridTemplateColumns: "auto 1fr",
-                    alignItems: "center",
-                    gap: 20,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 16,
                     marginBottom: 20,
                     background: "#fff",
                     padding: "16px 20px",
@@ -298,7 +340,8 @@ function Milestone() {
                             maxWidth: "200px",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
-                            whiteSpace: "nowrap"
+                            whiteSpace: "nowrap",
+                            paddingLeft: "60px"
                         }}>
                             Name: {selectedMajor.name}
                         </div>
@@ -306,7 +349,7 @@ function Milestone() {
                 </div>
 
                 {/* Search box with trailing icon inside input */}
-                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <div style={{ position: "relative", display: "flex", alignItems: "center", maxWidth: "800px" }}>
                     <Input
                         placeholder="Search for Capstone Milestone by Name or Description..."
                         value={search}
@@ -327,163 +370,13 @@ function Milestone() {
                 </div>
             </div>
 
-            <div
-                style={{
-                    overflow: "auto",
-                    border: "1px solid #e5e7eb",
-                    borderRadius: 12,
-                    backgroundColor: "#fff",
-                    boxShadow: "0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)",
-                }}
-            >
-                <table
-                    style={{
-                        width: "100%",
-                        borderCollapse: "separate",
-                        borderSpacing: 0,
-                    }}
-                >
-                    <thead style={{ background: "#f8fafc" }}>
-                        <tr>
-                            <th
-                                style={{
-                                    textAlign: "left",
-                                    padding: "16px 20px",
-                                    borderBottom: "1px solid #e5e7eb",
-                                    width: "60px",
-                                    fontSize: "12px",
-                                    fontWeight: "600",
-                                    color: "#64748b",
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em"
-                                }}
-                            >
-                                #
-                            </th>
-                            <th
-                                style={{
-                                    textAlign: "left",
-                                    padding: "16px 20px",
-                                    borderBottom: "1px solid #e5e7eb",
-                                    width: "300px",
-                                    fontSize: "12px",
-                                    fontWeight: "600",
-                                    color: "#64748b",
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em"
-                                }}
-                            >
-                                Milestone Name
-                            </th>
-                            <th
-                                style={{
-                                    textAlign: "left",
-                                    padding: "16px 20px",
-                                    borderBottom: "1px solid #e5e7eb",
-                                    fontSize: "12px",
-                                    fontWeight: "600",
-                                    color: "#64748b",
-                                    textTransform: "uppercase",
-                                    letterSpacing: "0.05em"
-                                }}
-                            >
-                                Description
-                            </th>
-                            <th
-                                style={{
-                                    textAlign: "left",
-                                    padding: 12,
-                                    borderBottom: "1px solid #e5e7eb",
-                                    width: "120px",
-                                }}
-                            >
-                                Action
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {paged.map((m, idx) => (
-                            <tr key={m.id} style={{ 
-                                transition: "background-color 0.2s ease",
-                                cursor: "pointer"
-                            }}
-                                onMouseEnter={(e) => e.target.closest('tr').style.backgroundColor = "#f8fafc"}
-                                onMouseLeave={(e) => e.target.closest('tr').style.backgroundColor = "transparent"}
-                            >
-                                <td
-                                    style={{
-                                        padding: "16px 20px",
-                                        borderBottom: "1px solid #f1f5f9",
-                                        fontSize: "14px",
-                                        fontWeight: "500",
-                                        color: "#64748b"
-                                    }}
-                                >
-                                    {(page - 1) * pageSize + idx + 1}
-                                </td>
-                                <td
-                                    style={{
-                                        padding: "16px 20px",
-                                        borderBottom: "1px solid #f1f5f9",
-                                        fontWeight: "600",
-                                        fontSize: "14px",
-                                        color: "#1f2937",
-                                        lineHeight: "1.4"
-                                    }}
-                                >
-                                    {m.name}
-                                </td>
-                                <td
-                                    style={{
-                                        padding: "16px 20px",
-                                        borderBottom: "1px solid #f1f5f9",
-                                        fontSize: "14px",
-                                        lineHeight: "1.5",
-                                        wordBreak: "break-word",
-                                        color: "#4b5563"
-                                    }}
-                                >
-                                    {m.description || <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No description</span>}
-                                </td>
-                                <td
-                                    style={{
-                                        padding: "16px 20px",
-                                        borderBottom: "1px solid #f1f5f9",
-                                        textAlign: "center"
-                                    }}
-                                >
-                                    <Button 
-                                        size="sm" 
-                                        onClick={() => openEdit(m)}
-                                        style={{
-                                            padding: "6px 12px",
-                                            fontSize: "13px",
-                                            fontWeight: "500"
-                                        }}
-                                    >
-                                        Edit
-                                    </Button>
-                                </td>
-                            </tr>
-                        ))}
-                        {filtered.length === 0 && (
-                            <tr>
-                                <td
-                                    colSpan={5}
-                                    style={{
-                                        padding: "40px 20px",
-                                        textAlign: "center",
-                                        color: "#9ca3af",
-                                        fontSize: "14px"
-                                    }}
-                                >
-                                    No milestones found
-                                </td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                columns={columns}
+                data={paged}
+                emptyMessage="No milestones found"
+                showIndex={true}
+                indexTitle="#"
+            />
             {/* Pagination */}
             <div style={{ 
                 display: "flex", 
@@ -497,7 +390,7 @@ function Milestone() {
                 fontSize: "14px"
             }}>
                 <div style={{ color: "#64748b", fontWeight: "500" }}>
-                    Showing {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} of {filtered.length} milestones
+                    Hiển thị {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} trong {filtered.length} milestones
                 </div>
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     <Button 
@@ -511,14 +404,14 @@ function Milestone() {
                             fontWeight: "500"
                         }}
                     >
-                        Previous
+                        Trước
                     </Button>
                     <span style={{ 
                         color: "#374151", 
                         fontWeight: "500",
                         padding: "0 8px"
                     }}>
-                        Page {page} of {totalPages}
+                        Trang {page} / {totalPages}
                     </span>
                     <Button 
                         variant="ghost" 
@@ -531,7 +424,7 @@ function Milestone() {
                             fontWeight: "500"
                         }}
                     >
-                        Next
+                        Tiếp
                     </Button>
                 </div>
             </div>
@@ -554,14 +447,14 @@ function Milestone() {
                         borderRadius: "8px"
                     }}
                 >
-                    + Create Milestone
+                    + Tạo Milestone
                 </Button>
             </div>
 
             {/* Edit Modal */}
             <Modal open={isEditOpen} onClose={closeEdit} showCloseButton={false}>
                 {editingItem && (
-                    <div style={{ width: "600px", maxWidth: "90vw", maxHeight: "90vh", overflow: "auto" }}>
+                    <div style={{ width: "600px", maxWidth: "90vw", maxHeight: "90vh", overflow: "auto", padding: "16px" }}>
                         <form onSubmit={saveEdit} style={{ display: "flex", flexDirection: "column", gap: 24, width: "100%" }}>
                             <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: "16px", marginBottom: "8px" }}>
                                 <h3 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#1f2937", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -714,7 +607,7 @@ function Milestone() {
 
             {/* Create-many Modal */}
             <Modal open={isCreateOpen} onClose={closeCreate} showCloseButton={false}>
-                <div style={{ width: "900px", maxWidth: "95vw", maxHeight: "90vh", overflow: "auto" }}>
+                <div style={{ width: "900px", maxWidth: "95vw", maxHeight: "90vh", overflow: "auto", padding: "16px" }}>
                     <form onSubmit={saveCreate} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                         <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: "16px", marginBottom: "8px" }}>
                             <h3 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#1f2937", display: "flex", alignItems: "center", gap: "8px" }}>
