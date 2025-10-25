@@ -108,7 +108,7 @@ export default function Schedule() {
       
       // API call lấy chi tiết group theo pattern từ Groups
       const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
-      
+
       if (response.data.status === 200) {
         const groupDetail = response.data.data;
         
@@ -145,7 +145,6 @@ export default function Schedule() {
       // Fetch existing free time slots
       try {
         const freeTimeResponse = await axiosClient.get(`/Student/Meeting/groups/${groupId}/schedule/free-time`);
-        
         if (freeTimeResponse.data && freeTimeResponse.data.success === 200) {
           const apiData = freeTimeResponse.data.data;
           
