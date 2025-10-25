@@ -42,7 +42,7 @@ export default function PenaltyManagement() {
   // ------------------ Fetch Data ------------------
   React.useEffect(() => {
     fetchGroups();
-    fetchStudents();
+    // Không fetch students ngay từ đầu, chờ user chọn nhóm
   }, []);
 
   React.useEffect(() => {
@@ -75,27 +75,66 @@ export default function PenaltyManagement() {
     }
   };
 
-  const fetchStudents = async () => {
+  const fetchStudents = async (groupId = null) => {
     try {
+      console.log('=== fetchStudents called ===');
+      console.log('GroupId:', groupId, 'Type:', typeof groupId);
+      
       const response = await axiosClient.get('/Mentor/getGroups');
+      console.log('API Response:', response.data);
+      
       if (response.data.status === 200) {
-        // Lấy tất cả sinh viên từ tất cả các nhóm
         const allStudents = [];
-        response.data.data.forEach(group => {
-          if (group.students) {
-            group.students.forEach(student => {
+        
+        if (groupId) {
+          // Lấy sinh viên của nhóm cụ thể
+          console.log('Looking for group with id:', groupId);
+          console.log('Available groups:', response.data.data.map(g => ({ id: g.id, name: g.name })));
+          
+          const selectedGroupData = response.data.data.find(group => {
+            console.log('Comparing:', group.id, 'with', groupId, 'Result:', group.id == groupId);
+            return group.id == groupId;
+          });
+          
+          console.log('Selected group data:', selectedGroupData);
+          
+          if (selectedGroupData && selectedGroupData.students) {
+            console.log('Students in selected group:', selectedGroupData.students);
+            selectedGroupData.students.forEach(student => {
               allStudents.push({
-                id: student.rollNumber, // Sử dụng rollNumber làm student code giống Evaluation
-                studentId: student.id.toString(), // Giữ lại studentId để gọi API
+                id: student.rollNumber,
+                studentId: student.id.toString(),
                 name: student.name,
                 rollNumber: student.rollNumber,
                 email: student.email,
-                groupName: group.name
+                groupName: selectedGroupData.name
               });
             });
+          } else {
+            console.log('No students found in selected group or group not found');
           }
-        });
+        } else {
+          // Lấy tất cả sinh viên từ tất cả các nhóm (fallback)
+          console.log('Fetching all students from all groups');
+          response.data.data.forEach(group => {
+            if (group.students) {
+              group.students.forEach(student => {
+                allStudents.push({
+                  id: student.rollNumber,
+                  studentId: student.id.toString(),
+                  name: student.name,
+                  rollNumber: student.rollNumber,
+                  email: student.email,
+                  groupName: group.name
+                });
+              });
+            }
+          });
+        }
+        
         setStudents(allStudents);
+        console.log('Final students array:', allStudents);
+        console.log('Students count:', allStudents.length);
       }
     } catch (err) {
       console.error('Error fetching students:', err);
@@ -640,9 +679,17 @@ export default function PenaltyManagement() {
           <label>Nhóm:</label>
           <select
             value={selectedGroup || ""}
-            onChange={(e) => {
+            onChange={async (e) => {
               console.log('Selected group value:', e.target.value);
               setSelectedGroup(e.target.value);
+              
+              // Fetch students của nhóm được chọn
+              if (e.target.value) {
+                await fetchStudents(e.target.value);
+              } else {
+                // Nếu không chọn nhóm, lấy tất cả sinh viên
+                await fetchStudents();
+              }
             }}
             className={styles.select}
           >
@@ -725,6 +772,7 @@ export default function PenaltyManagement() {
 
           <div className={styles.formGroup}>
             <label>Người bị phạt *</label>
+            {console.log('Rendering students dropdown - students:', students, 'selectedGroup:', selectedGroup)}
             <select
               value={newPenalty.userId}
               onChange={(e) => {
@@ -734,7 +782,10 @@ export default function PenaltyManagement() {
               className={styles.select}
               disabled={newPenalty.type === 'milestone'}
             >
-              <option value="">Chọn sinh viên</option>
+              <option value="">
+                {!selectedGroup ? "Vui lòng chọn nhóm trước" : 
+                 students.length === 0 ? "Không có sinh viên trong nhóm này" : "Chọn sinh viên"}
+              </option>
               {students.map(s => (
                 <option key={s.studentId} value={s.studentId}>
                   {s.name} - {s.id}
@@ -791,7 +842,7 @@ export default function PenaltyManagement() {
               rows={4}
               className={styles.textarea}
             />
-          </div>
+              </div>
 
           <div className={styles.formGroup}>
             <label>Loại thẻ phạt *</label>
@@ -815,7 +866,7 @@ export default function PenaltyManagement() {
                 </option>
               ))}
             </select>
-          </div>
+              </div>
 
           <div className={styles.formGroup}>
             <label>Người bị phạt *</label>

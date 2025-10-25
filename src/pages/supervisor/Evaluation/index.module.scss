@@ -18,6 +18,25 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.noSelection {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 300px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-top: 24px;
+  
+  p {
+    font-size: 18px;
+    color: #64748b;
+    text-align: center;
+    margin: 0;
+    padding: 24px;
+  }
+}
+
 .header {
   display: flex;
   justify-content: space-between;

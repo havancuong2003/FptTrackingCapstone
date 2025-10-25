@@ -38,16 +38,23 @@ export default function SupervisorEvaluation() {
 
   // ------------------ Fetch Evaluations ------------------
   const fetchEvaluations = async () => {
-    if (!selectedGroup || !selectedMilestone) return;
+    if (!selectedGroup) return;
     
     setLoadingEvaluations(true);
     try {
+      // Nếu không chọn milestone hoặc chọn "all", lấy tất cả đánh giá của nhóm
+      const params = {
+        groupId: selectedGroup,
+        _t: Date.now() // Cache-busting parameter
+      };
+      
+      // Chỉ thêm deliverableId nếu có chọn milestone cụ thể
+      if (selectedMilestone && selectedMilestone !== "all") {
+        params.deliverableId = selectedMilestone;
+      }
+      
       const response = await axiosClient.get('/Common/Evaluation/getEvaluationByMentorDeliverable', {
-        params: {
-          groupId: selectedGroup,
-          deliverableId: selectedMilestone,
-          _t: Date.now() // Cache-busting parameter
-        }
+        params
       });
       
       // Kiểm tra nếu response.data là array trực tiếp
@@ -78,7 +85,7 @@ export default function SupervisorEvaluation() {
 
   // ------------------ Fetch Evaluations when milestone changes ------------------
   React.useEffect(() => {
-    if (selectedGroup && selectedMilestone) {
+    if (selectedGroup) {
       fetchEvaluations();
     }
   }, [selectedGroup, selectedMilestone]);
@@ -98,7 +105,7 @@ export default function SupervisorEvaluation() {
               milestones: [],
             })) || [];
           setGroups(groupsData);
-          if (groupsData.length > 0) setSelectedGroup(groupsData[0].groupId);
+          // Không tự động chọn nhóm đầu tiên, để user tự chọn
         } else {
           console.error('Failed to fetch groups:', response.data.message);
         }
@@ -123,15 +130,46 @@ export default function SupervisorEvaluation() {
           axiosClient.get(`/deliverables/group/${selectedGroup}`),
           axiosClient.get(`/Staff/capstone-groups/${selectedGroup}`)
         ]);
+        console.log('milestoneRes', milestoneRes);
+        console.log('studentRes', studentRes);
 
+        // Xử lý response từ API
+        console.log('Milestone response status:', milestoneRes.status);
+        console.log('Student response status:', studentRes.status);
+        console.log('Student response data:', studentRes.data);
 
-        // API deliverables trả về array trực tiếp, không có wrapper
+        // Xử lý cả trường hợp API trả về format khác
+        let studentData;
         if (studentRes.data.status === 200) {
+          studentData = studentRes.data.data;
+        } else if (studentRes.data && studentRes.data.data) {
+          // Fallback: nếu không có status nhưng có data
+          studentData = studentRes.data.data;
+        } else {
+          // Fallback: sử dụng toàn bộ response
+          studentData = studentRes.data;
+        }
+
+        if (studentData) {
           const milestoneData = milestoneRes.data; // Array trực tiếp
-          const studentData = studentRes.data.data;
+
+          console.log('Student data structure:', studentData);
+          console.log('Students array:', studentData?.students);
+
+          // Kiểm tra cấu trúc dữ liệu
+          if (!studentData) {
+            console.error('No student data found');
+            return;
+          }
+
+          if (!studentData.students || !Array.isArray(studentData.students)) {
+            console.error('Students array not found or not an array:', studentData.students);
+            return;
+          }
 
           const students =
-            studentData?.students?.map((s) => {
+            studentData.students.map((s) => {
+              console.log('Processing student:', s);
               return {
                 id: s.rollNumber, // Sử dụng rollNumber làm student code
                 studentId: s.id.toString(), // Giữ lại studentId để gọi API
@@ -141,7 +179,9 @@ export default function SupervisorEvaluation() {
                 penaltyCards: [],
                 evaluations: [],
               };
-            }) || [];
+            });
+
+          console.log('Mapped students:', students);
 
           const milestones =
             milestoneData?.map((m) => ({
@@ -162,14 +202,16 @@ export default function SupervisorEvaluation() {
             )
           );
 
-          if (milestones.length > 0) setSelectedMilestone(milestones[0].id);
+          // Không tự động chọn milestone đầu tiên, để user tự chọn
         } else {
-          console.error('Failed to fetch group details');
+          console.error('Failed to fetch group details - API response:', studentRes.data);
+          alert('Không thể lấy thông tin nhóm. Vui lòng thử lại.');
         }
       } catch (err) {
         console.error("Failed to fetch group details", err);
         console.error("Error details:", err.response?.data);
         console.error("Error status:", err.response?.status);
+        alert('Lỗi khi tải thông tin nhóm. Vui lòng thử lại.');
       } finally {
         setLoading(false);
       }
@@ -182,7 +224,32 @@ export default function SupervisorEvaluation() {
   const selectedMilestoneData = selectedGroupData?.milestones?.find(
     (m) => m.id === selectedMilestone
   );
-  const studentsToEvaluate = selectedMilestoneData?.students || [];
+  
+  // Nếu không chọn milestone hoặc chọn "all", lấy tất cả students từ tất cả milestones
+  let studentsToEvaluate = [];
+  if (!selectedMilestone || selectedMilestone === "all") {
+    if (selectedGroupData?.milestones) {
+      // Lấy tất cả students từ tất cả milestones và merge lại
+      const allStudents = new Map();
+      selectedGroupData.milestones.forEach(milestone => {
+        if (milestone.students) {
+          milestone.students.forEach(student => {
+            // Sử dụng studentId làm key để tránh duplicate
+            if (!allStudents.has(student.studentId)) {
+              allStudents.set(student.studentId, student);
+            }
+          });
+        }
+      });
+      studentsToEvaluate = Array.from(allStudents.values());
+    }
+  } else {
+    studentsToEvaluate = selectedMilestoneData?.students || [];
+  }
+  
+  console.log('Selected milestone:', selectedMilestone);
+  console.log('Students to evaluate:', studentsToEvaluate);
+  console.log('Evaluations from API:', evaluations);
 
 
 
@@ -601,11 +668,45 @@ export default function SupervisorEvaluation() {
     return <div className={styles.loading}>Không tìm thấy nhóm nào.</div>;
   }
 
+  // Hiển thị thông báo khi chưa chọn nhóm
+  if (!selectedGroup) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.header}>
+          <h1>Đánh giá sinh viên</h1>
+        </div>
+        <div className={styles.controls}>
+          <div className={styles.controlGroup}>
+            <label>Nhóm:</label>
+            <select
+              value={selectedGroup || ""}
+              onChange={(e) => {
+                console.log('Selected group value:', e.target.value);
+                setSelectedGroup(e.target.value);
+              }}
+              className={styles.select}
+            >
+              <option value="">Chọn nhóm</option>
+              {groups.map((g) => (
+                <option key={g.groupId} value={g.groupId}>
+                  {g.groupName}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className={styles.noSelection}>
+          <p>Vui lòng chọn nhóm để xem danh sách sinh viên và đánh giá.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div className={styles.container}>
         <div className={styles.header}>
-          <h1>Đánh Giá Sinh Viên - Góc Nhìn Giảng Viên</h1>
+          <h1>Đánh giá sinh viên</h1>
         </div>
 
         <div className={styles.controls}>
@@ -637,7 +738,8 @@ export default function SupervisorEvaluation() {
               }}
               className={styles.select}
             >
-              <option value="">Chọn milestone</option>
+              {/* <option value="">Chọn milestone</option> */}
+              <option value="all">Tất cả đánh giá</option>
               {selectedGroupData?.milestones?.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}
