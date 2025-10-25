@@ -810,7 +810,7 @@ export default function StudentHome() {
       </div>
 
       {/* Debug Info */}
-      <div style={{ marginTop: 24, background: '#f3f4f6', padding: 16, borderRadius: 8 }}>
+      {/* <div style={{ marginTop: 24, background: '#f3f4f6', padding: 16, borderRadius: 8 }}>
         <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Debug Info</h3>
         <div style={{ fontSize: 12, color: '#374151' }}>
           <div>Total Tasks: {tasks.length}</div>
@@ -836,7 +836,7 @@ export default function StudentHome() {
             ))}
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Quick Summary */}
       <div style={{ marginTop: 24 }}>
