@@ -30,6 +30,9 @@ export default function SupervisorTracking() {
   const [detailModal, setDetailModal] = React.useState(false);
   const [milestoneDetails, setMilestoneDetails] = React.useState(null);
   const [confirming, setConfirming] = React.useState(false);
+  const [rejecting, setRejecting] = React.useState(false);
+  const [note, setNote] = React.useState('');
+  const [noteError, setNoteError] = React.useState('');
 
   // Load user info
   React.useEffect(() => {
@@ -42,12 +45,23 @@ export default function SupervisorTracking() {
         setUserInfo(user);
         
         // Load groups that this supervisor is supervising
-        if (user?.groupId) {
-          const groupsRes = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${user.groupId}`);
-          const groupsList = Array.isArray(groupsRes?.data?.data) ? groupsRes.data.data : [groupsRes?.data?.data].filter(Boolean);
-          setGroups(groupsList);
-          if (groupsList.length > 0) {
-            setSelectedGroup(groupsList[0]);
+        if (user?.groups && user.groups.length > 0) {
+          // Fetch all groups that this supervisor manages
+          const allGroups = [];
+          for (const groupId of user.groups) {
+            try {
+              const groupsRes = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
+              const groupData = groupsRes?.data?.data;
+              if (groupData) {
+                allGroups.push(groupData);
+              }
+            } catch (error) {
+              console.error(`Error loading group ${groupId}:`, error);
+            }
+          }
+          setGroups(allGroups);
+          if (allGroups.length > 0) {
+            setSelectedGroup(allGroups[0]);
           }
         }
       } catch {
@@ -175,6 +189,8 @@ export default function SupervisorTracking() {
         return '#d97706'; // Orange/Yellow
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
+      case 'REJECTED':
+        return '#dc2626'; // Red
       default:
         return '#64748b'; // Gray
     }
@@ -190,6 +206,8 @@ export default function SupervisorTracking() {
         return '⏳ Pending Review';
       case 'UNSUBMITTED':
         return '✗ Unsubmitted';
+      case 'REJECTED':
+        return '❌ Rejected';
       default:
         return '❓ Unknown';
     }
@@ -198,6 +216,8 @@ export default function SupervisorTracking() {
   const openDetailModal = async (milestone) => {
     setSelectedMilestone(milestone);
     setDetailModal(true);
+    setNote('');
+    setNoteError('');
     
     // Load milestone details
     try {
@@ -209,12 +229,50 @@ export default function SupervisorTracking() {
     }
   };
 
-  const handleConfirm = async (milestoneId) => {
-    if (!selectedGroup?.id) return;
+  const markDownload = async (attachmentId) => {
+    try {
+      const res = await client.put(`https://160.30.21.113:5000/api/v1/deliverables/Mark-download?attachmentId=${attachmentId}`);
+      if (res.data.status === 200) {
+        // Reload milestone details to update download status
+        if (selectedMilestone) {
+          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${selectedGroup.id}&deliverableId=${selectedMilestone.id}`);
+          setMilestoneDetails(detailRes?.data || null);
+        }
+      }
+    } catch (error) {
+      console.error('Error marking download:', error);
+    }
+  };
+
+  const checkAllAttachmentsDownloaded = () => {
+    if (!milestoneDetails?.deliveryItems) return false;
+    
+    return milestoneDetails.deliveryItems.every(item => 
+      item.attachments && item.attachments.length > 0 && 
+      item.attachments.every(attachment => attachment.isDownload)
+    );
+  };
+
+  const handleConfirm = async () => {
+    if (!selectedGroup?.id || !selectedMilestone) return;
+    
+    // Validate note
+    if (!note.trim()) {
+      setNoteError('Note is required for confirmation');
+      return;
+    }
+    
+    // Check if all attachments are downloaded
+    if (!checkAllAttachmentsDownloaded()) {
+      alert('Please download and review all attachments before confirming');
+      return;
+    }
     
     setConfirming(true);
+    setNoteError('');
+    
     try {
-      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/confirmed?groupdId=${selectedGroup.id}&deliverableId=${milestoneId}`);
+      const res = await client.put(`https://160.30.21.113:5000/api/v1/deliverables/confirmed?groupdId=${selectedGroup.id}&deliverableId=${selectedMilestone.id}&note=${encodeURIComponent(note)}`);
       
       // Reload milestones after successful confirmation
       const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${selectedGroup.id}`);
@@ -222,23 +280,64 @@ export default function SupervisorTracking() {
       setMilestones(list);
       
       // Update selectedMilestone with new status
-      const updatedMilestone = list.find(m => m.id === milestoneId);
+      const updatedMilestone = list.find(m => m.id === selectedMilestone.id);
       if (updatedMilestone) {
         setSelectedMilestone(updatedMilestone);
       }
       
       // Reload milestone details
-      if (selectedMilestone) {
-        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${selectedGroup.id}&deliverableId=${milestoneId}`);
-        setMilestoneDetails(detailRes?.data || null);
-      }
+      const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${selectedGroup.id}&deliverableId=${selectedMilestone.id}`);
+      setMilestoneDetails(detailRes?.data || null);
       
+      setNote('');
       alert('Milestone confirmed successfully!');
     } catch (error) {
       console.error('Error confirming milestone:', error);
       alert('Error confirming milestone. Please try again.');
     } finally {
       setConfirming(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!selectedGroup?.id || !selectedMilestone) return;
+    
+    // Validate note for rejection
+    if (!note.trim()) {
+      setNoteError('Note is required for rejection');
+      return;
+    }
+    
+    setRejecting(true);
+    setNoteError('');
+    
+    try {
+      const res = await client.put(`https://160.30.21.113:5000/api/v1/deliverables/reject?groupdId=${selectedGroup.id}&deliverableId=${selectedMilestone.id}&note=${encodeURIComponent(note)}`);
+      
+      if (res.data.status === 200) {
+        // Reload milestones after successful rejection
+        const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${selectedGroup.id}`);
+        const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
+        setMilestones(list);
+        
+        // Update selectedMilestone with new status
+        const updatedMilestone = list.find(m => m.id === selectedMilestone.id);
+        if (updatedMilestone) {
+          setSelectedMilestone(updatedMilestone);
+        }
+        
+        // Reload milestone details
+        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${selectedGroup.id}&deliverableId=${selectedMilestone.id}`);
+        setMilestoneDetails(detailRes?.data || null);
+        
+        setNote('');
+        alert('Milestone rejected successfully!');
+      }
+    } catch (error) {
+      console.error('Error rejecting milestone:', error);
+      alert('Error rejecting milestone. Please try again.');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -254,6 +353,9 @@ export default function SupervisorTracking() {
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      
+      // Mark as downloaded
+      await markDownload(attachment.id);
     } catch (error) {
       console.error('Error downloading file:', error);
       alert('Error downloading file. Please try again.');
@@ -570,24 +672,13 @@ export default function SupervisorTracking() {
                     </span>
                   </td>
                   <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                      <Button
-                        onClick={() => openDetailModal(milestone)}
-                        variant="ghost"
-                        style={{ fontSize: 11, padding: '4px 8px' }}
-                      >
-                        View Details
-                      </Button>
-                      {milestone.status === 'Pending' && (
-                        <Button
-                          onClick={() => handleConfirm(milestone.id)}
-                          disabled={confirming}
-                          style={{ fontSize: 11, padding: '4px 8px', background: '#059669', color: 'white' }}
-                        >
-                          {confirming ? 'Confirming...' : 'Confirm'}
-                        </Button>
-                      )}
-                    </div>
+                    <Button
+                      onClick={() => openDetailModal(milestone)}
+                      variant="ghost"
+                      style={{ fontSize: 11, padding: '4px 8px' }}
+                    >
+                      View Details
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -629,6 +720,7 @@ export default function SupervisorTracking() {
                       {getStatusText(selectedMilestone.status)}
                     </span>
                   </div>
+                  <div><strong>Note:</strong> {milestoneDetails?.note || 'Chưa có ghi chú nào'}</div>
                 </div>
               </div>
               
@@ -660,41 +752,74 @@ export default function SupervisorTracking() {
                         <p style={{ margin: 0, fontSize: 13, color: '#64748b' }}>{item.description}</p>
                       </div>
                       
-                      {/* Latest Attachment */}
+                      {/* All Attachments */}
                       {item.attachments && item.attachments.length > 0 && (
                         <div>
-                          <h5 style={{ margin: '0 0 8px 0', fontSize: 13, fontWeight: 600 }}>Current Version:</h5>
+                          <h5 style={{ margin: '0 0 8px 0', fontSize: 13, fontWeight: 600 }}>
+                            Files ({item.attachments.length}):
+                          </h5>
                           
-                          {(() => {
-                            const latestAttachment = getLatestAttachment(item.attachments);
-                            return latestAttachment ? (
-                              <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'space-between',
-                                padding: '8px 12px',
-                                background: 'white',
-                                border: '1px solid #d1d5db',
-                                borderRadius: 4
-                              }}>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontSize: 12, fontWeight: 500, wordBreak: 'break-all' }}>
-                                    {latestAttachment.path.split('/').pop()}
+                          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                            {item.attachments
+                              .sort((a, b) => new Date(b.createAt) - new Date(a.createAt))
+                              .map((attachment, index) => {
+                                const isLatest = index === 0;
+                                return (
+                                  <div key={attachment.id} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px 12px',
+                                    background: isLatest ? '#f0f9ff' : 'white',
+                                    border: isLatest ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                                    borderRadius: 4,
+                                    marginBottom: 8
+                                  }}>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                        <div style={{ fontSize: 12, fontWeight: 500, wordBreak: 'break-all' }}>
+                                          {attachment.path.split('/').pop()}
+                                        </div>
+                                        {isLatest && (
+                                          <span style={{
+                                            background: '#3b82f6',
+                                            color: 'white',
+                                            padding: '2px 6px',
+                                            borderRadius: 4,
+                                            fontSize: 10,
+                                            fontWeight: 600
+                                          }}>
+                                            CURRENT
+                                          </span>
+                                        )}
+                                        {attachment.isDownload && (
+                                          <span style={{
+                                            background: '#059669',
+                                            color: 'white',
+                                            padding: '2px 6px',
+                                            borderRadius: 4,
+                                            fontSize: 10,
+                                            fontWeight: 600
+                                          }}>
+                                            DOWNLOADED
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: '#64748b' }}>
+                                        Uploaded by {attachment.userName} on {formatDate(attachment.createAt, 'DD/MM/YYYY HH:mm')}
+                                      </div>
+                                    </div>
+                                    <Button
+                                      onClick={() => downloadFile(attachment)}
+                                      variant="ghost"
+                                      style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
+                                    >
+                                      Download
+                                    </Button>
                                   </div>
-                                  <div style={{ fontSize: 11, color: '#64748b' }}>
-                                    Uploaded by {latestAttachment.userName} on {formatDate(latestAttachment.createAt, 'DD/MM/YYYY HH:mm')}
-                                  </div>
-                                </div>
-                                <Button
-                                  onClick={() => downloadFile(latestAttachment)}
-                                  variant="ghost"
-                                  style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
-                                >
-                                  Download
-                                </Button>
-                              </div>
-                            ) : null;
-                          })()}
+                                );
+                              })}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -703,16 +828,80 @@ export default function SupervisorTracking() {
               </div>
             )}
 
+            {/* Note Input and Actions */}
+            {selectedMilestone.status === 'Pending' && (
+              <div style={{ marginTop: 24, padding: 16, background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                  Review Note (Required)
+                </h4>
+                <textarea
+                  value={note}
+                  onChange={(e) => {
+                    setNote(e.target.value);
+                    setNoteError('');
+                  }}
+                  placeholder="Enter your review note here..."
+                  style={{
+                    width: '100%',
+                    minHeight: '80px',
+                    padding: '8px 12px',
+                    border: `1px solid ${noteError ? '#dc2626' : '#d1d5db'}`,
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                    resize: 'vertical',
+                    outline: 'none'
+                  }}
+                />
+                {noteError && (
+                  <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
+                    {noteError}
+                  </div>
+                )}
+                
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  marginTop: '12px'
+                }}>
+                  <div style={{ fontSize: '12px', color: '#64748b' }}>
+                    {checkAllAttachmentsDownloaded() ? 
+                      '✓ All attachments downloaded' : 
+                      '⚠ Please download all attachments before confirming'
+                    }
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Button
+                      onClick={handleReject}
+                      disabled={rejecting || !note.trim()}
+                      style={{ 
+                        background: '#dc2626', 
+                        color: 'white',
+                        fontSize: '12px',
+                        padding: '6px 12px'
+                      }}
+                    >
+                      {rejecting ? 'Rejecting...' : 'Reject'}
+                    </Button>
+                    <Button
+                      onClick={handleConfirm}
+                      disabled={confirming || !note.trim() || !checkAllAttachmentsDownloaded()}
+                      style={{ 
+                        background: '#059669', 
+                        color: 'white',
+                        fontSize: '12px',
+                        padding: '6px 12px'
+                      }}
+                    >
+                      {confirming ? 'Confirming...' : 'Confirm'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
-              {selectedMilestone.status === 'Pending' && (
-                <Button
-                  onClick={() => handleConfirm(selectedMilestone.id)}
-                  disabled={confirming}
-                  style={{ background: '#059669', color: 'white' }}
-                >
-                  {confirming ? 'Confirming...' : 'Confirm Milestone'}
-                </Button>
-              )}
               <Button variant="ghost" onClick={() => setDetailModal(false)}>
                 Close
               </Button>
