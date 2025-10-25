@@ -34,9 +34,7 @@ export default function SupervisorMeetingManagement() {
 
   const fetchUserInfo = async () => {
     try {
-      console.log('Fetching user info...');
       const response = await client.get(`${API_BASE_URL}/auth/user-info`);
-      console.log('User info response:', response.data);
       
       if (response.data.status === 200) {
         const userData = response.data.data;
@@ -44,14 +42,11 @@ export default function SupervisorMeetingManagement() {
         
         // Lấy danh sách meetings cho tất cả nhóm mà supervisor hướng dẫn
         if (userData.groups && userData.groups.length > 0) {
-          console.log('Fetching meetings for supervisor groups');
           await fetchAllMeetings(userData.groups);
         } else {
-          console.log('No groups found in user data');
           setLoading(false);
         }
       } else {
-        console.log('User info API returned non-200 status:', response.data.status);
         setLoading(false);
       }
     } catch (error) {
@@ -84,7 +79,6 @@ export default function SupervisorMeetingManagement() {
   // Lấy meetings của tất cả nhóm mà supervisor hướng dẫn
   const fetchAllMeetings = async (groupIds) => {
     try {
-      console.log('Fetching meetings for groups:', groupIds);
       
       // Fetch thông tin tất cả các nhóm trước
       await fetchAllGroupsInfo(groupIds);
@@ -116,7 +110,6 @@ export default function SupervisorMeetingManagement() {
       // Lấy meeting minutes cho từng meeting
       const meetingsWithMinutes = await Promise.all(
         allMeetings.map(async (meeting) => {
-          console.log('Fetching minute for meeting:', meeting.id);
           const meetingMinute = await fetchMeetingMinute(meeting.id);
           return {
             ...meeting,
@@ -125,8 +118,6 @@ export default function SupervisorMeetingManagement() {
           };
         })
       );
-      
-      console.log('All meetings with minutes:', meetingsWithMinutes);
       setMeetings(meetingsWithMinutes);
       setLoading(false);
     } catch (error) {
@@ -157,9 +148,7 @@ export default function SupervisorMeetingManagement() {
   // Hàm tạo biên bản họp
   const createMeetingMinute = async (data) => {
     try {
-      console.log('Creating meeting minute with data:', data);
       const response = await client.post(`${API_BASE_URL}/MeetingMinute`, data);
-      console.log('API response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error creating meeting minute:', error);
@@ -273,7 +262,6 @@ export default function SupervisorMeetingManagement() {
 
   // Hàm mở modal biên bản họp
   const openMinuteModal = async (meeting) => {
-    console.log('Opening modal for meeting:', meeting);
     setSelectedMeeting(meeting);
     setShowMinuteModal(true);
     
@@ -282,7 +270,6 @@ export default function SupervisorMeetingManagement() {
     
     // Sử dụng dữ liệu đã có hoặc fetch mới
     const existingMinute = meeting.minuteData || await fetchMeetingMinute(meeting.id);
-    console.log('Existing minute:', existingMinute);
     
     if (existingMinute) {
       setMinuteData(existingMinute);
@@ -307,8 +294,6 @@ export default function SupervisorMeetingManagement() {
       });
       setIsEditing(false);
     }
-    
-    console.log('Modal opened, isEditing:', false, 'formData initialized');
   };
 
   // Hàm đóng modal
@@ -331,7 +316,6 @@ export default function SupervisorMeetingManagement() {
 
   // Hàm xử lý thay đổi input
   const handleInputChange = (field, value) => {
-    console.log('Input changed:', field, value);
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -348,7 +332,6 @@ export default function SupervisorMeetingManagement() {
 
   // Hàm validate form
   const validateForm = () => {
-    console.log('Validating form with data:', formData);
     const errors = {};
     
     if (!formData.startAt) {
@@ -367,22 +350,13 @@ export default function SupervisorMeetingManagement() {
       errors.endAt = 'Thời gian kết thúc phải sau thời gian bắt đầu';
     }
     
-    console.log('Validation errors:', errors);
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   // Hàm lưu biên bản họp
   const saveMeetingMinute = async () => {
-    console.log('Save meeting minute clicked!');
-    console.log('Form data:', formData);
-    console.log('Form errors:', formErrors);
-    console.log('Is editing:', isEditing);
-    console.log('Minute data:', minuteData);
-    console.log('Selected meeting:', selectedMeeting);
-    
     if (!validateForm()) {
-      console.log('Form validation failed');
       return;
     }
     
@@ -398,7 +372,6 @@ export default function SupervisorMeetingManagement() {
         meetingContent: formData.meetingContent,
         other: formData.other
       };
-        console.log('Updating meeting minute with data:', data);
         await updateMeetingMinute(data);
         alert('Cập nhật biên bản họp thành công!');
       } else {
@@ -412,7 +385,6 @@ export default function SupervisorMeetingManagement() {
           meetingContent: formData.meetingContent,
           other: formData.other
         };
-        console.log('Creating meeting minute with data:', data);
         await createMeetingMinute(data);
         alert('Tạo biên bản họp thành công!');
       }

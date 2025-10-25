@@ -35,26 +35,20 @@ export default function StudentMeetingManagement() {
 
   const fetchUserInfo = async () => {
     try {
-      console.log('Fetching user info...');
       const response = await client.get(`${API_BASE_URL}/auth/user-info`);
-      console.log('User info response:', response.data);
       
       if (response.data.status === 200) {
         const userData = response.data.data;
-        console.log('User data:', userData);
         setUserInfo(userData);
         setUserRole(userData.roleInGroup || userData.role);
         
         // Lấy danh sách meetings sau khi có thông tin user
         if (userData.groups && userData.groups.length > 0) {
-          console.log('Fetching meetings for group:', userData.groups[0]);
           await fetchMeetings(userData.groups[0]);
         } else {
-          console.log('No groups found in user data');
           setLoading(false);
         }
       } else {
-        console.log('User info API returned non-200 status:', response.data.status);
         setLoading(false);
       }
     } catch (error) {
@@ -67,19 +61,15 @@ export default function StudentMeetingManagement() {
   // Lấy danh sách meetings
   const fetchMeetings = async (groupId) => {
     try {
-      console.log('Fetching meetings for group:', groupId);
       const response = await client.get(`${API_BASE_URL}/Student/Meeting/group/${groupId}/schedule-dates`);
-      console.log('Meetings response:', response.data);
       
       if (response.data.status === 200) {
         const meetingsData = response.data.data;
-        console.log('Meetings data:', meetingsData);
         
         if (meetingsData && meetingsData.length > 0) {
           // Chuyển đổi dữ liệu và lấy meeting minutes cho từng meeting
           const meetingsWithMinutes = await Promise.all(
             meetingsData.map(async (meeting) => {
-              console.log('Fetching minute for meeting:', meeting.id);
               const meetingMinute = await fetchMeetingMinute(meeting.id);
               return {
                 ...meeting,
@@ -89,15 +79,12 @@ export default function StudentMeetingManagement() {
             })
           );
           
-          console.log('Meetings with minutes:', meetingsWithMinutes);
           setMeetings(meetingsWithMinutes);
         } else {
-          console.log('No meetings found');
           setMeetings([]);
         }
         setLoading(false);
       } else {
-        console.log('Meetings API returned non-200 status:', response.data.status);
         setLoading(false);
       }
     } catch (error) {
@@ -168,10 +155,7 @@ export default function StudentMeetingManagement() {
   // Hàm tạo biên bản họp
   const createMeetingMinute = async (data) => {
     try {
-      console.log('Creating meeting minute with data:', data);
-      console.log('API URL:', `${API_BASE_URL}/MeetingMinute`);
       const response = await client.post(`${API_BASE_URL}/MeetingMinute`, data);
-      console.log('API response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Error creating meeting minute:', error);
@@ -273,13 +257,11 @@ export default function StudentMeetingManagement() {
 
   // Hàm mở modal biên bản họp
   const openMinuteModal = async (meeting) => {
-    console.log('Opening modal for meeting:', meeting);
     setSelectedMeeting(meeting);
     setShowMinuteModal(true);
     
     // Sử dụng dữ liệu đã có hoặc fetch mới
     const existingMinute = meeting.minuteData || await fetchMeetingMinute(meeting.id);
-    console.log('Existing minute:', existingMinute);
     
     if (existingMinute) {
       setMinuteData(existingMinute);
@@ -304,8 +286,6 @@ export default function StudentMeetingManagement() {
       });
       setIsEditing(false);
     }
-    
-    console.log('Modal opened, isEditing:', false, 'formData initialized');
   };
 
   // Hàm đóng modal
@@ -327,7 +307,6 @@ export default function StudentMeetingManagement() {
 
   // Hàm xử lý thay đổi input
   const handleInputChange = (field, value) => {
-    console.log('Input changed:', field, value);
     setFormData(prev => ({
       ...prev,
       [field]: value
@@ -344,7 +323,6 @@ export default function StudentMeetingManagement() {
 
   // Hàm validate form
   const validateForm = () => {
-    console.log('Validating form with data:', formData);
     const errors = {};
     
     if (!formData.startAt) {
@@ -363,22 +341,13 @@ export default function StudentMeetingManagement() {
       errors.endAt = 'Thời gian kết thúc phải sau thời gian bắt đầu';
     }
     
-    console.log('Validation errors:', errors);
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
   // Hàm lưu biên bản họp
   const saveMeetingMinute = async () => {
-    console.log('Save meeting minute clicked!');
-    console.log('Form data:', formData);
-    console.log('Form errors:', formErrors);
-    console.log('Is editing:', isEditing);
-    console.log('Minute data:', minuteData);
-    console.log('Selected meeting:', selectedMeeting);
-    
     if (!validateForm()) {
-      console.log('Form validation failed');
       return;
     }
     
@@ -394,7 +363,6 @@ export default function StudentMeetingManagement() {
         meetingContent: formData.meetingContent,
         other: formData.other
       };
-        console.log('Updating meeting minute with data:', data);
         await updateMeetingMinute(data);
         alert('Cập nhật biên bản họp thành công!');
       } else {
@@ -408,7 +376,6 @@ export default function StudentMeetingManagement() {
           meetingContent: formData.meetingContent,
           other: formData.other
         };
-        console.log('Creating meeting minute with data:', data);
         await createMeetingMinute(data);
         alert('Tạo biên bản họp thành công!');
       }
@@ -447,20 +414,6 @@ export default function StudentMeetingManagement() {
     }
   };
 
-  // Debug state
-  console.log('Current state:', { 
-    loading,
-    meetings: meetings.length,
-    userInfo,
-    userRole, 
-    isSecretary,
-    showMinuteModal, 
-    selectedMeeting, 
-    formData,
-    formErrors,
-    isEditing,
-    minuteData
-  });
 
   if (loading) {
     return (
@@ -908,10 +861,7 @@ export default function StudentMeetingManagement() {
                     </Button>
                   )}
                   <Button 
-                    onClick={() => {
-                      console.log('Button clicked!');
-                      saveMeetingMinute();
-                    }}
+                    onClick={saveMeetingMinute}
                     className={styles.saveButton}
                   >
                     {isEditing ? 'Cập nhật' : 'Tạo biên bản'}

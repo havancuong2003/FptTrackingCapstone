@@ -66,7 +66,37 @@ export default function StudentTasks() {
   const [activeFilter, setActiveFilter] = React.useState('active'); // 'all', 'active', 'inactive'
   const [myTasksOnly, setMyTasksOnly] = React.useState(true);
   const [viewType, setViewType] = React.useState('my_tasks'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
-  // API: lấy deliverables theo group
+  // API: lấy deliverables theo group (backend vẫn là deliverable, chỉ data trả về gọi là milestone)
+  const fetchMilestonesByGroup = async (gid) => {
+    try {
+      const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
+      
+      if (response.data.status === 200) {
+        // Kiểm tra data có tồn tại và không null/undefined
+        const apiData = response.data.data;
+        const deliverablesData = Array.isArray(apiData) ? apiData : [];
+        
+        // Map data từ API response sang format frontend (vẫn gọi là milestone cho UI)
+        return deliverablesData.map(deliverable => ({
+          id: deliverable.id,
+          name: deliverable.name,
+          groupId: gid,
+          description: deliverable.description,
+          deadline: deliverable.deadline
+        }));
+      } else {
+        console.error('Error fetching deliverables:', response.data.message);
+        alert(`Error lấy deliverables: ${response.data.message}`);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching deliverables:', error);
+      alert(`Error kết nối deliverables: ${error.message}`);
+      return [];
+    }
+  };
+
+  // API: lấy deliverables theo group (giữ lại cho tương thích)
   const fetchDeliverablesByGroup = async (gid) => {
     try {
       const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
@@ -223,14 +253,17 @@ export default function StudentTasks() {
           priority: task.priority?.toLowerCase() || 'medium',
           status: task.status === 'ToDo' ? 'todo' : 
                  task.status === 'InProgress' ? 'inProgress' : 'done',
-          deliverableId: task.deliverable?.id || null,
-          deliverableName: task.deliverable?.name || 'No Deliverable',
+          deliverableId: task.milestone?.id || null,
+          deliverableName: task.milestone?.name || 'No Deliverable',
           createdAt: task.createdAt,
           progress: parseInt(task.process) || 0,
           attachments: task.attachments || [],
           comments: task.comments || [],
           history: task.history || [],
-          isActive: task.isActive !== undefined ? task.isActive : true // Thêm trường isActive từ API
+          isActive: task.isActive !== undefined ? task.isActive : true, // Thêm trường isActive từ API
+          isMeetingTask: task.isMeetingTask || false, // Thêm trường isMeetingTask
+          meetingId: task.meetingId || null, // Thêm trường meetingId
+          reviewerId: task.reviewerId || null // Thêm trường reviewerId
         }));
 
         setAllTasks(mappedTasks);
@@ -249,18 +282,18 @@ export default function StudentTasks() {
     const bootstrapFilters = async () => {
       try {
         setLoading(true);
-        // Load dữ liệu filter trước (deliverables/students/meetings/reviewers theo group)
-        const [deliverableRes, studentRes, meetingRes, reviewerRes] = await Promise.all([
-          fetchDeliverablesByGroup(groupId),
+        // Load dữ liệu filter trước (milestones/students/meetings/reviewers theo group)
+        const [milestoneRes, studentRes, meetingRes, reviewerRes] = await Promise.all([
+          fetchMilestonesByGroup(groupId),
           fetchStudentsByGroup(groupId),
           fetchCompletedMeetings(groupId),
           fetchReviewers(groupId),
         ]);
-        const deliverablesData = deliverableRes;
+        const milestonesData = milestoneRes;
         const students = studentRes;
         const meetings = meetingRes;
         const reviewers = reviewerRes;
-        setDeliverables(deliverablesData);
+        setDeliverables(milestonesData); // Sử dụng milestones thay vì deliverables
         setMeetings(meetings);
         setReviewers(reviewers);
         // Tự động load issues khi vào trang
@@ -330,8 +363,8 @@ export default function StudentTasks() {
             )}
           </div>
           <div className={styles.taskType}>
-            <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'deliverable']}`}>
-              {task.isMeetingTask ? 'Meeting' : 'Deliverable'}
+            <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'throughout']}`}>
+              {task.isMeetingTask ? 'Meeting' : 'Throughout'}
             </span>
           </div>
         </div>
@@ -495,7 +528,7 @@ export default function StudentTasks() {
     // Deliverable có thể có cho cả 2 loại task (tùy chọn)
 
     try {
-      const selectedDeliverable = deliverables.find(d => d.id.toString() === newTask.deliverableId);
+      const selectedMilestone = deliverables.find(d => d.id.toString() === newTask.deliverableId);
         const selectedAssignee = assigneeOptions.find(a => 
         {
 
@@ -549,7 +582,7 @@ export default function StudentTasks() {
         priority: newTask.priority === 'high' ? 'High' : 
                  newTask.priority === 'medium' ? 'Medium' : 'Low',
         process: '0',
-        deliverableId: newTask.deliverableId ? parseInt(newTask.deliverableId) : null,
+        deliverableId: newTask.deliverableId ? parseInt(newTask.deliverableId) : null, // Backend vẫn sử dụng deliverableId
         meetingId: newTask.meetingId ? parseInt(newTask.meetingId) : null,
         taskType: newTask.taskType,
         assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null,
@@ -573,7 +606,7 @@ export default function StudentTasks() {
           status: createdTask.status === 'ToDo' ? 'todo' : 
                  createdTask.status === 'InProgress' ? 'inProgress' : 'done',
           deliverableId: createdTask.deliverableId || (newTask.deliverableId ? parseInt(newTask.deliverableId) : null),
-          deliverableName: createdTask.deliverableName || selectedDeliverable?.name || 'No Deliverable',
+          deliverableName: createdTask.deliverableName || selectedMilestone?.name || 'No Deliverable',
           createdAt: createdTask.createdAt || new Date().toISOString(),
           progress: parseInt(createdTask.process) || 0,
           attachments: createdTask.attachments || [],
@@ -629,7 +662,7 @@ export default function StudentTasks() {
         statusId: backendStatus, // Sử dụng statusId thay vì status
         priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: toStatus === 'done' ? '100' : currentTask.progress.toString(),
-        deliverableId: currentTask.deliverableId || 0,
+        deliverableId: currentTask.deliverableId || 0, // Backend vẫn sử dụng deliverableId
         meetingId: currentTask.meetingId || 0,
         assignedUserId: currentTask.assignee || 0,
         reviewerId: currentTask.reviewerId || 0
@@ -805,6 +838,7 @@ export default function StudentTasks() {
   });
 
   const deliverableOptions = deliverables.map(d => ({ value: d.id ? d.id.toString() : '', label: d.name }));
+
   const assigneeOptions = assigneeSource.map(s => {
     return { value: s.id, label: s.name  , email: s.email}
   });

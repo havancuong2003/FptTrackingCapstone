@@ -71,8 +71,8 @@ export default function TaskDetail() {
             priority: taskData.priority.toLowerCase(),
             status: taskData.status === 'ToDo' ? 'todo' : 
                    taskData.status === 'InProgress' ? 'inProgress' : 'done',
-            milestoneId: taskData.milestone?.id || null,
-            milestoneName: taskData.milestone?.name || 'No Milestone',
+            deliverableId: taskData.milestone?.id || null,
+            deliverableName: taskData.milestone?.name || 'No Deliverable',
             createdAt: taskData.createdAt,
             progress: parseInt(taskData.process) || 0,
             attachments: taskData.attachments || [],
@@ -225,7 +225,7 @@ export default function TaskDetail() {
         statusId: backendStatus, // Sử dụng statusId thay vì status
         priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: task.progress.toString(),
-        deliverableId: task.deliverableId || 0,
+        deliverableId: task.deliverableId || 0, // Backend vẫn sử dụng deliverableId
         meetingId: task.meetingId || 0,
         assignedUserId: task.assignee || 0,
         reviewerId: task.reviewerId || 0
@@ -282,7 +282,7 @@ export default function TaskDetail() {
                  task.status === 'inProgress' ? 'InProgress' : 'Done',
         priorityId: backendPriority,
         process: clamped.toString(), // Cập nhật progress
-        deliverableId: task.deliverableId || 0,
+        deliverableId: task.deliverableId || 0, // Backend vẫn sử dụng deliverableId
         meetingId: task.meetingId || 0,
         assignedUserId: task.assignee || 0,
         reviewerId: task.reviewerId || 0
@@ -376,8 +376,8 @@ export default function TaskDetail() {
                 <span>{formatDate(task.deadline)}</span>
               </div>
               <div className={styles.infoItem}>
-                <label>Milestone:</label>
-                <span>{task.milestoneName}</span>
+                <label>Deliverable:</label>
+                <span>{task.deliverableName}</span>
               </div>
               <div className={styles.infoItem}>
                 <label>Status:</label>
