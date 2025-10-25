@@ -171,47 +171,36 @@ export default function StudentTasks() {
   };
 
   // API: lấy meetings đã họp để tạo meeting tasks
-  // TODO: API này chưa có, tạm thời mock data
   const fetchCompletedMeetings = async (gid) => {
     try {
-      // Mock data cho meetings đã hoàn thành
-      const mockMeetings = [
-        {
-          id: 1,
-          description: "Meeting tuần 1 - Review tiến độ dự án",
-          meetingDate: "2024-01-15",
-          startTime: "09:00:00",
-          endTime: "11:00:00"
-        },
-        {
-          id: 2,
-          description: "Meeting tuần 2 - Demo prototype",
-          meetingDate: "2024-01-22",
-          startTime: "14:00:00",
-          endTime: "16:00:00"
-        },
-        {
-          id: 3,
-          description: "Meeting tuần 3 - Code review",
-          meetingDate: "2024-01-29",
-          startTime: "10:00:00",
-          endTime: "12:00:00"
-        },
-        {
-          id: 4,
-          description: "Meeting tuần 4 - Testing và bug fix",
-          meetingDate: "2024-02-05",
-          startTime: "15:00:00",
-          endTime: "17:00:00"
-        }
-      ];
+      const response = await axiosClient.get(`/Student/Meeting/group/${gid}/schedule-dates`);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      return mockMeetings;
+      if (response.data.status === 200) {
+        // Kiểm tra data có tồn tại và không null/undefined
+        const apiData = response.data.data;
+        const meetingsData = Array.isArray(apiData) ? apiData : [];
+        
+        // Chỉ lấy ra những meeting có isMeeting = true
+        const filteredMeetings = meetingsData.filter(meeting => meeting.isMeeting === true);
+        
+        // Map data từ API response sang format frontend
+        return filteredMeetings.map(meeting => ({
+          id: meeting.id,
+          description: meeting.description,
+          meetingDate: meeting.meetingDate,
+          startTime: meeting.time,
+          endTime: meeting.time, // Sử dụng time làm endTime nếu không có endTime riêng
+          meetingLink: meeting.meetingLink,
+          dayOfWeek: meeting.dayOfWeek
+        }));
+      } else {
+        console.error('Error fetching meetings:', response.data.message);
+        alert(`Error lấy danh sách meetings: ${response.data.message}`);
+        return [];
+      }
     } catch (error) {
       console.error('Error fetching meetings:', error);
+      alert(`Error kết nối meetings: ${error.message}`);
       return [];
     }
   };
@@ -533,7 +522,6 @@ export default function StudentTasks() {
         if (selectedReviewer?.email) {
           emailRecipients.push(selectedReviewer.email);
         }
-        console.log("emailRecipients", emailRecipients);
         
         if (emailRecipients.length > 0) {
           await sendTaskNotification({
@@ -545,7 +533,6 @@ export default function StudentTasks() {
           });
           
         } else {
-          console.log('No email recipients found');
         }
       } catch (emailError) {
         console.error('Error sending email notification:', emailError);
