@@ -128,7 +128,7 @@ export default function StudentMilestones() {
   };
 
   const handleUpload = async (deliveryItemId) => {
-    if (!selectedFile || !userInfo?.groupId) return;
+    if (!selectedFile || !userInfo?.groups[0]) return;
     
     setUploading(true);
     try {
