@@ -44,7 +44,6 @@ export async function login({ username, password }) {
     const meRes = await client.get('/auth/user-info');
     const meBody = meRes?.data;
     const me = meBody?.data || meBody || null;
-    
     if (me) {
       const role = me.role || localStorage.getItem(USER_ROLE_KEY) || 'STUDENT';
       const roleInGroup = me.roleInGroup || me.role_in_group || me.groupRole || null;
@@ -56,14 +55,17 @@ export async function login({ username, password }) {
           id: me.id || me.userId || 'u_1', 
           name: me.name || me.fullName || 'User', 
           role,
-          roleInGroup 
+          roleInGroup,
+          groups: me.groups || []
         })
       );
 
       // Lưu groupId cho student để dùng cho điều hướng tasks
       try {
         const isStudent = String(role).toUpperCase() === 'STUDENT';
-        const groupId = me.groupId || me.groupID || me.group?.id || me.currentGroupId || null;
+        // Lấy groupId từ mảng groups, lấy phần tử đầu tiên
+        const groupId = me.groups && me.groups.length > 0 ? me.groups[0] : 
+                       me.groupId || me.groupID || me.group?.id || me.currentGroupId || null;
         if (isStudent && groupId) {
           localStorage.setItem('student_group_id', String(groupId));
         }
@@ -124,6 +126,19 @@ export function getUserInfo() {
   try {
     const userInfo = localStorage.getItem(USER_INFO_KEY);
     return userInfo ? JSON.parse(userInfo) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper function để lấy groupId từ groups (phần tử đầu tiên)
+export function getGroupId() {
+  try {
+    const userInfo = getUserInfo();
+    if (userInfo && userInfo.groups && userInfo.groups.length > 0) {
+      return userInfo.groups[0];
+    }
+    return null;
   } catch {
     return null;
   }

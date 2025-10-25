@@ -217,34 +217,21 @@ export default function StudentHome() {
     
     const selectedWeekData = weeks.find(w => w.weekNumber === selectedWeek);
     if (!selectedWeekData) {
-      console.log('No week data found for week:', selectedWeek);
       return [];
     }
     
-    console.log('Selected week data:', selectedWeekData);
     const weekStart = new Date(selectedWeekData.startAt);
     const weekEnd = new Date(selectedWeekData.endAt);
     
     // Set week end to 23:59:59 to include the entire last day
     weekEnd.setHours(23, 59, 59, 999);
     
-    console.log('Selected week:', selectedWeek);
-    console.log('Week start:', weekStart);
-    console.log('Week end (adjusted):', weekEnd);
-    console.log('All tasks:', tasks.length);
-    
     const weekTasks = tasks.filter(task => {
       if (!task.deadline) return false;
       const deadline = new Date(task.deadline);
-      console.log(`Task ${task.id} deadline:`, deadline);
-      console.log(`Week start: ${weekStart}, Week end: ${weekEnd}`);
-      console.log(`Deadline >= weekStart: ${deadline >= weekStart}`);
-      console.log(`Deadline <= weekEnd: ${deadline <= weekEnd}`);
-      console.log(`Is in range: ${deadline >= weekStart && deadline <= weekEnd}`);
       return deadline >= weekStart && deadline <= weekEnd;
     });
     
-    console.log('Week tasks found:', weekTasks.length);
     return weekTasks;
   };
 
@@ -297,9 +284,6 @@ export default function StudentHome() {
     const weekTasks = getTasksForWeek();
     if (!weekTasks.length) return null;
     
-    console.log(`Looking for task in day ${day}, time slot ${timeSlot.start}-${timeSlot.end}`);
-    console.log('Week tasks:', weekTasks.length);
-    
     // Tìm task phù hợp với ngày và giờ
     for (const task of weekTasks) {
       const deadline = new Date(task.deadline);
@@ -309,10 +293,7 @@ export default function StudentHome() {
       // Convert Sunday=0 to Monday=0 format
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
-      console.log(`Task ${task.id}: deadline=${deadline}, dayOfWeek=${dayOfWeek}, adjustedDay=${adjustedDay}, hour=${hour}`);
-      
       if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-        console.log(`Found matching task: ${task.id}`);
         return task;
       }
     }
