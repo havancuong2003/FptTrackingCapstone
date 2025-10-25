@@ -383,39 +383,46 @@ export default function SupervisorTracking() {
         
         {/* Group Members Table */}
         {groupInfo?.students && (
-          <div style={{ flex: 1 }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Group Members</h3>
+          <div style={{ flex: 1, minWidth: '400px' }}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#333' }}>Group Members</h3>
             <div style={{ 
               border: '1px solid #e5e7eb', 
               borderRadius: 8, 
               overflow: 'hidden',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
+              boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+              background: '#fff',
+              width: '50%'
             }}>
               <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                 <thead style={{ background: '#f9fafb' }}>
                   <tr>
-                    <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Student ID</th>
-                    <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Name</th>
-                    <th style={{ textAlign: 'center', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Role</th>
+                    <th style={{ textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '50px' }}>#</th>
+                    <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '120px' }}>Roll Number</th>
+                    <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Name</th>
+                    <th style={{ textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '100px' }}>Role</th>
                   </tr>
                 </thead>
                 <tbody>
                   {groupInfo.students.map((student, index) => (
-                    <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                      <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9' }}>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{student.id}</div>
+                    <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9', background: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
+                      <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: '#6c757d' }}>{index + 1}</div>
                       </td>
-                      <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9' }}>
-                        <div style={{ fontSize: 14 }}>{student.name}</div>
+                      <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                        <div style={{ fontWeight: 600, fontSize: 13, color: '#333' }}>{student.rollNumber}</div>
                       </td>
-                      <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                      <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                        <div style={{ fontSize: 14, color: '#333' }}>{student.name}</div>
+                      </td>
+                      <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
                         <span style={{ 
                           color: '#059669', 
                           background: '#ecfdf5',
                           padding: '4px 8px',
                           borderRadius: 6,
                           fontSize: 12,
-                          fontWeight: 600
+                          fontWeight: 600,
+                          border: '1px solid #10b981'
                         }}>
                           {student.role}
                         </span>
@@ -430,38 +437,43 @@ export default function SupervisorTracking() {
       </div>
       
       {/* Milestones Summary Table */}
-      <div style={{ flex: 1 , gap: 16, marginTop: 24}}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Milestones Summary</h3>
+      <div style={{ flex: 1, marginTop: 24 }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#333' }}>Milestones Summary</h3>
         <div style={{ 
           border: '1px solid #e5e7eb', 
           borderRadius: 8, 
           overflow: 'hidden',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
+          boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+          background: '#fff'
         }}>
           <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-            <thead style={{ background: '#f9fafb' }}>
+            <thead style={{ background: '#f8f9fa' }}>
               <tr>
-                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Milestone</th>
-                <th style={{ textAlign: 'left', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Deadline</th>
-                <th style={{ textAlign: 'center', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Status</th>
-                <th style={{ textAlign: 'center', padding: '12px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Actions</th>
+                <th style={{ textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '50px' }}>#</th>
+                <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Milestone</th>
+                <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '150px' }}>Deadline</th>
+                <th style={{ textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '200px' }}>Status</th>
+                <th style={{ textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '100px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {milestones.map((milestone) => (
-                <tr key={milestone.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9' }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{milestone.name}</div>
+              {milestones.map((milestone, index) => (
+                <tr key={milestone.id} style={{ borderBottom: '1px solid #f1f5f9', background: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
+                  <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, color: '#6c757d' }}>{index + 1}</div>
+                  </td>
+                  <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: '#333' }}>{milestone.name}</div>
                     {milestone.description && (
                       <div style={{ fontSize: 12, color: '#64748b' }}>{milestone.description}</div>
                     )}
                   </td>
-                  <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                  <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9' }}>
                     <div style={{ color: '#059669', fontWeight: 600, fontSize: 13 }}>
                        {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
                     </div>
                   </td>
-                  <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                  <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
                     <span style={{ 
                       color: getStatusColor(milestone.status), 
                       background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
@@ -470,16 +482,26 @@ export default function SupervisorTracking() {
                       padding: '4px 8px',
                       borderRadius: 6,
                       fontSize: 12,
-                      fontWeight: 600
+                      fontWeight: 600,
+                      border: `1px solid ${getStatusColor(milestone.status)}`
                     }}>
                       {getStatusText(milestone.status)}
                     </span>
                   </td>
-                  <td style={{ padding: '12px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                  <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
                     <Button
                       onClick={() => openDetailModal(milestone)}
                       variant="ghost"
-                      style={{ fontSize: 11, padding: '4px 8px' }}
+                      style={{ 
+                        fontSize: 12, 
+                        padding: '6px 12px',
+                        background: '#007bff',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontWeight: 500
+                      }}
                     >
                       View Details
                     </Button>
@@ -488,7 +510,7 @@ export default function SupervisorTracking() {
               ))}
               {milestones.length === 0 && (
                 <tr>
-                  <td colSpan={4} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
+                  <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
                     No milestones found
                   </td>
                 </tr>
