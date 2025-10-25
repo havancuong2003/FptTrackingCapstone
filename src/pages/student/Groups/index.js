@@ -3,7 +3,7 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import { getRoleInGroup, getUserInfo } from '../../../auth/auth';
-import axiosClient from '../../../utils/axiosClient';
+import client from '../../../utils/axiosClient';
 
 export default function StudentGroups() {
     const [groups, setGroups] = React.useState([]);
@@ -25,17 +25,19 @@ export default function StudentGroups() {
             try {
                 setLoading(true);
                 
-                // Get groupId from localStorage (set during login)
-                const groupId = localStorage.getItem('student_group_id');
+                // Get user info first to get groups
+                const userResponse = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
+                const userInfo = userResponse?.data?.data;
                 
-                if (!groupId) {
-                    console.error('No group ID found for student');
+                if (!userInfo?.groups || userInfo.groups.length === 0) {
+                    console.error('No groups found for student');
                     setGroups([]);
                     return;
                 }
                 
-                // Call API to get current student's group
-                const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
+                // Get group details for the first group
+                const groupId = userInfo.groups[0];
+                const response = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
                 
                 if (response.data.status === 200) {
                     // Convert API data format to required format
@@ -135,7 +137,7 @@ export default function StudentGroups() {
             }
             
             // Call API to change role
-            const response = await axiosClient.put(`/Staff/update-role?groupId=${targetGroup.id}&studentId=${memberToChangeRole.studentId}`, 
+            const response = await client.put(`https://160.30.21.113:5000/api/v1/Staff/update-role?groupId=${targetGroup.id}&studentId=${memberToChangeRole.studentId}`, 
                 `"${selectedRole}"`,
                 {
                     headers: {
