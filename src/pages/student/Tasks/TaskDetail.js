@@ -219,13 +219,16 @@ export default function TaskDetail() {
       const updateData = {
         id: parseInt(taskId),
         name: task.title,
+        groupId: parseInt(groupId) || 1,
         description: task.description,
         endAt: task.deadline,
         statusId: backendStatus, // Sử dụng statusId thay vì status
         priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: task.progress.toString(),
-        milestoneId: task.milestoneId || 0,
-        assignedUserId: task.assignee || 0
+        deliverableId: task.deliverableId || 0,
+        meetingId: task.meetingId || 0,
+        assignedUserId: task.assignee || 0,
+        reviewerId: task.reviewerId || 0
       };
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
@@ -272,14 +275,17 @@ export default function TaskDetail() {
       const updateData = {
         id: parseInt(taskId),
         name: task.title,
+        groupId: parseInt(groupId) || 1,
         description: task.description,
         endAt: task.deadline,
         statusId: task.status === 'todo' ? 'ToDo' : 
                  task.status === 'inProgress' ? 'InProgress' : 'Done',
         priorityId: backendPriority,
         process: clamped.toString(), // Cập nhật progress
-        milestoneId: task.milestoneId || 0,
-        assignedUserId: task.assignee || 0
+        deliverableId: task.deliverableId || 0,
+        meetingId: task.meetingId || 0,
+        assignedUserId: task.assignee || 0,
+        reviewerId: task.reviewerId || 0
       };
       const response = await axiosClient.post('/Student/Task/update', updateData);
       

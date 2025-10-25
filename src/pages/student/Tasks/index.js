@@ -623,13 +623,16 @@ export default function StudentTasks() {
       const updateData = {
         id: parseInt(taskId),
         name: currentTask.title,
+        groupId: parseInt(groupId) || 1,
         description: currentTask.description,
         endAt: currentTask.deadline,
         statusId: backendStatus, // Sử dụng statusId thay vì status
         priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: toStatus === 'done' ? '100' : currentTask.progress.toString(),
         deliverableId: currentTask.deliverableId || 0,
-        assignedUserId: currentTask.assignee || 0
+        meetingId: currentTask.meetingId || 0,
+        assignedUserId: currentTask.assignee || 0,
+        reviewerId: currentTask.reviewerId || 0
       };
       const response = await axiosClient.post('/Student/Task/update', updateData);
       

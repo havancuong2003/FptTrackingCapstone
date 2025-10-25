@@ -225,7 +225,6 @@ export default function SupervisorSchedule() {
               message: `Giảng viên ${currentUser.name} đã xác nhận lịch họp nhóm. Vui lòng tham gia đúng giờ.`
             });
             
-            console.log('Email notification sent to students');
           }
         } catch (emailError) {
           console.error('Error sending email notification:', emailError);

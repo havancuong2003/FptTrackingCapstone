@@ -40,7 +40,6 @@ export default function SupervisorMeetingManagement() {
       
       if (response.data.status === 200) {
         const userData = response.data.data;
-        console.log('User data:', userData);
         setUserInfo(userData);
         
         // Lấy danh sách meetings cho tất cả nhóm mà supervisor hướng dẫn
