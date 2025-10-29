@@ -365,7 +365,7 @@ export default function StudentTasks() {
           </div>
           <div className={styles.taskType}>
             <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'throughout']}`}>
-              {task.isMeetingTask ? 'Meeting' : 'Main Task'}
+              {task.isMeetingTask ? 'Issue' : 'Main Task'}
             </span>
           </div>
         </div>
@@ -896,10 +896,10 @@ export default function StudentTasks() {
              >
                <option value="">All</option>
                <option value="throughout">Main Task</option>
-               <option value="meeting">Meeting</option>
+               <option value="meeting">Issue</option>
              </select>
            </div>
-           {taskTypeFilter === 'meeting' && (
+           {(taskTypeFilter === 'meeting' || taskTypeFilter === '') && (
              <div className={styles.controlGroup}>
                <label>Meeting:</label>
                <select
@@ -907,7 +907,7 @@ export default function StudentTasks() {
                  onChange={(e) => setMeetingFilter(e.target.value)}
                  className={styles.select}
                >
-                 <option value="">All Meetings</option>
+                 <option value="">All Meeting Issues</option>
                  {meetings.map(meeting => (
                    <option key={meeting.id} value={meeting.id}>
                      {meeting.description} - {new Date(meeting.meetingDate).toLocaleDateString('vi-VN')}
