@@ -356,7 +356,7 @@ export default function TaskDetail() {
               <div className={styles.infoItem}>
                 <label>Task Type:</label>
                 <span className={styles.taskTypeBadge}>
-                  {task.isMeetingTask ? 'Meeting Task' : 'Throughout Task'}
+                  {task.isMeetingTask ? 'Issue' : 'Main Task'}
                 </span>
               </div>
               <div className={styles.infoItem}>
