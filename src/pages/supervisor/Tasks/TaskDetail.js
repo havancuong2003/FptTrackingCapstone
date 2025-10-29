@@ -187,8 +187,8 @@ export default function SupervisorTaskDetail() {
     return (
       <div className={styles.error}>
         <h2>Task not found</h2>
-        <BackButton to={`/supervisor/tasks?groupId=${groupId || '1'}`}>
-          ← Back to Tasks
+        <BackButton onClick={() => navigate(-1)}>
+          ← Back
         </BackButton>
       </div>
     );
@@ -198,8 +198,8 @@ export default function SupervisorTaskDetail() {
 
   return (
     <div className={styles.container}>
-      <BackButton to={`/supervisor/tasks?groupId=${groupId || '1'}`}>
-        ← Back to Tasks
+      <BackButton onClick={() => navigate(-1)}>
+        ← Back
       </BackButton>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
