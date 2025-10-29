@@ -14,6 +14,16 @@ async function triggerLogout() {
 const normalizedBaseURL = (API_BASE_URL || '').replace(/\/+$/, '');
 const client = axios.create({ baseURL: normalizedBaseURL, withCredentials: true });
 
+function navigateHomeWithAlert(message) {
+  try {
+    if (message) {
+      window.alert(message);
+    }
+    // Điều hướng về trang home (root)
+    window.location.replace('/');
+  } catch {}
+}
+
 // Request Interceptor
 client.interceptors.request.use((config) => {
   startLoading();
@@ -31,6 +41,12 @@ client.interceptors.response.use(
     if (status === 401) {
       // Token hết hạn → logout
       triggerLogout();
+      return Promise.reject({ status, message, data });
+    }
+
+    if (status === 403) {
+      // Không có quyền truy cập → cảnh báo và trở về home
+      navigateHomeWithAlert('Bạn không có quyền truy cập.');
       return Promise.reject({ status, message, data });
     }
 
@@ -76,6 +92,12 @@ client.interceptors.response.use(
       message: error.message,
       data: null,
     };
+
+    // Chặn 403 ở nhánh lỗi HTTP (server trả thẳng 403 không bọc trong body)
+    if (error?.response?.status === 403) {
+      navigateHomeWithAlert('Bạn không có quyền truy cập.');
+      return Promise.reject(resData);
+    }
     return Promise.reject(resData);
   }
 );
