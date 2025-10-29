@@ -3,7 +3,7 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import { getRoleInGroup, getUserInfo } from '../../../auth/auth';
-import axiosClient from '../../../utils/axiosClient';
+import client from '../../../utils/axiosClient';
 
 export default function StudentGroups() {
     const [groups, setGroups] = React.useState([]);
@@ -25,17 +25,19 @@ export default function StudentGroups() {
             try {
                 setLoading(true);
                 
-                // Get groupId from localStorage (set during login)
-                const groupId = localStorage.getItem('student_group_id');
+                // Get user info first to get groups
+                const userResponse = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
+                const userInfo = userResponse?.data?.data;
                 
-                if (!groupId) {
-                    console.error('No group ID found for student');
+                if (!userInfo?.groups || userInfo.groups.length === 0) {
+                    console.error('No groups found for student');
                     setGroups([]);
                     return;
                 }
                 
-                // Call API to get current student's group
-                const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
+                // Get group details for the first group
+                const groupId = userInfo.groups[0];
+                const response = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
                 
                 if (response.data.status === 200) {
                     // Convert API data format to required format
@@ -51,7 +53,7 @@ export default function StudentGroups() {
                             studentId: student.id, // Save studentId để gọi API
                             name: student.name,
                             currentRole: student.role === "1" ? 'Member' : (student.role || 'Member'),
-                            email: `${student.rollNumber.toLowerCase()}@student.fpt.edu.vn`
+                            email: student.email || ''
                         })),
                         progress: {
                             completedMilestones: 0,
@@ -78,19 +80,6 @@ export default function StudentGroups() {
         fetchGroups();
     }, []);
 
-    const getProgressColor = (percentage) => {
-        if (percentage >= 80) return '#059669';
-        if (percentage >= 60) return '#d97706';
-        if (percentage >= 40) return '#f59e0b';
-        return '#dc2626';
-    };
-    
-    const getProgressText = (percentage) => {
-        if (percentage >= 80) return 'Excellent';
-        if (percentage >= 60) return 'Good';
-        if (percentage >= 40) return 'Average';
-        return 'Needs Attention';
-    };
 
     const getRoleInfo = (role) => {
         switch (role) {
@@ -105,13 +94,6 @@ export default function StudentGroups() {
         }
     };
 
-    const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric'
-        });
-    };
 
     // Check role change permissions
     const canChangeRole = (member) => {
@@ -155,7 +137,7 @@ export default function StudentGroups() {
             }
             
             // Call API to change role
-            const response = await axiosClient.put(`/Staff/update-role?groupId=${targetGroup.id}&studentId=${memberToChangeRole.studentId}`, 
+            const response = await client.put(`https://160.30.21.113:5000/api/v1/Staff/update-role?groupId=${targetGroup.id}&studentId=${memberToChangeRole.studentId}`, 
                 `"${selectedRole}"`,
                 {
                     headers: {
@@ -163,7 +145,6 @@ export default function StudentGroups() {
                     }
                 }
             );
-          //  console.log('response ',response);
             
             
             if (response.data.status === 200) {
@@ -258,16 +239,15 @@ export default function StudentGroups() {
             
             <div className={styles.groupsList}>
                 {groups.map((group) => {
-                    const progressColor = getProgressColor(group.progress.completionPercentage);
-                    const progressText = getProgressText(group.progress.completionPercentage);
-                    
                     return (
                         <div key={group.id} className={styles.groupCard}>
                             <div className={styles.groupHeader}>
                                 <div className={styles.groupInfo}>
                                     <h3>{group.groupName}</h3>
                                     <p className={styles.projectName}>{group.projectName}</p>
-                                    <p className={styles.projectCode}>Group Code: {group.groupCode}</p>
+                                    {group.groupCode !== group.groupName && (
+                                        <p className={styles.projectCode}>Group Code: {group.groupCode}</p>
+                                    )}
                                 </div>
                             </div>
                             
@@ -281,6 +261,7 @@ export default function StudentGroups() {
                                                 <div key={member.id} className={styles.memberItem}>
                                                     <div className={styles.memberInfo}>
                                                         <span className={styles.memberName}>{member.name}</span>
+                                                        <span className={styles.memberEmail}>{member.email}</span>
                                                         <span className={styles.memberRoleTag}>{member.currentRole}</span>
                                                     </div>
                                                     {canChange && (
@@ -297,30 +278,8 @@ export default function StudentGroups() {
                                     </div>
                                 </div>
                                 
-                                <div className={styles.detailSection}>
-                                    <h4>Progress</h4>
-                                    <div className={styles.progressInfo}>
-                                        <div className={styles.progressItem}>
-                                            <span>Completed:</span>
-                                            <span>{group.progress.completedMilestones}/{group.progress.totalMilestones} milestones</span>
-                                        </div>
-                                        <div className={styles.progressItem}>
-                                            <span>Current:</span>
-                                            <span className={styles.currentMilestone}>{group.currentMilestone}</span>
-                                        </div>
-                                        <div className={styles.progressItem}>
-                                            <span>Next Deadline:</span>
-                                            <span>{formatDate(group.nextDeadline)}</span>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
                             
-                            <div className={styles.groupActions}>
-                                <Button>
-                                    Track Progress
-                                </Button>
-                            </div>
                         </div>
                     );
                 })}

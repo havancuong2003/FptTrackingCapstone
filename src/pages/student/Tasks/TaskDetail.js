@@ -71,8 +71,8 @@ export default function TaskDetail() {
             priority: taskData.priority.toLowerCase(),
             status: taskData.status === 'ToDo' ? 'todo' : 
                    taskData.status === 'InProgress' ? 'inProgress' : 'done',
-            milestoneId: taskData.milestone?.id || null,
-            milestoneName: taskData.milestone?.name || 'No Milestone',
+            deliverableId: taskData.milestone?.id || null,
+            deliverableName: taskData.milestone?.name || 'No Deliverable',
             createdAt: taskData.createdAt,
             progress: parseInt(taskData.process) || 0,
             attachments: taskData.attachments || [],
@@ -219,13 +219,16 @@ export default function TaskDetail() {
       const updateData = {
         id: parseInt(taskId),
         name: task.title,
+        groupId: parseInt(groupId) || 1,
         description: task.description,
         endAt: task.deadline,
         statusId: backendStatus, // Sử dụng statusId thay vì status
         priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: task.progress.toString(),
-        milestoneId: task.milestoneId || 0,
-        assignedUserId: task.assignee || 0
+        deliverableId: task.deliverableId || 0, // Backend vẫn sử dụng deliverableId
+        meetingId: task.meetingId || 0,
+        assignedUserId: task.assignee || 0,
+        reviewerId: task.reviewerId || 0
       };
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
@@ -272,14 +275,17 @@ export default function TaskDetail() {
       const updateData = {
         id: parseInt(taskId),
         name: task.title,
+        groupId: parseInt(groupId) || 1,
         description: task.description,
         endAt: task.deadline,
         statusId: task.status === 'todo' ? 'ToDo' : 
                  task.status === 'inProgress' ? 'InProgress' : 'Done',
         priorityId: backendPriority,
         process: clamped.toString(), // Cập nhật progress
-        milestoneId: task.milestoneId || 0,
-        assignedUserId: task.assignee || 0
+        deliverableId: task.deliverableId || 0, // Backend vẫn sử dụng deliverableId
+        meetingId: task.meetingId || 0,
+        assignedUserId: task.assignee || 0,
+        reviewerId: task.reviewerId || 0
       };
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
@@ -317,8 +323,8 @@ export default function TaskDetail() {
     return (
       <div className={styles.error}>
         <h2>Task not found</h2>
-        <BackButton to={`/student/tasks?groupId=${groupId || '1'}`}>
-          ← Back to Tasks
+        <BackButton onClick={() => navigate(-1)}>
+          ← Back
         </BackButton>
       </div>
     );
@@ -328,8 +334,8 @@ export default function TaskDetail() {
 
   return (
     <div className={styles.container}>
-      <BackButton to={`/student/tasks?groupId=${groupId || '1'}`}>
-        ← Back to Tasks
+      <BackButton onClick={() => navigate(-1)}>
+        ← Back
       </BackButton>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
@@ -350,7 +356,7 @@ export default function TaskDetail() {
               <div className={styles.infoItem}>
                 <label>Task Type:</label>
                 <span className={styles.taskTypeBadge}>
-                  {task.isMeetingTask ? 'Meeting Task' : 'Throughout Task'}
+                  {task.isMeetingTask ? 'Issue' : 'Main Task'}
                 </span>
               </div>
               <div className={styles.infoItem}>
@@ -370,8 +376,8 @@ export default function TaskDetail() {
                 <span>{formatDate(task.deadline)}</span>
               </div>
               <div className={styles.infoItem}>
-                <label>Milestone:</label>
-                <span>{task.milestoneName}</span>
+                <label>Deliverable:</label>
+                <span>{task.deliverableName}</span>
               </div>
               <div className={styles.infoItem}>
                 <label>Status:</label>

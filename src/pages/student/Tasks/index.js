@@ -5,6 +5,7 @@ import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
 import axiosClient from '../../../utils/axiosClient';
+import { sendTaskNotification } from '../../../api/email';
 
 export default function StudentTasks() {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export default function StudentTasks() {
   
   const currentUser = getCurrentUser();
   const [tasks, setTasks] = React.useState([]);
-  const [milestones, setMilestones] = React.useState([]);
+  const [deliverables, setDeliverables] = React.useState([]);
   const [meetings, setMeetings] = React.useState([]);
   const [reviewers, setReviewers] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -38,9 +39,7 @@ export default function StudentTasks() {
     description: '',
     assignee: '',
     priority: '',
-    milestoneId: '',
-    meetingId: '',
-    taskType: 'throughout', // 'throughout' or 'meeting'
+    deliverableId: '',
     deadline: '',
     reviewer: ''
   });
@@ -57,40 +56,72 @@ export default function StudentTasks() {
   const [allTasks, setAllTasks] = React.useState([]);
   
   // Filter states riêng biệt
-  const [milestoneFilter, setMilestoneFilter] = React.useState('');
+  const [deliverableFilter, setDeliverableFilter] = React.useState('');
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
-  const [taskTypeFilter, setTaskTypeFilter] = React.useState('');
-  const [isActiveTask, setIsActiveTask] = React.useState(true);
+  const [taskTypeFilter, setTaskTypeFilter] = React.useState('throughout'); // Mặc định Main Task
+  const [activeFilter, setActiveFilter] = React.useState('active'); // 'all', 'active', 'inactive'
   const [myTasksOnly, setMyTasksOnly] = React.useState(true);
+  const [deadlineFilter, setDeadlineFilter] = React.useState('');
+  const [meetingFilter, setMeetingFilter] = React.useState('');
   const [viewType, setViewType] = React.useState('my_tasks'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
-  // API: lấy milestones theo group
+  // API: lấy deliverables theo group (backend vẫn là deliverable, chỉ data trả về gọi là milestone)
   const fetchMilestonesByGroup = async (gid) => {
     try {
-      const response = await axiosClient.get(`/Student/milestone/group/${gid}`);
+      const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
       
       if (response.data.status === 200) {
         // Kiểm tra data có tồn tại và không null/undefined
         const apiData = response.data.data;
-        const milestonesData = Array.isArray(apiData) ? apiData : [];
+        const deliverablesData = Array.isArray(apiData) ? apiData : [];
         
-        // Map data từ API response sang format frontend
-        return milestonesData.map(milestone => ({
-          id: milestone.id,
-          name: milestone.name,
+        // Map data từ API response sang format frontend (vẫn gọi là milestone cho UI)
+        return deliverablesData.map(deliverable => ({
+          id: deliverable.id,
+          name: deliverable.name,
           groupId: gid,
-          description: milestone.description,
-          deadline: milestone.deadline
+          description: deliverable.description,
+          deadline: deliverable.deadline
         }));
       } else {
-        console.error('Error fetching milestones:', response.data.message);
-        alert(`Error lấy milestones: ${response.data.message}`);
+        console.error('Error fetching deliverables:', response.data.message);
+        alert(`Error lấy deliverables: ${response.data.message}`);
         return [];
       }
     } catch (error) {
-      console.error('Error fetching milestones:', error);
-      alert(`Error kết nối milestones: ${error.message}`);
+      console.error('Error fetching deliverables:', error);
+      alert(`Error kết nối deliverables: ${error.message}`);
+      return [];
+    }
+  };
+
+  // API: lấy deliverables theo group (giữ lại cho tương thích)
+  const fetchDeliverablesByGroup = async (gid) => {
+    try {
+      const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
+      
+      if (response.data.status === 200) {
+        // Kiểm tra data có tồn tại và không null/undefined
+        const apiData = response.data.data;
+        const deliverablesData = Array.isArray(apiData) ? apiData : [];
+        
+        // Map data từ API response sang format frontend
+        return deliverablesData.map(deliverable => ({
+          id: deliverable.id,
+          name: deliverable.name,
+          groupId: gid,
+          description: deliverable.description,
+          deadline: deliverable.deadline
+        }));
+      } else {
+        console.error('Error fetching deliverables:', response.data.message);
+        alert(`Error lấy deliverables: ${response.data.message}`);
+        return [];
+      }
+    } catch (error) {
+      console.error('Error fetching deliverables:', error);
+      alert(`Error kết nối deliverables: ${error.message}`);
       return [];
     }
   };
@@ -136,10 +167,10 @@ export default function StudentTasks() {
         // Add supervisors
         if (groupData.supervisorsInfor && Array.isArray(groupData.supervisorsInfor)) {
           groupData.supervisorsInfor.forEach(supervisor => {
-        //    console.log("supervisor", supervisor);
             reviewersList.push({
               id: `${supervisor.id}`,
               name: supervisor.name,
+              email: supervisor.email,
               type: 'Supervisor'
             });
           });
@@ -151,6 +182,7 @@ export default function StudentTasks() {
             reviewersList.push({
               id: `${student.id}`,
               name: student.name,
+              email: student.email,
               type: 'Student',
               role: student.role
             });
@@ -169,47 +201,36 @@ export default function StudentTasks() {
   };
 
   // API: lấy meetings đã họp để tạo meeting tasks
-  // TODO: API này chưa có, tạm thời mock data
   const fetchCompletedMeetings = async (gid) => {
     try {
-      // Mock data cho meetings đã hoàn thành
-      const mockMeetings = [
-        {
-          id: 1,
-          description: "Meeting tuần 1 - Review tiến độ dự án",
-          meetingDate: "2024-01-15",
-          startTime: "09:00:00",
-          endTime: "11:00:00"
-        },
-        {
-          id: 2,
-          description: "Meeting tuần 2 - Demo prototype",
-          meetingDate: "2024-01-22",
-          startTime: "14:00:00",
-          endTime: "16:00:00"
-        },
-        {
-          id: 3,
-          description: "Meeting tuần 3 - Code review",
-          meetingDate: "2024-01-29",
-          startTime: "10:00:00",
-          endTime: "12:00:00"
-        },
-        {
-          id: 4,
-          description: "Meeting tuần 4 - Testing và bug fix",
-          meetingDate: "2024-02-05",
-          startTime: "15:00:00",
-          endTime: "17:00:00"
-        }
-      ];
+      const response = await axiosClient.get(`/Student/Meeting/group/${gid}/schedule-dates`);
       
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      return mockMeetings;
+      if (response.data.status === 200) {
+        // Kiểm tra data có tồn tại và không null/undefined
+        const apiData = response.data.data;
+        const meetingsData = Array.isArray(apiData) ? apiData : [];
+        
+        // Chỉ lấy ra những meeting có isMeeting = true
+        const filteredMeetings = meetingsData.filter(meeting => meeting.isMeeting === true);
+        
+        // Map data từ API response sang format frontend
+        return filteredMeetings.map(meeting => ({
+          id: meeting.id,
+          description: meeting.description,
+          meetingDate: meeting.meetingDate,
+          startTime: meeting.time,
+          endTime: meeting.time, // Sử dụng time làm endTime nếu không có endTime riêng
+          meetingLink: meeting.meetingLink,
+          dayOfWeek: meeting.dayOfWeek
+        }));
+      } else {
+        console.error('Error fetching meetings:', response.data.message);
+        alert(`Error lấy danh sách meetings: ${response.data.message}`);
+        return [];
+      }
     } catch (error) {
       console.error('Error fetching meetings:', error);
+      alert(`Error kết nối meetings: ${error.message}`);
       return [];
     }
   };
@@ -221,7 +242,6 @@ export default function StudentTasks() {
       if (response.data.status === 200) {
         const apiData = response.data.data;
         const tasksData = Array.isArray(apiData) ? apiData : [];
-        console.log("tasksData", tasksData);
         const mappedTasks = tasksData.map(task => ({
           id: task.id,
           title: task.title,
@@ -233,13 +253,17 @@ export default function StudentTasks() {
           priority: task.priority?.toLowerCase() || 'medium',
           status: task.status === 'ToDo' ? 'todo' : 
                  task.status === 'InProgress' ? 'inProgress' : 'done',
-          milestoneId: task.milestone?.id || null,
-          milestoneName: task.milestone?.name || 'No Milestone',
+          deliverableId: task.milestone?.id || null,
+          deliverableName: task.milestone?.name || 'No Deliverable',
           createdAt: task.createdAt,
           progress: parseInt(task.process) || 0,
           attachments: task.attachments || [],
           comments: task.comments || [],
-          history: task.history || []
+          history: task.history || [],
+          isActive: task.isActive !== undefined ? task.isActive : true, // Thêm trường isActive từ API
+          isMeetingTask: task.isMeetingTask || false, // Thêm trường isMeetingTask
+          meetingId: task.meetingId || null, // Thêm trường meetingId
+          reviewerId: task.reviewerId || null // Thêm trường reviewerId
         }));
 
         setAllTasks(mappedTasks);
@@ -269,7 +293,7 @@ export default function StudentTasks() {
         const students = studentRes;
         const meetings = meetingRes;
         const reviewers = reviewerRes;
-        setMilestones(milestonesData);
+        setDeliverables(milestonesData); // Sử dụng milestones thay vì deliverables
         setMeetings(meetings);
         setReviewers(reviewers);
         // Tự động load issues khi vào trang
@@ -303,7 +327,8 @@ export default function StudentTasks() {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString('vi-VN', {
+      year: 'numeric',
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -339,8 +364,8 @@ export default function StudentTasks() {
             )}
           </div>
           <div className={styles.taskType}>
-            <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'milestone']}`}>
-              {task.isMeetingTask ? 'Meeting' : 'Milestone'}
+            <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'throughout']}`}>
+              {task.isMeetingTask ? 'Issue' : 'Main Task'}
             </span>
           </div>
         </div>
@@ -352,9 +377,9 @@ export default function StudentTasks() {
       render: (task) => task.assigneeName
     },
     {
-      key: 'milestone',
-      title: 'Milestone',
-      render: (task) => task.milestoneName
+      key: 'deliverable',
+      title: 'Deliverable',
+      render: (task) => task.deliverableName
     },
     {
       key: 'priority',
@@ -466,7 +491,7 @@ export default function StudentTasks() {
 
 
   const createNewTask = async () => {
-    if (!newTask.title || !newTask.description || !newTask.assignee || !newTask.priority) {
+    if (!newTask.title || !newTask.description || !newTask.assignee || !newTask.priority || !newTask.deadline) {
       alert('Please fill in all required fields');
       return;
     }
@@ -481,33 +506,55 @@ export default function StudentTasks() {
       }
     }
 
-    // Validation cho meeting task
-    if (newTask.taskType === 'meeting' && !newTask.meetingId) {
-      alert('Please select a meeting for meeting task');
-      return;
-    }
-
-    // Validation logic: isMeetingTask và meetingId phải đi đôi
-    if (newTask.taskType === 'meeting') {
-      if (!newTask.meetingId) {
-        alert('Meeting Task phải có meetingId');
-        return;
-      }
-    } else {
-      // Throughout Task không được có meetingId
-      if (newTask.meetingId) {
-        alert('Throughout Task không được có meetingId');
-        return;
-      }
-    }
+    // Mặc định tất cả task đều là throughout task (Main Task)
     
-    // Milestone có thể có cho cả 2 loại task (tùy chọn)
+    // Deliverable có thể có cho cả 2 loại task (tùy chọn)
 
     try {
-      const selectedMilestone = milestones.find(m => m.id.toString() === newTask.milestoneId);
-      const selectedAssignee = assigneeOptions.find(a => a.value === newTask.assignee);
-      const selectedReviewer = reviewers.find(r => r.id === newTask.reviewer);
-     
+      const selectedMilestone = deliverables.find(d => d.id.toString() === newTask.deliverableId);
+        const selectedAssignee = assigneeOptions.find(a => 
+        {
+
+          return a.value.toString() === newTask.assignee.toString();
+        });
+        const selectedReviewer = reviewers.find(r =>
+          {
+
+            return r.id.toString() === newTask.reviewer.toString();
+          }
+        );
+
+      
+      // Gửi email thông báo trước khi tạo task
+      try {
+        const emailRecipients = [];
+        
+        // Thêm email của assignee từ assigneeOptions
+        if (selectedAssignee?.email) {
+          emailRecipients.push(selectedAssignee.email);
+        }
+        
+        // Thêm email của reviewer từ reviewers
+        if (selectedReviewer?.email) {
+          emailRecipients.push(selectedReviewer.email);
+        }
+        
+        if (emailRecipients.length > 0) {
+          await sendTaskNotification({
+            recipients: emailRecipients,
+            subject: `[Capstone Project] Task mới được tạo: ${newTask.title}`,
+            taskName: newTask.title,
+            deadline: new Date(newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)).toLocaleDateString('vi-VN'),
+            description: newTask.description
+          });
+          
+        } else {
+        }
+      } catch (emailError) {
+        console.error('Error sending email notification:', emailError);
+        // Không hiển thị lỗi email cho user, chỉ log
+      }
+      
       // Gọi API tạo task
       const taskData = {
         groupId: parseInt(groupId) || 1,
@@ -518,15 +565,14 @@ export default function StudentTasks() {
         priority: newTask.priority === 'high' ? 'High' : 
                  newTask.priority === 'medium' ? 'Medium' : 'Low',
         process: '0',
-        milestoneId: newTask.milestoneId ? parseInt(newTask.milestoneId) : null,
-        meetingId: newTask.meetingId ? parseInt(newTask.meetingId) : null,
-        taskType: newTask.taskType,
+        deliverableId: newTask.deliverableId ? parseInt(newTask.deliverableId) : null, // Backend vẫn sử dụng deliverableId
+        meetingId: null, // Mặc định không có meeting
+        taskType: 'throughout', // Mặc định là throughout task
         assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null,
         reviewerId: selectedReviewer ? parseInt(selectedReviewer.id) : null,
         reviewerName: selectedReviewer ? selectedReviewer.name : null
       };
-    //  console.log("taskData", taskData);
-      // console.log("taskData", taskData);
+
       const response = await axiosClient.post('/Student/Task/create', taskData);
       
       if (response.data.status === 200) {
@@ -542,8 +588,8 @@ export default function StudentTasks() {
           priority: createdTask.priority?.toLowerCase() || newTask.priority,
           status: createdTask.status === 'ToDo' ? 'todo' : 
                  createdTask.status === 'InProgress' ? 'inProgress' : 'done',
-          milestoneId: createdTask.milestoneId || (newTask.milestoneId ? parseInt(newTask.milestoneId) : null),
-          milestoneName: createdTask.milestoneName || selectedMilestone?.name || 'No Milestone',
+          deliverableId: createdTask.deliverableId || (newTask.deliverableId ? parseInt(newTask.deliverableId) : null),
+          deliverableName: createdTask.deliverableName || selectedMilestone?.name || 'No Deliverable',
           createdAt: createdTask.createdAt || new Date().toISOString(),
           progress: parseInt(createdTask.process) || 0,
           attachments: createdTask.attachments || [],
@@ -557,9 +603,7 @@ export default function StudentTasks() {
           description: '',
           assignee: '',
           priority: 'low',
-          milestoneId: '',
-          meetingId: '',
-          taskType: 'throughout',
+          deliverableId: '',
           deadline: '',
           reviewer: ''
         });
@@ -593,13 +637,16 @@ export default function StudentTasks() {
       const updateData = {
         id: parseInt(taskId),
         name: currentTask.title,
+        groupId: parseInt(groupId) || 1,
         description: currentTask.description,
         endAt: currentTask.deadline,
         statusId: backendStatus, // Sử dụng statusId thay vì status
         priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: toStatus === 'done' ? '100' : currentTask.progress.toString(),
-        milestoneId: currentTask.milestoneId || 0,
-        assignedUserId: currentTask.assignee || 0
+        deliverableId: currentTask.deliverableId || 0, // Backend vẫn sử dụng deliverableId
+        meetingId: currentTask.meetingId || 0,
+        assignedUserId: currentTask.assignee || 0,
+        reviewerId: currentTask.reviewerId || 0
       };
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
@@ -705,13 +752,7 @@ export default function StudentTasks() {
     if (!selectedTask || !newAttachment.trim()) return;
     
     try {
-      // Giả sử có API upload attachment
-      // const formData = new FormData();
-      // formData.append('file', newAttachment);
-      // formData.append('taskId', selectedTask.id);
-      // formData.append('groupId', groupId);
-      // const response = await axiosClient.post('/Student/Task/upload-attachment', formData);
-      
+
       // Tạm thời xử lý local vì chưa có API upload attachment
       const nowIso = new Date().toISOString();
       
@@ -752,7 +793,7 @@ export default function StudentTasks() {
 
   // Filter tasks dựa trên các filter states
   const filteredTasks = allTasks.filter(task => {
-    const milestoneMatch = milestoneFilter === '' || (task.milestoneId && task.milestoneId.toString() === milestoneFilter);
+    const deliverableMatch = deliverableFilter === '' || (task.deliverableId && task.deliverableId.toString() === deliverableFilter);
     const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
     const statusMatch = statusFilter === '' || task.status === statusFilter;
     const priorityMatch = priorityFilter === '' || task.priority === priorityFilter;
@@ -761,21 +802,44 @@ export default function StudentTasks() {
     let taskTypeMatch = true;
     if (taskTypeFilter === 'meeting') {
       taskTypeMatch = task.isMeetingTask === true;
-    } else if (taskTypeFilter === 'milestone') {
+    } else if (taskTypeFilter === 'throughout') {
       taskTypeMatch = task.isMeetingTask !== true;
     }
     
     const myTasksMatch = !myTasksOnly || (currentUser && task.assignee === currentUser.id);
-    const activeTaskMatch = !isActiveTask || task.isActive === true;
-    console.log("activeTaskMatch", activeTaskMatch);
-    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && myTasksMatch && activeTaskMatch;
+    // Filter theo trạng thái active
+    let activeTaskMatch = true;
+    if (activeFilter === 'active') {
+      activeTaskMatch = task.isActive === true;
+    } else if (activeFilter === 'inactive') {
+      activeTaskMatch = task.isActive === false;
+    }
+    
+    // Filter theo deadline
+    let deadlineMatch = true;
+    if (deadlineFilter) {
+      const taskDeadline = new Date(task.deadline);
+      const filterDeadline = new Date(deadlineFilter);
+      // Chuyển filterDeadline về cuối ngày để bao gồm cả ngày được chọn
+      filterDeadline.setHours(23, 59, 59, 999);
+      deadlineMatch = taskDeadline <= filterDeadline;
+    }
+    
+    // Filter theo meeting
+    let meetingMatch = true;
+    if (meetingFilter) {
+      meetingMatch = task.meetingId && task.meetingId.toString() === meetingFilter;
+    }
+    
+    // Nếu activeFilter === 'all' thì activeTaskMatch = true (hiển thị tất cả)
+    return deliverableMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && myTasksMatch && activeTaskMatch && deadlineMatch && meetingMatch;
   });
 
-  const milestoneOptions = milestones.map(m => ({ value: m.id ? m.id.toString() : '', label: m.name }));
+  const deliverableOptions = deliverables.map(d => ({ value: d.id ? d.id.toString() : '', label: d.name }));
+
   const assigneeOptions = assigneeSource.map(s => {
-    return { value: s.id, label: s.name }
+    return { value: s.id, label: s.name  , email: s.email}
   });
-
   const todoTasks = filteredTasks.filter(task => task.status === 'todo');
   const inProgressTasks = filteredTasks.filter(task => task.status === 'inProgress');
   const doneTasks = filteredTasks.filter(task => task.status === 'done');
@@ -813,106 +877,166 @@ export default function StudentTasks() {
         </div>
       </div>
 
-      <div className={styles.header}>
-        <div className={styles.controls}>
-          <div className={styles.controlGroup}>
-            <label>Milestone:</label>
-            <select
-              value={milestoneFilter}
-              onChange={(e) => setMilestoneFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              {milestoneOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>Assignee:</label>
-            <select
-              value={assigneeFilter}
-              onChange={(e) => setAssigneeFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              {assigneeOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>Priority:</label>
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>Status:</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              <option value="todo">To Do</option>
-              <option value="inProgress">In Progress</option>
-              <option value="done">Done</option>
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>Task Type:</label>
-            <select
-              value={taskTypeFilter}
-              onChange={(e) => setTaskTypeFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              <option value="milestone">Milestone</option>
-              <option value="meeting">Meeting</option>
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>
-              <input
-                type="checkbox"
-                checked={myTasksOnly}
-                onChange={(e) => setMyTasksOnly(e.target.checked)}
-                className={styles.checkbox}
-              />
-              Task của tôi
-            </label>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>
-              <input
-                type="checkbox"
-                checked={isActiveTask}
-                onChange={(e) => setIsActiveTask(e.target.checked)}
-                className={styles.checkbox}
-              />
-              Active Tasks
-            </label>
-          </div>
-          <button
-            className={styles.searchButton}
-            onClick={handleRefresh}
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
+       <div className={styles.header}>
+         <div className={styles.controls}>
+           {/* Nhóm 1: Filter cơ bản */}
+           <div className={styles.controlGroup}>
+             <label>Task Type:</label>
+             <select
+               value={taskTypeFilter}
+               onChange={(e) => {
+                 const newTaskType = e.target.value;
+                 setTaskTypeFilter(newTaskType);
+                 // Reset meeting filter khi chọn Main Task
+                 if (newTaskType === 'throughout') {
+                   setMeetingFilter('');
+                 }
+               }}
+               className={styles.select}
+             >
+               <option value="">All</option>
+               <option value="throughout">Main Task</option>
+               <option value="meeting">Issue</option>
+             </select>
+           </div>
+           {(taskTypeFilter === 'meeting' || taskTypeFilter === '') && (
+             <div className={styles.controlGroup}>
+               <label>Meeting:</label>
+               <select
+                 value={meetingFilter}
+                 onChange={(e) => setMeetingFilter(e.target.value)}
+                 className={styles.select}
+               >
+                 <option value="">All Meeting Issues</option>
+                 {meetings.map(meeting => (
+                   <option key={meeting.id} value={meeting.id}>
+                     {meeting.description} - {new Date(meeting.meetingDate).toLocaleDateString('vi-VN')}
+                   </option>
+                 ))}
+               </select>
+             </div>
+           )}
+           <div className={styles.controlGroup}>
+             <label>Status:</label>
+             <select
+               value={statusFilter}
+               onChange={(e) => setStatusFilter(e.target.value)}
+               className={styles.select}
+             >
+               <option value="">All</option>
+               <option value="todo">To Do</option>
+               <option value="inProgress">In Progress</option>
+               <option value="done">Done</option>
+             </select>
+           </div>
+           <div className={styles.controlGroup}>
+             <label>Priority:</label>
+             <select
+               value={priorityFilter}
+               onChange={(e) => setPriorityFilter(e.target.value)}
+               className={styles.select}
+             >
+               <option value="">All</option>
+               <option value="high">High</option>
+               <option value="medium">Medium</option>
+               <option value="low">Low</option>
+             </select>
+           </div>
+           
+           {/* Nhóm 2: Filter theo người và dự án */}
+           <div className={styles.controlGroup}>
+             <label>Assignee:</label>
+             <select
+               value={assigneeFilter}
+               onChange={(e) => setAssigneeFilter(e.target.value)}
+               className={styles.select}
+             >
+               <option value="">All</option>
+               {assigneeOptions.map(option => (
+                 <option key={option.value} value={option.value}>
+                   {option.label}
+                 </option>
+               ))}
+             </select>
+           </div>
+           <div className={styles.controlGroup}>
+             <label>Deliverable:</label>
+             <select
+               value={deliverableFilter}
+               onChange={(e) => setDeliverableFilter(e.target.value)}
+               className={styles.select}
+             >
+               <option value="">All</option>
+               {deliverableOptions.map(option => (
+                 <option key={option.value} value={option.value}>
+                   {option.label}
+                 </option>
+               ))}
+             </select>
+           </div>
+           
+           {/* Nhóm 3: Filter theo thời gian */}
+           <div className={styles.controlGroup}>
+             <label>Deadline:</label>
+             <input
+               type="date"
+               value={deadlineFilter}
+               onChange={(e) => setDeadlineFilter(e.target.value)}
+               className={styles.input}
+               placeholder="Filter by deadline"
+             />
+           </div>
+           
+           {/* Nhóm 4: Filter trạng thái */}
+           <div className={styles.controlGroup}>
+             <label>Task Status:</label>
+             <select
+               value={activeFilter}
+               onChange={(e) => setActiveFilter(e.target.value)}
+               className={styles.select}
+             >
+               <option value="all">All Tasks</option>
+               <option value="active">Active Tasks</option>
+               <option value="inactive">Inactive Tasks</option>
+             </select>
+           </div>
+           <div className={styles.controlGroup}>
+             <label>
+               <input
+                 type="checkbox"
+                 checked={myTasksOnly}
+                 onChange={(e) => setMyTasksOnly(e.target.checked)}
+                 className={styles.checkbox}
+               />
+               Task của tôi
+             </label>
+           </div>
+           
+           {/* Nhóm 5: Actions */}
+           <button
+             className={styles.searchButton}
+             onClick={handleRefresh}
+           >
+             Refresh
+           </button>
+           <button
+             className={styles.resetButton}
+             onClick={() => {
+               setDeliverableFilter('');
+               setAssigneeFilter('');
+               setPriorityFilter('');
+               setStatusFilter('');
+               setTaskTypeFilter('throughout');
+               setActiveFilter('active');
+               setMyTasksOnly(true);
+               setDeadlineFilter('');
+               setMeetingFilter('');
+             }}
+           >
+             Reset Filter
+           </button>
+         </div>
+       </div>
 
 
       {/* Empty state khi không có issue */}
@@ -968,67 +1092,15 @@ export default function StudentTasks() {
           <div className={styles.formRow}>
             <div className={styles.formGroup}>
               <label>
-                Task Type <span className={styles.required}>*</span>
+                Deliverable
               </label>
               <select
                 className={styles.select}
-                value={newTask.taskType}
-                onChange={(e) => {
-                  const newTaskType = e.target.value;
-                  if (newTaskType === 'throughout') {
-                    // Chuyển từ meeting sang xuyên suốt: xóa meetingId, giữ milestoneId
-                    setNewTask({ ...newTask, taskType: newTaskType, meetingId: '' });
-                  } else {
-                    // Chuyển từ xuyên suốt sang meeting: giữ milestoneId
-                    setNewTask({ ...newTask, taskType: newTaskType });
-                  }
-                }}
+                value={newTask.deliverableId}
+                onChange={(e) => setNewTask({ ...newTask, deliverableId: e.target.value })}
               >
-                <option value="throughout">Throughout Task</option>
-                <option value="meeting">Meeting Task</option>
-              </select>
-            </div>
-            
-            <div className={styles.formGroup}>
-              <label>
-                Meeting
-                {newTask.taskType === 'meeting' && <span className={styles.required}>*</span>}
-              </label>
-              {newTask.taskType === 'meeting' ? (
-                <select
-                  className={styles.select}
-                  value={newTask.meetingId}
-                  onChange={(e) => setNewTask({ ...newTask, meetingId: e.target.value })}
-                >
-                  <option value="">Select Meeting</option>
-                  {meetings.map(meeting => (
-                    <option key={meeting.id} value={meeting.id}>
-                      {meeting.description} - {new Date(meeting.meetingDate).toLocaleDateString('en-US')}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <select
-                  className={styles.select}
-                  value=""
-                  disabled
-                >
-                  <option value="">Not applicable for throughout task</option>
-                </select>
-              )}
-            </div>
-            
-            <div className={styles.formGroup}>
-              <label>
-                Milestone
-              </label>
-              <select
-                className={styles.select}
-                value={newTask.milestoneId}
-                onChange={(e) => setNewTask({ ...newTask, milestoneId: e.target.value })}
-              >
-                <option value="">Select Milestone (optional)</option>
-                {milestoneOptions.map(option => (
+                <option value="">Select Deliverable (optional)</option>
+                {deliverableOptions.map(option => (
                   <option key={option.value} value={option.value}>{option.label}</option>
                 ))}
               </select>
@@ -1087,12 +1159,15 @@ export default function StudentTasks() {
             </div>
             
             <div className={styles.formGroup}>
-              <label>Deadline</label>
+              <label>
+                Deadline <span className={styles.required}>*</span>
+              </label>
               <input
                 type="datetime-local"
                 value={newTask.deadline}
                 onChange={(e) => setNewTask({...newTask, deadline: e.target.value})}
                 className={styles.input}
+                required
               />
             </div>
           </div>

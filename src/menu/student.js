@@ -45,6 +45,11 @@ const studentMenu = [
     path: "/student/minutes", 
     label: "Meeting Minutes", 
     icon: "📝"
+  },
+  { 
+    path: "/student/home", 
+    label: "Home", 
+    icon: "🏠"
   }
 ];
 

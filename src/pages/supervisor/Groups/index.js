@@ -17,6 +17,16 @@ export default function SupervisorGroups() {
     const [memberToChangeRole, setMemberToChangeRole] = React.useState(null);
     const [roleChangeModalOpen, setRoleChangeModalOpen] = React.useState(false);
     const [selectedRole, setSelectedRole] = React.useState('');
+    
+    // Status for email sending
+    const [emailModalOpen, setEmailModalOpen] = React.useState(false);
+    const [emailData, setEmailData] = React.useState({
+        to: [],
+        subject: '',
+        body: '',
+        cc: []
+    });
+    const [emailLoading, setEmailLoading] = React.useState(false);
 
     React.useEffect(() => {
         const fetchGroups = async () => {
@@ -35,7 +45,6 @@ export default function SupervisorGroups() {
                         groupList.map(async (group) => {
                             try {
                                 const detailResponse = await axiosClient.get(`/Staff/capstone-groups/${group.id}`);
-                           //     console.log(`Detail for group ${group.id}:`, detailResponse);
                                 
                                 if (detailResponse.data.status === 200) {
                                     const groupDetail = detailResponse.data.data;
@@ -255,6 +264,63 @@ export default function SupervisorGroups() {
         }
     };
 
+    // Email functions
+    const openEmailModal = () => {
+        if (!selectedGroup) return;
+        
+        // Pre-populate with group member emails
+        const memberEmails = selectedGroup.members.map(member => member.email);
+        setEmailData({
+            to: memberEmails,
+            subject: `Message from Supervisor - Group ${selectedGroup.groupName}`,
+            body: '',
+            cc: []
+        });
+        setEmailModalOpen(true);
+    };
+
+    const updateEmailData = (field, value) => {
+        setEmailData(prev => ({
+            ...prev,
+            [field]: value
+        }));
+    };
+
+    const sendEmail = async () => {
+        if (!emailData.to.length || !emailData.subject || !emailData.body) {
+            alert('Vui lòng điền đầy đủ thông tin email');
+            return;
+        }
+
+        setEmailLoading(true);
+        try {
+            const response = await axiosClient.post('/Mail/send-mails', {
+                to: emailData.to,
+                subject: emailData.subject,
+                body: emailData.body,
+                cc: emailData.cc
+            });
+
+            if (response.data) {
+                alert('Email đã được gửi thành công!');
+                setEmailModalOpen(false);
+                setEmailData({
+                    to: [],
+                    subject: '',
+                    body: '',
+                    cc: []
+                });
+            } else {
+                alert('Có lỗi xảy ra khi gửi email');
+            }
+        } catch (error) {
+            console.error('Error sending email:', error);
+            alert(`Lỗi gửi email: ${error.message || 'Có lỗi xảy ra'}`);
+        } finally {
+            setEmailLoading(false);
+        }
+    };
+
     // ---------------------------------------------------
 
     const renderMemberCard = (member) => {
@@ -339,6 +405,9 @@ export default function SupervisorGroups() {
                         <div className={styles.modalActions}>
                             <Button variant="secondary" onClick={() => setGroupDetailModalOpen(false)}>
                                 Close
+                            </Button>
+                            <Button variant="outline" onClick={openEmailModal}>
+                                Send Email
                             </Button>
                             <Button onClick={() => {
                                 setGroupDetailModalOpen(false);

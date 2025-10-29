@@ -31,31 +31,7 @@ export async function login({ username, password }) {
     throw new Error('Thiếu thông tin đăng nhập');
   }
 
-  // // Mock login cho testing
-  // if (username === 'abc' && password === '123') {
-  //   console.log('Mock login: abc/123 detected, setting as staff');
-  //   const mockUser = {
-  //     id: 'mock_staff_1',
-  //     name: 'Mock Staff User',
-  //     role: 'STAFF'
-  //   };
-  //   localStorage.setItem(USER_ROLE_KEY, 'STAFF');
-  //   localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser));
-  //   return { message: 'Mock login successfully' };
-  // }
 
-  // // Mock login cho SUPERVISOR testing
-  // if (username === 'supervisor' && password === '123') {
-  //   console.log('Mock login: supervisor/123 detected, setting as supervisor');
-  //   const mockUser = {
-  //     id: 'mock_supervisor_1',
-  //     name: 'Mock Supervisor User',
-  //     role: 'SUPERVISOR'
-  //   };
-  //   localStorage.setItem(USER_ROLE_KEY, 'SUPERVISOR');
-  //   localStorage.setItem(USER_INFO_KEY, JSON.stringify(mockUser));
-  //   return { message: 'Mock login successfully' };
-  // }
 
   try {
     const res = await client.post('/auth/login', { userName : username, password });
@@ -68,12 +44,10 @@ export async function login({ username, password }) {
     const meRes = await client.get('/auth/user-info');
     const meBody = meRes?.data;
     const me = meBody?.data || meBody || null;
-    //console.log('me ',me);
-    
     if (me) {
       const role = me.role || localStorage.getItem(USER_ROLE_KEY) || 'STUDENT';
       const roleInGroup = me.roleInGroup || me.role_in_group || me.groupRole || null;
-     // console.log("me", me);
+
       localStorage.setItem(USER_ROLE_KEY, role);
       localStorage.setItem(
         USER_INFO_KEY,
@@ -81,14 +55,17 @@ export async function login({ username, password }) {
           id: me.id || me.userId || 'u_1', 
           name: me.name || me.fullName || 'User', 
           role,
-          roleInGroup 
+          roleInGroup,
+          groups: me.groups || []
         })
       );
 
       // Lưu groupId cho student để dùng cho điều hướng tasks
       try {
         const isStudent = String(role).toUpperCase() === 'STUDENT';
-        const groupId = me.groupId || me.groupID || me.group?.id || me.currentGroupId || null;
+        // Lấy groupId từ mảng groups, lấy phần tử đầu tiên
+        const groupId = me.groups && me.groups.length > 0 ? me.groups[0] : 
+                       me.groupId || me.groupID || me.group?.id || me.currentGroupId || null;
         if (isStudent && groupId) {
           localStorage.setItem('student_group_id', String(groupId));
         }
@@ -149,6 +126,19 @@ export function getUserInfo() {
   try {
     const userInfo = localStorage.getItem(USER_INFO_KEY);
     return userInfo ? JSON.parse(userInfo) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper function để lấy groupId từ groups (phần tử đầu tiên)
+export function getGroupId() {
+  try {
+    const userInfo = getUserInfo();
+    if (userInfo && userInfo.groups && userInfo.groups.length > 0) {
+      return userInfo.groups[0];
+    }
+    return null;
   } catch {
     return null;
   }

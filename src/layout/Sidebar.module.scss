@@ -23,15 +23,26 @@
 /* Submenu styles */
 .submenu {
   display: grid;
-  gap: 6px;
-  margin: 6px 0 10px 0;
+  gap: 4px;
+  margin: 4px 0 10px 0;
   padding-left: 12px;
+  border-left: 1px solid var(--color-border);
+}
+.submenuClosed {
+  display: none;
+}
+.submenuOpen {
+  display: grid;
 }
 .submenuLink {
   font-size: 0.95em;
-  color: #475569; /* slate-600 */
-  padding-left: 24px;
+  color: #334155; /* slate-700 */
+  text-decoration: none;
+  display: block;
+  padding: 6px 10px 6px 28px;
+  border-radius: 6px;
   position: relative;
+  transition: background-color .15s ease, color .15s ease;
 }
 .submenuLink::before {
   content: '';
@@ -39,12 +50,15 @@
   left: 10px;
   top: 50%;
   transform: translateY(-50%);
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   background: #94a3b8; /* slate-400 */
   border-radius: 9999px;
 }
-.submenuLink:hover { background: #f8fafc; }
+.submenuLink:hover {
+  background: #f1f5f9; /* slate-100 */
+  color: #0f172a; /* slate-900 */
+}
 .link:hover { background: #f8fafc; }
 
 /* Parent styles */
@@ -53,6 +67,33 @@
   gap: 6px;
 }
 .parentLink { font-weight: 600; }
+.parentLink {
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.parentOpen {
+  /* có thể thêm style khi mở nếu cần */
+}
+
+/* Parent button content layout */
+.parentButtonInner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.parentLabelText {
+  flex: 1 1 auto;
+}
+.caret {
+  color: #475569; /* slate-600 */
+  width: 16px;
+  height: 16px;
+  transition: transform .15s ease, color .15s ease;
+}
+.parentOpen .caret { transform: rotate(90deg); color: #1e40af; }
 .parentLabel {
   font-weight: 600;
   color: #0f172a; /* slate-900 */
