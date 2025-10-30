@@ -119,6 +119,11 @@
   }
 }
 
+// Khoảng cách giữa 2 bảng liên tiếp
+.evaluationsSection + .evaluationsSection {
+  margin-top: 24px;
+}
+
 .tableContainer {
   padding: 24px;
 }

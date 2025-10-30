@@ -4,32 +4,36 @@ import Button from "../../../components/Button/Button";
 import Card from "../../../components/Card/Card";
 import DataTable from "../../../components/DataTable/DataTable";
 import axiosClient from "../../../utils/axiosClient";
+import { getGroupId } from "../../../auth/auth";
 
 export default function StudentEvaluation() {
   const [evaluations, setEvaluations] = React.useState([]);
   const [milestones, setMilestones] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedMilestone, setSelectedMilestone] = React.useState("all");
+  const [penaltyCardsGeneral, setPenaltyCardsGeneral] = React.useState([]);
+  const [loadingPenaltyCards, setLoadingPenaltyCards] = React.useState(false);
 
   // ------------------ Fetch Milestones ------------------
   React.useEffect(() => {
     const fetchMilestones = async () => {
       setLoading(true);
       try {
-        console.log('Fetching milestones for student');
-        const response = await axiosClient.get('/Student/milestone');
-        
-        console.log('Milestones API response:', response.data);
-        console.log('Response status:', response.status);
-        console.log('Response headers:', response.headers);
+        // Ưu tiên lấy milestones theo group hiện tại của student
+        const gid = getGroupId() || localStorage.getItem('student_group_id');
+        let response;
+        if (gid) {
+          response = await axiosClient.get(`/deliverables/group/${gid}`);
+        } else {
+          response = await axiosClient.get('/Student/milestone');
+        }
         
         // Kiểm tra nếu response.data là array trực tiếp
         if (Array.isArray(response.data)) {
-          console.log('API returned array directly:', response.data);
-          setMilestones(response.data);
+          const normalized = response.data.map(m => ({ id: String(m.id || m.ID || m.value || m), name: m.name || m.label || m.title || m.toString() }));
+          setMilestones(normalized);
         } else if (response.data.status === 200) {
-          const milestonesData = response.data.data || [];
-          console.log('Setting milestones (with status):', milestonesData);
+          const milestonesData = (response.data.data || []).map(m => ({ id: String(m.id || m.ID || m.value), name: m.name || m.label || m.title }));
           setMilestones(milestonesData);
         } else {
           console.error('Failed to fetch milestones:', response.data.message);
@@ -42,7 +46,6 @@ export default function StudentEvaluation() {
         console.error('Error status:', err.response?.status);
         
         // Sử dụng mock data khi API lỗi
-        console.log('Using mock milestones data');
         const mockMilestones = [
           { id: "1", name: "Milestone 1: Project Introduction" },
           { id: "2", name: "Milestone 2: Project Planning" },
@@ -65,19 +68,14 @@ export default function StudentEvaluation() {
   const fetchAllEvaluations = async () => {
     setLoading(true);
     try {
-      console.log('Fetching all evaluations for student');
       const response = await axiosClient.get('/Common/Evaluation/getEvaluationFromDeliverableByStudent');
-      
-      console.log('All evaluations API response:', response.data);
       
       // Kiểm tra nếu response.data là array trực tiếp
       if (Array.isArray(response.data)) {
-        console.log('API returned array directly:', response.data);
         setAllEvaluations(response.data);
         setEvaluations(response.data);
       } else if (response.data.status === 200) {
         const evaluationsData = response.data.data || [];
-        console.log('Setting all evaluations (with status):', evaluationsData);
         setAllEvaluations(evaluationsData);
         setEvaluations(evaluationsData);
       } else {
@@ -100,45 +98,91 @@ export default function StudentEvaluation() {
     fetchAllEvaluations();
   }, []);
 
+  // ------------------ Fetch General Penalty Cards ------------------
+  React.useEffect(() => {
+    const fetchGeneralPenaltyCards = async () => {
+      setLoadingPenaltyCards(true);
+      try {
+        const response = await axiosClient.get('/Common/Evaluation/getCardEvaluationGeneralByStudent');
+
+        // API có thể trả mảng trực tiếp hoặc theo format { status, data }
+        if (Array.isArray(response.data)) {
+          setPenaltyCardsGeneral(response.data);
+        } else if (response.data?.status === 200) {
+          setPenaltyCardsGeneral(response.data.data || []);
+        } else {
+          setPenaltyCardsGeneral([]);
+        }
+      } catch (err) {
+        console.error('Error fetching general penalty cards:', err);
+        setPenaltyCardsGeneral([]);
+      } finally {
+        setLoadingPenaltyCards(false);
+      }
+    };
+
+    fetchGeneralPenaltyCards();
+  }, []);
+
   // ------------------ Filter Evaluations when milestone changes ------------------
   React.useEffect(() => {
-    console.log('=== Filtering evaluations by milestone ===');
-    console.log('selectedMilestone:', selectedMilestone);
-    console.log('allEvaluations:', allEvaluations);
-    
     if (selectedMilestone === "all") {
-      console.log('Showing all evaluations');
       setEvaluations(allEvaluations);
     } else {
       // Tìm milestone name từ milestones array
       const selectedMilestoneData = milestones.find(m => m.id === selectedMilestone);
       const milestoneName = selectedMilestoneData?.name;
       
-      console.log('Selected milestone name:', milestoneName);
-      
       if (milestoneName) {
         const filteredEvaluations = allEvaluations.filter(evaluation => 
           evaluation.deliverableName === milestoneName
         );
-        console.log('Filtered evaluations:', filteredEvaluations);
         setEvaluations(filteredEvaluations);
       } else {
-        console.log('Milestone name not found, showing all evaluations');
         setEvaluations(allEvaluations);
       }
     }
   }, [selectedMilestone, allEvaluations, milestones]);
 
   // ------------------ Table Columns ------------------
+  const mapTypeToText = (type) => {
+    if (!type) return '-';
+    const t = String(type).trim().toLowerCase();
+    const map = {
+      excellent: 'Exceeds requirements',
+      good: 'Fully meets requirements',
+      fair: 'Mostly meets requirements',
+      average: 'Meets basics, lacks detail',
+      poor: 'Below standard',
+    };
+    if (map[t]) return map[t];
+    // If already in text form, return as is
+    const texts = Object.values(map).map(s => s.toLowerCase());
+    if (texts.includes(t)) return type;
+    // Fallbacks by keywords
+    if (t.includes('exceed')) return map.excellent;
+    if (t.includes('fully') && t.includes('requirement')) return map.good;
+    if (t.includes('mostly')) return map.fair;
+    if (t.includes('basic') || t.includes('lack')) return map.average;
+    if (t.includes('below') || t.includes('standard')) return map.poor;
+    return type;
+  };
   const columns = [
     {
       key: 'stt',
-      title: 'STT',
+      title: 'No',
       render: (_, index) => index + 1
     },
     {
+      key: 'type',
+      title: 'Feedback',
+      render: (evaluation) => (
+        <span>{mapTypeToText(evaluation.type)}</span>
+      )
+    },
+    {
       key: 'feedback',
-      title: 'Nhận xét',
+      title: 'Notes',
       render: (evaluation) => (
         <div className={styles.feedbackContent}>
           <p className={styles.feedbackText}>{evaluation.feedback}</p>
@@ -147,53 +191,45 @@ export default function StudentEvaluation() {
     },
     {
       key: 'supervisor',
-      title: 'Giảng viên',
+      title: 'Supervisor',
       render: (evaluation) => (
         <div className={styles.supervisorInfo}>
           <span className={styles.supervisorName}>{evaluation.evaluatorName}</span>
         </div>
       )
+    }
+  ];
+
+  // ------------------ General Penalty Cards Table Columns ------------------
+  const penaltyColumns = [
+    {
+      key: 'stt',
+      title: 'STT',
+      render: (_, index) => index + 1
     },
     {
-      key: 'penaltyCards',
-      title: 'Thẻ phạt',
-      render: (evaluation) => {
-        if (evaluation.penaltyCards && evaluation.penaltyCards.length > 0) {
-          return (
-            <div className={styles.penaltyCardsList}>
-              {evaluation.penaltyCards.map((cardName, index) => (
-                <span
-                  key={index}
-                  className={styles.penaltyTag}
-                  style={{
-                    backgroundColor: "#ef4444",
-                    color: "#fff",
-                    marginRight: "4px",
-                    fontSize: "12px",
-                    padding: "4px 8px",
-                    borderRadius: "4px",
-                    display: "inline-block",
-                    marginBottom: "4px"
-                  }}
-                >
-                  {cardName}
-                </span>
-              ))}
-            </div>
-          );
-        }
-        
-        return <span className={styles.noPenalty}>Không có thẻ phạt</span>;
-      }
+      key: 'name',
+      title: 'Name',
+      render: (item) => item.name || '-'
+    },
+    {
+      key: 'description',
+      title: 'Description',
+      render: (item) => item.description || '-'
+    },
+    {
+      key: 'type',
+      title: 'Type',
+      render: (item) => item.type || '-'
     }
   ];
 
   // ------------------ Summary Statistics ------------------
   const getSummaryStats = () => {
+    // Tổng số đánh giá: theo bảng "Bảng đánh giá cá nhân" (danh sách evaluations hiện tại)
     const totalEvaluations = evaluations.length;
-    const totalPenalties = evaluations.reduce((count, evaluation) => 
-      count + (evaluation.penaltyCards ? evaluation.penaltyCards.length : 0), 0
-    );
+    // Tổng số thẻ phạt: theo bảng "Danh sách thẻ phạt cá nhân" (danh sách penaltyCardsGeneral)
+    const totalPenalties = penaltyCardsGeneral.length;
     
     return {
       totalEvaluations,
@@ -204,28 +240,28 @@ export default function StudentEvaluation() {
   const stats = getSummaryStats();
 
   if (loading && evaluations.length === 0) {
-    return <div className={styles.loading}>Đang tải dữ liệu...</div>;
+    return <div className={styles.loading}>Loading data...</div>;
   }
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Đánh giá của Mentor</h1>
+        <h1>Mentor Evaluations</h1>
         <p className={styles.subtitle}>
-          Xem nhận xét và thẻ phạt từ mentor theo từng milestone
+          View mentor feedback and penalty cards by milestone
         </p>
       </div>
 
       {/* ------------------ Controls ------------------ */}
       <div className={styles.controls}>
         <div className={styles.controlGroup}>
-          <label>Chọn Milestone:</label>
+          <label>Select Milestone:</label>
           <select
             value={selectedMilestone}
             onChange={(e) => setSelectedMilestone(e.target.value)}
             className={styles.select}
           >
-            <option value="all">Tất cả Milestones</option>
+            <option value="all">All milestones</option>
             {milestones.map((milestone) => (
               <option key={milestone.id} value={milestone.id}>
                 {milestone.name}
@@ -240,14 +276,14 @@ export default function StudentEvaluation() {
       <div className={styles.summaryCards}>
         <Card className={styles.summaryCard}>
           <div className={styles.summaryContent}>
-            <h3>Tổng số đánh giá</h3>
+            <h3>Total evaluations</h3>
             <div className={styles.summaryNumber}>{stats.totalEvaluations}</div>
           </div>
         </Card>
         
         <Card className={styles.summaryCard}>
           <div className={styles.summaryContent}>
-            <h3>Tổng số thẻ phạt</h3>
+            <h3>Total penalty cards</h3>
             <div className={styles.summaryNumber}>{stats.totalPenalties}</div>
           </div>
         </Card>
@@ -255,13 +291,13 @@ export default function StudentEvaluation() {
 
       {/* ------------------ Evaluations Table ------------------ */}
       <div className={styles.evaluationsSection}>
-        <h2>Bảng đánh giá cá nhân</h2>
+        <h2>Student evaluation table</h2>
         <div className={styles.tableContainer}>
           {selectedMilestone === "all" ? (
             <div className={styles.noSelection}>
               <div className={styles.noSelectionContent}>
-                <h3>Chọn một milestone để xem đánh giá</h3>
-                <p>Vui lòng chọn milestone cụ thể để xem nhận xét và thẻ phạt từ mentor.</p>
+                <h3>Select a milestone to view evaluations</h3>
+                <p>Please choose a specific milestone to view mentor feedback.</p>
               </div>
             </div>
           ) : (
@@ -269,10 +305,24 @@ export default function StudentEvaluation() {
               columns={columns}
               data={evaluations}
               loading={loading}
-              emptyMessage="Chưa có đánh giá nào cho milestone này"
+              emptyMessage="No evaluations for this milestone"
               showIndex={false}
             />
           )}
+        </div>
+      </div>
+
+      {/* ------------------ General Penalty Cards Table ------------------ */}
+      <div className={styles.evaluationsSection}>
+        <h2>Personal penalty cards</h2>
+        <div className={styles.tableContainer}>
+          <DataTable
+            columns={penaltyColumns}
+            data={penaltyCardsGeneral}
+            loading={loadingPenaltyCards}
+            emptyMessage="No personal penalty cards"
+            showIndex={false}
+          />
         </div>
       </div>
 

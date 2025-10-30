@@ -20,14 +20,6 @@ export default function PenaltyManagement() {
   const [createdPenalties, setCreatedPenalties] = React.useState([]);
   const [loadingCreatedPenalties, setLoadingCreatedPenalties] = React.useState(false);
   
-  // Debug logs for state changes
-  React.useEffect(() => {
-    console.log('createdPenalties state changed:', createdPenalties);
-  }, [createdPenalties]);
-  
-  React.useEffect(() => {
-    console.log('loadingCreatedPenalties state changed:', loadingCreatedPenalties);
-  }, [loadingCreatedPenalties]);
   const [newPenalty, setNewPenalty] = React.useState({
     name: "",
     description: "",
@@ -47,29 +39,24 @@ export default function PenaltyManagement() {
 
   React.useEffect(() => {
     if (selectedGroup) {
+      // Refetch khi nhóm đổi hoặc danh sách sinh viên đã sẵn sàng (tránh race condition)
       fetchCreatedPenalties();
     } else {
       setCreatedPenalties([]);
     }
-  }, [selectedGroup]);
+  }, [selectedGroup, students]);
 
   const fetchGroups = async () => {
     setLoading(true);
     try {
-      console.log('Fetching groups from /Mentor/getGroups');
       const response = await axiosClient.get('/Mentor/getGroups');
-      console.log('Groups API response:', response.data);
       
       if (response.data.status === 200) {
         const groupsData = response.data.data || [];
-        console.log('Groups data:', groupsData);
         setGroups(groupsData);
       } else {
-        console.error('API returned non-200 status:', response.data);
       }
     } catch (err) {
-      console.error('Error fetching groups:', err);
-      console.error('Error details:', err.response?.data);
     } finally {
       setLoading(false);
     }
@@ -77,67 +64,53 @@ export default function PenaltyManagement() {
 
   const fetchStudents = async (groupId = null) => {
     try {
-      console.log('=== fetchStudents called ===');
-      console.log('GroupId:', groupId, 'Type:', typeof groupId);
-      
-      const response = await axiosClient.get('/Mentor/getGroups');
-      console.log('API Response:', response.data);
-      
-      if (response.data.status === 200) {
-        const allStudents = [];
-        
-        if (groupId) {
-          // Lấy sinh viên của nhóm cụ thể
-          console.log('Looking for group with id:', groupId);
-          console.log('Available groups:', response.data.data.map(g => ({ id: g.id, name: g.name })));
-          
-          const selectedGroupData = response.data.data.find(group => {
-            console.log('Comparing:', group.id, 'with', groupId, 'Result:', group.id == groupId);
-            return group.id == groupId;
-          });
-          
-          console.log('Selected group data:', selectedGroupData);
-          
-          if (selectedGroupData && selectedGroupData.students) {
-            console.log('Students in selected group:', selectedGroupData.students);
-            selectedGroupData.students.forEach(student => {
-              allStudents.push({
-                id: student.rollNumber,
-                studentId: student.id.toString(),
-                name: student.name,
-                rollNumber: student.rollNumber,
-                email: student.email,
-                groupName: selectedGroupData.name
-              });
-            });
-          } else {
-            console.log('No students found in selected group or group not found');
-          }
-        } else {
-          // Lấy tất cả sinh viên từ tất cả các nhóm (fallback)
-          console.log('Fetching all students from all groups');
-          response.data.data.forEach(group => {
-            if (group.students) {
-              group.students.forEach(student => {
-                allStudents.push({
-                  id: student.rollNumber,
-                  studentId: student.id.toString(),
-                  name: student.name,
-                  rollNumber: student.rollNumber,
-                  email: student.email,
-                  groupName: group.name
-                });
-              });
-            }
-          });
-        }
-        
-        setStudents(allStudents);
-        console.log('Final students array:', allStudents);
-        console.log('Students count:', allStudents.length);
+
+      if (!groupId) {
+        // Không chọn nhóm: clear students
+        setStudents([]);
+        return;
+      }
+
+      // Đồng bộ cách lấy dữ liệu như Evaluation: dùng /Staff/capstone-groups/:id
+      const studentRes = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
+
+      // Chuẩn hóa dữ liệu trả về
+      let studentData;
+      if (studentRes.data?.status === 200) {
+        studentData = studentRes.data.data;
+      } else if (studentRes.data && studentRes.data.data) {
+        studentData = studentRes.data.data;
+      } else {
+        studentData = studentRes.data;
+      }
+
+      if (!studentData || !Array.isArray(studentData.students)) {
+        setStudents([]);
+        return;
+      }
+
+      // Map students theo chuẩn Evaluation
+      const mappedStudents = studentData.students.map(s => ({
+        id: s.rollNumber,
+        studentId: s.id?.toString(),
+        name: s.name,
+        rollNumber: s.rollNumber,
+        email: s.email,
+        groupName: studentData.projectName || studentData.name || ''
+      }));
+
+      setStudents(mappedStudents);
+
+      // Cập nhật lại tên nhóm theo projectName giống Evaluation để hiển thị đồng nhất
+      if (studentData.projectName) {
+        setGroups(prev => prev.map(g => (
+          (g.id?.toString() || g.groupId?.toString()) === groupId?.toString()
+            ? { ...g, name: studentData.projectName }
+            : g
+        )));
       }
     } catch (err) {
-      console.error('Error fetching students:', err);
+      setStudents([]);
     }
   };
 
@@ -148,16 +121,10 @@ export default function PenaltyManagement() {
       return;
     }
     
-    console.log('=== fetchCreatedPenalties called ===');
-    console.log('Selected group:', selectedGroup);
     setLoadingCreatedPenalties(true);
     
     try {
-      console.log('Calling API: /Common/Evaluation/getCardGeneralFromMentorId');
       const response = await axiosClient.get('/Common/Evaluation/getCardGeneralFromMentorId');
-      console.log('Created penalties response:', response.data);
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
       
       let allPenalties = [];
       
@@ -167,164 +134,56 @@ export default function PenaltyManagement() {
       } else if (response.data && response.data.status === 200) {
         allPenalties = response.data.data || [];
       } else {
-        console.error('Failed to fetch created penalties:', response.data?.message || 'Unknown error');
-        console.error('Response data structure:', response.data);
         allPenalties = [];
       }
       
       // Lọc thẻ phạt theo nhóm được chọn
       const groupId = typeof selectedGroup === 'object' ? selectedGroup.id : selectedGroup;
-      console.log('All penalties:', allPenalties);
-      console.log('Looking for groupId:', groupId);
       
       // Kiểm tra cấu trúc data để hiểu cách filter
       if (allPenalties.length > 0) {
-        console.log('First penalty structure:', allPenalties[0]);
-        console.log('Available keys:', Object.keys(allPenalties[0]));
       }
+
+      // Map studentName cho các penalty từ API thật
+      const penaltiesWithStudentNames = allPenalties.map(penalty => {
+        
+        const student = students.find(s => {
+          const matchById = s.studentId === penalty.userId?.toString();
+          const matchByRollNumber = s.id === penalty.userId?.toString();
+          const matchByNumber = s.studentId === penalty.userId;
+          const match = matchById || matchByRollNumber || matchByNumber;
+          return match;
+        });
+        
+        
+        return {
+          ...penalty,
+          studentName: student?.name || penalty.studentName || 'Unknown'
+        };
+      });
       
-      // Tạo data khác nhau cho mỗi nhóm để phân biệt rõ ràng
-      let groupSpecificPenalties = [];
+      // Chỉ giữ các penalty có user thuộc nhóm hiện tại
+      const studentIdsInGroup = new Set(students.map(s => s.studentId));
+      const filteredApiPenalties = penaltiesWithStudentNames.filter(p => 
+        p.userId != null && (studentIdsInGroup.has(String(p.userId)) || studentIdsInGroup.has(p.userId))
+      );
       
-      if (groupId == 1) {
-        // Nhóm "FPT University Capstone Tracking System"
-        groupSpecificPenalties = [
-          { 
-            id: 1, 
-            name: 'Vắng mặt meeting', 
-            description: 'Không tham gia buổi meeting tuần này', 
-            type: 'General', 
-            userId: 26, 
-            groupId: 1,
-            createdAt: new Date().toISOString(), 
-            studentName: 'Lê Duy Hải' 
-          },
-          { 
-            id: 2, 
-            name: 'Nộp bài muộn', 
-            description: 'Nộp milestone 1 chậm deadline', 
-            type: 'General', 
-            userId: 97, 
-            groupId: 1,
-            createdAt: new Date().toISOString(), 
-            studentName: 'Phạm Huy Khánh' 
-          },
-          { 
-            id: 3, 
-            name: 'Chất lượng code kém', 
-            description: 'Code không tuân thủ coding standards', 
-            type: 'General', 
-            userId: 98, 
-            groupId: 1,
-            createdAt: new Date().toISOString(), 
-            studentName: 'Đoàn Mạnh Giỏi' 
-          }
-        ];
-      } else if (groupId == 2) {
-        // Nhóm "Sống Xanh Cùng Gen Z"
-        groupSpecificPenalties = [
-          { 
-            id: 4, 
-            name: 'Thiếu tài liệu', 
-            description: 'Không nộp đầy đủ tài liệu báo cáo', 
-            type: 'General', 
-            userId: 101, 
-            groupId: 2,
-            createdAt: new Date().toISOString(), 
-            studentName: 'Nguyễn Văn A' 
-          },
-          { 
-            id: 5, 
-            name: 'Thiếu sáng tạo', 
-            description: 'Ý tưởng chưa đủ sáng tạo cho dự án xanh', 
-            type: 'General', 
-            userId: 102, 
-            groupId: 2,
-            createdAt: new Date().toISOString(), 
-            studentName: 'Trần Thị B' 
-          }
-        ];
-      } else {
-        // Nhóm khác hoặc không xác định
-        groupSpecificPenalties = [
-          { 
-            id: 6, 
-            name: 'Chưa có dữ liệu', 
-            description: 'Nhóm này chưa có thẻ phạt nào', 
-            type: 'General', 
-            userId: 0, 
-            groupId: groupId,
-            createdAt: new Date().toISOString(), 
-            studentName: 'Chưa có dữ liệu' 
-          }
-        ];
-      }
-      
-      console.log('Group-specific penalties for group', groupId, ':', groupSpecificPenalties);
-      setCreatedPenalties(groupSpecificPenalties);
+      // Chỉ dùng dữ liệu từ API
+      setCreatedPenalties(filteredApiPenalties);
       
     } catch (err) {
-      console.error('Error fetching created penalties:', err);
-      console.error('Error details:', err.response?.data);
-      console.error('Error status:', err.response?.status);
-      
-      // Sử dụng fallback data cho nhóm được chọn
-      console.log('Using fallback data due to API error');
-      const groupId = typeof selectedGroup === 'object' ? selectedGroup.id : selectedGroup;
-      
-      let fallbackData = [];
-      if (groupId == 1) {
-        fallbackData = [
-          { 
-            id: 1, 
-            name: 'Vắng mặt meeting', 
-            description: 'Không tham gia buổi meeting tuần này', 
-            type: 'General', 
-            userId: 26, 
-            groupId: 1,
-            createdAt: new Date().toISOString(), 
-            studentName: 'Lê Duy Hải' 
-          }
-        ];
-      } else if (groupId == 2) {
-        fallbackData = [
-          { 
-            id: 4, 
-            name: 'Thiếu tài liệu', 
-            description: 'Không nộp đầy đủ tài liệu báo cáo', 
-            type: 'General', 
-            userId: 101, 
-            groupId: 2,
-            createdAt: new Date().toISOString(), 
-            studentName: 'Nguyễn Văn A' 
-          }
-        ];
-      } else {
-        fallbackData = [
-          { 
-            id: 6, 
-            name: 'Chưa có dữ liệu', 
-            description: 'Nhóm này chưa có thẻ phạt nào', 
-            type: 'General', 
-            userId: 0, 
-            groupId: groupId,
-            createdAt: new Date().toISOString(), 
-            studentName: 'Chưa có dữ liệu' 
-          }
-        ];
-      }
-      
-      setCreatedPenalties(fallbackData);
+      // Lỗi: không dùng dữ liệu mock, trả về rỗng
+      setCreatedPenalties([]);
     } finally {
       setLoadingCreatedPenalties(false);
-      console.log('=== fetchCreatedPenalties completed ===');
     }
   };
 
   // ------------------ Penalty Types ------------------
   const penaltyTypes = [
-    { value: "general", label: "General" },
-    { value: "milestone", label: "Milestone" }
+    { value: "warning", label: "Nhắc nhở" },
+    { value: "no-deduction", label: "Không trừ điểm" },
+    { value: "deduction", label: "Trừ điểm" }
   ];
 
   // ------------------ Modal Logic ------------------
@@ -351,36 +210,29 @@ export default function PenaltyManagement() {
 
   const submitPenalty = async () => {
     // Debug log để kiểm tra dữ liệu
-    console.log('newPenalty state:', newPenalty);
     
     // Kiểm tra validation chi tiết hơn
     if (!newPenalty.name || typeof newPenalty.name !== 'string' || !newPenalty.name.trim()) {
-      console.log('Validation failed: name =', newPenalty.name);
-      alert("Vui lòng nhập tên thẻ phạt");
+      alert("Please enter penalty name");
       return;
     }
     
     if (!newPenalty.type || typeof newPenalty.type !== 'string' || !newPenalty.type.trim()) {
-      console.log('Validation failed: type =', newPenalty.type);
-      alert("Vui lòng chọn loại thẻ phạt");
+      alert("Please select penalty type");
       return;
     }
     
-    // Chỉ yêu cầu userId khi loại không phải milestone
-    if (newPenalty.type !== 'milestone' && (!newPenalty.userId || typeof newPenalty.userId !== 'string' || !newPenalty.userId.trim())) {
-      console.log('Validation failed: userId =', newPenalty.userId);
-      alert("Vui lòng chọn người bị phạt");
+    // Luôn yêu cầu userId vì tất cả loại penalty đều cần gán cho student
+    if (!newPenalty.userId || typeof newPenalty.userId !== 'string' || !newPenalty.userId.trim()) {
+      alert("Please select person to penalize");
       return;
     }
 
-    // Kiểm tra userId có phải là số hợp lệ không (chỉ khi không phải milestone)
-    let userIdNumber = null;
-    if (newPenalty.type !== 'milestone') {
-      userIdNumber = parseInt(newPenalty.userId);
-      if (isNaN(userIdNumber) || userIdNumber <= 0) {
-        alert("ID người dùng không hợp lệ");
-        return;
-      }
+    // Kiểm tra userId có phải là số hợp lệ không
+    const userIdNumber = parseInt(newPenalty.userId);
+    if (isNaN(userIdNumber) || userIdNumber <= 0) {
+      alert("ID người dùng không hợp lệ");
+      return;
     }
 
     try {
@@ -388,37 +240,43 @@ export default function PenaltyManagement() {
         name: String(newPenalty.name).trim(),
         description: newPenalty.description ? String(newPenalty.description) : "",
         type: String(newPenalty.type),
-        userId: newPenalty.type === 'milestone' ? 0 : userIdNumber,
-        createdAt: new Date().toISOString()
+        userId: userIdNumber
       };
       
-      console.log('Payload gửi lên API:', payload);
-      console.log('API Endpoint: /Common/Evaluation/create-card');
 
       const response = await axiosClient.post('/Common/Evaluation/create-card', payload);
       
-      console.log('API Response:', response.data);
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
 
       if (response.data.status === 200) {
-        // Thêm thẻ phạt vào danh sách đã cấp
-        const studentName = newPenalty.type === 'milestone' 
-          ? "Milestone Penalty" 
-          : students.find(s => s.studentId === newPenalty.userId)?.name || "Unknown";
+        // Thêm thẻ phạt vào danh sách đã cấp (hiển thị nhanh)
+        const studentName = students.find(s => s.studentId === newPenalty.userId)?.name || "Unknown";
         const newIssuedPenalty = {
           id: Date.now(),
           name: payload.name,
           description: payload.description,
           type: payload.type,
           studentName: studentName,
-          createdAt: payload.createdAt,
+            createdAt: response.data.data?.createdAt || new Date().toISOString(),
           userId: payload.userId
         };
         setIssuedPenalties(prev => [newIssuedPenalty, ...prev]);
+
+        // Cập nhật ngay bảng "Danh sách Thẻ phạt" (optimistic update)
+        const newCreatedPenalty = {
+          id: response.data.data?.id || Date.now(),
+          name: payload.name,
+          description: payload.description,
+          type: payload.type,
+          userId: payload.userId,
+          groupId: parseInt(selectedGroup),
+            createdAt: response.data.data?.createdAt || new Date().toISOString(),
+          studentName: studentName
+        };
+        setCreatedPenalties(prev => [newCreatedPenalty, ...prev]);
         
-        // Refresh penalties list
+        // Có thể refetch để đồng bộ với server (giữ lại nếu cần)
         await fetchCreatedPenalties();
+
         setPenaltyModal(false);
         setNewPenalty({
           name: "",
@@ -426,24 +284,18 @@ export default function PenaltyManagement() {
           type: "",
           userId: "",
         });
-        alert("Cấp thẻ phạt thành công!");
+        alert("Penalty issued successfully!");
       } else {
-        console.error('API Error:', response.data);
-        alert(`Lỗi: ${response.data.message || 'Không thể cấp thẻ phạt'}`);
+        alert(`Error: ${response.data.message || 'Unable to issue penalty'}`);
       }
     } catch (err) {
-      console.error("Error submitting penalty:", err);
-      console.error("Error details:", err.response?.data);
-      console.error("Error status:", err.response?.status);
-      console.error("Error headers:", err.response?.headers);
-      const errorMessage = err.response?.data?.message || err.message || "Không thể cấp thẻ phạt. Vui lòng thử lại.";
-      alert(`Lỗi: ${errorMessage}`);
+      const errorMessage = err.response?.data?.message || err.message || "Unable to issue penalty. Please try again.";
+      alert(`Error: ${errorMessage}`);
     }
   };
 
   // ------------------ Update Penalty ------------------
   const openEditModal = (penalty) => {
-    console.log('Opening edit modal for penalty:', penalty);
     setEditPenalty({
       id: penalty.id,
       name: penalty.name,
@@ -459,17 +311,18 @@ export default function PenaltyManagement() {
 
     // Validation
     if (!editPenalty.name || !editPenalty.name.trim()) {
-      alert("Vui lòng nhập tên thẻ phạt");
+      alert("Please enter penalty name");
       return;
     }
 
     if (!editPenalty.type || !editPenalty.type.trim()) {
-      alert("Vui lòng chọn loại thẻ phạt");
+      alert("Please select penalty type");
       return;
     }
 
-    if (editPenalty.type !== 'milestone' && (!editPenalty.userId || !editPenalty.userId.trim())) {
-      alert("Vui lòng chọn người bị phạt");
+    // Luôn yêu cầu userId vì tất cả loại penalty đều cần gán cho student
+    if (!editPenalty.userId || !editPenalty.userId.trim()) {
+      alert("Please select person to penalize");
       return;
     }
 
@@ -478,31 +331,17 @@ export default function PenaltyManagement() {
         name: String(editPenalty.name).trim(),
         description: editPenalty.description ? String(editPenalty.description) : "",
         type: String(editPenalty.type),
-        userId: editPenalty.type === 'milestone' ? 0 : parseInt(editPenalty.userId),
+        userId: parseInt(editPenalty.userId),
       };
 
-      console.log('=== CẬP NHẬT THẺ PHẠT DEBUG ===');
-      console.log('Đối tượng thẻ phạt:', editPenalty);
-      console.log('ID thẻ phạt:', editPenalty.id);
-      console.log('Dữ liệu gửi:', payload);
-      console.log('URL API:', `/Common/Evaluation/update/penalty-card/${editPenalty.id}`);
-      console.log('================================');
 
       const response = await axiosClient.put(`/Common/Evaluation/update/penalty-card/${editPenalty.id}`, payload);
       
-      console.log('=== PHẢN HỒI CẬP NHẬT THẺ PHẠT ===');
-      console.log('Trạng thái phản hồi:', response.status);
-      console.log('Dữ liệu phản hồi:', response.data);
-      console.log('Dữ liệu JSON:', JSON.stringify(response.data, null, 2));
-      console.log('Headers phản hồi:', response.headers);
-      console.log('================================');
 
       if (response.data.status === 200 || response.status === 200 || !response.data.error) {
         setEditModal(false);
-        alert(response.data.message || "Thẻ phạt đã được cập nhật thành công!");
+        alert(response.data.message || "Penalty updated successfully!");
         
-        // Log thông tin thẻ phạt đã được cập nhật
-        console.log('Dữ liệu thẻ phạt đã cập nhật:', response.data.data);
         
         // Cập nhật trực tiếp vào state thay vì refresh toàn bộ
         const updatedData = response.data.data;
@@ -523,13 +362,11 @@ export default function PenaltyManagement() {
         );
         
       } else {
-        alert(`Lỗi: ${response.data.message || 'Không thể cập nhật thẻ phạt'}`);
+        alert(`Error: ${response.data.message || 'Unable to update penalty'}`);
       }
     } catch (err) {
-      console.error("Lỗi cập nhật thẻ phạt:", err);
-      console.error("Chi tiết lỗi:", err.response?.data);
-      const errorMessage = err.response?.data?.message || err.message || "Không thể cập nhật thẻ phạt. Vui lòng thử lại.";
-      alert(`Lỗi: ${errorMessage}`);
+      const errorMessage = err.response?.data?.message || err.message || "Unable to update penalty. Please try again.";
+      alert(`Error: ${errorMessage}`);
     }
   };
 
@@ -538,40 +375,39 @@ export default function PenaltyManagement() {
   const createdPenaltiesColumns = [
     {
       key: 'stt',
-      title: 'STT',
+      title: 'No.',
       render: (_, index) => index + 1
     },
     {
+      key: 'studentName',
+      title: 'Student',
+      render: (penalty) => penalty.studentName || 'N/A'
+    },
+    {
       key: 'name',
-      title: 'Tên thẻ phạt',
+      title: 'Penalty Name',
       render: (penalty) => penalty.name || 'N/A'
     },
     {
       key: 'description',
-      title: 'Mô tả',
+      title: 'Description',
       render: (penalty) => penalty.description || 'N/A'
     },
     {
       key: 'type',
-      title: 'Thể loại',
+      title: 'Type',
       render: (penalty) => {
         const typeLabels = {
-          'general': 'General',
-          'General': 'General',
-          'milestone': 'Milestone',
-          'Milestone': 'Milestone'
+          'warning': 'Nhắc nhở',
+          'no-deduction': 'Không trừ điểm',
+          'deduction': 'Trừ điểm'
         };
         return typeLabels[penalty.type] || penalty.type || 'N/A';
       }
     },
     {
-      key: 'studentName',
-      title: 'Sinh viên',
-      render: (penalty) => penalty.studentName || 'N/A'
-    },
-    {
       key: 'actions',
-      title: 'Thao tác',
+      title: 'Actions',
       render: (penalty) => (
         <div className={styles.actions}>
           <Button
@@ -579,7 +415,7 @@ export default function PenaltyManagement() {
             size="small"
             onClick={() => openEditModal(penalty)}
           >
-            Sửa
+            Edit
           </Button>
         </div>
       )
@@ -590,7 +426,7 @@ export default function PenaltyManagement() {
   const columns = [
     {
       key: 'studentName',
-      title: 'Sinh viên',
+      title: 'Student',
       render: (penalty) => {
         const student = students.find(s => s.studentId === penalty.userId?.toString());
         return (
@@ -603,7 +439,7 @@ export default function PenaltyManagement() {
     },
     {
       key: 'name',
-      title: 'Tên thẻ phạt',
+      title: 'Penalty Name',
       render: (penalty) => (
         <span className={styles.penaltyName}>
           {penalty.name}
@@ -612,28 +448,38 @@ export default function PenaltyManagement() {
     },
     {
       key: 'type',
-      title: 'Loại',
+      title: 'Type',
       render: (penalty) => {
-        const typeInfo = penaltyReasons.find(r => r.value === penalty.type);
+        const typeLabels = {
+          'warning': 'Nhắc nhở',
+          'no-deduction': 'Không trừ điểm',
+          'deduction': 'Trừ điểm'
+        };
+        const getTypeClassName = (type) => {
+          if (type === 'warning') return styles.penaltyTypeWarning;
+          if (type === 'no-deduction') return styles.penaltyTypeNoDeduction;
+          if (type === 'deduction') return styles.penaltyTypeDeduction;
+          return '';
+        };
         return (
-          <span className={styles.penaltyType}>
-            {typeInfo?.label || penalty.type}
+          <span className={`${styles.penaltyType} ${getTypeClassName(penalty.type)}`}>
+            {typeLabels[penalty.type] || penalty.type || 'N/A'}
           </span>
         );
       }
     },
     {
       key: 'description',
-      title: 'Mô tả',
+      title: 'Description',
       render: (penalty) => (
         <span className={styles.description}>
-          {penalty.description || "Không có mô tả"}
+          {penalty.description || "No description"}
         </span>
       )
     },
     {
       key: 'createdAt',
-      title: 'Thời gian',
+      title: 'Time',
       render: (penalty) => (
         <span className={styles.penaltyDate}>
           {new Date(penalty.createdAt).toLocaleString('vi-VN')}
@@ -642,7 +488,7 @@ export default function PenaltyManagement() {
     },
     {
       key: 'actions',
-      title: 'Thao tác',
+      title: 'Actions',
       render: (penalty) => (
         <div className={styles.actions}>
           <Button
@@ -650,10 +496,10 @@ export default function PenaltyManagement() {
             size="small"
             onClick={() => {
               // View penalty details
-              alert(`Chi tiết thẻ phạt:\nLý do: ${penalty.reason}\nMô tả: ${penalty.description || "Không có"}`);
+              alert(`Penalty details:\nReason: ${penalty.reason}\nDescription: ${penalty.description || "None"}`);
             }}
           >
-            Xem
+            View
           </Button>
         </div>
       )
@@ -664,23 +510,22 @@ export default function PenaltyManagement() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Quản lý Thẻ phạt</h1>
+        <h1>Penalty Management</h1>
         <div className={styles.headerActions}>
           <Button
             onClick={() => openPenaltyModal()}
           >
-            Cấp thẻ phạt
+            Issue Penalty
           </Button>
         </div>
       </div>
 
       <div className={styles.controls}>
         <div className={styles.controlGroup}>
-          <label>Nhóm:</label>
+          <label>Group:</label>
           <select
             value={selectedGroup || ""}
             onChange={async (e) => {
-              console.log('Selected group value:', e.target.value);
               setSelectedGroup(e.target.value);
               
               // Fetch students của nhóm được chọn
@@ -693,7 +538,7 @@ export default function PenaltyManagement() {
             }}
             className={styles.select}
           >
-            <option value="">Chọn nhóm</option>
+            <option value="">Select group</option>
             {groups.map((g) => (
               <option key={g.id} value={g.id}>
                 {g.name}
@@ -707,14 +552,14 @@ export default function PenaltyManagement() {
       {selectedGroup && (
         <div className={styles.tableSection}>
           <div className={styles.tableHeader}>
-            <h2>Danh sách Thẻ phạt - {groups.find(g => g.id == selectedGroup)?.name || 'Nhóm đã chọn'}</h2>
+            <h2>Penalty List - {groups.find(g => g.id == selectedGroup)?.name || 'Selected Group'}</h2>
           </div>
           <div className={styles.tableContainer}>
             <DataTable
               columns={createdPenaltiesColumns}
               data={createdPenalties}
               loading={loadingCreatedPenalties}
-              emptyMessage="Chưa có thẻ phạt nào"
+              emptyMessage="No penalties yet"
               showIndex={false}
             />
           </div>
@@ -724,44 +569,38 @@ export default function PenaltyManagement() {
       {/* ------------------ Penalty Modal ------------------ */}
       <Modal open={penaltyModal} onClose={() => setPenaltyModal(false)}>
         <div className={styles.penaltyModal}>
-          <h2>Cấp Thẻ phạt</h2>
+          <h2>Issue Penalty</h2>
           
           <div className={styles.formGroup}>
-            <label>Tên thẻ phạt *</label>
+            <label>Penalty Name *</label>
             <Input
               value={newPenalty.name}
               onChange={(e) => setNewPenalty({...newPenalty, name: e.target.value})}
-              placeholder="Nhập tên thẻ phạt"
+              placeholder="Enter penalty name"
             />
           </div>
 
           <div className={styles.formGroup}>
-            <label>Mô tả</label>
+            <label>Description</label>
             <Textarea
               value={newPenalty.description}
               onChange={(e) => setNewPenalty({...newPenalty, description: e.target.value})}
-              placeholder="Mô tả chi tiết về thẻ phạt..."
+              placeholder="Describe penalty details..."
               rows={4}
               className={styles.textarea}
             />
           </div>
 
           <div className={styles.formGroup}>
-            <label>Loại thẻ phạt *</label>
+            <label>Penalty Type *</label>
             <select
               value={newPenalty.type}
               onChange={(e) => {
-                console.log('Selected type:', e.target.value);
-                const updatedPenalty = {...newPenalty, type: e.target.value};
-                // Nếu chọn milestone, set userId = null
-                if (e.target.value === 'milestone') {
-                  updatedPenalty.userId = '';
-                }
-                setNewPenalty(updatedPenalty);
+                setNewPenalty({...newPenalty, type: e.target.value});
               }}
               className={styles.select}
             >
-              <option value="">Chọn loại thẻ phạt</option>
+              <option value="">Select penalty type</option>
               {penaltyTypes.map(type => (
                 <option key={type.value} value={type.value}>
                   {type.label}
@@ -771,20 +610,17 @@ export default function PenaltyManagement() {
           </div>
 
           <div className={styles.formGroup}>
-            <label>Người bị phạt *</label>
-            {console.log('Rendering students dropdown - students:', students, 'selectedGroup:', selectedGroup)}
+            <label>Person to Penalize *</label>
             <select
               value={newPenalty.userId}
               onChange={(e) => {
-                console.log('Selected userId:', e.target.value);
                 setNewPenalty({...newPenalty, userId: e.target.value});
               }}
               className={styles.select}
-              disabled={newPenalty.type === 'milestone'}
             >
               <option value="">
-                {!selectedGroup ? "Vui lòng chọn nhóm trước" : 
-                 students.length === 0 ? "Không có sinh viên trong nhóm này" : "Chọn sinh viên"}
+                {!selectedGroup ? "Please select group first" : 
+                 students.length === 0 ? "No students in this group" : "Select student"}
               </option>
               {students.map(s => (
                 <option key={s.studentId} value={s.studentId}>
@@ -808,12 +644,12 @@ export default function PenaltyManagement() {
               variant="secondary"
               onClick={() => setPenaltyModal(false)}
             >
-              Hủy
+              Cancel
             </Button>
             <Button
               onClick={submitPenalty}
             >
-              Cấp thẻ phạt
+              Issue Penalty
             </Button>
           </div>
         </div>
@@ -822,44 +658,38 @@ export default function PenaltyManagement() {
       {/* ------------------ Edit Penalty Modal ------------------ */}
       <Modal open={editModal} onClose={() => setEditModal(false)}>
         <div className={styles.penaltyModal}>
-          <h2>Sửa Thẻ phạt</h2>
+          <h2>Edit Penalty</h2>
           
           <div className={styles.formGroup}>
-            <label>Tên thẻ phạt *</label>
+            <label>Penalty Name *</label>
             <Input
               value={editPenalty?.name || ""}
               onChange={(e) => setEditPenalty({...editPenalty, name: e.target.value})}
-              placeholder="Nhập tên thẻ phạt"
+              placeholder="Enter penalty name"
             />
           </div>
 
           <div className={styles.formGroup}>
-            <label>Mô tả</label>
+            <label>Description</label>
             <Textarea
               value={editPenalty?.description || ""}
               onChange={(e) => setEditPenalty({...editPenalty, description: e.target.value})}
-              placeholder="Mô tả chi tiết về thẻ phạt..."
+              placeholder="Describe penalty details..."
               rows={4}
               className={styles.textarea}
             />
               </div>
 
           <div className={styles.formGroup}>
-            <label>Loại thẻ phạt *</label>
+            <label>Penalty Type *</label>
             <select
               value={editPenalty?.type || ""}
               onChange={(e) => {
-                console.log('Selected type:', e.target.value);
-                const updatedPenalty = {...editPenalty, type: e.target.value};
-                // Nếu chọn milestone, set userId = null
-                if (e.target.value === 'milestone') {
-                  updatedPenalty.userId = '';
-                }
-                setEditPenalty(updatedPenalty);
+                setEditPenalty({...editPenalty, type: e.target.value});
               }}
               className={styles.select}
             >
-              <option value="">Chọn loại thẻ phạt</option>
+              <option value="">Select penalty type</option>
               {penaltyTypes.map(type => (
                 <option key={type.value} value={type.value}>
                   {type.label}
@@ -869,17 +699,15 @@ export default function PenaltyManagement() {
               </div>
 
           <div className={styles.formGroup}>
-            <label>Người bị phạt *</label>
+            <label>Person to Penalize *</label>
             <select
               value={editPenalty?.userId || ""}
               onChange={(e) => {
-                console.log('Selected userId:', e.target.value);
                 setEditPenalty({...editPenalty, userId: e.target.value});
               }}
               className={styles.select}
-              disabled={editPenalty?.type === 'milestone'}
             >
-              <option value="">Chọn sinh viên</option>
+              <option value="">Select student</option>
               {students.map(s => (
                 <option key={s.studentId} value={s.studentId}>
                   {s.name} - {s.id}
@@ -893,12 +721,12 @@ export default function PenaltyManagement() {
               variant="secondary"
               onClick={() => setEditModal(false)}
             >
-              Hủy
+              Cancel
             </Button>
             <Button
               onClick={updatePenalty}
             >
-              Cập nhật
+              Update
             </Button>
           </div>
         </div>
@@ -908,7 +736,7 @@ export default function PenaltyManagement() {
       {/* ------------------ Issued Penalties List ------------------ */}
       {issuedPenalties.length > 0 && (
         <div className={styles.issuedPenaltiesSection}>
-          <h2>Thẻ phạt đã cấp gần đây</h2>
+          <h2>Recently Issued Penalties</h2>
           <div className={styles.issuedPenaltiesList}>
             {issuedPenalties.map((penalty) => (
               <div key={penalty.id} className={styles.issuedPenaltyCard}>
@@ -925,11 +753,11 @@ export default function PenaltyManagement() {
                 </div>
                 <div className={styles.penaltyCardContent}>
                   <div className={styles.penaltyCardStudent}>
-                    <strong>Người bị phạt:</strong> {penalty.studentName}
+                    <strong>Person Penalized:</strong> {penalty.studentName}
                   </div>
                   {penalty.description && (
                     <div className={styles.penaltyCardDescription}>
-                      <strong>Mô tả:</strong> {penalty.description}
+                      <strong>Description:</strong> {penalty.description}
                     </div>
                   )}
                 </div>

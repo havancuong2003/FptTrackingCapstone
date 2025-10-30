@@ -579,14 +579,19 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
 
-  &.general {
+  &.penaltyTypeWarning {
+    background-color: #fef3c7;
+    color: #92400e;
+  }
+
+  &.penaltyTypeNoDeduction {
     background-color: #dbeafe;
     color: #1e40af;
   }
 
-  &.milestone {
-    background-color: #fef3c7;
-    color: #92400e;
+  &.penaltyTypeDeduction {
+    background-color: #fee2e2;
+    color: #991b1b;
   }
 }
 
