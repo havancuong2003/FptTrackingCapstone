@@ -346,3 +346,39 @@
     justify-content: space-between;
   }
 }
+
+/* Compact table overrides giống Student để bảng Meeting Issues đồng nhất */
+.compactTable {
+  overflow-x: hidden !important;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.compactTable table {
+  min-width: 100% !important;
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.compactTable thead th {
+  white-space: normal !important;
+  padding: 10px 8px !important;
+  border-right: 1px solid #e2e8f0;
+  background: #eef2ff;
+  color: #1f2937;
+}
+
+.compactTable tbody td {
+  padding: 10px 8px !important;
+  border-right: 1px solid #e2e8f0;
+}
+
+.compactTable tbody tr {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.compactTable thead th:last-child,
+.compactTable tbody td:last-child {
+  border-right: none;
+}
