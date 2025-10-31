@@ -60,7 +60,6 @@ export default function TaskDetail() {
         const response = await axiosClient.get(`/Student/Task/get-by-id/${taskId}`);
         if (response.data.status === 200) {
           const taskData = response.data.data;
-          console.log("taskData",taskData); 
           // Map data từ API response sang format frontend
           const mappedTask = {
             id: taskData.id,
@@ -272,7 +271,6 @@ export default function TaskDetail() {
                              task.priority === 'medium' ? 'Medium' : 'Low';
 
       // Gọi API update task với progress mới theo cấu trúc mới
-      console.log("task",task);
       const updateData = {
         id: parseInt(taskId),
         name: task.title,

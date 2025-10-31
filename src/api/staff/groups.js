@@ -84,8 +84,6 @@ export async function sendEmailToGroup(groupId, content) {
     };
   }
 
-  // --- mock ---
-  console.log('Mock: Sending email to group', groupId, 'with content:', content);
   
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 1000));

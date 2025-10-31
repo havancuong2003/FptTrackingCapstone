@@ -145,9 +145,9 @@ export default function Schedule() {
       // Fetch existing free time slots
       try {
         const freeTimeResponse = await axiosClient.get(`/Student/Meeting/groups/${groupId}/schedule/free-time`);
-        if (freeTimeResponse.data && freeTimeResponse.data.success === 200) {
+        if (freeTimeResponse.data && freeTimeResponse.data.status === 200) {
           const apiData = freeTimeResponse.data.data;
-          
+            
           // Tìm thời gian rảnh của user hiện tại
           const currentStudentId = parseInt(localStorage.getItem('student_id')) || parseInt(currentUser?.id);
           const currentStudentData = apiData.find(item => item.studentId === currentStudentId);
@@ -222,7 +222,7 @@ export default function Schedule() {
     const newTimeSlot = {
       id: Date.now(),
       time: '',
-      isEditing: true,
+      isEditing: false,
       isValid: false
     };
     setFreeTimeSlots(prev => 
@@ -277,23 +277,7 @@ export default function Schedule() {
     );
   };
 
-  // Lưu giờ rảnh (kết thúc editing)
-  const saveTimeSlot = (dayId, timeSlotId) => {
-    setFreeTimeSlots(prev => 
-      prev.map(day => 
-        day.id === dayId 
-          ? { 
-              ...day, 
-              timeSlots: day.timeSlots.map(slot => 
-                slot.id === timeSlotId 
-                  ? { ...slot, isEditing: false }
-                  : slot
-              )
-            }
-          : day
-      )
-    );
-  };
+  // Bỏ bước lưu riêng cho từng slot - không cần xác nhận ✓
 
   // Bỏ filter days - cho phép chọn tất cả thứ
 
@@ -307,7 +291,7 @@ export default function Schedule() {
     const validDays = freeTimeSlots.filter(day => 
       day.day && 
       day.timeSlots.length > 0 && 
-      day.timeSlots.every(slot => slot.time && !slot.isEditing && slot.isValid)
+      day.timeSlots.every(slot => slot.time && slot.isValid)
     );
     
     if (validDays.length === 0) {
@@ -480,39 +464,26 @@ export default function Schedule() {
                     <div className={styles.timeSlotsContainer}>
                       {day.timeSlots.map(timeSlot => (
                         <div key={timeSlot.id} className={styles.timeSlotItem}>
-                          {timeSlot.isEditing ? (
-                            <div className={styles.timeSlotEdit}>
-                              <input
-                                type="text"
-                                value={timeSlot.time}
-                                onChange={(e) => updateTimeSlot(day.id, timeSlot.id, 'time', e.target.value)}
-                                placeholder="VD: 09:00, 17:30, 14:15"
-                                className={`${styles.timeInput} ${timeSlot.time && !timeSlot.isValid ? styles.invalid : ''}`}
-                              />
-                              <button
-                                onClick={() => saveTimeSlot(day.id, timeSlot.id)}
-                                className={styles.saveTimeBtn}
-                                disabled={!timeSlot.time || !timeSlot.isValid}
-                              >
-                                ✓
-                              </button>
-                              {timeSlot.time && !timeSlot.isValid && (
-                                <div className={styles.errorText}>
-                                  Format phải là HH:MM (VD: 09:00)
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className={`${styles.timeSlotDisplay} ${!timeSlot.isValid ? styles.invalid : ''}`}>
-                              <span className={styles.timeText}>{timeSlot.time}</span>
-                              <button
-                                onClick={() => removeTimeSlot(day.id, timeSlot.id)}
-                                className={styles.removeTimeBtn}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          )}
+                          <div className={styles.timeSlotEdit}>
+                            <input
+                              type="text"
+                              value={timeSlot.time}
+                              onChange={(e) => updateTimeSlot(day.id, timeSlot.id, 'time', e.target.value)}
+                              placeholder="VD: 09:00, 17:30"
+                              className={`${styles.timeInput} ${timeSlot.time && !timeSlot.isValid ? styles.invalid : ''}`}
+                            />
+                            <button
+                              onClick={() => removeTimeSlot(day.id, timeSlot.id)}
+                              className={styles.removeTimeBtn}
+                            >
+                              ×
+                            </button>
+                            {timeSlot.time && !timeSlot.isValid && (
+                              <div className={styles.errorText}>
+                                Format phải là HH:MM (VD: 09:00)
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ))}
                       <button
