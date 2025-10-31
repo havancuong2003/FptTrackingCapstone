@@ -50,14 +50,12 @@ export const sendEvaluationNotification = async (evaluationData) => {
         body += `Vui lòng xem chi tiết trong hệ thống.\n\n`;
         body += `Trân trọng,\n`;
         body += `Hệ thống FPT Tracking`;
-console.log('evaluationData:', evaluationData);
         const response = await axiosClient.post('/Mail/send-mails', {
             to: evaluationData.recipients,
             cc: evaluationData.cc || [],
             subject: evaluationData.subject || `Đánh giá milestone: ${evaluationData.milestoneName}`,
             body: body
         });
-        console.log('response:', response.data);
         
         return response.data;
     } catch (error) {

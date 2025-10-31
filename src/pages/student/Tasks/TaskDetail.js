@@ -134,7 +134,7 @@ export default function TaskDetail() {
     try {
       // Gọi API create comment
       const commentData = {
-
+        taskId: parseInt(taskId),
         feedback: newComment.trim(), // thay vì "feedback"
         groupId: parseInt(groupId),
 

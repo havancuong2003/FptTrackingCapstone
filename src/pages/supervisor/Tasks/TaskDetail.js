@@ -131,7 +131,7 @@ export default function SupervisorTaskDetail() {
     try {
       // Gọi API create comment
       const commentData = {
-
+        taskId: parseInt(taskId),
         feedback: newComment.trim(),
         groupId: parseInt(groupId) ,
 
