@@ -22,7 +22,7 @@ const supervisorMenu = [
   },
   { 
     path: "/supervisor/documents", 
-    label: "Delivery Management", 
+    label: "Documents", 
     icon: "📦"
   },
   { 
