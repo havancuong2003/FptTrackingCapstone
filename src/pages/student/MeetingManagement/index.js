@@ -52,7 +52,7 @@ export default function StudentMeetingManagement() {
   const fetchUserInfo = async () => {
     try {
       const response = await client.get(`${API_BASE_URL}/auth/user-info`);
-      
+        
       if (response.data.status === 200) {
         const userData = response.data.data;
         setUserInfo(userData);
@@ -156,13 +156,13 @@ export default function StudentMeetingManagement() {
     
     try {
       const newStatus = !meeting.isMeeting;
-      
-      // Optimistically update UI ngay lập tức
-      setMeetings(prevMeetings => 
-        prevMeetings.map(m => 
+      setMeetings(prevMeetings => {
+        const updatedMeetings = prevMeetings.map(m => 
           m.id === meeting.id ? { ...m, isMeeting: newStatus } : m
-        )
-      );
+        );
+        return updatedMeetings;
+      });
+      
       
       const response = await client.put(
         `${API_BASE_URL}/Student/Meeting/update-is-meeting/${meeting.id}`,
@@ -173,8 +173,8 @@ export default function StudentMeetingManagement() {
           }
         }
       );
+      if (response.data.status === 200) {
       
-      if (response.data.message === 'Cập nhật IsMeeting thành công.') {
         // Refresh meetings data để đảm bảo sync với server
         if (userInfo?.groups && userInfo.groups.length > 0) {
           await fetchMeetings(userInfo.groups[0]);
