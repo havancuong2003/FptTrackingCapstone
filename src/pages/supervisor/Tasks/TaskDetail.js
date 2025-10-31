@@ -131,12 +131,10 @@ export default function SupervisorTaskDetail() {
     try {
       // Gọi API create comment
       const commentData = {
-        entityName: "Task",
-        entityId: parseInt(taskId),
+
         feedback: newComment.trim(),
-        groupId: parseInt(groupId) || 1,
-        author: `HE${currentUser.id}`,
-        authorName: currentUser.name
+        groupId: parseInt(groupId) ,
+
       };
 
       const response = await axiosClient.post('/Student/Comment/create', commentData);

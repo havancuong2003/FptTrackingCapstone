@@ -108,7 +108,7 @@ export default function StudentDeliveries() {
       status: 'submitted',
       fileType: uploadData.fileType,
       description: uploadData.description,
-      milestoneId: selectedMilestone?.id || 1,
+      milestoneId: selectedMilestone?.id ,
       milestoneName: selectedMilestone?.name || 'Project Proposal'
     };
 
