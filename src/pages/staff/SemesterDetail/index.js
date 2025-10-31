@@ -177,7 +177,6 @@ const SemesterDetail = () => {
   // Save vacation periods to API
   const handleUpdateVacationPeriods = async () => {
     setLoading(true);
-    setMessage('');
 
     try {
       // Filter out periods without required data
@@ -194,7 +193,7 @@ const SemesterDetail = () => {
 
       const response = await updateVacationPeriods(parseInt(id), formattedData);
       if (response.status === 200) {
-        setMessage('Vacation periods updated successfully!');
+        alert('Vacation periods updated successfully!');
         await loadVacationPeriods(); // Reload data to get fresh state
       }
     } catch (error) {
@@ -365,7 +364,7 @@ const SemesterDetail = () => {
               
               <div className={styles.periodForm}>
                 <div className={styles.formGroup}>
-                  <label>Start Date</label>
+                  <label>Start Date <span className={styles.required}>*</span></label>
                   <input
                     type="date"
                     value={period.startDate}
@@ -374,7 +373,7 @@ const SemesterDetail = () => {
                 </div>
                 
                 <div className={styles.formGroup}>
-                  <label>End Date</label>
+                  <label>End Date <span className={styles.required}>*</span></label>
                   <input
                     type="date"
                     value={period.endDate}
@@ -383,7 +382,7 @@ const SemesterDetail = () => {
                 </div>
                 
                 <div className={styles.formGroup}>
-                  <label>Description</label>
+                  <label>Description <span className={styles.required}>*</span></label>
                   <input
                     type="text"
                     value={period.description}
@@ -400,15 +399,19 @@ const SemesterDetail = () => {
           <button onClick={addVacationPeriod} className={styles.addPeriodBtn}>
             + Add Vacation Period
           </button>
-          
-          <button
-            onClick={handleUpdateVacationPeriods}
-            className={styles.updateVacationBtn}
-            disabled={loading}
-          >
-            {loading ? 'Updating...' : 'Update Vacation Periods'}
-          </button>
         </div>
+        
+        {vacationPeriods.length > 0 && (
+          <div className={styles.saveContainer}>
+            <button
+              onClick={handleUpdateVacationPeriods}
+              className={styles.updateVacationBtn}
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        )}
       </div>
 
     </div>

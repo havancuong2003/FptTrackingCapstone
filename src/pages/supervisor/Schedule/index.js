@@ -153,8 +153,7 @@ export default function SupervisorSchedule() {
   const fetchStudentFreeTimeSlots = async (groupId) => {
     try {
       const response = await axiosClient.get(`/Student/Meeting/groups/${groupId}/schedule/free-time`);
-      
-      if (response.data && response.data.success === 200) {
+      if (response.data && response.data.status === 200) {
         const apiData = response.data.data;
         
         // Lưu dữ liệu của tất cả thành viên để hiển thị

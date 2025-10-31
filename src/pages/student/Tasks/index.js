@@ -691,7 +691,7 @@ export default function StudentTasks() {
     try {
       // Gọi API create comment
       const commentData = {
-
+        taskId: parseInt(selectedTask.id),
         content: newComment.trim(),
         groupId: parseInt(groupId) ,
 

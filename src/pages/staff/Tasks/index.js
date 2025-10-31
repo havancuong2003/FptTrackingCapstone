@@ -218,7 +218,7 @@ export default function StaffTasks() {
     <div className={styles.wrap}>
       <div className={styles.header}>
         <h1>Tasks Management</h1>
-        <Button onClick={() => console.log('Create new task')}>
+        <Button onClick={() => {}}>
           + Create New Task
         </Button>
       </div>
@@ -276,7 +276,8 @@ export default function StaffTasks() {
           data={filteredTasks}
           loading={loading}
           emptyMessage="Không có task nào"
-          onRowClick={(task) => console.log('Row clicked:', task.id)}
+          // dont need console log
+          onRowClick={(task) => {}}
         />
       </div>
     </div>

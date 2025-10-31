@@ -22,13 +22,18 @@ const supervisorMenu = [
   },
   { 
     path: "/supervisor/documents", 
-    label: "Delivery Management", 
+    label: "Documents", 
     icon: "📦"
   },
   { 
     path: "/supervisor/evaluation", 
-    label: "Evaluation System", 
+    label: "Evaluation", 
     icon: "⭐"
+  },
+  { 
+    path: "/supervisor/penalty-management", 
+    label: "Penalty Management", 
+    icon: "⚠️"
   },
   // Chức năng riêng của supervisor
   { 
