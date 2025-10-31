@@ -557,7 +557,7 @@ export default function StudentTasks() {
       
       // Gọi API tạo task
       const taskData = {
-        groupId: parseInt(groupId) || 1,
+        groupId: parseInt(groupId),
         name: newTask.title,
         description: newTask.description,
         endAt: newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -571,7 +571,7 @@ export default function StudentTasks() {
         assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null,
         reviewerId: selectedReviewer ? parseInt(selectedReviewer.id) : null,
         reviewerName: selectedReviewer ? selectedReviewer.name : null
-      };
+      };  
 
       const response = await axiosClient.post('/Student/Task/create', taskData);
       
@@ -637,16 +637,16 @@ export default function StudentTasks() {
       const updateData = {
         id: parseInt(taskId),
         name: currentTask.title,
-        groupId: parseInt(groupId) || 1,
+        groupId: parseInt(groupId) ,
         description: currentTask.description,
         endAt: currentTask.deadline,
         statusId: backendStatus, // Sử dụng statusId thay vì status
         priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: toStatus === 'done' ? '100' : currentTask.progress.toString(),
-        deliverableId: currentTask.deliverableId || 0, // Backend vẫn sử dụng deliverableId
-        meetingId: currentTask.meetingId || 0,
-        assignedUserId: currentTask.assignee || 0,
-        reviewerId: currentTask.reviewerId || 0
+        deliverableId: currentTask.deliverableId , // Backend vẫn sử dụng deliverableId
+        meetingId: currentTask.meetingId ,
+        assignedUserId: currentTask.assignee ,
+        reviewerId: currentTask.reviewerId 
       };
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
@@ -691,12 +691,10 @@ export default function StudentTasks() {
     try {
       // Gọi API create comment
       const commentData = {
-        entityName: "Task",
-        entityId: selectedTask.id,
+
         content: newComment.trim(),
-        groupId: parseInt(groupId) || 1,
-        author: `HE${currentUser.id}`, // Lấy từ localStorage
-        authorName: currentUser.name // Lấy từ localStorage
+        groupId: parseInt(groupId) ,
+
       };
 
       const response = await axiosClient.post('/Student/Comment/create', commentData);
