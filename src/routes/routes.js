@@ -60,6 +60,7 @@ const SupervisorTracking = React.lazy(() => import("../pages/supervisor/Tracking
 const SupervisorTasks = React.lazy(() => import("../pages/supervisor/Tasks"));
 const SupervisorTaskDetail = React.lazy(() => import("../pages/supervisor/Tasks/TaskDetail"));
 const SupervisorEvaluation = React.lazy(() => import("../pages/supervisor/Evaluation"));
+const SupervisorPenaltyManagement = React.lazy(() => import("../pages/supervisor/PenaltyManagement"));
 const SupervisorDocuments = React.lazy(() => import("../pages/supervisor/Documents"));
 const SupervisorSchedule = React.lazy(() => import("../pages/supervisor/Schedule"));
 const SupervisorMeetingManagement = React.lazy(() => import("../pages/supervisor/MeetingManagement"));
@@ -408,6 +409,15 @@ export const routes = [
     element: SupervisorEvaluation,
     meta: {
       title: "Evaluation System",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/penalty-management",
+    element: SupervisorPenaltyManagement,
+    meta: {
+      title: "Penalty Management",
       protected: true,
       roles: ["SUPERVISOR"],
     },
