@@ -40,8 +40,6 @@ export default function StudentTasks() {
     assignee: '',
     priority: '',
     deliverableId: '',
-    meetingId: '',
-    taskType: 'throughout', // 'throughout' or 'meeting'
     deadline: '',
     reviewer: ''
   });
@@ -62,9 +60,11 @@ export default function StudentTasks() {
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
-  const [taskTypeFilter, setTaskTypeFilter] = React.useState('');
+  const [taskTypeFilter, setTaskTypeFilter] = React.useState('throughout'); // Mặc định Main Task
   const [activeFilter, setActiveFilter] = React.useState('active'); // 'all', 'active', 'inactive'
   const [myTasksOnly, setMyTasksOnly] = React.useState(true);
+  const [deadlineFilter, setDeadlineFilter] = React.useState('');
+  const [meetingFilter, setMeetingFilter] = React.useState('');
   const [viewType, setViewType] = React.useState('my_tasks'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
   // API: lấy deliverables theo group (backend vẫn là deliverable, chỉ data trả về gọi là milestone)
   const fetchMilestonesByGroup = async (gid) => {
@@ -327,7 +327,8 @@ export default function StudentTasks() {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString('vi-VN', {
+      year: 'numeric',
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -364,7 +365,7 @@ export default function StudentTasks() {
           </div>
           <div className={styles.taskType}>
             <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'throughout']}`}>
-              {task.isMeetingTask ? 'Meeting' : 'Throughout'}
+              {task.isMeetingTask ? 'Issue' : 'Main Task'}
             </span>
           </div>
         </div>
@@ -490,7 +491,7 @@ export default function StudentTasks() {
 
 
   const createNewTask = async () => {
-    if (!newTask.title || !newTask.description || !newTask.assignee || !newTask.priority) {
+    if (!newTask.title || !newTask.description || !newTask.assignee || !newTask.priority || !newTask.deadline) {
       alert('Please fill in all required fields');
       return;
     }
@@ -505,25 +506,7 @@ export default function StudentTasks() {
       }
     }
 
-    // Validation cho meeting task
-    if (newTask.taskType === 'meeting' && !newTask.meetingId) {
-      alert('Please select a meeting for meeting task');
-      return;
-    }
-
-    // Validation logic: isMeetingTask và meetingId phải đi đôi
-    if (newTask.taskType === 'meeting') {
-      if (!newTask.meetingId) {
-        alert('Meeting Task phải có meetingId');
-        return;
-      }
-    } else {
-      // Throughout Task không được có meetingId
-      if (newTask.meetingId) {
-        alert('Throughout Task không được có meetingId');
-        return;
-      }
-    }
+    // Mặc định tất cả task đều là throughout task (Main Task)
     
     // Deliverable có thể có cho cả 2 loại task (tùy chọn)
 
@@ -574,7 +557,7 @@ export default function StudentTasks() {
       
       // Gọi API tạo task
       const taskData = {
-        groupId: parseInt(groupId) || 1,
+        groupId: parseInt(groupId),
         name: newTask.title,
         description: newTask.description,
         endAt: newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -583,12 +566,12 @@ export default function StudentTasks() {
                  newTask.priority === 'medium' ? 'Medium' : 'Low',
         process: '0',
         deliverableId: newTask.deliverableId ? parseInt(newTask.deliverableId) : null, // Backend vẫn sử dụng deliverableId
-        meetingId: newTask.meetingId ? parseInt(newTask.meetingId) : null,
-        taskType: newTask.taskType,
+        meetingId: null, // Mặc định không có meeting
+        taskType: 'throughout', // Mặc định là throughout task
         assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null,
         reviewerId: selectedReviewer ? parseInt(selectedReviewer.id) : null,
         reviewerName: selectedReviewer ? selectedReviewer.name : null
-      };
+      };  
 
       const response = await axiosClient.post('/Student/Task/create', taskData);
       
@@ -621,8 +604,6 @@ export default function StudentTasks() {
           assignee: '',
           priority: 'low',
           deliverableId: '',
-          meetingId: '',
-          taskType: 'throughout',
           deadline: '',
           reviewer: ''
         });
@@ -656,16 +637,16 @@ export default function StudentTasks() {
       const updateData = {
         id: parseInt(taskId),
         name: currentTask.title,
-        groupId: parseInt(groupId) || 1,
+        groupId: parseInt(groupId) ,
         description: currentTask.description,
         endAt: currentTask.deadline,
         statusId: backendStatus, // Sử dụng statusId thay vì status
         priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: toStatus === 'done' ? '100' : currentTask.progress.toString(),
-        deliverableId: currentTask.deliverableId || 0, // Backend vẫn sử dụng deliverableId
-        meetingId: currentTask.meetingId || 0,
-        assignedUserId: currentTask.assignee || 0,
-        reviewerId: currentTask.reviewerId || 0
+        deliverableId: currentTask.deliverableId , // Backend vẫn sử dụng deliverableId
+        meetingId: currentTask.meetingId ,
+        assignedUserId: currentTask.assignee ,
+        reviewerId: currentTask.reviewerId 
       };
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
@@ -710,12 +691,10 @@ export default function StudentTasks() {
     try {
       // Gọi API create comment
       const commentData = {
-        entityName: "Task",
-        entityId: selectedTask.id,
+
         content: newComment.trim(),
-        groupId: parseInt(groupId) || 1,
-        author: `HE${currentUser.id}`, // Lấy từ localStorage
-        authorName: currentUser.name // Lấy từ localStorage
+        groupId: parseInt(groupId) ,
+
       };
 
       const response = await axiosClient.post('/Student/Comment/create', commentData);
@@ -833,8 +812,25 @@ export default function StudentTasks() {
     } else if (activeFilter === 'inactive') {
       activeTaskMatch = task.isActive === false;
     }
+    
+    // Filter theo deadline
+    let deadlineMatch = true;
+    if (deadlineFilter) {
+      const taskDeadline = new Date(task.deadline);
+      const filterDeadline = new Date(deadlineFilter);
+      // Chuyển filterDeadline về cuối ngày để bao gồm cả ngày được chọn
+      filterDeadline.setHours(23, 59, 59, 999);
+      deadlineMatch = taskDeadline <= filterDeadline;
+    }
+    
+    // Filter theo meeting
+    let meetingMatch = true;
+    if (meetingFilter) {
+      meetingMatch = task.meetingId && task.meetingId.toString() === meetingFilter;
+    }
+    
     // Nếu activeFilter === 'all' thì activeTaskMatch = true (hiển thị tất cả)
-    return deliverableMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && myTasksMatch && activeTaskMatch;
+    return deliverableMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && myTasksMatch && activeTaskMatch && deadlineMatch && meetingMatch;
   });
 
   const deliverableOptions = deliverables.map(d => ({ value: d.id ? d.id.toString() : '', label: d.name }));
@@ -879,107 +875,166 @@ export default function StudentTasks() {
         </div>
       </div>
 
-      <div className={styles.header}>
-        <div className={styles.controls}>
-          <div className={styles.controlGroup}>
-            <label>Deliverable:</label>
-            <select
-              value={deliverableFilter}
-              onChange={(e) => setDeliverableFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              {deliverableOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>Assignee:</label>
-            <select
-              value={assigneeFilter}
-              onChange={(e) => setAssigneeFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              {assigneeOptions.map(option => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>Priority:</label>
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>Status:</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              <option value="todo">To Do</option>
-              <option value="inProgress">In Progress</option>
-              <option value="done">Done</option>
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>Task Type:</label>
-            <select
-              value={taskTypeFilter}
-              onChange={(e) => setTaskTypeFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">All</option>
-              <option value="throughout">Throughout</option>
-              <option value="meeting">Meeting</option>
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>
-              <input
-                type="checkbox"
-                checked={myTasksOnly}
-                onChange={(e) => setMyTasksOnly(e.target.checked)}
-                className={styles.checkbox}
-              />
-              Task của tôi
-            </label>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>Task Status:</label>
-            <select
-              value={activeFilter}
-              onChange={(e) => setActiveFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="all">All Tasks</option>
-              <option value="active">Active Tasks</option>
-              <option value="inactive">Inactive Tasks</option>
-            </select>
-          </div>
-          <button
-            className={styles.searchButton}
-            onClick={handleRefresh}
-          >
-            Refresh
-          </button>
-        </div>
-      </div>
+       <div className={styles.header}>
+         <div className={styles.controls}>
+           {/* Nhóm 1: Filter cơ bản */}
+           <div className={styles.controlGroup}>
+             <label>Task Type:</label>
+             <select
+               value={taskTypeFilter}
+               onChange={(e) => {
+                 const newTaskType = e.target.value;
+                 setTaskTypeFilter(newTaskType);
+                 // Reset meeting filter khi chọn Main Task
+                 if (newTaskType === 'throughout') {
+                   setMeetingFilter('');
+                 }
+               }}
+               className={styles.select}
+             >
+               <option value="">All</option>
+               <option value="throughout">Main Task</option>
+               <option value="meeting">Issue</option>
+             </select>
+           </div>
+           {(taskTypeFilter === 'meeting' || taskTypeFilter === '') && (
+             <div className={styles.controlGroup}>
+               <label>Meeting:</label>
+               <select
+                 value={meetingFilter}
+                 onChange={(e) => setMeetingFilter(e.target.value)}
+                 className={styles.select}
+               >
+                 <option value="">All Meeting Issues</option>
+                 {meetings.map(meeting => (
+                   <option key={meeting.id} value={meeting.id}>
+                     {meeting.description} - {new Date(meeting.meetingDate).toLocaleDateString('vi-VN')}
+                   </option>
+                 ))}
+               </select>
+             </div>
+           )}
+           <div className={styles.controlGroup}>
+             <label>Status:</label>
+             <select
+               value={statusFilter}
+               onChange={(e) => setStatusFilter(e.target.value)}
+               className={styles.select}
+             >
+               <option value="">All</option>
+               <option value="todo">To Do</option>
+               <option value="inProgress">In Progress</option>
+               <option value="done">Done</option>
+             </select>
+           </div>
+           <div className={styles.controlGroup}>
+             <label>Priority:</label>
+             <select
+               value={priorityFilter}
+               onChange={(e) => setPriorityFilter(e.target.value)}
+               className={styles.select}
+             >
+               <option value="">All</option>
+               <option value="high">High</option>
+               <option value="medium">Medium</option>
+               <option value="low">Low</option>
+             </select>
+           </div>
+           
+           {/* Nhóm 2: Filter theo người và dự án */}
+           <div className={styles.controlGroup}>
+             <label>Assignee:</label>
+             <select
+               value={assigneeFilter}
+               onChange={(e) => setAssigneeFilter(e.target.value)}
+               className={styles.select}
+             >
+               <option value="">All</option>
+               {assigneeOptions.map(option => (
+                 <option key={option.value} value={option.value}>
+                   {option.label}
+                 </option>
+               ))}
+             </select>
+           </div>
+           <div className={styles.controlGroup}>
+             <label>Deliverable:</label>
+             <select
+               value={deliverableFilter}
+               onChange={(e) => setDeliverableFilter(e.target.value)}
+               className={styles.select}
+             >
+               <option value="">All</option>
+               {deliverableOptions.map(option => (
+                 <option key={option.value} value={option.value}>
+                   {option.label}
+                 </option>
+               ))}
+             </select>
+           </div>
+           
+           {/* Nhóm 3: Filter theo thời gian */}
+           <div className={styles.controlGroup}>
+             <label>Deadline:</label>
+             <input
+               type="date"
+               value={deadlineFilter}
+               onChange={(e) => setDeadlineFilter(e.target.value)}
+               className={styles.input}
+               placeholder="Filter by deadline"
+             />
+           </div>
+           
+           {/* Nhóm 4: Filter trạng thái */}
+           <div className={styles.controlGroup}>
+             <label>Task Status:</label>
+             <select
+               value={activeFilter}
+               onChange={(e) => setActiveFilter(e.target.value)}
+               className={styles.select}
+             >
+               <option value="all">All Tasks</option>
+               <option value="active">Active Tasks</option>
+               <option value="inactive">Inactive Tasks</option>
+             </select>
+           </div>
+           <div className={styles.controlGroup}>
+             <label>
+               <input
+                 type="checkbox"
+                 checked={myTasksOnly}
+                 onChange={(e) => setMyTasksOnly(e.target.checked)}
+                 className={styles.checkbox}
+               />
+               Task của tôi
+             </label>
+           </div>
+           
+           {/* Nhóm 5: Actions */}
+           <button
+             className={styles.searchButton}
+             onClick={handleRefresh}
+           >
+             Refresh
+           </button>
+           <button
+             className={styles.resetButton}
+             onClick={() => {
+               setDeliverableFilter('');
+               setAssigneeFilter('');
+               setPriorityFilter('');
+               setStatusFilter('');
+               setTaskTypeFilter('throughout');
+               setActiveFilter('active');
+               setMyTasksOnly(true);
+               setDeadlineFilter('');
+               setMeetingFilter('');
+             }}
+           >
+             Reset Filter
+           </button>
+         </div>
+       </div>
 
 
       {/* Empty state khi không có issue */}
@@ -1033,58 +1088,6 @@ export default function StudentTasks() {
           </div>
           
           <div className={styles.formRow}>
-            <div className={styles.formGroup}>
-              <label>
-                Task Type <span className={styles.required}>*</span>
-              </label>
-              <select
-                className={styles.select}
-                value={newTask.taskType}
-                onChange={(e) => {
-                  const newTaskType = e.target.value;
-                  if (newTaskType === 'throughout') {
-                    // Chuyển từ meeting sang xuyên suốt: xóa meetingId, giữ deliverableId
-                    setNewTask({ ...newTask, taskType: newTaskType, meetingId: '' });
-                  } else {
-                    // Chuyển từ xuyên suốt sang meeting: giữ deliverableId
-                    setNewTask({ ...newTask, taskType: newTaskType });
-                  }
-                }}
-              >
-                <option value="throughout">Throughout Task</option>
-                <option value="meeting">Meeting Task</option>
-              </select>
-            </div>
-            
-            <div className={styles.formGroup}>
-              <label>
-                Meeting
-                {newTask.taskType === 'meeting' && <span className={styles.required}>*</span>}
-              </label>
-              {newTask.taskType === 'meeting' ? (
-                <select
-                  className={styles.select}
-                  value={newTask.meetingId}
-                  onChange={(e) => setNewTask({ ...newTask, meetingId: e.target.value })}
-                >
-                  <option value="">Select Meeting</option>
-                  {meetings.map(meeting => (
-                    <option key={meeting.id} value={meeting.id}>
-                      {meeting.description} - {new Date(meeting.meetingDate).toLocaleDateString('en-US')}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <select
-                  className={styles.select}
-                  value=""
-                  disabled
-                >
-                  <option value="">Not applicable for throughout task</option>
-                </select>
-              )}
-            </div>
-            
             <div className={styles.formGroup}>
               <label>
                 Deliverable
@@ -1154,12 +1157,15 @@ export default function StudentTasks() {
             </div>
             
             <div className={styles.formGroup}>
-              <label>Deadline</label>
+              <label>
+                Deadline <span className={styles.required}>*</span>
+              </label>
               <input
                 type="datetime-local"
                 value={newTask.deadline}
                 onChange={(e) => setNewTask({...newTask, deadline: e.target.value})}
                 className={styles.input}
+                required
               />
             </div>
           </div>

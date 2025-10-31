@@ -45,8 +45,10 @@ export default function SupervisorTasks() {
   const [assigneeFilter, setAssigneeFilter] = React.useState('');
   const [priorityFilter, setPriorityFilter] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState('');
-  const [taskTypeFilter, setTaskTypeFilter] = React.useState('');
+  const [taskTypeFilter, setTaskTypeFilter] = React.useState('throughout'); // Mặc định Main Task
   const [activeFilter, setActiveFilter] = React.useState('active'); // 'all', 'active', 'inactive'
+  const [deadlineFilter, setDeadlineFilter] = React.useState('');
+  const [meetingFilter, setMeetingFilter] = React.useState('');
   const [viewType, setViewType] = React.useState('project_view'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
 
   // API: lấy milestones theo group
@@ -232,7 +234,8 @@ export default function SupervisorTasks() {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString('vi-VN', {
+      year: 'numeric',
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
@@ -269,7 +272,7 @@ export default function SupervisorTasks() {
           </div>
           <div className={styles.taskType}>
             <span className={`${styles.taskTypeBadge} ${styles[task.isMeetingTask ? 'meeting' : 'throughout']}`}>
-              {task.isMeetingTask ? 'Meeting' : 'Throughout'}
+              {task.isMeetingTask ? 'Issue' : 'Main Task'}
             </span>
           </div>
         </div>
@@ -530,8 +533,25 @@ export default function SupervisorTasks() {
     } else if (activeFilter === 'inactive') {
       activeTaskMatch = task.isActive === false;
     }
+    
+    // Filter theo deadline
+    let deadlineMatch = true;
+    if (deadlineFilter) {
+      const taskDeadline = new Date(task.deadline);
+      const filterDeadline = new Date(deadlineFilter);
+      // Chuyển filterDeadline về cuối ngày để bao gồm cả ngày được chọn
+      filterDeadline.setHours(23, 59, 59, 999);
+      deadlineMatch = taskDeadline <= filterDeadline;
+    }
+    
+    // Filter theo meeting
+    let meetingMatch = true;
+    if (meetingFilter) {
+      meetingMatch = task.meetingId && task.meetingId.toString() === meetingFilter;
+    }
+    
     // Nếu activeFilter === 'all' thì activeTaskMatch = true (hiển thị tất cả)
-    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && activeTaskMatch;
+    return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && activeTaskMatch && deadlineMatch && meetingMatch;
   });
 
   const milestoneOptions = milestones.map(m => ({ value: m.id.toString(), label: m.name }));
@@ -600,86 +620,127 @@ export default function SupervisorTasks() {
               <h3>Filters</h3>
             </div>
             <div className={styles.filtersControls}>
-          <div className={styles.controlGroup}>
-            <label>Milestone:</label>
-              <select
-                value={milestoneFilter}
-                onChange={(e) => setMilestoneFilter(e.target.value)}
-                className={styles.select}
-              >
-                <option value="">All</option>
-                {milestoneOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-          </div>
-          <div className={styles.controlGroup}>
-              <label>Assignee:</label>
-              <select
-                value={assigneeFilter}
-                onChange={(e) => setAssigneeFilter(e.target.value)}
-                className={styles.select}
-              >
-                <option value="">All</option>
-                {assigneeOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-          </div>
-          <div className={styles.controlGroup}>
-              <label>Priority:</label>
-              <select
-                value={priorityFilter}
-                onChange={(e) => setPriorityFilter(e.target.value)}
-                className={styles.select}
-              >
-                <option value="">All</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-          </div>
-          <div className={styles.controlGroup}>
-            <label>Status:</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className={styles.select}
-              >
-                <option value="">All</option>
-                <option value="todo">To Do</option>
-                <option value="inProgress">In Progress</option>
-                <option value="done">Done</option>
-              </select>
-            </div>
-          <div className={styles.controlGroup}>
-            <label>Task Type:</label>
-              <select
-                value={taskTypeFilter}
-                onChange={(e) => setTaskTypeFilter(e.target.value)}
-                className={styles.select}
-              >
-                <option value="">All</option>
-                <option value="throughout">Throughout</option>
-                <option value="meeting">Meeting</option>
-              </select>
-            </div>
-          <div className={styles.controlGroup}>
-            <label>Task Status:</label>
-            <select
-              value={activeFilter}
-              onChange={(e) => setActiveFilter(e.target.value)}
-              className={styles.select}
-            >
-              <option value="all">All Tasks</option>
-              <option value="active">Active Tasks</option>
-              <option value="inactive">Inactive Tasks</option>
-            </select>
-          </div>
+              {/* Nhóm 1: Filter cơ bản */}
+              <div className={styles.controlGroup}>
+                <label>Task Type:</label>
+                <select
+                  value={taskTypeFilter}
+                  onChange={(e) => {
+                    const newTaskType = e.target.value;
+                    setTaskTypeFilter(newTaskType);
+                    // Reset meeting filter khi chọn Main Task
+                    if (newTaskType === 'throughout') {
+                      setMeetingFilter('');
+                    }
+                  }}
+                  className={styles.select}
+                >
+                  <option value="">All</option>
+                  <option value="throughout">Main Task</option>
+                  <option value="meeting">Issue</option>
+                </select>
+              </div>
+              {(taskTypeFilter === 'meeting' || taskTypeFilter === '') && (
+                <div className={styles.controlGroup}>
+                  <label>Meeting:</label>
+                  <select
+                    value={meetingFilter}
+                    onChange={(e) => setMeetingFilter(e.target.value)}
+                    className={styles.select}
+                  >
+                    <option value="">All Meeting Issues</option>
+                    {meetings.map(meeting => (
+                      <option key={meeting.id} value={meeting.id}>
+                        {meeting.description} - {new Date(meeting.meetingDate).toLocaleDateString('vi-VN')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <div className={styles.controlGroup}>
+                <label>Status:</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className={styles.select}
+                >
+                  <option value="">All</option>
+                  <option value="todo">To Do</option>
+                  <option value="inProgress">In Progress</option>
+                  <option value="done">Done</option>
+                </select>
+              </div>
+              <div className={styles.controlGroup}>
+                <label>Priority:</label>
+                <select
+                  value={priorityFilter}
+                  onChange={(e) => setPriorityFilter(e.target.value)}
+                  className={styles.select}
+                >
+                  <option value="">All</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+              
+              {/* Nhóm 2: Filter theo người và dự án */}
+              <div className={styles.controlGroup}>
+                <label>Assignee:</label>
+                <select
+                  value={assigneeFilter}
+                  onChange={(e) => setAssigneeFilter(e.target.value)}
+                  className={styles.select}
+                >
+                  <option value="">All</option>
+                  {assigneeOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className={styles.controlGroup}>
+                <label>Milestone:</label>
+                <select
+                  value={milestoneFilter}
+                  onChange={(e) => setMilestoneFilter(e.target.value)}
+                  className={styles.select}
+                >
+                  <option value="">All</option>
+                  {milestoneOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Nhóm 3: Filter theo thời gian */}
+              <div className={styles.controlGroup}>
+                <label>Deadline:</label>
+                <input
+                  type="date"
+                  value={deadlineFilter}
+                  onChange={(e) => setDeadlineFilter(e.target.value)}
+                  className={styles.input}
+                  placeholder="Filter by deadline"
+                />
+              </div>
+              
+              {/* Nhóm 4: Filter trạng thái */}
+              <div className={styles.controlGroup}>
+                <label>Task Status:</label>
+                <select
+                  value={activeFilter}
+                  onChange={(e) => setActiveFilter(e.target.value)}
+                  className={styles.select}
+                >
+                  <option value="all">All Tasks</option>
+                  <option value="active">Active Tasks</option>
+                  <option value="inactive">Inactive Tasks</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -690,6 +751,21 @@ export default function SupervisorTasks() {
               onClick={() => fetchTasksForGroup(groupId)}
             >
               Refresh
+            </button>
+            <button
+              className={styles.resetButton}
+              onClick={() => {
+                setMilestoneFilter('');
+                setAssigneeFilter('');
+                setPriorityFilter('');
+                setStatusFilter('');
+                setTaskTypeFilter('throughout');
+                setActiveFilter('active');
+                setDeadlineFilter('');
+                setMeetingFilter('');
+              }}
+            >
+              Reset Filter
             </button>
           </div>
         </>

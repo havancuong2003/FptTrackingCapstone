@@ -60,6 +60,7 @@ export default function TaskDetail() {
         const response = await axiosClient.get(`/Student/Task/get-by-id/${taskId}`);
         if (response.data.status === 200) {
           const taskData = response.data.data;
+          console.log("taskData",taskData); 
           // Map data từ API response sang format frontend
           const mappedTask = {
             id: taskData.id,
@@ -82,8 +83,9 @@ export default function TaskDetail() {
             isMeetingTask: taskData.isMeetingTask || false,
             meetingId: taskData.meetingId || null,
             isActive: taskData.isActive !== undefined ? taskData.isActive : true,
-            reviewer: taskData.reviewer || null,
-            reviewerName: taskData.reviewerName || 'No Reviewer'
+            reviewer: taskData.reviewerId || null,
+            reviewerName: taskData.reviewerName || 'No Reviewer',
+            reviewerId: taskData.reviewerId || null
           };
         
           setTask(mappedTask);
@@ -133,12 +135,10 @@ export default function TaskDetail() {
     try {
       // Gọi API create comment
       const commentData = {
-        entityName: "Task",
-        entityId: parseInt(taskId),
+
         feedback: newComment.trim(), // thay vì "feedback"
-        groupId: parseInt(groupId) || 1,
-        author: `HE${currentUser.id}`, // Lấy từ localStorage
-        authorName: currentUser.name // Lấy từ localStorage
+        groupId: parseInt(groupId),
+
       };
 
       const response = await axiosClient.post('/Student/Comment/create', commentData);
@@ -219,16 +219,16 @@ export default function TaskDetail() {
       const updateData = {
         id: parseInt(taskId),
         name: task.title,
-        groupId: parseInt(groupId) || 1,
+        groupId: parseInt(groupId),
         description: task.description,
         endAt: task.deadline,
         statusId: backendStatus, // Sử dụng statusId thay vì status
         priorityId: backendPriority, // Sử dụng priorityId thay vì priority
         process: task.progress.toString(),
-        deliverableId: task.deliverableId || 0, // Backend vẫn sử dụng deliverableId
-        meetingId: task.meetingId || 0,
-        assignedUserId: task.assignee || 0,
-        reviewerId: task.reviewerId || 0
+        deliverableId: task.deliverableId , // Backend vẫn sử dụng deliverableId
+        meetingId: task.meetingId ,
+        assignedUserId: task.assignee ,
+        reviewerId: task.reviewerId 
       };
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
@@ -272,20 +272,21 @@ export default function TaskDetail() {
                              task.priority === 'medium' ? 'Medium' : 'Low';
 
       // Gọi API update task với progress mới theo cấu trúc mới
+      console.log("task",task);
       const updateData = {
         id: parseInt(taskId),
         name: task.title,
-        groupId: parseInt(groupId) || 1,
+        groupId: parseInt(groupId) ,
         description: task.description,
         endAt: task.deadline,
         statusId: task.status === 'todo' ? 'ToDo' : 
                  task.status === 'inProgress' ? 'InProgress' : 'Done',
         priorityId: backendPriority,
         process: clamped.toString(), // Cập nhật progress
-        deliverableId: task.deliverableId || 0, // Backend vẫn sử dụng deliverableId
-        meetingId: task.meetingId || 0,
-        assignedUserId: task.assignee || 0,
-        reviewerId: task.reviewerId || 0
+        deliverableId: task.deliverableId , // Backend vẫn sử dụng deliverableId
+        meetingId: task.meetingId ,
+        assignedUserId: task.assignee ,
+        reviewerId: task.reviewerId 
       };
       const response = await axiosClient.post('/Student/Task/update', updateData);
       
@@ -323,8 +324,8 @@ export default function TaskDetail() {
     return (
       <div className={styles.error}>
         <h2>Task not found</h2>
-        <BackButton to={`/student/tasks?groupId=${groupId || '1'}`}>
-          ← Back to Tasks
+        <BackButton onClick={() => navigate(-1)}>
+          ← Back
         </BackButton>
       </div>
     );
@@ -334,8 +335,8 @@ export default function TaskDetail() {
 
   return (
     <div className={styles.container}>
-      <BackButton to={`/student/tasks?groupId=${groupId || '1'}`}>
-        ← Back to Tasks
+      <BackButton onClick={() => navigate(-1)}>
+        ← Back
       </BackButton>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
@@ -356,7 +357,7 @@ export default function TaskDetail() {
               <div className={styles.infoItem}>
                 <label>Task Type:</label>
                 <span className={styles.taskTypeBadge}>
-                  {task.isMeetingTask ? 'Meeting Task' : 'Throughout Task'}
+                  {task.isMeetingTask ? 'Issue' : 'Main Task'}
                 </span>
               </div>
               <div className={styles.infoItem}>
@@ -424,7 +425,7 @@ export default function TaskDetail() {
                 <div className={styles.infoItem}>
                   <label>Related Meeting:</label>
                   <Button 
-                    onClick={() => navigate(`/student/meetings/${groupId}?meetingId=${task.meetingId}`)}
+                    onClick={() => navigate(`/student/meetings`)}
                     className={styles.meetingButton}
                   >
                     View Meeting Details

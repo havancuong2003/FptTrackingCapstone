@@ -131,12 +131,10 @@ export default function SupervisorTaskDetail() {
     try {
       // Gọi API create comment
       const commentData = {
-        entityName: "Task",
-        entityId: parseInt(taskId),
+
         feedback: newComment.trim(),
-        groupId: parseInt(groupId) || 1,
-        author: `HE${currentUser.id}`,
-        authorName: currentUser.name
+        groupId: parseInt(groupId) ,
+
       };
 
       const response = await axiosClient.post('/Student/Comment/create', commentData);
@@ -187,8 +185,8 @@ export default function SupervisorTaskDetail() {
     return (
       <div className={styles.error}>
         <h2>Task not found</h2>
-        <BackButton to={`/supervisor/tasks?groupId=${groupId || '1'}`}>
-          ← Back to Tasks
+        <BackButton onClick={() => navigate(-1)}>
+          ← Back
         </BackButton>
       </div>
     );
@@ -198,8 +196,8 @@ export default function SupervisorTaskDetail() {
 
   return (
     <div className={styles.container}>
-      <BackButton to={`/supervisor/tasks?groupId=${groupId || '1'}`}>
-        ← Back to Tasks
+      <BackButton onClick={() => navigate(-1)}>
+        ← Back
       </BackButton>
       <div className={styles.header}>
         <div className={styles.headerLeft}>
@@ -223,7 +221,7 @@ export default function SupervisorTaskDetail() {
               <div className={styles.infoItem}>
                 <label>Task Type:</label>
                 <span className={styles.taskTypeBadge}>
-                  {task.isMeetingTask ? 'Meeting Task' : 'Throughout Task'}
+                  {task.isMeetingTask ? 'Issue' : 'Main Task'}
                 </span>
               </div>
               <div className={styles.infoItem}>
