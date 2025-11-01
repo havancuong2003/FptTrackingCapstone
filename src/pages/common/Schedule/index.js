@@ -88,8 +88,8 @@ export default function Schedule() {
   const checkMeetingSchedule = async () => {
     try {
       const response = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
-      if (response.data && response.data.id) {
-        setMeetingSchedule(response.data);
+      if (response.data.status === 200) {
+        setMeetingSchedule(response.data.data);
         setIsFinalized(true);
         return true;
       }
@@ -281,23 +281,65 @@ export default function Schedule() {
 
   // Bỏ filter days - cho phép chọn tất cả thứ
 
+  // Lấy danh sách thứ có sẵn cho một card cụ thể (trừ các thứ đã được chọn ở card khác)
+  const getAvailableDays = (currentDayId) => {
+    // Lấy danh sách các thứ đã được chọn ở các card khác
+    const selectedDays = freeTimeSlots
+      .filter(d => d.id !== currentDayId && d.day) // Trừ card hiện tại và chỉ lấy thứ đã chọn
+      .map(d => d.day);
+    
+    // Trả về các thứ chưa được chọn
+    return daysOfWeek.filter(dayOption => 
+      !selectedDays.includes(dayOption.value) || 
+      freeTimeSlots.find(d => d.id === currentDayId)?.day === dayOption.value // Cho phép giữ nguyên thứ hiện tại
+    );
+  };
+
   // Save free time slots
   const handleSaveFreeTimeSlots = async () => {
     if (freeTimeSlots.length === 0) {
       alert('Vui lòng thêm ít nhất một thứ');
       return;
     }
-    // Validate all days have day and time slots
-    const validDays = freeTimeSlots.filter(day => 
-      day.day && 
-      day.timeSlots.length > 0 && 
-      day.timeSlots.every(slot => slot.time && slot.isValid)
-    );
     
-    if (validDays.length === 0) {
-      alert('Vui lòng chọn thứ và nhập thời gian rảnh cho tất cả các thứ');
+    // Validate TẤT CẢ các thứ đều hợp lệ
+    let hasInvalidDay = false;
+    let invalidMessages = [];
+    
+    for (let i = 0; i < freeTimeSlots.length; i++) {
+      const day = freeTimeSlots[i];
+      
+      // Kiểm tra thứ đã được chọn chưa
+      if (!day.day) {
+        hasInvalidDay = true;
+        invalidMessages.push(`${i + 1}: Chưa chọn thứ trong tuần`);
+        continue;
+      }
+      
+      // Kiểm tra có ít nhất 1 time slot chưa
+      if (day.timeSlots.length === 0) {
+        hasInvalidDay = true;
+        invalidMessages.push(`${day.day}: Chưa có giờ rảnh nào`);
+        continue;
+      }
+      
+      // Kiểm tra tất cả time slots đều hợp lệ
+      const invalidSlots = day.timeSlots.filter(slot => !slot.time || !slot.isValid);
+      if (invalidSlots.length > 0) {
+        hasInvalidDay = true;
+        invalidMessages.push(`${day.day}: Có ${invalidSlots.length} giờ rảnh sai định dạng hoặc chưa nhập`);
+        continue;
+      }
+    }
+    
+    // Nếu có bất kỳ thứ nào không hợp lệ, không call API
+    if (hasInvalidDay) {
+      alert('Vui lòng kiểm tra lại:\n' + invalidMessages.join('\n') + '\n\nĐịnh dạng thời gian phải là HH:MM (VD: 09:00, 17:30)');
       return;
     }
+    
+    // Tất cả đều hợp lệ, mới được call API
+    const validDays = freeTimeSlots;
 
     setLoading(true);
     try {
@@ -449,7 +491,7 @@ export default function Schedule() {
                     className={styles.daySelect}
                   >
                     <option value="">-- Chọn thứ --</option>
-                    {daysOfWeek.map(dayOption => (
+                    {getAvailableDays(day.id).map(dayOption => (
                       <option key={dayOption.id} value={dayOption.value}>{dayOption.name}</option>
                     ))}
                   </select>

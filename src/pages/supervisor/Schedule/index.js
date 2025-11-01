@@ -7,7 +7,7 @@ import { sendMeetingNotification } from '../../../api/email';
 
 export default function SupervisorSchedule() {
   const { groupId: urlGroupId } = useParams();
-  const groupId = urlGroupId || '1';
+  const groupId = urlGroupId ;
   
   // Lấy thông tin user từ localStorage
   const getCurrentUser = () => {
@@ -54,6 +54,7 @@ export default function SupervisorSchedule() {
     { id: 7, name: 'Chủ nhật', value: 'sunday' }
   ];
 
+
   // Fetch available groups for supervisor
   const fetchAvailableGroups = async () => {
     try {
@@ -88,7 +89,6 @@ export default function SupervisorSchedule() {
     try {
       // API call lấy chi tiết group theo pattern từ Groups
       const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
-      
       if (response.data.status === 200) {
         const groupDetail = response.data.data;
         // Format group data theo structure thực tế từ API
@@ -127,15 +127,14 @@ export default function SupervisorSchedule() {
       // Check if meeting schedule exists
       try {
         const scheduleResponse = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
-        if (scheduleResponse.data && scheduleResponse.data.id) {
-          setMeetingSchedule(scheduleResponse.data);
+        if (scheduleResponse.data.status === 200) {
+          setMeetingSchedule(scheduleResponse.data.data);
           setIsFinalized(true);
-          
           // Load existing meeting data for editing
           setMeetingData({
-            day: scheduleResponse.data.dayOfWeek || '',
-            time: scheduleResponse.data.time || '',
-            meetingLink: scheduleResponse.data.meetingLink || ''
+            day: scheduleResponse.data.data.dayOfWeek || '',
+            time: scheduleResponse.data.data.time || '',
+            meetingLink: scheduleResponse.data.data.meetingLink || ''
           });
         }
       } catch (error) {
@@ -153,6 +152,7 @@ export default function SupervisorSchedule() {
   const fetchStudentFreeTimeSlots = async (groupId) => {
     try {
       const response = await axiosClient.get(`/Student/Meeting/groups/${groupId}/schedule/free-time`);
+
       if (response.data && response.data.status === 200) {
         const apiData = response.data.data;
         
@@ -193,9 +193,15 @@ export default function SupervisorSchedule() {
         time: meetingData.time,
         dayOfWeek: meetingData.day.toLowerCase(),
       };
-      
-      const response = await axiosClient.post(`/Student/Meeting/schedule/finalize/update`, meetingScheduleData);
-      
+      const meetingDataAPI ={
+        finalMeeting: {
+          day: meetingScheduleData.dayOfWeek,
+          time: meetingScheduleData.time,
+          meetingLink: meetingScheduleData.meetingLink
+        }
+      }
+    //  const response = await axiosClient.post(`/Student/Meeting/schedule/finalize/update`, meetingData);
+      const response = await axiosClient.post(`/Student/Meeting/groups/${selectedGroup}/schedule/finalize`, meetingDataAPI);
       if (response.data) {
         setMeetingSchedule(response.data);
         setIsFinalized(true);
@@ -301,33 +307,7 @@ export default function SupervisorSchedule() {
     }
   };
 
-  // Toggle finalized status
-  const toggleFinalizedStatus = async () => {
-    setLoading(true);
-    try {
-      const meetingScheduleData = {
-        id: meetingSchedule?.id || null,
-        isActive: !isFinalized, // Toggle active status
-        meetingLink: meetingSchedule?.meetingLink || meetingData.meetingLink,
-        time: meetingSchedule?.time || meetingData.time,
-        dayOfWeek: meetingSchedule?.dayOfWeek || meetingData.day.toLowerCase(),
-      };
-      
-      const response = await axiosClient.post(`/Student/Meeting/schedule/finalize/update`, meetingScheduleData);
-      
-      if (response.data) {
-        setMeetingSchedule(response.data);
-        setIsFinalized(!isFinalized);
-        setIsEditing(false);
-        alert(isFinalized ? 'Đã hủy xác nhận lịch họp!' : 'Đã xác nhận lịch họp!');
-      }
-    } catch (error) {
-      console.error('Error toggling meeting status:', error);
-      alert('Có lỗi xảy ra khi thay đổi trạng thái lịch họp');
-    } finally {
-      setLoading(false);
-    }
-  };
+
 
   // Handle group selection
   const handleGroupSelect = async (groupId) => {
