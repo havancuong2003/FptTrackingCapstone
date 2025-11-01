@@ -355,8 +355,17 @@ export default function SupervisorTracking() {
         <select 
           value={selectedGroup?.id || ''} 
           onChange={(e) => {
-            const group = groups.find(g => g.id === Number(e.target.value));
-            setSelectedGroup(group);
+            const selectedId = e.target.value ? Number(e.target.value) : null;
+            const group = groups.find(g => String(g.id) === String(selectedId));
+            if (group) {
+              setSelectedGroup(group);
+              // Reset milestone details when changing group
+              setMilestoneDetails(null);
+              setSelectedMilestone(null);
+              setDetailModal(false);
+              setNote('');
+              setNoteError('');
+            }
           }}
           style={{
             padding: "8px 12px",

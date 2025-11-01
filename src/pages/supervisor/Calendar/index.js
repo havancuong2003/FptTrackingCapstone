@@ -90,29 +90,29 @@ export default function SupervisorCalendar() {
     return () => { mounted = false; };
   }, []);
 
-  // // Load semester info and weeks from first group
-  // React.useEffect(() => {
-  //   let mounted = true;
-  //   async function loadSemesterInfo() {
-  //     if (!groups.length || !groups[0]?.semesterId) return;
-  //     try {
-  //       const res = await client.get(`${API_BASE_URL}/Staff/semester/getSemesterBy/${groups[0].semesterId}`);
-  //       const semester = res?.data?.data || null;
-  //       if (!mounted) return;
-  //       setSemesterInfo(semester);
-  //       setWeeks(semester?.weeks || []);
-  //       if (semester?.weeks?.length > 0) {
-  //         setSelectedWeek(semester.weeks[0].weekNumber);
-  //       }
-  //     } catch {
-  //       if (!mounted) return;
-  //       setSemesterInfo(null);
-  //       setWeeks([]);
-  //     }
-  //   }
-  //   loadSemesterInfo();
-  //   return () => { mounted = false; };
-  // }, [groups]);
+  // Load semester info and weeks from first group
+  React.useEffect(() => {
+    let mounted = true;
+    async function loadSemesterInfo() {
+      if (!groups.length || !groups[0]?.semesterId) return;
+      try {
+        const res = await client.get(`${API_BASE_URL}/Staff/semester/getSemesterBy/${groups[0].semesterId}`);
+        const semester = res?.data?.data || null;
+        if (!mounted) return;
+        setSemesterInfo(semester);
+        setWeeks(semester?.weeks || []);
+        if (semester?.weeks?.length > 0) {
+          setSelectedWeek(semester.weeks[0].weekNumber);
+        }
+      } catch {
+        if (!mounted) return;
+        setSemesterInfo(null);
+        setWeeks([]);
+      }
+    }
+    loadSemesterInfo();
+    return () => { mounted = false; };
+  }, [groups]);
 
 
   // Load milestones for all groups
@@ -225,12 +225,12 @@ export default function SupervisorCalendar() {
     return () => { mounted = false; };
   }, [userInfo?.groups]);
 
-  // // Set loading false when all data loaded
-  // React.useEffect(() => {
-  //   if (userInfo && groups.length > 0 && semesterInfo && weeks.length > 0) {
-  //     setLoading(false);
-  //   }
-  // }, [userInfo, groups, semesterInfo, weeks]);
+  // Set loading false when all data loaded
+  React.useEffect(() => {
+    if (userInfo && groups.length > 0 && semesterInfo && weeks.length > 0) {
+      setLoading(false);
+    }
+  }, [userInfo, groups, semesterInfo, weeks]);
 
   // Get milestones for selected week
   const getMilestonesForWeek = () => {
@@ -552,13 +552,13 @@ export default function SupervisorCalendar() {
     window.open(meetingLink, '_blank');
   };
 
-  // if (loading) {
-  //   return (
-  //     <div style={{ padding: 32, textAlign: 'center' }}>
-  //       <div>Loading calendar...</div>
-  //     </div>
-  //   );
-  // }
+  if (loading) {
+    return (
+      <div style={{ padding: 32, textAlign: 'center' }}>
+        <div>Loading calendar...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 16 }}>
@@ -569,7 +569,7 @@ export default function SupervisorCalendar() {
         </div>
       </div>
       
-      {/* {semesterInfo && (
+      {semesterInfo && (
         <div style={{ 
         //   display: 'flex', 
           alignItems: 'center', 
@@ -589,7 +589,7 @@ export default function SupervisorCalendar() {
             </div>
           </div>
         </div>
-      )} */}
+      )}
 
 
       {/* Groups Information */}
