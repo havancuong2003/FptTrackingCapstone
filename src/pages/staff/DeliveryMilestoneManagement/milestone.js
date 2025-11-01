@@ -22,7 +22,6 @@ function Milestone() {
 
     // Create-many modal state
     const [isCreateOpen, setIsCreateOpen] = React.useState(false);
-    const [createMajorId, setCreateMajorId] = React.useState("");
     const [createRows, setCreateRows] = React.useState([]); // { name, description }
     const [createError, setCreateError] = React.useState("");
 
@@ -40,7 +39,6 @@ function Milestone() {
                 setMajors(list);
                 if (list.length > 0) {
                     setSelectedMajorId(String(list[0].id));
-                    setCreateMajorId(String(list[0].id));
                 }
             } catch (e) {
                 if (!mounted) return;
@@ -247,7 +245,7 @@ function Milestone() {
 
     async function saveCreate(e) {
         e.preventDefault();
-        const majorIdNum = Number(createMajorId || selectedMajorId);
+        const majorIdNum = Number(selectedMajorId);
         if (!majorIdNum) {
             setCreateError("Please select major");
             return;
@@ -614,7 +612,7 @@ function Milestone() {
                                 Create Milestone
                             </h3>
                             <p style={{ margin: "8px 0 0 0", fontSize: "14px", color: "#6b7280" }}>
-                                Add new milestone  to the selected major
+                                Add new milestone to the selected major: <strong>{selectedMajor?.code || "N/A"}</strong> - {selectedMajor?.name || "N/A"}
                             </p>
                         </div>
                         {createError && (
@@ -629,27 +627,6 @@ function Milestone() {
                                 {createError}
                             </div>
                         )}
-                        
-                        <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            <span style={{ fontWeight: "500", color: "#374151" }}>Major *</span>
-                            <select 
-                                value={createMajorId} 
-                                onChange={(e) => setCreateMajorId(e.target.value)}
-                                style={{
-                                    padding: "8px 12px",
-                                    border: "1px solid #d1d5db",
-                                    borderRadius: "6px",
-                                    fontSize: "14px",
-                                    backgroundColor: "white",
-                                    outline: "none",
-                                    width: "100%"
-                                }}
-                            >
-                                {majors.map((m) => (
-                                    <option key={m.id} value={m.id}>{m.code} - {m.name}</option>
-                                ))}
-                            </select>
-                        </label>
 
                         <div style={{ 
                             border: "1px solid #e5e7eb", 

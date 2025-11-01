@@ -100,19 +100,13 @@ export default function SupervisorMeetingManagement() {
       const response = await client.get(`${API_BASE_URL}/Student/Meeting/group/${groupId}/schedule-dates`);
       if (response.data.status === 200) {
         const meetingsData = response.data.data || [];
-        const meetingsWithMinutes = await Promise.all(
-          meetingsData.map(async (meeting) => {
-            const meetingMinute = await fetchMeetingMinute(meeting.id);
-            return {
-              ...meeting,
-              groupId,
-              hasMinute: !!meetingMinute,
-              minuteData: meetingMinute
-            };
-          })
-        );
-        meetingsWithMinutes.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
-        setMeetings(meetingsWithMinutes);
+        // API đã trả về isMinute, không cần gọi API để check nữa
+        const meetingsWithGroup = meetingsData.map(meeting => ({
+          ...meeting,
+          groupId
+        }));
+        meetingsWithGroup.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
+        setMeetings(meetingsWithGroup);
       } else {
         setMeetings([]);
       }
@@ -238,7 +232,7 @@ export default function SupervisorMeetingManagement() {
   const getStatusText = (status) => {
     switch (status) {
       case 'Completed': return 'Đã họp';
-      case 'Past': return 'Đã qua';
+      case 'Past': return 'Chưa họp';
       case 'Upcoming': return 'Sắp diễn ra';
       default: return 'Không xác định';
     }
@@ -312,21 +306,35 @@ export default function SupervisorMeetingManagement() {
     // Fetch group info for this meeting
     await fetchMeetingGroupInfo(meeting.groupId);
     
-    // Sử dụng dữ liệu đã có hoặc fetch mới
-    const existingMinute = meeting.minuteData || await fetchMeetingMinute(meeting.id);
-    
-    if (existingMinute) {
-      setMinuteData(existingMinute);
-      setFormData({
-        startAt: existingMinute.startAt ? existingMinute.startAt.split('T')[0] + 'T' + existingMinute.startAt.split('T')[1].substring(0, 5) : '',
-        endAt: existingMinute.endAt ? existingMinute.endAt.split('T')[0] + 'T' + existingMinute.endAt.split('T')[1].substring(0, 5) : '',
-        attendance: existingMinute.attendance || '',
-        issue: existingMinute.issue || '',
-        meetingContent: existingMinute.meetingContent || '',
-        other: existingMinute.other || ''
-      });
-      setIsEditing(true);
+    // Chỉ fetch meeting minute nếu isMinute === true
+    if (meeting.isMinute === true) {
+      const meetingMinute = await fetchMeetingMinute(meeting.id);
+      if (meetingMinute) {
+        setMinuteData(meetingMinute);
+        setFormData({
+          startAt: meetingMinute.startAt ? meetingMinute.startAt.split('T')[0] + 'T' + meetingMinute.startAt.split('T')[1].substring(0, 5) : '',
+          endAt: meetingMinute.endAt ? meetingMinute.endAt.split('T')[0] + 'T' + meetingMinute.endAt.split('T')[1].substring(0, 5) : '',
+          attendance: meetingMinute.attendance || '',
+          issue: meetingMinute.issue || '',
+          meetingContent: meetingMinute.meetingContent || '',
+          other: meetingMinute.other || ''
+        });
+        setIsEditing(true);
+      } else {
+        // Nếu API báo có minute nhưng fetch không ra, reset form
+        setMinuteData(null);
+        setFormData({
+          startAt: '',
+          endAt: '',
+          attendance: '',
+          issue: '',
+          meetingContent: '',
+          other: ''
+        });
+        setIsEditing(false);
+      }
     } else {
+      // Chưa có minute, chỉ xem (supervisor không tạo được)
       setMinuteData(null);
       setFormData({
         startAt: '',
@@ -647,7 +655,7 @@ export default function SupervisorMeetingManagement() {
                 </div>
               </div>
 
-                {meeting.minuteData && (
+                {meeting.isMinute === true && (
                   <div className={styles.minutesSection} style={{
                     padding: '8px 10px',
                     backgroundColor: '#f0fdf4',
@@ -664,10 +672,7 @@ export default function SupervisorMeetingManagement() {
                     </h4>
                     <div className={styles.minutesInfo} style={{ fontSize: '12px', color: '#047857' }}>
                       <p style={{ margin: '2px 0' }}>
-                        <strong>Tạo bởi:</strong> {meeting.minuteData.createBy}
-                      </p>
-                      <p style={{ margin: '2px 0' }}>
-                        <strong>Thời gian tạo:</strong> {new Date(meeting.minuteData.createAt).toLocaleString('vi-VN')}
+                        Đã có biên bản họp cho cuộc họp này
                       </p>
                   </div>
                 </div>
@@ -699,7 +704,7 @@ export default function SupervisorMeetingManagement() {
                   Tham gia họp
                 </Button>
               
-                {meeting.minuteData ? (
+                {meeting.isMinute === true ? (
                 <Button 
                     onClick={() => openMinuteModal(meeting)}
                     className={styles.minuteButton}
