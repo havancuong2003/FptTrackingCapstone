@@ -525,7 +525,7 @@ export default function StudentMeetingManagement() {
     }
     try {
       const payload = {
-        groupId: userInfo?.groups?.[0] || 1,
+        groupId: userInfo?.groups?.[0],
         name: issueForm.title,
         description: issueForm.description || '',
         taskType: 'meeting',
