@@ -59,7 +59,9 @@ export default function TaskDetail() {
         // Gọi API lấy task theo ID
         const response = await axiosClient.get(`/Student/Task/get-by-id/${taskId}`);
         if (response.data.status === 200) {
+
           const taskData = response.data.data;
+          
           // Map data từ API response sang format frontend
           const mappedTask = {
             id: taskData.id,
@@ -69,12 +71,11 @@ export default function TaskDetail() {
             assigneeName: taskData.assigneeName,
             deadline: taskData.deadline,
             priority: taskData.priority.toLowerCase(),
-            status: taskData.status === 'ToDo' ? 'todo' : 
-                   taskData.status === 'InProgress' ? 'inProgress' : 'done',
+            status: taskData.status.toLowerCase() === 'todo' ? 'todo' : 
+                   taskData.status.toLowerCase() === 'inprogress' ? 'inProgress' : 'done',
             deliverableId: taskData.milestone?.id || null,
             deliverableName: taskData.milestone?.name || 'No Deliverable',
             createdAt: taskData.createdAt,
-            progress: parseInt(taskData.process) || 0,
             attachments: taskData.attachments || [],
             comments: taskData.comments || [],
             history: taskData.history || [],
@@ -86,7 +87,6 @@ export default function TaskDetail() {
             reviewerName: taskData.reviewerName || 'No Reviewer',
             reviewerId: taskData.reviewerId || null
           };
-        
           setTask(mappedTask);
         } else {
           console.error('Error fetching task:', response.data.message);
@@ -223,7 +223,6 @@ export default function TaskDetail() {
         endAt: task.deadline,
         statusId: backendStatus, // Sử dụng statusId thay vì status
         priorityId: backendPriority, // Sử dụng priorityId thay vì priority
-        process: task.progress.toString(),
         deliverableId: task.deliverableId , // Backend vẫn sử dụng deliverableId
         meetingId: task.meetingId ,
         assignedUserId: task.assignee ,
@@ -249,7 +248,6 @@ export default function TaskDetail() {
         setTask(prev => ({
           ...prev,
           status: newStatus,
-          progress: newStatus === 'done' ? 100 : prev.progress,
           completedAt: newStatus === 'done' ? nowIso : (newStatus !== 'done' ? undefined : prev.completedAt),
           history: [...(prev.history || []), newHistoryItem]
         }));
@@ -261,54 +259,6 @@ export default function TaskDetail() {
     }
   };
 
-  const updateProgress = async (value) => {
-    if (!task) return;
-    const clamped = Math.max(0, Math.min(100, Number(value) || 0));
-    
-    try {
-      // Map priority từ frontend sang backend
-      const backendPriority = task.priority === 'high' ? 'High' : 
-                             task.priority === 'medium' ? 'Medium' : 'Low';
-
-      // Gọi API update task với progress mới theo cấu trúc mới
-      const updateData = {
-        id: parseInt(taskId),
-        name: task.title,
-        groupId: parseInt(groupId) ,
-        description: task.description,
-        endAt: task.deadline,
-        statusId: task.status === 'todo' ? 'ToDo' : 
-                 task.status === 'inProgress' ? 'InProgress' : 'Done',
-        priorityId: backendPriority,
-        process: clamped.toString(), // Cập nhật progress
-        deliverableId: task.deliverableId , // Backend vẫn sử dụng deliverableId
-        meetingId: task.meetingId ,
-        assignedUserId: task.assignee ,
-        reviewerId: task.reviewerId 
-      };
-      const response = await axiosClient.post('/Student/Task/update', updateData);
-      
-      if (response.data.status === 200) {
-        const nowIso = new Date().toISOString();
-        setTask(prev => ({
-          ...prev,
-          progress: clamped,
-          history: [...(prev.history || []), {
-            id: Date.now() + 2,
-            type: 'progress',
-            detail: `Updated progress to ${clamped}%`,
-            at: nowIso,
-            user: `HE${currentUser.id}`,
-            action: 'Updated progress'
-          }]
-        }));
-      } else {
-        console.error('Error updating progress:', response.data.message);
-      }
-    } catch (error) {
-      console.error('Error updating progress:', error);
-    }
-  };
 
   if (loading) {
     return (
@@ -393,24 +343,6 @@ export default function TaskDetail() {
                 ) : (
                   <span className={styles.statusValue}>{task.status === 'todo' ? 'To Do' : 
                       task.status === 'inProgress' ? 'In Progress' : 'Done'}</span>
-                )}
-              </div>
-              <div className={styles.infoItem}>
-                <label>Progress:</label>
-                {!isSupervisor ? (
-                  <div className={styles.progressInline}>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      className={styles.numberInput}
-                      value={task.progress}
-                      onChange={(e) => updateProgress(e.target.value)}
-                    />
-                    <span>%</span>
-                  </div>
-                ) : (
-                  <span className={styles.progressValue}>{task.progress}%</span>
                 )}
               </div>
               <div className={styles.infoItem}>

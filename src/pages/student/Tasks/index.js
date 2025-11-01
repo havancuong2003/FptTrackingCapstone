@@ -38,7 +38,7 @@ export default function StudentTasks() {
     title: '',
     description: '',
     assignee: '',
-    priority: '',
+    priority: 'low', // Default priority là Low
     deliverableId: '',
     deadline: '',
     reviewer: ''
@@ -69,11 +69,12 @@ export default function StudentTasks() {
   // API: lấy deliverables theo group (backend vẫn là deliverable, chỉ data trả về gọi là milestone)
   const fetchMilestonesByGroup = async (gid) => {
     try {
-      const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
+      //const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
+      const response = await axiosClient.get(`/deliverables/group/${gid}`);
       
-      if (response.data.status === 200) {
+      if (response.data) {
         // Kiểm tra data có tồn tại và không null/undefined
-        const apiData = response.data.data;
+        const apiData = response.data;
         const deliverablesData = Array.isArray(apiData) ? apiData : [];
         
         // Map data từ API response sang format frontend (vẫn gọi là milestone cho UI)
@@ -86,7 +87,7 @@ export default function StudentTasks() {
         }));
       } else {
         console.error('Error fetching deliverables:', response.data.message);
-        alert(`Error lấy deliverables: ${response.data.message}`);
+    //    alert(`Error lấy deliverables: ${response.data.message}`);
         return [];
       }
     } catch (error) {
@@ -96,35 +97,6 @@ export default function StudentTasks() {
     }
   };
 
-  // API: lấy deliverables theo group (giữ lại cho tương thích)
-  const fetchDeliverablesByGroup = async (gid) => {
-    try {
-      const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
-      
-      if (response.data.status === 200) {
-        // Kiểm tra data có tồn tại và không null/undefined
-        const apiData = response.data.data;
-        const deliverablesData = Array.isArray(apiData) ? apiData : [];
-        
-        // Map data từ API response sang format frontend
-        return deliverablesData.map(deliverable => ({
-          id: deliverable.id,
-          name: deliverable.name,
-          groupId: gid,
-          description: deliverable.description,
-          deadline: deliverable.deadline
-        }));
-      } else {
-        console.error('Error fetching deliverables:', response.data.message);
-        alert(`Error lấy deliverables: ${response.data.message}`);
-        return [];
-      }
-    } catch (error) {
-      console.error('Error fetching deliverables:', error);
-      alert(`Error kết nối deliverables: ${error.message}`);
-      return [];
-    }
-  };
 
   // API: lấy students theo group
   const fetchStudentsByGroup = async (gid) => {
@@ -263,7 +235,8 @@ export default function StudentTasks() {
           isActive: task.isActive !== undefined ? task.isActive : true, // Thêm trường isActive từ API
           isMeetingTask: task.isMeetingTask || false, // Thêm trường isMeetingTask
           meetingId: task.meetingId || null, // Thêm trường meetingId
-          reviewerId: task.reviewerId || null // Thêm trường reviewerId
+          reviewerId: task.reviewerId || null, // Thêm trường reviewerId
+          reviewerName: task.reviewerName || 'No Reviewer' // Thêm trường reviewerName
         }));
 
         setAllTasks(mappedTasks);
@@ -418,19 +391,20 @@ export default function StudentTasks() {
       }
     },
     {
-      key: 'progress',
-      title: 'Progress',
-      render: (task) => (
-        <div className={styles.progressInfo}>
-          <div className={styles.progressBar}>
-            <div 
-              className={styles.progressFill}
-              style={{ width: `${task.progress}%` }}
-            />
-          </div>
-          <div className={styles.progressText}>{task.progress}%</div>
-        </div>
-      )
+      key: 'reviewer',
+      title: 'Reviewer',
+      render: (task) => {
+        const reviewerName = task.reviewerName || 'No Reviewer';
+        const isNoReviewer = !task.reviewerName || task.reviewerName === 'No Reviewer';
+        return (
+          <span style={{ 
+            color: isNoReviewer ? '#9ca3af' : 'inherit',
+            fontStyle: isNoReviewer ? 'italic' : 'normal'
+          }}>
+            {reviewerName}
+          </span>
+        );
+      }
     },
     {
       key: 'deadline',
@@ -602,7 +576,7 @@ export default function StudentTasks() {
           title: '',
           description: '',
           assignee: '',
-          priority: 'low',
+          priority: 'low', // Default priority là Low
           deliverableId: '',
           deadline: '',
           reviewer: ''
@@ -1149,10 +1123,9 @@ export default function StudentTasks() {
                 value={newTask.priority}
                 onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
               >
-                <option value="">Select Priority</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
                 <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
               </select>
             </div>
             
@@ -1173,7 +1146,32 @@ export default function StudentTasks() {
           <div className={styles.modalActions}>
             <button 
               className={`${styles.modalButton} ${styles.secondary}`}
-              onClick={() => setTaskModal(false)}
+              onClick={() => {
+                // Kiểm tra xem có dữ liệu đã nhập không
+                const hasData = newTask.title || newTask.description || newTask.assignee || 
+                               newTask.deliverableId || newTask.deadline || newTask.reviewer;
+                
+                if (hasData) {
+                  // Nếu có dữ liệu, hiển thị confirm dialog
+                  const confirmCancel = window.confirm('Bạn có muốn hủy tạo task không? Tất cả thông tin đã nhập sẽ bị xóa.');
+                  if (confirmCancel) {
+                    // Clear toàn bộ data và đóng modal
+                    setNewTask({
+                      title: '',
+                      description: '',
+                      assignee: '',
+                      priority: 'low', // Default priority là Low
+                      deliverableId: '',
+                      deadline: '',
+                      reviewer: ''
+                    });
+                    setTaskModal(false);
+                  }
+                } else {
+                  // Nếu không có dữ liệu, đóng modal luôn
+                  setTaskModal(false);
+                }
+              }}
             >
               Cancel
             </button>
