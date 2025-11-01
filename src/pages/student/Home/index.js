@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
 import Button from '../../../components/Button/Button';
@@ -15,6 +16,7 @@ const TIME_SLOTS = [
 ];
 
 export default function StudentHome() {
+  const navigate = useNavigate();
   const [userInfo, setUserInfo] = React.useState(null);
   const [groupInfo, setGroupInfo] = React.useState(null);
   const [semesterInfo, setSemesterInfo] = React.useState(null);
@@ -25,10 +27,8 @@ export default function StudentHome() {
   const [selectedWeek, setSelectedWeek] = React.useState(1);
   const [loading, setLoading] = React.useState(true);
   const [selectedMilestone, setSelectedMilestone] = React.useState(null);
-  const [selectedTask, setSelectedTask] = React.useState(null);
   const [selectedMeeting, setSelectedMeeting] = React.useState(null);
   const [detailModal, setDetailModal] = React.useState(false);
-  const [taskModal, setTaskModal] = React.useState(false);
   const [meetingModal, setMeetingModal] = React.useState(false);
   const [milestoneDetails, setMilestoneDetails] = React.useState(null);
   const [uploading, setUploading] = React.useState(false);
@@ -119,28 +119,27 @@ export default function StudentHome() {
     return () => { mounted = false; };
   }, [userInfo?.groups]);
 
-  // Load tasks
+  // Load tasks assigned to logged-in student
   React.useEffect(() => {
     let mounted = true;
     async function loadTasks() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
+      if (!userInfo) return;
       try {
-        // Lấy group đầu tiên từ danh sách groups
-        const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Task/get-by-group/${groupId}`);
-        if (res.data.status === 200) {
-          const tasksData = res.data.data;
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Task/assignee`);
+        if (res.data.statusCode === 200) {
+          const tasksData = res.data.data || [];
           if (!mounted) return;
-          setTasks(tasksData || []);
+          setTasks(Array.isArray(tasksData) ? tasksData : []);
         }
-      } catch {
+      } catch (error) {
+        console.error('Error loading assigned tasks:', error);
         if (!mounted) return;
         setTasks([]);
       }
     }
     loadTasks();
     return () => { mounted = false; };
-  }, [userInfo?.groups]);
+  }, [userInfo]);
 
   // Load meetings
   React.useEffect(() => {
@@ -211,7 +210,7 @@ export default function StudentHome() {
     });
   };
 
-  // Get tasks for selected week
+  // Get tasks for selected week (only tasks assigned to logged-in student)
   const getTasksForWeek = () => {
     if (!selectedWeek || !tasks.length) return [];
     
@@ -235,12 +234,13 @@ export default function StudentHome() {
     return weekTasks;
   };
 
-  // Get milestone for specific day and time slot
-  const getMilestoneForSlot = (day, timeSlot) => {
+  // Get milestones for specific day and time slot (returns array to handle multiple milestones)
+  const getMilestonesForSlot = (day, timeSlot) => {
     const weekMilestones = getMilestonesForWeek();
-    if (!weekMilestones.length) return null;
+    if (!weekMilestones.length) return [];
     
-    // Tìm milestone phù hợp với ngày và giờ
+    // Tìm tất cả milestones phù hợp với ngày và giờ
+    const matchedMilestones = [];
     for (const milestone of weekMilestones) {
       const deadline = new Date(milestone.endAt);
       const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -250,19 +250,20 @@ export default function StudentHome() {
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
       if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-        return milestone;
+        matchedMilestones.push(milestone);
       }
     }
     
-    return null;
+    return matchedMilestones;
   };
 
-  // Get meeting for specific day and time slot
-  const getMeetingForSlot = (day, timeSlot) => {
+  // Get meetings for specific day and time slot (returns array to handle multiple meetings)
+  const getMeetingsForSlot = (day, timeSlot) => {
     const weekMeetings = getMeetingsForWeek();
-    if (!weekMeetings.length) return null;
+    if (!weekMeetings.length) return [];
     
-    // Tìm meeting phù hợp với ngày và giờ
+    // Tìm tất cả meetings phù hợp với ngày và giờ
+    const matchedMeetings = [];
     for (const meeting of weekMeetings) {
       const meetingDate = new Date(meeting.meetingDate);
       const dayOfWeek = meetingDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -272,19 +273,20 @@ export default function StudentHome() {
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
       if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-        return meeting;
+        matchedMeetings.push(meeting);
       }
     }
     
-    return null;
+    return matchedMeetings;
   };
 
-  // Get task for specific day and time slot
-  const getTaskForSlot = (day, timeSlot) => {
+  // Get tasks for specific day and time slot (returns array to handle multiple tasks)
+  const getTasksForSlot = (day, timeSlot) => {
     const weekTasks = getTasksForWeek();
-    if (!weekTasks.length) return null;
+    if (!weekTasks.length) return [];
     
-    // Tìm task phù hợp với ngày và giờ
+    // Tìm tất cả tasks phù hợp với ngày và giờ
+    const matchedTasks = [];
     for (const task of weekTasks) {
       const deadline = new Date(task.deadline);
       const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -294,11 +296,11 @@ export default function StudentHome() {
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
       if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-        return task;
+        matchedTasks.push(task);
       }
     }
     
-    return null;
+    return matchedTasks;
   };
 
   const getStatusColor = (status) => {
@@ -395,9 +397,11 @@ export default function StudentHome() {
     }
   };
 
-  const openTaskModal = (task) => {
-    setSelectedTask(task);
-    setTaskModal(true);
+  const openTaskDetail = (task) => {
+    // Use task.group.id if available, otherwise fallback to userInfo.groups[0]
+    const groupId = task?.group?.id || (userInfo?.groups?.[0]);
+    if (!groupId || !task?.id) return;
+    navigate(`/student/task-detail/${groupId}?taskId=${task.id}`);
   };
 
   const openMeetingModal = async (meeting) => {
@@ -416,11 +420,6 @@ export default function StudentHome() {
       console.error('Error fetching meeting minute:', error);
       setMinuteData(null);
     }
-  };
-
-  const closeTaskModal = () => {
-    setTaskModal(false);
-    setSelectedTask(null);
   };
 
   const closeMeetingModal = () => {
@@ -655,9 +654,9 @@ export default function StudentHome() {
                   {timeSlot.label}
                 </td>
                 {DAYS.map((day, dayIndex) => {
-                  const milestone = getMilestoneForSlot(dayIndex, timeSlot);
-                  const meeting = getMeetingForSlot(dayIndex, timeSlot);
-                  const task = getTaskForSlot(dayIndex, timeSlot);
+                  const milestones = getMilestonesForSlot(dayIndex, timeSlot);
+                  const meetings = getMeetingsForSlot(dayIndex, timeSlot);
+                  const tasks = getTasksForSlot(dayIndex, timeSlot);
                   
                   return (
                     <td key={day} style={{ 
@@ -668,9 +667,10 @@ export default function StudentHome() {
                       verticalAlign: 'top'
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {/* Milestone */}
-                        {milestone && (
+                        {/* Milestones - Display all milestones in this slot */}
+                        {milestones.map((milestone, idx) => (
                           <div 
+                            key={milestone.id || idx}
                             onClick={() => openDetailModal(milestone)}
                             style={{ 
                               background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
@@ -704,11 +704,12 @@ export default function StudentHome() {
                               {formatDate(milestone.endAt, 'HH:mm')}
                             </div>
                           </div>
-                        )}
+                        ))}
                         
-                        {/* Meeting */}
-                        {meeting && (
+                        {/* Meetings - Display all meetings in this slot */}
+                        {meetings.map((meeting, idx) => (
                           <div 
+                            key={meeting.id || idx}
                             onClick={() => openMeetingModal(meeting)}
                             style={{ 
                               background: getMeetingStatusColor(meeting) === '#059669' ? '#ecfdf5' : 
@@ -741,12 +742,13 @@ export default function StudentHome() {
                               {meeting.time}
                             </div>
                           </div>
-                        )}
+                        ))}
                         
-                        {/* Task */}
-                        {task && (
+                        {/* Tasks - Display all tasks in this slot */}
+                        {tasks.map((task, idx) => (
                           <div 
-                            onClick={() => openTaskModal(task)}
+                            key={task.id || idx}
+                            onClick={() => openTaskDetail(task)}
                             style={{ 
                               background: getTaskStatusColor(task.status) === '#059669' ? '#ecfdf5' : 
                                          getTaskStatusColor(task.status) === '#dc2626' ? '#fee2e2' :
@@ -779,7 +781,7 @@ export default function StudentHome() {
                               {formatDate(task.deadline, 'HH:mm')}
                             </div>
                           </div>
-                        )}
+                        ))}
                       </div>
                     </td>
                   );
@@ -1063,133 +1065,6 @@ export default function StudentHome() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
               <Button variant="ghost" onClick={() => setDetailModal(false)}>
                 Close
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Task Modal */}
-      <Modal open={taskModal} onClose={closeTaskModal}>
-        {selectedTask && (
-          <div style={{ padding: 24, maxWidth: '95vw', width: '1200px', maxHeight: '80vh', overflow: 'auto' }}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: 20 }}>Task Details</h2>
-            
-            <div style={{ display: 'flex', gap: 24, marginBottom: 20 }}>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Task Information</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div><strong>Title:</strong> {selectedTask.title}</div>
-                  <div><strong>Description:</strong> {selectedTask.description}</div>
-                  <div><strong>Deadline:</strong> {formatDate(selectedTask.deadline, 'YYYY-MM-DD HH:mm')}</div>
-                  <div><strong>Priority:</strong> {selectedTask.priority}</div>
-                  <div><strong>Status:</strong> 
-                    <span style={{ 
-                      color: getTaskStatusColor(selectedTask.status), 
-                      marginLeft: '8px',
-                      background: getTaskStatusColor(selectedTask.status) === '#059669' ? '#ecfdf5' : 
-                                 getTaskStatusColor(selectedTask.status) === '#dc2626' ? '#fee2e2' :
-                                 getTaskStatusColor(selectedTask.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      fontSize: 12
-                    }}>
-                      {getTaskStatusText(selectedTask.status)}
-                    </span>
-                  </div>
-                  <div><strong>Progress:</strong> {selectedTask.process}%</div>
-                  <div><strong>Task Type:</strong> {selectedTask.taskType || 'N/A'}</div>
-                  <div><strong>Is Meeting Task:</strong> {selectedTask.isMeetingTask ? 'Yes' : 'No'}</div>
-                </div>
-              </div>
-              
-              <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Assignment</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div><strong>Assignee:</strong> {selectedTask.assigneeName || 'N/A'}</div>
-                  <div><strong>Reviewer:</strong> {selectedTask.reviewerName || 'N/A'}</div>
-                  <div><strong>Created by:</strong> {selectedTask.createdByName || 'N/A'}</div>
-                  <div><strong>Created at:</strong> {selectedTask.createdAt ? formatDate(selectedTask.createdAt, 'YYYY-MM-DD HH:mm') : 'N/A'}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Milestone Information */}
-            {selectedTask.milestone && (
-              <div style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Related Milestone</h3>
-                <div style={{ 
-                  background: '#f0f9ff', 
-                  border: '1px solid #0ea5e9', 
-                  borderRadius: 8, 
-                  padding: 16 
-                }}>
-                  <div><strong>Milestone:</strong> {selectedTask.milestone.name}</div>
-                  <div><strong>Description:</strong> {selectedTask.milestone.description}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Comments */}
-            {selectedTask.comments && selectedTask.comments.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Comments ({selectedTask.comments.length})</h3>
-                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                  {selectedTask.comments.map((comment, index) => (
-                    <div key={index} style={{
-                      background: '#f9fafb',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 6,
-                      padding: 12,
-                      marginBottom: 8
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <strong style={{ fontSize: 13 }}>{comment.authorName}</strong>
-                        <span style={{ fontSize: 12, color: '#64748b' }}>
-                          {formatDate(comment.timestamp, 'DD/MM/YYYY HH:mm')}
-                        </span>
-                      </div>
-                      <p style={{ margin: 0, fontSize: 13, color: '#374151' }}>{comment.content}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* History */}
-            {selectedTask.history && selectedTask.history.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Task History</h3>
-                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                  {selectedTask.history.map((history, index) => (
-                    <div key={index} style={{
-                      background: '#f9fafb',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 6,
-                      padding: 12,
-                      marginBottom: 8
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <strong style={{ fontSize: 13 }}>{history.action}</strong>
-                        <span style={{ fontSize: 12, color: '#64748b' }}>
-                          {formatDate(history.at, 'DD/MM/YYYY HH:mm')}
-                        </span>
-                      </div>
-                      <p style={{ margin: 0, fontSize: 13, color: '#374151' }}>{history.detail}</p>
-                      {history.user && (
-                        <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#64748b' }}>
-                          User: {history.user}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
-              <Button variant="ghost" onClick={closeTaskModal}>
-                Đóng
               </Button>
             </div>
           </div>
