@@ -66,7 +66,7 @@ export default function StaffGroups() {
         }));
 
         const semesters = (semestersRes.data || []).map(s => ({
-          value: s.id,
+          value: s.description,
           label: s.name,
         }));
 
@@ -111,6 +111,7 @@ export default function StaffGroups() {
     if (!rows || rows.length === 0) return [];
     const q = normalizeStr(f.search);
     return rows.filter(g => {
+        
       if (f.major !== 'all' && g.major !== f.major) return false;
       if (f.term !== 'all' && String(g.term || '') !== String(f.term)) return false;
       if (f.courseCode !== 'all' && g.courseCode !== f.courseCode) return false;

@@ -24,6 +24,7 @@ export async function getSemesters() {
   try {
     const res = await client.get('/Staff/semester/getAll');
     const payload = res.data;
+    
     if (payload.status === 200) {
       return {
         data: payload.data || [],
@@ -63,7 +64,6 @@ export async function listCapstoneGroups({ page = 1, pageSize = 100 } = {}) {
   const res = await client.get(`/Staff/capstone-groups`, {
     params: { page, pageSize },
   });
-  console.log('res', res.data);
   const payload = res.data;
   const items = payload.data?.items || [];
   const normalizedItems = items.map(g => ({
