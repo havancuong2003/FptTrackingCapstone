@@ -86,15 +86,20 @@ export default function Sidebar() {
                 id={`submenu-${itemKey}`}
                 className={`${styles.submenu} ${isParentOpen(item) ? styles.submenuOpen : styles.submenuClosed}`}
               >
-                {item.children.map(child => (
-                  <NavLink
-                    key={child.path || child.label}
-                    to={child.path}
-                    className={({ isActive }) => isActive ? `${styles.submenuLink} ${styles.active}` : styles.submenuLink}
-                  >
-                    {child.label}
-                  </NavLink>
-                ))}
+                {item.children.map(child => {
+                  // Nếu child path giống parent path, cần end={true} để chỉ match exact path
+                  const shouldEnd = child.path === item.path;
+                  return (
+                    <NavLink
+                      key={child.path || child.label}
+                      to={child.path}
+                      end={shouldEnd}
+                      className={({ isActive }) => isActive ? `${styles.submenuLink} ${styles.active}` : styles.submenuLink}
+                    >
+                      {child.label}
+                    </NavLink>
+                  );
+                })}
               </div>
             </div>
           );
