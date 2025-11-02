@@ -90,12 +90,12 @@ export default function Schedule() {
       const response = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
       if (response.data.status === 200) {
         setMeetingSchedule(response.data.data);
-        setIsFinalized(true);
-        return true;
+        setIsFinalized(response.data.message !== 'Meeting not found.');
+        return response.data.message === 'Meeting not found.';
       }
-      return false;
     } catch (error) {
-      console.error('No meeting schedule found');
+      console.error('Error checking meeting schedule:', error);
+      setIsFinalized(false);
       return false;
     }
   };
@@ -105,13 +105,12 @@ export default function Schedule() {
     try {
       // Check if meeting schedule already exists
       const hasSchedule = await checkMeetingSchedule();
-      
+        
       // API call lấy chi tiết group theo pattern từ Groups
       const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
-
+   
       if (response.data.status === 200) {
         const groupDetail = response.data.data;
-        
         // Format group data theo structure thực tế từ API
         const formattedGroup = {
           id: groupDetail.id || groupId,

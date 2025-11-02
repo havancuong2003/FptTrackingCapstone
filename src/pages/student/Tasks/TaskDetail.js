@@ -184,7 +184,6 @@ export default function TaskDetail() {
       const response = await axiosClient.post('/Student/Comment/create', commentData);
       
       if (response.data.status === 200) {
-        console.log('response', response.data);
         // Tạo comment object mới với thông tin từ API
         const nowIso = new Date().toISOString();
         const newCommentObj = {

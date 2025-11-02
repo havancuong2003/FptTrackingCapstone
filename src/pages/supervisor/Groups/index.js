@@ -35,7 +35,6 @@ export default function SupervisorGroups() {
                 
                 // Step 1: Call API to get supervisor's group list (only id and name)
                 const groupsResponse = await axiosClient.get('/Mentor/getGroups');
-                
                 if (groupsResponse.data.status === 200) {
                     // Get basic group list (only id and name)
                     const groupList = groupsResponse.data.data;
