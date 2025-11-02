@@ -102,19 +102,19 @@ export default function StudentTasks() {
   const fetchStudentsByGroup = async (gid) => {
     try {
       const response = await axiosClient.get(`/Staff/capstone-groups/${gid}`);
-      
       if (response.data.status === 200) {
         // Kiểm tra data có tồn tại và không null/undefined
-        const apiData = response.data.data.students;
-        const studentsData = Array.isArray(apiData) ? apiData : [];
-        
-        // Map data từ API response sang format frontend
-        return studentsData.map(student => ({
-          id: student.id,
-          name: student.name,
-          studentId: student.studentId || student.id,
-          email: student.email || ''
-        }));
+        if (response.data.data && response.data.data.students) {
+          const apiData = response.data.data.students;
+          const studentsData = Array.isArray(apiData) ? apiData : [];
+          return studentsData.map(student => ({
+            id: student.id,
+            name: student.name,
+            studentId: student.studentId || student.id,
+            email: student.email || ''
+          }));
+        }
+        return [];
       } else {
         console.error('Error fetching students:', response.data.message);
         alert(`Error lấy danh sách students: ${response.data.message}`);
@@ -134,6 +134,12 @@ export default function StudentTasks() {
       
       if (response.data.status === 200) {
         const groupData = response.data.data;
+        
+        // Kiểm tra groupData có tồn tại và không null/undefined
+        if (!groupData) {
+          return [];
+        }
+        
         const reviewersList = [];
         
         // Add supervisors
