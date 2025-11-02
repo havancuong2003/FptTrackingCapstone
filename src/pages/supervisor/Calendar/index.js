@@ -4,6 +4,8 @@ import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Input from '../../../components/Input/Input';
 import Textarea from '../../../components/Textarea/Textarea';
+import DataTable from '../../../components/DataTable/DataTable';
+import { useNavigate } from 'react-router-dom';
 import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
 
@@ -18,6 +20,7 @@ const TIME_SLOTS = [
 ];
 
 export default function SupervisorCalendar() {
+  const navigate = useNavigate();
   const [userInfo, setUserInfo] = React.useState(null);
   const [groups, setGroups] = React.useState([]);
   const [semesterInfo, setSemesterInfo] = React.useState(null);
@@ -49,6 +52,7 @@ export default function SupervisorCalendar() {
   const [formErrors, setFormErrors] = React.useState({});
   const [milestoneDetails, setMilestoneDetails] = React.useState(null);
   const [selectedMeetingGroupInfo, setSelectedMeetingGroupInfo] = React.useState(null);
+  const [meetingIssues, setMeetingIssues] = React.useState([]);
 
   // API Base URL
   const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
@@ -90,29 +94,29 @@ export default function SupervisorCalendar() {
     return () => { mounted = false; };
   }, []);
 
-  // // Load semester info and weeks from first group
-  // React.useEffect(() => {
-  //   let mounted = true;
-  //   async function loadSemesterInfo() {
-  //     if (!groups.length || !groups[0]?.semesterId) return;
-  //     try {
-  //       const res = await client.get(`${API_BASE_URL}/Staff/semester/getSemesterBy/${groups[0].semesterId}`);
-  //       const semester = res?.data?.data || null;
-  //       if (!mounted) return;
-  //       setSemesterInfo(semester);
-  //       setWeeks(semester?.weeks || []);
-  //       if (semester?.weeks?.length > 0) {
-  //         setSelectedWeek(semester.weeks[0].weekNumber);
-  //       }
-  //     } catch {
-  //       if (!mounted) return;
-  //       setSemesterInfo(null);
-  //       setWeeks([]);
-  //     }
-  //   }
-  //   loadSemesterInfo();
-  //   return () => { mounted = false; };
-  // }, [groups]);
+  // Load semester info and weeks from first group
+  React.useEffect(() => {
+    let mounted = true;
+    async function loadSemesterInfo() {
+      if (!groups.length || !groups[0]?.semesterId) return;
+      try {
+        const res = await client.get(`${API_BASE_URL}/Staff/semester/getSemesterBy/${groups[0].semesterId}`);
+        const semester = res?.data?.data || null;
+        if (!mounted) return;
+        setSemesterInfo(semester);
+        setWeeks(semester?.weeks || []);
+        if (semester?.weeks?.length > 0) {
+          setSelectedWeek(semester.weeks[0].weekNumber);
+        }
+      } catch {
+        if (!mounted) return;
+        setSemesterInfo(null);
+        setWeeks([]);
+      }
+    }
+    loadSemesterInfo();
+    return () => { mounted = false; };
+  }, [groups]);
 
 
   // Load milestones for all groups
@@ -225,12 +229,12 @@ export default function SupervisorCalendar() {
     return () => { mounted = false; };
   }, [userInfo?.groups]);
 
-  // // Set loading false when all data loaded
-  // React.useEffect(() => {
-  //   if (userInfo && groups.length > 0 && semesterInfo && weeks.length > 0) {
-  //     setLoading(false);
-  //   }
-  // }, [userInfo, groups, semesterInfo, weeks]);
+  // Set loading false when all data loaded
+  React.useEffect(() => {
+    if (userInfo && groups.length > 0 && semesterInfo && weeks.length > 0) {
+      setLoading(false);
+    }
+  }, [userInfo, groups, semesterInfo, weeks]);
 
   // Get milestones for selected week
   const getMilestonesForWeek = () => {
@@ -291,12 +295,13 @@ export default function SupervisorCalendar() {
     });
   };
 
-  // Get milestone for specific day and time slot
-  const getMilestoneForSlot = (day, timeSlot) => {
+  // Get milestones for specific day and time slot (returns array to handle multiple milestones)
+  const getMilestonesForSlot = (day, timeSlot) => {
     const weekMilestones = getMilestonesForWeek();
-    if (!weekMilestones.length) return null;
+    if (!weekMilestones.length) return [];
     
-    // Find milestone that matches day and time
+    // Tìm tất cả milestones phù hợp với ngày và giờ
+    const matchedMilestones = [];
     for (const milestone of weekMilestones) {
       const deadline = new Date(milestone.endAt);
       const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -306,19 +311,20 @@ export default function SupervisorCalendar() {
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
       if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-        return milestone;
+        matchedMilestones.push(milestone);
       }
     }
     
-    return null;
+    return matchedMilestones;
   };
 
-  // Get meeting for specific day and time slot
-  const getMeetingForSlot = (day, timeSlot) => {
+  // Get meetings for specific day and time slot (returns array to handle multiple meetings)
+  const getMeetingsForSlot = (day, timeSlot) => {
     const weekMeetings = getMeetingsForWeek();
-    if (!weekMeetings.length) return null;
+    if (!weekMeetings.length) return [];
     
-    // Find meeting that matches day and time
+    // Tìm tất cả meetings phù hợp với ngày và giờ
+    const matchedMeetings = [];
     for (const meeting of weekMeetings) {
       const meetingDate = new Date(meeting.meetingDate);
       const dayOfWeek = meetingDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -328,19 +334,20 @@ export default function SupervisorCalendar() {
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
       if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-        return meeting;
+        matchedMeetings.push(meeting);
       }
     }
     
-    return null;
+    return matchedMeetings;
   };
 
-  // Get task for specific day and time slot
-  const getTaskForSlot = (day, timeSlot) => {
+  // Get tasks for specific day and time slot (returns array to handle multiple tasks)
+  const getTasksForSlot = (day, timeSlot) => {
     const weekTasks = getTasksForWeek();
-    if (!weekTasks.length) return null;
+    if (!weekTasks.length) return [];
     
-    // Find task that matches day and time
+    // Tìm tất cả tasks phù hợp với ngày và giờ
+    const matchedTasks = [];
     for (const task of weekTasks) {
       const deadline = new Date(task.deadline);
       const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -350,11 +357,11 @@ export default function SupervisorCalendar() {
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
       if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-        return task;
+        matchedTasks.push(task);
       }
     }
     
-    return null;
+    return matchedTasks;
   };
 
   const getStatusColor = (status) => {
@@ -450,6 +457,53 @@ export default function SupervisorCalendar() {
     }
   };
 
+  // Fetch meeting issues (tasks) by meetingId
+  const fetchMeetingIssues = async (meetingId) => {
+    try {
+      const res = await client.get(`${API_BASE_URL}/Student/Task/meeting-tasks/${meetingId}`);
+      const data = res.data?.data;
+      const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+      setMeetingIssues(tasks.map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        deadline: t.deadline,
+        isActive: t.isActive,
+        groupId: t.groupId
+      })));
+    } catch (e) {
+      setMeetingIssues([]);
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    try {
+      return new Date(dateString).toLocaleString('vi-VN');
+    } catch { return dateString; }
+  };
+
+  const meetingIssueColumns = [
+    { key: 'name', title: 'Issue' },
+    { key: 'deadline', title: 'Hạn', render: (row) => formatDateTime(row.deadline) },
+    {
+      key: 'actions',
+      title: '',
+      render: (row) => (
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/supervisor/task/group/${row.groupId}?taskId=${row.id}`);
+            }}
+            style={{
+              background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
+            }}
+          >Chi tiết</button>
+        </div>
+      )
+    }
+  ];
+
   // Open meeting modal
   const openMeetingModal = async (meeting) => {
     setSelectedMeeting(meeting);
@@ -458,37 +512,37 @@ export default function SupervisorCalendar() {
     // Fetch group info for this meeting
     await fetchMeetingGroupInfo(meeting.groupId);
     
-    // Fetch meeting minute if exists
-    try {
-      const response = await client.get(`${API_BASE_URL}/MeetingMinute?meetingDateId=${meeting.id}`);
-      if (response.data.status === 200 && response.data.data) {
-        setMinuteData(response.data.data);
-        setFormData({
-          startAt: response.data.data.startAt ? response.data.data.startAt.split('T')[0] + 'T' + response.data.data.startAt.split('T')[1].substring(0, 5) : '',
-          endAt: response.data.data.endAt ? response.data.data.endAt.split('T')[0] + 'T' + response.data.data.endAt.split('T')[1].substring(0, 5) : '',
-          attendance: response.data.data.attendance || '',
-          issue: response.data.data.issue || '',
-          meetingContent: response.data.data.meetingContent || '',
-          other: response.data.data.other || ''
-        });
-        setIsEditing(true);
-      } else {
+    // Chỉ fetch meeting minute nếu isMinute === true
+    if (meeting.isMinute === true) {
+      try {
+        const response = await client.get(`${API_BASE_URL}/MeetingMinute?meetingDateId=${meeting.id}`);
+        if (response.data.status === 200 && response.data.data) {
+          setMinuteData(response.data.data);
+          setFormData({
+            startAt: response.data.data.startAt ? response.data.data.startAt.split('T')[0] + 'T' + response.data.data.startAt.split('T')[1].substring(0, 5) : '',
+            endAt: response.data.data.endAt ? response.data.data.endAt.split('T')[0] + 'T' + response.data.data.endAt.split('T')[1].substring(0, 5) : '',
+            attendance: response.data.data.attendance || '',
+            issue: response.data.data.issue || '',
+            meetingContent: response.data.data.meetingContent || '',
+            other: response.data.data.other || ''
+          });
+          setIsEditing(true);
+        } else {
+          setMinuteData(null);
+          setIsEditing(false);
+        }
+      } catch (error) {
+        console.error('Error fetching meeting minute:', error);
         setMinuteData(null);
-        setFormData({
-          startAt: '',
-          endAt: '',
-          attendance: '',
-          issue: '',
-          meetingContent: '',
-          other: ''
-        });
         setIsEditing(false);
       }
-    } catch (error) {
-      console.error('Error fetching meeting minute:', error);
+    } else {
       setMinuteData(null);
       setIsEditing(false);
     }
+
+    // Load meeting issues
+    await fetchMeetingIssues(meeting.id);
   };
 
   // Open task modal
@@ -519,6 +573,7 @@ export default function SupervisorCalendar() {
     setSelectedMeetingGroupInfo(null);
     setMinuteData(null);
     setIsEditing(false);
+    setMeetingIssues([]);
     setFormData({
       startAt: '',
       endAt: '',
@@ -541,10 +596,10 @@ export default function SupervisorCalendar() {
     setMilestoneDetails(null);
   };
 
-  // Get group name by ID
-  const getGroupName = (groupId) => {
-    const group = groups.find(g => g.id === groupId);
-    return group?.projectName || `Nhóm ${groupId}`;
+  // Get group code by ID
+  const getGroupCode = (groupId) => {
+    const group = groups.find(g => g.id === groupId || g.id === String(groupId));
+    return group?.groupCode || `GRP${groupId}`;
   };
 
   // Join meeting
@@ -552,13 +607,13 @@ export default function SupervisorCalendar() {
     window.open(meetingLink, '_blank');
   };
 
-  // if (loading) {
-  //   return (
-  //     <div style={{ padding: 32, textAlign: 'center' }}>
-  //       <div>Loading calendar...</div>
-  //     </div>
-  //   );
-  // }
+  if (loading) {
+    return (
+      <div style={{ padding: 32, textAlign: 'center' }}>
+        <div>Loading calendar...</div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 16 }}>
@@ -569,7 +624,7 @@ export default function SupervisorCalendar() {
         </div>
       </div>
       
-      {/* {semesterInfo && (
+      {semesterInfo && (
         <div style={{ 
         //   display: 'flex', 
           alignItems: 'center', 
@@ -589,7 +644,7 @@ export default function SupervisorCalendar() {
             </div>
           </div>
         </div>
-      )} */}
+      )}
 
 
       {/* Groups Information */}
@@ -608,7 +663,8 @@ export default function SupervisorCalendar() {
                   {group.projectName}
                 </div>
                 <div style={{ fontSize: 12, color: '#64748b' }}>
-                  <div>ID: {group.id}</div>
+                  <div>Group Code: {group.groupCode || 'N/A'}</div>
+                  {/* <div>ID: {group.id}</div> */}
                   <div>Students: {group.students?.length || 0}</div>
                   <div>Supervisors: {group.supervisors?.join(', ') || 'N/A'}</div>
                 </div>
@@ -697,9 +753,9 @@ export default function SupervisorCalendar() {
                   {timeSlot.label}
                 </td>
                 {DAYS.map((day, dayIndex) => {
-                  const milestone = getMilestoneForSlot(dayIndex, timeSlot);
-                  const meeting = getMeetingForSlot(dayIndex, timeSlot);
-                  const task = getTaskForSlot(dayIndex, timeSlot);
+                  const milestones = getMilestonesForSlot(dayIndex, timeSlot);
+                  const meetings = getMeetingsForSlot(dayIndex, timeSlot);
+                  const tasks = getTasksForSlot(dayIndex, timeSlot);
                   
                   return (
                     <td key={day} style={{ 
@@ -710,39 +766,41 @@ export default function SupervisorCalendar() {
                       verticalAlign: 'top'
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                         {/* Milestone */}
-                         {milestone && (
-                           <div 
-                             onClick={() => openMilestoneModal(milestone)}
-                             style={{ 
-                               background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
-                                          getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
-                                          getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                               border: `1px solid ${getStatusColor(milestone.status)}`,
-                               borderRadius: 4,
-                               padding: 4,
-                               cursor: 'pointer',
-                               fontSize: 9,
-                               maxHeight: '50px',
-                               overflow: 'hidden',
-                               transition: 'all 0.2s ease'
-                             }}
-                           >
-                             <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
-                               📊 {milestone.name.length > 20 ? milestone.name.substring(0, 20) + '...' : milestone.name}
-                             </div>
-                             <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
-                               {getStatusText(milestone.status)}
-                             </div>
-                             <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
-                               {formatDate(milestone.endAt, 'HH:mm')} ({getGroupName(milestone.groupId)})
-                             </div>
-                           </div>
-                         )}
-                        
-                        {/* Meeting */}
-                        {meeting && (
+                        {/* Milestones - Display all milestones in this slot */}
+                        {milestones.map((milestone, idx) => (
                           <div 
+                            key={milestone.id || idx}
+                            onClick={() => openMilestoneModal(milestone)}
+                            style={{ 
+                              background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
+                                         getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
+                                         getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                              border: `1px solid ${getStatusColor(milestone.status)}`,
+                              borderRadius: 4,
+                              padding: 4,
+                              cursor: 'pointer',
+                              fontSize: 9,
+                              maxHeight: '50px',
+                              overflow: 'hidden',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
+                              📊 {milestone.name.length > 20 ? milestone.name.substring(0, 20) + '...' : milestone.name}
+                            </div>
+                            <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                              {getStatusText(milestone.status)}
+                            </div>
+                            <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                              {formatDate(milestone.endAt, 'HH:mm')} ({getGroupCode(milestone.groupId)})
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {/* Meetings - Display all meetings in this slot */}
+                        {meetings.map((meeting, idx) => (
+                          <div 
+                            key={meeting.id || idx}
                             onClick={() => openMeetingModal(meeting)}
                             style={{ 
                               background: getMeetingStatusColor(meeting) === '#059669' ? '#ecfdf5' : 
@@ -763,15 +821,16 @@ export default function SupervisorCalendar() {
                             <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
                               {getMeetingStatusText(meeting)}
                             </div>
-                             <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
-                               {meeting.time} ({getGroupName(meeting.groupId)})
-                             </div>
+                            <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
+                              {meeting.time} ({getGroupCode(meeting.groupId)})
+                            </div>
                           </div>
-                        )}
+                        ))}
                         
-                        {/* Task */}
-                        {task && (
+                        {/* Tasks - Display all tasks in this slot */}
+                        {tasks.map((task, idx) => (
                           <div 
+                            key={task.id || idx}
                             onClick={() => openTaskModal(task)}
                             style={{ 
                               background: getTaskStatusColor(task.status) === '#059669' ? '#ecfdf5' : 
@@ -793,11 +852,11 @@ export default function SupervisorCalendar() {
                             <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
                               {getTaskStatusText(task.status)}
                             </div>
-                             <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
-                               {formatDate(task.deadline, 'HH:mm')} ({getGroupName(task.groupId)})
-                             </div>
+                            <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
+                              {formatDate(task.deadline, 'HH:mm')} ({getGroupCode(task.groupId)})
+                            </div>
                           </div>
-                        )}
+                        ))}
                       </div>
                     </td>
                   );
@@ -860,7 +919,7 @@ export default function SupervisorCalendar() {
                       {getMeetingStatusText(selectedMeeting)}
                     </span>
                   </div>
-                  <div><strong>Nhóm:</strong> {selectedMeetingGroupInfo?.projectName || `Nhóm ${selectedMeeting.groupId}`}</div>
+                  <div><strong>Nhóm:</strong> {selectedMeetingGroupInfo?.groupCode || `GRP${selectedMeeting.groupId}`} - {selectedMeetingGroupInfo?.projectName || 'N/A'}</div>
                 </div>
               </div>
               
@@ -953,20 +1012,16 @@ export default function SupervisorCalendar() {
                       </div>
                     </div>
                     
+                    {/* Meeting Issues table thay cho phần vấn đề cần giải quyết */}
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Vấn đề cần giải quyết</h4>
-                      <div style={{ 
-                        fontSize: 13, 
-                        color: '#374151', 
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        padding: '12px',
-                        background: 'rgba(255,255,255,0.5)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        minHeight: '80px'
-                      }}>
-                        {minuteData.issue || 'N/A'}
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Issues</h4>
+                      <div style={{ marginTop: 8, maxWidth: '100%', overflowX: 'hidden' }}>
+                        <DataTable
+                          columns={meetingIssueColumns}
+                          data={meetingIssues}
+                          loading={loading}
+                          emptyMessage="Chưa có issue nào"
+                        />
                       </div>
                     </div>
                     

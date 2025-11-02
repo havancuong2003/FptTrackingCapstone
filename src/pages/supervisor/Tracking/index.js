@@ -20,6 +20,25 @@ export default function SupervisorTracking() {
   const [rejecting, setRejecting] = React.useState(false);
   const [note, setNote] = React.useState('');
   const [noteError, setNoteError] = React.useState('');
+  const [windowWidth, setWindowWidth] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth;
+    }
+    return 1920; // Default to desktop size
+  });
+
+  // Track window width for responsive design
+  React.useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    
+    // Set initial width
+    setWindowWidth(window.innerWidth);
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Load user info
   React.useEffect(() => {
@@ -316,22 +335,37 @@ export default function SupervisorTracking() {
     );
   }
 
+  // Helper to determine if mobile (iPhone XR is ~414px, so we use <= 576px for small mobile)
+  const isMobile = windowWidth <= 576;
+  const isTablet = windowWidth > 576 && windowWidth <= 1024;
+  const isDesktop = windowWidth > 1024;
+
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Milestones Tracking</h1>
+    <div style={{ padding: isMobile ? '12px' : isTablet ? '14px' : '16px', maxWidth: '100%', overflowX: 'auto' }}>
+      {/* Header - Responsive */}
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: isMobile || isTablet ? 'column' : 'row',
+        alignItems: isMobile || isTablet ? 'flex-start' : 'center',
+        gap: isMobile ? 12 : 16, 
+        marginBottom: isMobile ? 20 : 24 
+      }}>
+        <h1 style={{ margin: 0, fontSize: isMobile ? '18px' : isTablet ? '22px' : '24px' }}>Milestones Tracking</h1>
         {groupInfo && (
-          <div style={{ fontSize: 14, color: '#64748b' }}>
+          <div style={{ 
+            fontSize: 14, 
+            color: '#64748b',
+            wordBreak: 'break-word',
+            maxWidth: '100%'
+          }}>
             Group: {groupInfo.projectName}
           </div>
         )}
       </div>
       
+      {/* Supervisors Info - Responsive */}
       {groupInfo?.supervisors && (
         <div style={{ 
-          // display: 'flex', 
-          alignItems: 'center', 
-          gap: 16, 
           marginBottom: 16 
         }}>
           <div style={{ 
@@ -339,34 +373,54 @@ export default function SupervisorTracking() {
             border: '1px solid #10b981', 
             borderRadius: 8, 
             padding: 8,
-            flex: 1,
-            width: '50%'
+            width: '100%',
+            maxWidth: isMobile ? '100%' : isTablet ? '70%' : '50%'
           }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#065f46' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#065f46', wordBreak: 'break-word' }}>
               Supervisors: {groupInfo.supervisors.join(', ')}
             </div>
           </div>
         </div>
       )}
 
-      {/* Group Selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>Group:</span>
+      {/* Group Selector - Responsive */}
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: isMobile || isTablet ? 'column' : 'row',
+        alignItems: isMobile || isTablet ? 'stretch' : 'center',
+        gap: 8, 
+        marginBottom: isMobile ? 12 : 16 
+      }}>
+        <span style={{ 
+          fontWeight: 600, 
+          fontSize: isMobile ? '13px' : '14px',
+          minWidth: isMobile || isTablet ? 'auto' : '60px'
+        }}>Group:</span>
         <select 
           value={selectedGroup?.id || ''} 
           onChange={(e) => {
-            const group = groups.find(g => g.id === Number(e.target.value));
-            setSelectedGroup(group);
+            const selectedId = e.target.value ? Number(e.target.value) : null;
+            const group = groups.find(g => String(g.id) === String(selectedId));
+            if (group) {
+              setSelectedGroup(group);
+              // Reset milestone details when changing group
+              setMilestoneDetails(null);
+              setSelectedMilestone(null);
+              setDetailModal(false);
+              setNote('');
+              setNoteError('');
+            }
           }}
           style={{
-            padding: "8px 12px",
+            padding: isMobile ? "6px 10px" : "8px 12px",
             border: "1px solid #d1d5db",
             borderRadius: "6px",
-            fontSize: "14px",
+            fontSize: isMobile ? "13px" : "14px",
             backgroundColor: "white",
             outline: "none",
-            minWidth: 300,
-            maxWidth: 400
+            width: isMobile || isTablet ? '100%' : 'auto',
+            minWidth: isMobile || isTablet ? 'auto' : 300,
+            maxWidth: isMobile || isTablet ? '100%' : 400
           }}
         >
           {groups.map((group) => (
@@ -378,51 +432,69 @@ export default function SupervisorTracking() {
       </div>
 
 
-      {/* Summary Tables - Side by Side */}
-      <div style={{ display: 'flex', gap: 16, marginTop: 24 }}>
+      {/* Summary Tables - Responsive Layout */}
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: isMobile || isTablet ? 'column' : 'row',
+        gap: isMobile ? 12 : 16, 
+        marginTop: isMobile ? 16 : 24 
+      }}>
         
-        {/* Group Members Table */}
+        {/* Group Members Table - Responsive */}
         {groupInfo?.students && (
-          <div style={{ flex: 1, minWidth: '400px' }}>
+          <div style={{ 
+            flex: 1, 
+            minWidth: isMobile || isTablet ? '100%' : '350px',
+            maxWidth: isMobile || isTablet ? '100%' : '500px',
+            marginBottom: isMobile || isTablet ? 20 : 0
+          }}>
             <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#333' }}>Group Members</h3>
             <div style={{ 
-              border: '1px solid #e5e7eb', 
-              borderRadius: 8, 
-              overflow: 'hidden',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+              overflowX: 'auto',
               background: '#fff',
-              width: '50%'
+              width: '100%',
+              borderRadius: 8,
+              border: '1px solid #e5e7eb',
+              boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
             }}>
-              <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+              <table style={{ 
+                width: '100%', 
+                borderCollapse: 'separate', 
+                borderSpacing: 0,
+                minWidth: isMobile ? '450px' : 'auto',
+                tableLayout: 'fixed'
+              }}>
                 <thead style={{ background: '#f9fafb' }}>
                   <tr>
-                    <th style={{ textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '50px' }}>#</th>
-                    <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '120px' }}>Roll Number</th>
-                    <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Name</th>
-                    <th style={{ textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '100px' }}>Role</th>
+                    <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '35px' }}>#</th>
+                    <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '90px' }}>Roll Number</th>
+                    <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px' }}>Name</th>
+                    <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '75px' }}>Role</th>
                   </tr>
                 </thead>
                 <tbody>
                   {groupInfo.students.map((student, index) => (
                     <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9', background: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
-                      <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: '#6c757d' }}>{index + 1}</div>
+                      <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                        <div style={{ fontWeight: 600, fontSize: isMobile ? '12px' : '13px', color: '#6c757d' }}>{index + 1}</div>
                       </td>
-                      <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                        <div style={{ fontWeight: 600, fontSize: 13, color: '#333' }}>{student.rollNumber}</div>
+                      <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                        <div style={{ fontWeight: 600, fontSize: isMobile ? '12px' : '13px', color: '#333', wordBreak: 'break-word' }}>{student.rollNumber}</div>
                       </td>
-                      <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                        <div style={{ fontSize: 14, color: '#333' }}>{student.name}</div>
+                      <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                        <div style={{ fontSize: isMobile ? '13px' : '14px', color: '#333', wordBreak: 'break-word' }}>{student.name}</div>
                       </td>
-                      <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                      <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
                         <span style={{ 
                           color: '#059669', 
                           background: '#ecfdf5',
-                          padding: '4px 8px',
+                          padding: isMobile ? '3px 5px' : '4px 6px',
                           borderRadius: 6,
-                          fontSize: 12,
+                          fontSize: isMobile ? '11px' : '12px',
                           fontWeight: 600,
-                          border: '1px solid #10b981'
+                          border: '1px solid #10b981',
+                          display: 'inline-block',
+                          whiteSpace: 'nowrap'
                         }}>
                           {student.role}
                         </span>
@@ -436,71 +508,80 @@ export default function SupervisorTracking() {
         )}
       </div>
       
-      {/* Milestones Summary Table */}
-      <div style={{ flex: 1, marginTop: 24 }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#333' }}>Milestones Summary</h3>
+      {/* Milestones Summary Table - Responsive */}
+      <div style={{ flex: 1, marginTop: isMobile ? 16 : 24, width: '100%' }}>
+        <h3 style={{ margin: '0 0 12px 0', fontSize: isMobile ? '15px' : '16px', color: '#333' }}>Milestones Summary</h3>
         <div style={{ 
           border: '1px solid #e5e7eb', 
           borderRadius: 8, 
-          overflow: 'hidden',
+          overflow: 'auto',
           boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-          background: '#fff'
+          background: '#fff',
+          width: '100%'
         }}>
-          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+          <table style={{ 
+            width: '100%', 
+            borderCollapse: 'separate', 
+            borderSpacing: 0,
+            minWidth: isMobile ? '600px' : 'auto'
+          }}>
             <thead style={{ background: '#f8f9fa' }}>
               <tr>
-                <th style={{ textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '50px' }}>#</th>
-                <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13 }}>Milestone</th>
-                <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '150px' }}>Deadline</th>
-                <th style={{ textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '200px' }}>Status</th>
-                <th style={{ textAlign: 'center', padding: '12px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: 13, width: '100px' }}>Actions</th>
+                <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '35px' }}>#</th>
+                <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px' }}>Milestone</th>
+                <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '130px' }}>Deadline</th>
+                <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '130px' }}>Status</th>
+                <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '100px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {milestones.map((milestone, index) => (
                 <tr key={milestone.id} style={{ borderBottom: '1px solid #f1f5f9', background: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
-                  <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, color: '#6c757d' }}>{index + 1}</div>
+                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                    <div style={{ fontWeight: 600, fontSize: isMobile ? '12px' : '13px', color: '#6c757d' }}>{index + 1}</div>
                   </td>
-                  <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4, color: '#333' }}>{milestone.name}</div>
+                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ fontWeight: 600, fontSize: isMobile ? '13px' : '14px', marginBottom: 4, color: '#333', wordBreak: 'break-word' }}>{milestone.name}</div>
                     {milestone.description && (
-                      <div style={{ fontSize: 12, color: '#64748b' }}>{milestone.description}</div>
+                      <div style={{ fontSize: isMobile ? '11px' : '12px', color: '#64748b', wordBreak: 'break-word' }}>{milestone.description}</div>
                     )}
                   </td>
-                  <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                    <div style={{ color: '#059669', fontWeight: 600, fontSize: 13 }}>
+                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ color: '#059669', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', whiteSpace: 'nowrap' }}>
                        {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
                     </div>
                   </td>
-                  <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
                     <span style={{ 
                       color: getStatusColor(milestone.status), 
                       background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
                                  getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
                                  getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                      padding: '4px 8px',
+                      padding: isMobile ? '3px 6px' : '4px 8px',
                       borderRadius: 6,
-                      fontSize: 12,
+                      fontSize: isMobile ? '11px' : '12px',
                       fontWeight: 600,
-                      border: `1px solid ${getStatusColor(milestone.status)}`
+                      border: `1px solid ${getStatusColor(milestone.status)}`,
+                      display: 'inline-block',
+                      whiteSpace: 'nowrap'
                     }}>
                       {getStatusText(milestone.status)}
                     </span>
                   </td>
-                  <td style={{ padding: '12px 8px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
+                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
                     <Button
                       onClick={() => openDetailModal(milestone)}
                       variant="ghost"
                       style={{ 
-                        fontSize: 12, 
-                        padding: '6px 12px',
+                        fontSize: isMobile ? '10px' : isTablet ? '11px' : '12px', 
+                        padding: isMobile ? '4px 6px' : isTablet ? '5px 8px' : '6px 10px',
                         background: '#007bff',
                         color: 'white',
                         border: 'none',
                         borderRadius: 4,
                         cursor: 'pointer',
-                        fontWeight: 500
+                        fontWeight: 500,
+                        whiteSpace: 'nowrap'
                       }}
                     >
                       View Details
@@ -522,20 +603,35 @@ export default function SupervisorTracking() {
 
       <Modal open={detailModal} onClose={() => setDetailModal(false)}>
         {selectedMilestone && (
-          <div style={{ padding: 24, maxWidth: '95vw', width: '1200px', maxHeight: '80vh', overflow: 'auto' }}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: 20 }}>Milestone Details</h2>
+          <div style={{ 
+            padding: isMobile ? '12px' : isTablet ? '16px' : '24px', 
+            maxWidth: '95vw', 
+            width: isMobile ? '95vw' : isTablet ? '90vw' : '1200px',
+            maxHeight: '80vh', 
+            overflow: 'auto' 
+          }}>
+            <h2 style={{ 
+              margin: '0 0 16px 0', 
+              fontSize: isMobile ? '18px' : isTablet ? '19px' : '20px' 
+            }}>Milestone Details</h2>
             
-            <div style={{ display: 'flex', gap: 24, marginBottom: 20 }}>
+            {/* Basic and Project Info - Responsive */}
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: isMobile || isTablet ? 'column' : 'row',
+              gap: isMobile ? 16 : 24, 
+              marginBottom: isMobile ? 16 : 20 
+            }}>
               <div style={{ flex: 1 }}>
                 <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Basic Information</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div><strong>Name:</strong> {selectedMilestone.name}</div>
-                  <div><strong>Description:</strong> {selectedMilestone.description}</div>
+                  <div style={{ wordBreak: 'break-word' }}><strong>Name:</strong> {selectedMilestone.name}</div>
+                  <div style={{ wordBreak: 'break-word' }}><strong>Description:</strong> {selectedMilestone.description}</div>
                   <div><strong>Deadline:</strong> {formatDate(selectedMilestone.endAt, 'YYYY-MM-DD HH:mm')}</div>
-                  <div><strong>Status:</strong> 
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+                    <strong>Status:</strong>
                     <span style={{ 
                       color: getStatusColor(selectedMilestone.status), 
-                      marginLeft: '8px',
                       background: getStatusColor(selectedMilestone.status) === '#059669' ? '#ecfdf5' : 
                                  getStatusColor(selectedMilestone.status) === '#dc2626' ? '#fee2e2' :
                                  getStatusColor(selectedMilestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
@@ -546,7 +642,7 @@ export default function SupervisorTracking() {
                       {getStatusText(selectedMilestone.status)}
                     </span>
                   </div>
-                  <div><strong>Note:</strong> {milestoneDetails?.note || 'Chưa có ghi chú nào'}</div>
+                  <div style={{ wordBreak: 'break-word' }}><strong>Note:</strong> {milestoneDetails?.note || 'Chưa có ghi chú nào'}</div>
                 </div>
               </div>
               
@@ -554,18 +650,22 @@ export default function SupervisorTracking() {
                 <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Project Information</h3>
                 {groupInfo && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div><strong>Project:</strong> {groupInfo.projectName}</div>
-                    <div><strong>Supervisors:</strong> {groupInfo.supervisors?.join(', ')}</div>
+                    <div style={{ wordBreak: 'break-word' }}><strong>Project:</strong> {groupInfo.projectName}</div>
+                    <div style={{ wordBreak: 'break-word' }}><strong>Supervisors:</strong> {groupInfo.supervisors?.join(', ')}</div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Delivery Items */}
+            {/* Delivery Items - Responsive Grid */}
             {milestoneDetails?.deliveryItems && (
               <div style={{ marginBottom: 20 }}>
                 <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Delivery Items</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: 16 }}>
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(auto-fit, minmax(350px, 1fr))' : 'repeat(auto-fit, minmax(500px, 1fr))',
+                  gap: isMobile ? 12 : 16 
+                }}>
                   {milestoneDetails.deliveryItems.map((item, index) => (
                     <div key={item.id} style={{ 
                       border: '1px solid #e5e7eb', 
@@ -686,26 +786,39 @@ export default function SupervisorTracking() {
                 
                 <div style={{ 
                   display: 'flex', 
+                  flexDirection: isMobile || isTablet ? 'column' : 'row',
                   justifyContent: 'space-between', 
-                  alignItems: 'center',
+                  alignItems: isMobile || isTablet ? 'stretch' : 'center',
+                  gap: '12px',
                   marginTop: '12px'
                 }}>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>
+                  <div style={{ 
+                    fontSize: isMobile ? '11px' : '12px', 
+                    color: '#64748b',
+                    wordBreak: 'break-word',
+                    flex: isMobile || isTablet ? 'none' : '1'
+                  }}>
                     {checkAllAttachmentsDownloaded() ? 
                       '✓ Latest attachments downloaded' : 
                       '⚠ Please download the latest attachments before confirming'
                     }
                   </div>
                   
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: isMobile || isTablet ? 'column' : 'row',
+                    gap: '8px',
+                    width: isMobile || isTablet ? '100%' : 'auto'
+                  }}>
                     <Button
                       onClick={handleReject}
                       disabled={rejecting || !note.trim() || !checkAllAttachmentsDownloaded()}
                       style={{ 
                         background: '#dc2626', 
                         color: 'white',
-                        fontSize: '12px',
-                        padding: '6px 12px'
+                        fontSize: isMobile ? '11px' : '12px',
+                        padding: isMobile ? '6px 10px' : '6px 12px',
+                        width: isMobile || isTablet ? '100%' : 'auto'
                       }}
                     >
                       {rejecting ? 'Rejecting...' : 'Reject'}
@@ -716,8 +829,9 @@ export default function SupervisorTracking() {
                       style={{ 
                         background: '#059669', 
                         color: 'white',
-                        fontSize: '12px',
-                        padding: '6px 12px'
+                        fontSize: isMobile ? '11px' : '12px',
+                        padding: isMobile ? '6px 10px' : '6px 12px',
+                        width: isMobile || isTablet ? '100%' : 'auto'
                       }}
                     >
                       {confirming ? 'Confirming...' : 'Confirm'}
