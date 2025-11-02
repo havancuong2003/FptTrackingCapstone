@@ -99,8 +99,36 @@ export default function TaskDetail() {
         // Gọi API lấy task theo ID
         const response = await axiosClient.get(`/Student/Task/get-by-id/${taskId}`);
         if (response.data.status === 200) {
+
           const taskData = response.data.data;
-          setTask(mapTaskData(taskData));
+        //  setTask(mapTaskData(taskData));
+          
+          // Map data từ API response sang format frontend
+          const mappedTask = {
+            id: taskData.id,
+            title: taskData.title,
+            description: taskData.description,
+            assignee: taskData.assigneeId,
+            assigneeName: taskData.assigneeName,
+            deadline: taskData.deadline,
+            priority: taskData.priority.toLowerCase(),
+            status: taskData.status.toLowerCase() === 'todo' ? 'todo' : 
+                   taskData.status.toLowerCase() === 'inprogress' ? 'inProgress' : 'done',
+            deliverableId: taskData.milestone?.id || null,
+            deliverableName: taskData.milestone?.name || 'No Deliverable',
+            createdAt: taskData.createdAt,
+            attachments: taskData.attachments || [],
+            comments: taskData.comments || [],
+            history: taskData.history || [],
+            // New fields
+            isMeetingTask: taskData.isMeetingTask || false,
+            meetingId: taskData.meetingId || null,
+            isActive: taskData.isActive !== undefined ? taskData.isActive : true,
+            reviewer: taskData.reviewerId || null,
+            reviewerName: taskData.reviewerName || 'No Reviewer',
+            reviewerId: taskData.reviewerId || null
+          };
+          setTask(mappedTask);
         } else {
           console.error('Error fetching task:', response.data.message);
           setTask(null);
