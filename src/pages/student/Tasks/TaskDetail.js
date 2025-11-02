@@ -31,8 +31,8 @@ export default function TaskDetail() {
   const [task, setTask] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [newComment, setNewComment] = React.useState('');
-  const [newAttachment, setNewAttachment] = React.useState('');
-  const [attachmentType, setAttachmentType] = React.useState('file');
+  const [selectedFile, setSelectedFile] = React.useState(null);
+  const [uploading, setUploading] = React.useState(false);
   
   // Get user role from localStorage
   const getUserRole = () => {
@@ -51,6 +51,46 @@ export default function TaskDetail() {
   const userRole = getUserRole();
   const isSupervisor = userRole === 'SUPERVISOR' || userRole === 'MENTOR';
 
+  // Helper function to map task data
+  const mapTaskData = (taskData) => {
+    return {
+      id: taskData.id,
+      title: taskData.title,
+      description: taskData.description,
+      assignee: taskData.assigneeId,
+      assigneeName: taskData.assigneeName,
+      deadline: taskData.deadline,
+      priority: taskData.priority.toLowerCase(),
+      status: taskData.status.toLowerCase() === 'todo' ? 'todo' : 
+             taskData.status.toLowerCase() === 'inprogress' ? 'inProgress' : 'done',
+      deliverableId: taskData.milestone?.id || null,
+      deliverableName: taskData.milestone?.name || 'No Deliverable',
+      createdAt: taskData.createdAt,
+      attachments: taskData.attachments || [],
+      comments: taskData.comments || [],
+      history: taskData.history || [],
+      isMeetingTask: taskData.isMeetingTask || false,
+      meetingId: taskData.meetingId || null,
+      isActive: taskData.isActive !== undefined ? taskData.isActive : true,
+      reviewer: taskData.reviewerId || null,
+      reviewerName: taskData.reviewerName || 'No Reviewer',
+      reviewerId: taskData.reviewerId || null
+    };
+  };
+
+  // Helper function to reload task data
+  const reloadTaskData = async () => {
+    try {
+      const response = await axiosClient.get(`/Student/Task/get-by-id/${taskId}`);
+      if (response.data.status === 200) {
+        const taskData = response.data.data;
+        setTask(mapTaskData(taskData));
+      }
+    } catch (error) {
+      console.error('Error reloading task data:', error);
+    }
+  };
+
   React.useEffect(() => {
     const fetchTask = async () => {
       try {
@@ -59,35 +99,8 @@ export default function TaskDetail() {
         // Gọi API lấy task theo ID
         const response = await axiosClient.get(`/Student/Task/get-by-id/${taskId}`);
         if (response.data.status === 200) {
-
           const taskData = response.data.data;
-          
-          // Map data từ API response sang format frontend
-          const mappedTask = {
-            id: taskData.id,
-            title: taskData.title,
-            description: taskData.description,
-            assignee: taskData.assigneeId,
-            assigneeName: taskData.assigneeName,
-            deadline: taskData.deadline,
-            priority: taskData.priority.toLowerCase(),
-            status: taskData.status.toLowerCase() === 'todo' ? 'todo' : 
-                   taskData.status.toLowerCase() === 'inprogress' ? 'inProgress' : 'done',
-            deliverableId: taskData.milestone?.id || null,
-            deliverableName: taskData.milestone?.name || 'No Deliverable',
-            createdAt: taskData.createdAt,
-            attachments: taskData.attachments || [],
-            comments: taskData.comments || [],
-            history: taskData.history || [],
-            // New fields
-            isMeetingTask: taskData.isMeetingTask || false,
-            meetingId: taskData.meetingId || null,
-            isActive: taskData.isActive !== undefined ? taskData.isActive : true,
-            reviewer: taskData.reviewerId || null,
-            reviewerName: taskData.reviewerName || 'No Reviewer',
-            reviewerId: taskData.reviewerId || null
-          };
-          setTask(mappedTask);
+          setTask(mapTaskData(taskData));
         } else {
           console.error('Error fetching task:', response.data.message);
           setTask(null);
@@ -143,14 +156,15 @@ export default function TaskDetail() {
       const response = await axiosClient.post('/Student/Comment/create', commentData);
       
       if (response.data.status === 200) {
+        console.log('response', response.data);
         // Tạo comment object mới với thông tin từ API
         const nowIso = new Date().toISOString();
         const newCommentObj = {
-          id: Date.now(), // API có thể trả về ID thực tế
-          author: commentData.author,
-          authorName: commentData.authorName,
-          content: newComment.trim(),
-          timestamp: nowIso
+          id: response.data.data.id, // API có thể trả về ID thực tế
+          author: currentUser.id,
+          authorName: currentUser.name,
+          content: response.data.data.feedback,
+          timestamp: response.data.data.createdAt
         };
 
         const newHistoryItem = {
@@ -158,7 +172,8 @@ export default function TaskDetail() {
           type: 'comment',
           detail: `Added comment: ${newComment.trim().substring(0, 50)}...`,
           at: nowIso,
-          user: commentData.author,
+          // user get from localStorage
+          user: currentUser.id,
           action: 'Commented'
         };
 
@@ -178,28 +193,88 @@ export default function TaskDetail() {
     }
   };
 
-  const addAttachment = () => {
-    if (!task || !newAttachment.trim()) return;
+  const handleFileSelect = (event) => {
+    const file = event.target.files[0];
+    setSelectedFile(file);
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile || !task || !groupId || !taskId) return;
     
-    const nowIso = new Date().toISOString();
-    const newAttachmentName = newAttachment.trim();
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      
+      const response = await axiosClient.post(
+        `/upload/task?groupId=${groupId}&taskId=${taskId}`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
+      
+      if (response.data.status === 200) {
+        // Reload task data after successful upload
+        await reloadTaskData();
+        
+        setSelectedFile(null);
+        // Reset file input
+        const fileInput = document.getElementById('task-file-input');
+        if (fileInput) fileInput.value = '';
+        alert('Tải file lên thành công!');
+      }
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Có lỗi xảy ra khi tải file lên. Vui lòng thử lại.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
-    const newHistoryItem = {
-      id: Date.now() + 1,
-      type: 'attachment',
-      detail: `Attached ${newAttachmentName}`,
-      at: nowIso,
-      user: 'SE00001',
-      action: 'Added attachment'
-    };
+  const downloadFile = async (attachment) => {
+    try {
+      // Use fileUrl from attachment (cấu trúc mới: {id, fileName, fileUrl})
+      const fileUrl = attachment.fileUrl || attachment.path;
+      const filePath = fileUrl.startsWith('/') ? fileUrl : `/${fileUrl}`;
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL?.replace(/\/api\/v1$/, '') || 'https://160.30.21.113:5000';
+      // Ensure path has /api/v1 prefix
+      const fullPath = filePath.startsWith('/api/v1') ? filePath : `/api/v1${filePath}`;
+      const response = await fetch(`${apiBaseUrl}${fullPath}`);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      // Use fileName if available, otherwise extract from path
+      link.download = attachment.fileName || fileUrl.split('/').pop();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      alert('Có lỗi xảy ra khi tải file. Vui lòng thử lại.');
+    }
+  };
 
-    setTask(prev => ({
-      ...prev,
-      attachments: [...(prev.attachments || []), newAttachmentName],
-      history: [...(prev.history || []), newHistoryItem]
-    }));
-
-    setNewAttachment('');
+  const deleteAttachment = async (attachmentId) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa file này?')) {
+      return;
+    }
+    
+    try {
+      const response = await axiosClient.delete(`/upload/task?attachmentId=${attachmentId}`);
+      if (response.data.status === 200) {
+        alert('Xóa file thành công!');
+        // Reload task data after successful delete
+        await reloadTaskData();
+      }
+    } catch (error) {
+      console.error('Error deleting attachment:', error);
+      alert('Có lỗi xảy ra khi xóa file. Vui lòng thử lại.');
+    }
   };
 
   const updateTaskStatus = async (newStatus) => {
@@ -395,48 +470,168 @@ export default function TaskDetail() {
 
           <div className={styles.section}>
             <h2>Attachments</h2>
-            <div className={styles.attachmentsList}>
-              {task.attachments.map((attachment, index) => (
-                <div key={index} className={styles.attachment}>
-                  <span className={styles.attachmentIcon}>📎</span>
-                  <span className={styles.attachmentName}>{attachment}</span>
-                </div>
-              ))}
-            </div>
             
-            <div className={styles.addAttachment}>
-              <div className={styles.attachmentType}>
-                <label>
-                  <input
-                    type="radio"
-                    name="attachmentType"
-                    value="file"
-                    checked={attachmentType === 'file'}
-                    onChange={(e) => setAttachmentType(e.target.value)}
-                  />
-                  File (PDF, DOC, etc.)
+            {/* Upload Section */}
+            <div className={styles.uploadSection}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <input
+                  type="file"
+                  id="task-file-input"
+                  onChange={handleFileSelect}
+                  style={{ display: 'none' }}
+                />
+                <label 
+                  htmlFor="task-file-input"
+                  style={{
+                    padding: '8px 16px',
+                    background: '#3b82f6',
+                    color: 'white',
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    fontWeight: 500,
+                    display: 'inline-block'
+                  }}
+                >
+                  Chọn File
                 </label>
-                <label>
-                  <input
-                    type="radio"
-                    name="attachmentType"
-                    value="image"
-                    checked={attachmentType === 'image'}
-                    onChange={(e) => setAttachmentType(e.target.value)}
-                  />
-                  Image (Evidence)
-                </label>
+                {selectedFile && (
+                  <Button
+                    onClick={handleUpload}
+                    disabled={uploading}
+                    style={{ fontSize: 14, padding: '8px 16px' }}
+                  >
+                    {uploading ? 'Đang tải...' : 'Tải lên'}
+                  </Button>
+                )}
               </div>
-              <input
-                className={styles.attachmentInput}
-                placeholder={`Add ${attachmentType} name...`}
-                value={newAttachment}
-                onChange={(e) => setNewAttachment(e.target.value)}
-              />
-              <Button onClick={addAttachment} className={styles.addButton}>
-                Attach {attachmentType === 'image' ? 'Image' : 'File'}
-              </Button>
+              {selectedFile && (
+                <div style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
+                  Đã chọn: {selectedFile.name}
+                </div>
+              )}
             </div>
+
+            {/* Attachments List */}
+            {task.attachments && task.attachments.length > 0 ? (
+              <div className={styles.attachmentsList}>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600 }}>
+                  Files ({task.attachments.length}):
+                </h3>
+                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                  {task.attachments.map((attachment, index) => {
+                      // Cấu trúc mới: {id, fileName, fileUrl}
+                      const fileName = typeof attachment === 'string' 
+                        ? attachment 
+                        : (attachment.fileName || attachment.name || (attachment.fileUrl ? attachment.fileUrl.split('/').pop() : 'Unknown'));
+                      const attachmentId = typeof attachment === 'object' ? attachment.id : null;
+                      const hasFileUrl = typeof attachment === 'object' && (attachment.fileUrl || attachment.path);
+                      const userName = typeof attachment === 'object' ? attachment.userName : null;
+                      const createAt = typeof attachment === 'object' 
+                        ? (attachment.createAt || attachment.createdAt) 
+                        : null;
+                      
+                      return (
+                        <div 
+                          key={attachmentId || index} 
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '12px 16px',
+                            background: 'white',
+                            border: '1px solid #d1d5db',
+                            borderRadius: 8,
+                            marginBottom: 8,
+                            transition: 'all 0.2s ease'
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                              <svg 
+                                width="16" 
+                                height="16" 
+                                viewBox="0 0 16 16" 
+                                fill="none" 
+                                xmlns="http://www.w3.org/2000/svg"
+                                style={{ flexShrink: 0 }}
+                              >
+                                <path 
+                                  d="M10.5 2H4.5C3.67157 2 3 2.67157 3 3.5V12.5C3 13.3284 3.67157 14 4.5 14H11.5C12.3284 14 13 13.3284 13 12.5V5.5L10.5 2Z" 
+                                  stroke="#64748b" 
+                                  strokeWidth="1.5" 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round"
+                                />
+                                <path 
+                                  d="M10 2V5.5H13" 
+                                  stroke="#64748b" 
+                                  strokeWidth="1.5" 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round"
+                                />
+                              </svg>
+                              <div style={{ 
+                                fontSize: 14, 
+                                fontWeight: 500, 
+                                wordBreak: 'break-all',
+                                color: '#1f2937'
+                              }}>
+                                {fileName}
+                              </div>
+                            </div>
+                            {userName && createAt && (
+                              <div style={{ fontSize: 12, color: '#64748b', marginLeft: 24 }}>
+                                Tải lên bởi {userName} vào {formatDate(createAt)}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                            {attachmentId && hasFileUrl ? (
+                              <>
+                                <Button
+                                  onClick={() => downloadFile(attachment)}
+                                  variant="ghost"
+                                  style={{ fontSize: 12, padding: '6px 12px' }}
+                                >
+                                  Tải xuống
+                                </Button>
+                                <Button
+                                  onClick={() => deleteAttachment(attachmentId)}
+                                  variant="ghost"
+                                  style={{ 
+                                    fontSize: 12, 
+                                    padding: '6px 12px',
+                                    color: '#dc2626',
+                                    background: '#fee2e2'
+                                  }}
+                                >
+                                  Xóa
+                                </Button>
+                              </>
+                            ) : (
+                              <div style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>
+                                Chỉ hiển thị
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            ) : (
+              <div style={{ 
+                padding: 24, 
+                textAlign: 'center', 
+                color: '#64748b',
+                background: '#f9fafb',
+                borderRadius: 8,
+                border: '1px dashed #d1d5db'
+              }}>
+                Chưa có file nào được đính kèm
+              </div>
+            )}
           </div>
         </div>
 

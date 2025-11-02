@@ -300,32 +300,12 @@
   gap: 12px;
 }
 
-.attachmentType {
-  display: flex;
-  gap: 16px;
-  
-  label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 14px;
-    color: #374151;
-    cursor: pointer;
-  }
-}
-
-.attachmentInput {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #d1d5db;
+.uploadSection {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f9fafb;
   border-radius: 8px;
-  font-size: 14px;
-  
-  &:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-  }
+  border: 1px solid #e5e7eb;
 }
 
 .addButton {

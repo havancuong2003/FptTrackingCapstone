@@ -17,7 +17,15 @@ const staffMenu = [
     ]
   },
 
-  { path: "/staff/groups", label: "Group Management" },
+  { 
+    path: "/staff/groups", 
+    label: "Group Management",
+    hasSubmenu: true,
+    children: [
+      { path: "/staff/groups", label: "Group List" },
+      { path: "/staff/groups/sync", label: "Sync Group from Call4Project" },
+    ]
+  },
   // { path: "/reports", label: "Báo cáo & Đánh giá" },
   // { path: "/analytics", label: "Dashboard thống kê" },
   // { path: "/templates", label: "Template báo cáo" },
