@@ -308,7 +308,7 @@ export default function StudentMeetingManagement() {
   const getStatusText = (status) => {
     switch (status) {
       case 'Completed': return 'Đã họp';
-      case 'Past': return 'Đã qua';
+      case 'Past': return 'Sắp diễn ra';
       case 'Upcoming': return 'Sắp diễn ra';
       default: return 'Không xác định';
     }
@@ -401,15 +401,19 @@ export default function StudentMeetingManagement() {
   const validateForm = () => {
     const errors = {};
     
-    if (!formData.startAt) {
+    if (!formData.startAt || !formData.startAt.trim()) {
       errors.startAt = 'Thời gian bắt đầu là bắt buộc';
     }
     
-    if (!formData.endAt) {
+    if (!formData.endAt || !formData.endAt.trim()) {
       errors.endAt = 'Thời gian kết thúc là bắt buộc';
     }
     
-    if (!formData.meetingContent) {
+    if (!formData.attendance || !formData.attendance.trim()) {
+      errors.attendance = 'Danh sách tham gia là bắt buộc';
+    }
+    
+    if (!formData.meetingContent || !formData.meetingContent.trim()) {
       errors.meetingContent = 'Nội dung cuộc họp là bắt buộc';
     }
     
@@ -966,13 +970,19 @@ export default function StudentMeetingManagement() {
               </div>
 
               <div className={styles.formGroup}>
-                <label>Danh sách tham gia</label>
+                <label>Danh sách tham gia *</label>
                 <Textarea
                   value={formData.attendance}
                   onChange={(e) => handleInputChange('attendance', e.target.value)}
                   placeholder="Ghi lại những ai tham gia cuộc họp..."
                   rows={3}
+                  style={formErrors.attendance ? { borderColor: '#dc2626' } : {}}
                 />
+                {formErrors.attendance && (
+                  <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
+                    {formErrors.attendance}
+                  </div>
+                )}
               </div>
 
               <div className={styles.formGroup}>
@@ -982,8 +992,13 @@ export default function StudentMeetingManagement() {
                   onChange={(e) => handleInputChange('meetingContent', e.target.value)}
                   placeholder="Ghi lại nội dung được trình bày trong cuộc họp..."
                   rows={6}
-                  error={formErrors.meetingContent}
+                  style={formErrors.meetingContent ? { borderColor: '#dc2626' } : {}}
                 />
+                {formErrors.meetingContent && (
+                  <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
+                    {formErrors.meetingContent}
+                  </div>
+                )}
               </div>
 
               <div className={styles.formGroup}>

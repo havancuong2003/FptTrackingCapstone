@@ -503,7 +503,7 @@ export default function Delivery() {
 
 
             {/* Modal for set deadline */}
-            <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)}>
+            <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} showCloseButton={false}>
                 <form onSubmit={saveDeadline} style={{ 
                     display: "flex", 
                     flexDirection: "column", 

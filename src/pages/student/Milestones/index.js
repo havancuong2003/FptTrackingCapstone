@@ -17,7 +17,7 @@ export default function StudentMilestones() {
   const [detailModal, setDetailModal] = React.useState(false);
   const [milestoneDetails, setMilestoneDetails] = React.useState(null);
   const [uploading, setUploading] = React.useState(false);
-  const [selectedFile, setSelectedFile] = React.useState(null);
+  const [selectedFiles, setSelectedFiles] = React.useState({}); // { [itemId]: File }
   const [showHistoryModal, setShowHistoryModal] = React.useState(false);
   const [selectedItemHistory, setSelectedItemHistory] = React.useState(null);
   const [windowWidth, setWindowWidth] = React.useState(() => {
@@ -138,9 +138,15 @@ export default function StudentMilestones() {
   }, [userInfo, groupInfo, semesterInfo]);
 
 
+  const closeDetailModal = () => {
+    setDetailModal(false);
+    setSelectedFiles({}); // Clear selected files when closing modal
+  };
+
   const openDetailModal = async (milestone) => {
     setSelectedMilestone(milestone);
     setDetailModal(true);
+    setSelectedFiles({}); // Clear selected files when opening modal
     
     // Load milestone details
     try {
@@ -152,18 +158,21 @@ export default function StudentMilestones() {
     }
   };
 
-  const handleFileSelect = (event) => {
+  const handleFileSelect = (event, itemId) => {
     const file = event.target.files[0];
-    setSelectedFile(file);
+    if (file) {
+      setSelectedFiles(prev => ({ ...prev, [itemId]: file }));
+    }
   };
 
   const handleUpload = async (deliveryItemId) => {
-    if (!selectedFile || !userInfo?.groups[0]) return;
+    const fileToUpload = selectedFiles[deliveryItemId];
+    if (!fileToUpload || !userInfo?.groups[0]) return;
     
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append('file', selectedFile);
+      formData.append('file', fileToUpload);
       
       const res = await client.post(
         `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}`,
@@ -192,7 +201,12 @@ export default function StudentMilestones() {
         setMilestoneDetails(detailRes?.data || null);
       }
       
-      setSelectedFile(null);
+      // Clear selected file for this item only
+      setSelectedFiles(prev => {
+        const newFiles = { ...prev };
+        delete newFiles[deliveryItemId];
+        return newFiles;
+      });
       alert('File uploaded successfully!');
     } catch (error) {
       console.error('Error uploading file:', error);
@@ -532,7 +546,7 @@ export default function StudentMilestones() {
         </div>
       </div>
 
-      <Modal open={detailModal} onClose={() => setDetailModal(false)}>
+      <Modal open={detailModal} onClose={closeDetailModal}>
         {selectedMilestone && (
           <div style={{ 
             padding: isMobile ? '12px' : isTablet ? '16px' : '24px', 
@@ -615,7 +629,7 @@ export default function StudentMilestones() {
                           <input
                             type="file"
                             id={`file-${item.id}`}
-                            onChange={handleFileSelect}
+                            onChange={(e) => handleFileSelect(e, item.id)}
                             style={{ display: 'none' }}
                           />
                           <label 
@@ -632,7 +646,7 @@ export default function StudentMilestones() {
                           >
                             Choose File
                           </label>
-                          {selectedFile && (
+                          {selectedFiles[item.id] && (
                             <Button
                               onClick={() => handleUpload(item.id)}
                               disabled={uploading}
@@ -642,9 +656,9 @@ export default function StudentMilestones() {
                             </Button>
                           )}
                         </div>
-                        {selectedFile && (
+                        {selectedFiles[item.id] && (
                           <div style={{ fontSize: 12, color: '#64748b' }}>
-                            Selected: {selectedFile.name}
+                            Selected: {selectedFiles[item.id].name}
                           </div>
                         )}
                       </div>
@@ -743,7 +757,7 @@ export default function StudentMilestones() {
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
-              <Button variant="ghost" onClick={() => setDetailModal(false)}>
+              <Button variant="ghost" onClick={closeDetailModal}>
                 Close
               </Button>
             </div>
