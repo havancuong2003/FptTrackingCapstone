@@ -210,11 +210,270 @@
   margin-bottom: 24px;
 }
 
+.freeTimeSection h2 {
+  margin-bottom: 16px;
+  color: #1e293b;
+  font-size: 20px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 .freeTimeSlots {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
   margin-top: 16px;
+}
+
+/* Calendar View Styles */
+.calendarView {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-top: 16px;
+}
+
+.calendarHeader {
+  display: grid;
+  grid-template-columns: 150px repeat(7, 1fr);
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.calendarMemberCol {
+  padding: 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  text-align: center;
+}
+
+.calendarDayCol {
+  padding: 12px;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  text-align: center;
+  
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.calendarBody {
+  background: #fff;
+}
+
+.calendarRow {
+  display: grid;
+  grid-template-columns: 150px repeat(7, 1fr);
+  border-bottom: 1px solid #e2e8f0;
+  transition: background 0.2s ease;
+}
+
+.calendarDayLabel {
+  padding: 16px;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-right: 1px solid #e2e8f0;
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background: #f8fafc;
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.calendarMemberCell {
+  padding: 12px;
+  border-right: 1px solid #e2e8f0;
+  background: #f8fafc;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+}
+
+.memberName {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.memberStatus {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.memberEmail {
+  font-size: 11px;
+  color: #94a3b8;
+  word-break: break-word;
+}
+
+.calendarDayCell {
+  padding: 8px;
+  border-right: 1px solid #e2e8f0;
+  min-height: 80px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.timeSlotsList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  align-items: center;
+}
+
+.timeSlotBadge {
+  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
+  color: #059669;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 1px 2px rgba(5, 150, 105, 0.2);
+}
+
+.emptySlot {
+  color: #cbd5e1;
+  font-size: 14px;
+  font-weight: 300;
+}
+
+/* Warning Box Styles */
+.warningBox {
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 2px solid #f59e0b;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 6px rgba(245, 158, 11, 0.2);
+}
+
+.warningBox h3 {
+  margin: 0 0 12px 0;
+  color: #92400e;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.warningBox p {
+  margin: 8px 0;
+  color: #92400e;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.warningText {
+  font-weight: 700 !important;
+  font-size: 15px !important;
+  margin-top: 12px !important;
+}
+
+.warningBadge {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 12px;
+  display: inline-block;
+}
+
+.meetingStatusSection {
+  margin-bottom: 24px;
+}
+
+.finalizedMeeting {
+  background: #fff;
+  border: 2px solid #10b981;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 6px rgba(16, 185, 129, 0.1);
+}
+
+.finalizedHeader {
+  margin-bottom: 16px;
+}
+
+.finalizedHeader h3 {
+  margin: 0 0 8px 0;
+  color: #10b981;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.meetingInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.infoLabel {
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+  min-width: 100px;
+}
+
+.infoValue {
+  color: #1e293b;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.meetingLinkButton {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+  }
+}
+
+.notFinalized {
+  background: #fff;
+  border: 2px solid #f59e0b;
+  border-radius: 12px;
+  padding: 20px;
 }
 
 // Responsive design
@@ -1139,6 +1398,76 @@
     background: linear-gradient(135deg, #4b5563, #374151);
     transform: translateY(-2px);
   }
+}
+
+// Suggested Times Section
+.suggestedTimesSection {
+  margin-top: 24px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border: 2px solid #3b82f6;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.1);
+  
+  h3 {
+    margin: 0 0 16px 0;
+    color: #1e40af;
+    font-size: 20px;
+    font-weight: 700;
+  }
+}
+
+.suggestedTimesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.suggestedTimeButton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: #fff;
+  border: 2px solid #3b82f6;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+  
+  &:hover {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+    
+    .suggestedDay,
+    .suggestedTime,
+    .suggestedSlotCount {
+      color: white;
+    }
+  }
+}
+
+.suggestedDay {
+  font-weight: 700;
+  color: #1e40af;
+  font-size: 15px;
+  transition: color 0.3s ease;
+}
+
+.suggestedTime {
+  font-weight: 600;
+  color: #3b82f6;
+  font-size: 16px;
+  transition: color 0.3s ease;
+}
+
+.suggestedSlotCount {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+  transition: color 0.3s ease;
 }
 
 .meetingLinkSection {
