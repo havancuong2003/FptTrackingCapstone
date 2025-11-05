@@ -156,6 +156,7 @@ export default function StaffGroups() {
     setEmailContent('');
     setDetailOpen(true);
     const res = await getCapstoneGroupDetail(id);
+    console.log('res detail', res.data);
     setDetail(res.data);
   }
 

@@ -30,11 +30,12 @@ export default function SupervisorSchedule() {
   const [group, setGroup] = React.useState(null);
   const [members, setMembers] = React.useState([]);
   const [memberSchedules, setMemberSchedules] = React.useState({});
+  const [mergedSchedule, setMergedSchedule] = React.useState({});
+  const [suggestedTimes, setSuggestedTimes] = React.useState([]);
   const [isFinalized, setIsFinalized] = React.useState(false);
   const [finalMeeting, setFinalMeeting] = React.useState(null);
   const [meetingSchedule, setMeetingSchedule] = React.useState(null);
   const [isSupervisor, setIsSupervisor] = React.useState(true);
-  const [isEditing, setIsEditing] = React.useState(false);
   
   // Meeting form data
   const [meetingData, setMeetingData] = React.useState({
@@ -127,15 +128,15 @@ export default function SupervisorSchedule() {
       // Check if meeting schedule exists
       try {
         const scheduleResponse = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
-        if (scheduleResponse.data.status === 200) {
+        console.log("scheduleResponse" , scheduleResponse.data.data.isActive);
+        if (scheduleResponse.data.status === 200 && scheduleResponse.data.data.isActive) {
           setMeetingSchedule(scheduleResponse.data.data);
-          setIsFinalized(true);
-          // Load existing meeting data for editing
-          setMeetingData({
-            day: scheduleResponse.data.data.dayOfWeek || '',
-            time: scheduleResponse.data.data.time || '',
-            meetingLink: scheduleResponse.data.data.meetingLink || ''
-          });
+          console.log(scheduleResponse.data);
+          setIsFinalized(scheduleResponse.data.data.isActive);
+         // setIsFinalized(false);
+        }
+        else{
+          setIsFinalized(false);
         }
       } catch (error) {
         console.error('No existing schedule found');
@@ -146,6 +147,90 @@ export default function SupervisorSchedule() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calculate merged schedule (common free times across all members)
+  const calculateMergedSchedule = (memberSchedulesData) => {
+    const merged = {};
+    const studentIds = Object.keys(memberSchedulesData);
+    
+    if (studentIds.length === 0) {
+      setMergedSchedule({});
+      return {};
+    }
+    
+    daysOfWeek.forEach(day => {
+      const dayKey = day.value;
+      const allTimeSlots = new Set();
+      
+      // Collect all unique time slots for this day from all members
+      studentIds.forEach(studentId => {
+        const memberSchedule = memberSchedulesData[studentId] || {};
+        const daySlots = memberSchedule[dayKey] || [];
+        daySlots.forEach(slot => allTimeSlots.add(slot));
+      });
+      
+      // Calculate intersection: only time slots that ALL members have
+      let commonSlots = [];
+      if (studentIds.length > 0) {
+        const firstMemberSlots = new Set(memberSchedulesData[studentIds[0]]?.[dayKey] || []);
+        
+        // Find slots that exist in all members' schedules
+        allTimeSlots.forEach(slot => {
+          let isCommon = true;
+          for (let i = 0; i < studentIds.length; i++) {
+            const memberSchedule = memberSchedulesData[studentIds[i]] || {};
+            const daySlots = memberSchedule[dayKey] || [];
+            if (!daySlots.includes(slot)) {
+              isCommon = false;
+              break;
+            }
+          }
+          if (isCommon) {
+            commonSlots.push(slot);
+          }
+        });
+      }
+      
+      // Sort time slots from smallest to largest
+      commonSlots.sort((a, b) => {
+        const [h1, m1] = a.split(':').map(Number);
+        const [h2, m2] = b.split(':').map(Number);
+        return h1 * 60 + m1 - (h2 * 60 + m2);
+      });
+      
+      merged[dayKey] = commonSlots;
+    });
+    
+    setMergedSchedule(merged);
+    return merged;
+  };
+
+  // Calculate suggested meeting times
+  const calculateSuggestedTimes = (mergedScheduleData) => {
+    const suggestions = [];
+    
+    daysOfWeek.forEach(day => {
+      const dayKey = day.value;
+      const slots = mergedScheduleData[dayKey] || [];
+      
+      if (slots.length > 0) {
+        // Suggest the first available slot for each day
+        suggestions.push({
+          day: day.value,
+          dayName: day.name,
+          time: slots[0],
+          slotCount: slots.length
+        });
+      }
+    });
+    
+    // Sort by day of week
+    const dayOrder = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 };
+    suggestions.sort((a, b) => dayOrder[a.day] - dayOrder[b.day]);
+    
+    setSuggestedTimes(suggestions);
+    return suggestions;
   };
 
   // Fetch student free time slots
@@ -168,6 +253,13 @@ export default function SupervisorSchedule() {
           }
         });
         setMemberSchedules(memberSchedulesData);
+        
+        // Calculate merged schedule
+        const merged = calculateMergedSchedule(memberSchedulesData);
+        
+        // Calculate suggested times
+        calculateSuggestedTimes(merged);
+        
         return memberSchedulesData;
       }
       return {};
@@ -203,7 +295,21 @@ export default function SupervisorSchedule() {
     //  const response = await axiosClient.post(`/Student/Meeting/schedule/finalize/update`, meetingData);
       const response = await axiosClient.post(`/Student/Meeting/groups/${selectedGroup}/schedule/finalize`, meetingDataAPI);
       if (response.data) {
-        setMeetingSchedule(response.data);
+        // Map response data to meetingSchedule structure
+        const responseData = response.data.data || response.data;
+        const finalMeetingData = responseData.finalMeeting || responseData;
+        
+        // Format meeting schedule data
+        const formattedMeetingSchedule = {
+          id: finalMeetingData.id || meetingSchedule?.id,
+          dayOfWeek: finalMeetingData.day || finalMeetingData.dayOfWeek || meetingData.day.toLowerCase(),
+          time: finalMeetingData.time || meetingData.time,
+          meetingLink: finalMeetingData.meetingLink || meetingData.meetingLink,
+          createAt: finalMeetingData.createAt || finalMeetingData.createdAt || new Date().toISOString(),
+          isActive: finalMeetingData.isActive !== undefined ? finalMeetingData.isActive : true
+        };
+        
+        setMeetingSchedule(formattedMeetingSchedule);
         setIsFinalized(true);
         
         // Gửi email thông báo cho sinh viên trong group
@@ -256,56 +362,15 @@ export default function SupervisorSchedule() {
     }));
   };
 
-  // Toggle edit mode
-  const toggleEditMode = () => {
-    if (!isEditing) {
-      // Khi bắt đầu edit, populate form với data hiện tại
-      setMeetingData({
-        day: meetingSchedule?.dayOfWeek || '',
-        time: meetingSchedule?.time || '',
-        meetingLink: meetingSchedule?.meetingLink || ''
-      });
-    }
-    setIsEditing(!isEditing);
+  // Handle suggested time click
+  const handleSuggestedTimeClick = (suggestion) => {
+    setMeetingData({
+      day: suggestion.day,
+      time: suggestion.time,
+      meetingLink: meetingData.meetingLink || ''
+    });
   };
 
-  // Save meeting changes
-  const saveMeetingChanges = async () => {
-    setLoading(true);
-    try {
-      const finalMeetingData = {
-        finalMeeting: {
-          day: meetingData.day,
-          time: meetingData.time,
-          meetingLink: meetingData.meetingLink
-        }
-      };
-      
-      const response = await axiosClient.post(`/Student/Meeting/groups/${selectedGroup}/schedule/finalize`, finalMeetingData);
-      let data = response.data.data.finalMeeting;
-      if (data) {
-        // Map response data to meetingSchedule format
-        const updatedMeetingSchedule = {
-          id: data.id,
-          dayOfWeek: data.day,
-          time: data.time,
-          meetingLink: data.meetingLink,
-          createAt: data.finalizedAt,
-          isActive: true
-        };
-        
-        setMeetingSchedule(updatedMeetingSchedule);
-        setIsFinalized(true);
-        setIsEditing(false);
-        alert('Đã cập nhật lịch họp thành công!');
-      }
-    } catch (error) {
-      console.error('Error saving meeting changes:', error);
-      alert('Có lỗi xảy ra khi cập nhật lịch họp');
-    } finally {
-      setLoading(false);
-    }
-  };
 
 
 
@@ -373,102 +438,58 @@ export default function SupervisorSchedule() {
               <div className={styles.finalizedMeeting}>
                 <div className={styles.finalizedHeader}>
                   <h3>Lịch họp đã được xác nhận</h3>
+                  <div className={styles.warningBadge}>
+                    Lịch họp đã được xác nhận và không thể chỉnh sửa
+                  </div>
                 </div>
                 <div className={styles.meetingInfo}>
-                  {isEditing ? (
-                    <div className={styles.editForm}>
-                      <div className={styles.formRow}>
-                        <div className={styles.formGroup}>
-                          <label>Chọn thứ</label>
-                          <select
-                            value={meetingData.day}
-                            onChange={(e) => updateMeetingData('day', e.target.value)}
-                            className={styles.daySelect}
-                          >
-                            <option value="">-- Chọn thứ --</option>
-                            {daysOfWeek.map(day => (
-                              <option key={day.id} value={day.value}>{day.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className={styles.formGroup}>
-                          <label>Giờ bắt đầu</label>
-                          <input
-                            type="time"
-                            value={meetingData.time}
-                            onChange={(e) => updateMeetingData('time', e.target.value)}
-                            className={styles.timeInput}
-                            placeholder="VD: 14:00"
-                          />
-                        </div>
-                      </div>
-                      <div className={styles.formGroup}>
-                        <label>Link Google Meet</label>
-                        <input
-                          type="url"
-                          value={meetingData.meetingLink}
-                          onChange={(e) => updateMeetingData('meetingLink', e.target.value)}
-                          className={styles.meetingLinkInput}
-                          placeholder="https://meet.google.com/..."
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className={styles.infoRow}>
-                        <span className={styles.infoLabel}>Thời gian:</span>
-                        <span className={styles.infoValue}>{meetingSchedule.dayOfWeek} - {meetingSchedule.time}</span>
-                      </div>
-                      <div className={styles.infoRow}>
-                        <span className={styles.infoLabel}>Ngày tạo:</span>
-                        <span className={styles.infoValue}>{new Date(meetingSchedule.createAt).toLocaleDateString('vi-VN')}</span>
-                      </div>
-                      {meetingSchedule.meetingLink && (
-                        <div className={styles.infoRow}>
-                          <span className={styles.infoLabel}>Meeting Link:</span>
-                          <button 
-                            onClick={() => window.open(meetingSchedule.meetingLink, '_blank')}
-                            className={styles.meetingLinkButton}
-                          >
-                            Click để tham gia
-                          </button>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-                <div className={styles.meetingActions}>
-                  {isEditing ? (
-                    <div className={styles.editActions}>
+                  <div className={styles.infoRow}>
+                    <span className={styles.infoLabel}>Thời gian:</span>
+                    <span className={styles.infoValue}>
+                      {(() => {
+                        const dayNames = {
+                          'monday': 'Thứ 2',
+                          'tuesday': 'Thứ 3', 
+                          'wednesday': 'Thứ 4',
+                          'thursday': 'Thứ 5',
+                          'friday': 'Thứ 6',
+                          'saturday': 'Thứ 7',
+                          'sunday': 'Chủ nhật'
+                        };
+                        const dayName = dayNames[meetingSchedule.dayOfWeek?.toLowerCase()] || meetingSchedule.dayOfWeek || '';
+                        return `${dayName} - ${meetingSchedule.time || ''}`;
+                      })()}
+                    </span>
+                  </div>
+                  <div className={styles.infoRow}>
+                    <span className={styles.infoLabel}>Ngày tạo:</span>
+                    <span className={styles.infoValue}>
+                      {meetingSchedule.createAt 
+                        ? new Date(meetingSchedule.createAt).toLocaleDateString('vi-VN')
+                        : new Date().toLocaleDateString('vi-VN')
+                      }
+                    </span>
+                  </div>
+                  {meetingSchedule.meetingLink && (
+                    <div className={styles.infoRow}>
+                      <span className={styles.infoLabel}>Meeting Link:</span>
                       <button 
-                        onClick={saveMeetingChanges}
-                        className={styles.saveButton}
-                        disabled={loading}
+                        onClick={() => window.open(meetingSchedule.meetingLink, '_blank')}
+                        className={styles.meetingLinkButton}
                       >
-                        {loading ? 'Đang lưu...' : 'Lưu lịch họp'}
-                      </button>
-                      <button 
-                        onClick={toggleEditMode}
-                        className={styles.cancelButton}
-                        disabled={loading}
-                      >
-                        Hủy
+                        Click để tham gia
                       </button>
                     </div>
-                  ) : (
-                    <button 
-                      onClick={toggleEditMode}
-                      className={styles.editButton}
-                    >
-                      Chỉnh sửa lịch họp
-                    </button>
                   )}
                 </div>
               </div>
             ) : (
               <div className={styles.notFinalized}>
-                <h3> Lịch họp chưa được xác nhận</h3>
-                <p>Vui lòng xem lịch rảnh của các thành viên và xác nhận lịch họp.</p>
+                <div className={styles.warningBox}>
+                  <h3>Lưu ý quan trọng</h3>
+                  <p>Lịch họp chưa được xác nhận. Sau khi xác nhận, bạn sẽ không thể thay đổi lịch họp này nữa.</p>
+                  <p className={styles.warningText}>Vui lòng kiểm tra kỹ thông tin trước khi xác nhận!</p>
+                </div>
               </div>
             )}
           </div>
@@ -477,60 +498,62 @@ export default function SupervisorSchedule() {
             <span>Xem lịch rảnh của các thành viên và xác nhận lịch họp chung</span>
           </div>
 
-          {/* Student Free Time Slots */}
+          {/* Student Free Time Slots - Merged Calendar View */}
           <div className={styles.freeTimeSection}>
             <h2>Lịch rảnh của các thành viên</h2>
-            
-            <div className={styles.freeTimeSlots}>
-              {members.map((member) => {
-                const memberSchedule = memberSchedules[member.id] || {};
-                const hasSchedule = Object.keys(memberSchedule).length > 0;
-                
-                return (
-                  <div key={member.id} className={styles.memberCard}>
-                    <div className={styles.memberHeader}>
-                      <h3>{member.name}</h3>
-                      <div className={styles.memberStatus}>
-                        {hasSchedule ? 'Đã cập nhật lịch' : 'Chưa cập nhật lịch'}
-                      </div>
-                    </div>
-                    <div className={styles.memberInfo}>
-                      <p>Email: {member.email}</p>
-                      <p>Roll Number: {member.rollNumber}</p>
-                    </div>
-                    <div className={styles.memberSchedule}>
-                      {hasSchedule ? (
-                        <div className={styles.scheduleGrid}>
-                          {daysOfWeek.map(day => {
-                            const dayKey = day.value;
-                            const timeSlots = memberSchedule[dayKey] || [];
-                            
-                            return (
-                              <div key={day.id} className={styles.daySchedule}>
-                                <div className={styles.dayLabel}>{day.name}</div>
-                                <div className={styles.scheduleSlots}>
-                                  {timeSlots.length > 0 ? (
-                                    timeSlots.map((slot, index) => (
-                                      <div key={index} className={styles.scheduleSlot}>{slot}</div>
-                                    ))
-                                  ) : (
-                                    <div className={styles.noSlots}>Không có</div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className={styles.noSchedule}>
-                          Thành viên chưa cập nhật thời gian rảnh
-                        </div>
-                      )}
-                    </div>
+            <div className={styles.calendarView}>
+              <div className={styles.calendarHeader}>
+                <div className={styles.calendarDayCol}>Thứ</div>
+                {daysOfWeek.map(day => (
+                  <div key={day.id} className={styles.calendarDayCol}>
+                    {day.name}
                   </div>
-                );
-              })}
+                ))}
+              </div>
+              <div className={styles.calendarBody}>
+                <div className={styles.calendarRow}>
+                  <div className={styles.calendarDayLabel}>Giờ rảnh chung</div>
+                  {daysOfWeek.map(day => {
+                    const dayKey = day.value;
+                    const timeSlots = mergedSchedule[dayKey] || [];
+                    
+                    return (
+                      <div key={day.id} className={styles.calendarDayCell}>
+                        {timeSlots.length > 0 ? (
+                          <div className={styles.timeSlotsList}>
+                            {timeSlots.map((slot, index) => (
+                              <div key={index} className={styles.timeSlotBadge}>{slot}</div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className={styles.emptySlot}>-</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
+            
+            {/* Suggested Times Section - Only show when not finalized */}
+            {!isFinalized && suggestedTimes.length > 0 && (
+              <div className={styles.suggestedTimesSection}>
+                <h3>Đề xuất thời gian họp</h3>
+                <div className={styles.suggestedTimesList}>
+                  {suggestedTimes.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleSuggestedTimeClick(suggestion)}
+                      className={styles.suggestedTimeButton}
+                    >
+                      <span className={styles.suggestedDay}>{suggestion.dayName}</span>
+                      <span className={styles.suggestedTime}>{suggestion.time}</span>
+                      <span className={styles.suggestedSlotCount}>({suggestion.slotCount} giờ rảnh)</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Meeting Finalization/Update Form - Only show when not finalized */}

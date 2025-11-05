@@ -24,7 +24,6 @@ export async function getSemesters() {
   try {
     const res = await client.get('/Staff/semester/getAll');
     const payload = res.data;
-    
     if (payload.status === 200) {
       return {
         data: payload.data || [],
@@ -65,6 +64,7 @@ export async function listCapstoneGroups({ page = 1, pageSize = 100 } = {}) {
     params: { page, pageSize },
   });
   const payload = res.data;
+  console.log('payload list groups', payload);
   const items = payload.data?.items || [];
   const normalizedItems = items.map(g => ({
     ...g,
@@ -87,16 +87,21 @@ export async function listCapstoneGroups({ page = 1, pageSize = 100 } = {}) {
 
 // ================== detail ==================
 export async function getCapstoneGroupDetail(groupId) {
-  const res = await client.get(`/Staff/capstone-groups/${groupId}`);
-  const payload = res.data;
-  const raw = payload?.data ?? payload;
-  const normalized = raw ? {
-    ...raw,
-    supervisors: Array.isArray(raw.supervisors)
-      ? raw.supervisors
-      : (raw.supervisor ? [raw.supervisor] : []),
-  } : raw;
-  return { data: normalized, status: payload?.status ?? res.status, message: payload?.message || 'Lấy thành công' };
+  try {
+    const res = await client.get(`/Staff/capstone-groups/${groupId}`);
+    const payload = res.data;
+    const raw = payload?.data ?? payload;
+    const normalized = raw ? {
+      ...raw,
+      supervisors: Array.isArray(raw.supervisors)
+        ? raw.supervisors
+        : (raw.supervisor ? [raw.supervisor] : []),
+    } : raw;
+    return { data: normalized, status: payload?.status ?? res.status, message: payload?.message || 'Lấy thành công' };
+  } catch (error) {
+    console.error('Error fetching capstone group detail:', error);
+    return { data: null, status: 500, message: error.response?.data?.message || 'Lỗi khi lấy thông tin nhóm' };
+  }
 }
 
 // ================== send email ==================
