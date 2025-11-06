@@ -3,7 +3,7 @@ import styles from './index.module.scss';
 import Input from '../../../components/Input/Input';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
-import { listCapstoneGroups, getCapstoneGroupDetail, sendEmailToGroup, getMajors, getSemesters, getCourseCodes } from '../../../api/staff/groups';
+import { listCapstoneGroups, getCapstoneGroupDetail, sendEmailToGroup, getSemesters, getCourseCodes } from '../../../api/staff/groups';
 
 export default function StaffGroups() {
   // Get current semester from localStorage
@@ -30,7 +30,6 @@ export default function StaffGroups() {
 
   const currentSemesterId = getCurrentSemesterFromStorage();
   const [filters, setFilters] = React.useState({
-    major: 'all',
     term: currentSemesterId ? String(currentSemesterId) : 'all',
     courseCode: 'all',
     search: '',
@@ -44,7 +43,7 @@ export default function StaffGroups() {
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(10);
   const [total, setTotal] = React.useState(0);
-  const [options, setOptions] = React.useState({ majors: [], semesters: [], courseCodes: [] });
+  const [options, setOptions] = React.useState({ semesters: [], courseCodes: [] });
   const [blocks, setBlocks] = React.useState({}); // key: blockIndex -> items (BLOCK_SIZE)
   const BLOCK_SIZE = 100;
   const prefetchingRef = React.useRef(new Set());
@@ -54,19 +53,13 @@ export default function StaffGroups() {
   React.useEffect(() => {
     async function loadFilterOptions() {
       try {
-        const [majorsRes, semestersRes, courseCodesRes] = await Promise.all([
-          getMajors(),
+        const [semestersRes, courseCodesRes] = await Promise.all([
           getSemesters(),
           getCourseCodes(),
         ]);
 
-        const majors = (majorsRes.data || []).map(m => ({
-          value: m.id,
-          label: m.name,
-        }));
-
         const semesters = (semestersRes.data || []).map(s => ({
-          value: s.description,
+          value: s.name,
           label: s.name,
         }));
 
@@ -76,7 +69,6 @@ export default function StaffGroups() {
         }));
 
         setOptions({
-          majors,
           semesters,
           courseCodes,
         });
@@ -111,8 +103,6 @@ export default function StaffGroups() {
     if (!rows || rows.length === 0) return [];
     const q = normalizeStr(f.search);
     return rows.filter(g => {
-        
-      if (f.major !== 'all' && g.major !== f.major) return false;
       if (f.term !== 'all' && String(g.term || '') !== String(f.term)) return false;
       if (f.courseCode !== 'all' && g.courseCode !== f.courseCode) return false;
       if (q) {
@@ -156,7 +146,6 @@ export default function StaffGroups() {
     setEmailContent('');
     setDetailOpen(true);
     const res = await getCapstoneGroupDetail(id);
-    console.log('res detail', res.data);
     setDetail(res.data);
   }
 
@@ -257,15 +246,6 @@ export default function StaffGroups() {
 
       <div className={styles.filters}>
         <div>
-          <label>Major</label>
-          <select className={styles.filterSelect} value={filters.major} onChange={e => onChangeFilter('major', e.target.value)}>
-            <option value="all">All</option>
-            {(options.majors || []).map(m => (
-              <option key={m.value} value={String(m.value)}>{m.label}</option>
-            ))}
-          </select>
-        </div>
-        <div>
           <label>Semester</label>
           <select className={styles.filterSelect} value={filters.term} onChange={e => onChangeFilter('term', e.target.value)}>
             <option value="all">All</option>
@@ -309,7 +289,6 @@ export default function StaffGroups() {
               <th>Group Code</th>
               <th>Course Code</th>
               <th>Semester</th>
-              <th>Major</th>
               <th>Total Students</th>
               <th>Supervisor</th>
               <th>Details</th>
@@ -318,7 +297,7 @@ export default function StaffGroups() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center' }}>Loading...</td>
+                <td colSpan="7" style={{ textAlign: 'center' }}>Loading...</td>
               </tr>
             )}
             {!loading && items.map((g, idx) => (
@@ -327,7 +306,6 @@ export default function StaffGroups() {
                 <td>{g.groupCode || g.code || '-'}</td>
                 <td>{g.courseCode || '-'}</td>
                 <td>{g.term || 'not yet'}</td>
-                <td>{g.major || '-'}</td>
                 <td>{g.studentCount || 0}</td>
                 <td>{(Array.isArray(g.supervisors) ? g.supervisors : (g.supervisor ? [g.supervisor] : [])).join(', ') || '-'}</td>
                 <td>
@@ -337,7 +315,7 @@ export default function StaffGroups() {
             ))}
             {!loading && items.length === 0 && (
               <tr>
-                <td colSpan="8" style={{ textAlign: 'center' }}>No data found</td>
+                <td colSpan="7" style={{ textAlign: 'center' }}>No data found</td>
               </tr>
             )}
           </tbody>

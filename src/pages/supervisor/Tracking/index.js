@@ -210,12 +210,6 @@ export default function SupervisorTracking() {
   const handleConfirm = async () => {
     if (!selectedGroup?.id || !selectedMilestone) return;
     
-    // Validate note
-    if (!note.trim()) {
-      setNoteError('Note is required for confirmation');
-      return;
-    }
-    
     // Check if all attachments are downloaded
     if (!checkAllAttachmentsDownloaded()) {
       alert('Please download and review all attachments before confirming');
@@ -758,7 +752,7 @@ export default function SupervisorTracking() {
             {selectedMilestone.status === 'Pending' && (
               <div style={{ marginTop: 24, padding: 16, background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#374151' }}>
-                  Review Note (Required)
+                  Review Note (Required for rejection)
                 </h4>
                 <textarea
                   value={note}
@@ -825,7 +819,7 @@ export default function SupervisorTracking() {
                     </Button>
                     <Button
                       onClick={handleConfirm}
-                      disabled={confirming || !note.trim() || !checkAllAttachmentsDownloaded()}
+                      disabled={confirming || !checkAllAttachmentsDownloaded()}
                       style={{ 
                         background: '#059669', 
                         color: 'white',
