@@ -64,7 +64,6 @@ export async function listCapstoneGroups({ page = 1, pageSize = 100 } = {}) {
     params: { page, pageSize },
   });
   const payload = res.data;
-  console.log('payload list groups', payload);
   const items = payload.data?.items || [];
   const normalizedItems = items.map(g => ({
     ...g,

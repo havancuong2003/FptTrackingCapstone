@@ -128,10 +128,8 @@ export default function SupervisorSchedule() {
       // Check if meeting schedule exists
       try {
         const scheduleResponse = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
-        console.log("scheduleResponse" , scheduleResponse.data.data.isActive);
         if (scheduleResponse.data.status === 200 && scheduleResponse.data.data.isActive) {
           setMeetingSchedule(scheduleResponse.data.data);
-          console.log(scheduleResponse.data);
           setIsFinalized(scheduleResponse.data.data.isActive);
          // setIsFinalized(false);
         }
