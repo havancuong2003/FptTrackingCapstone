@@ -605,7 +605,7 @@ function Milestone() {
 
             {/* Create-many Modal */}
             <Modal open={isCreateOpen} onClose={closeCreate} showCloseButton={false}>
-                <div style={{ width: "900px", maxWidth: "95vw", maxHeight: "90vh", overflow: "auto", padding: "16px" }}>
+                <div style={{ width: "1190px", maxWidth: "95vw", maxHeight: "90vh", overflow: "auto", padding: "16px" }}>
                     <form onSubmit={saveCreate} style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                         <div style={{ borderBottom: "1px solid #e5e7eb", paddingBottom: "16px", marginBottom: "8px" }}>
                             <h3 style={{ margin: 0, fontSize: "24px", fontWeight: "700", color: "#1f2937", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -680,7 +680,7 @@ function Milestone() {
                                                         textAlign: "left", 
                                                         padding: "8px 12px", 
                                                         borderBottom: "1px solid #e5e7eb",
-                                                        width: "250px",
+                                                        width: "450px",
                                                         fontSize: "12px",
                                                         fontWeight: "600",
                                                         color: "#64748b"

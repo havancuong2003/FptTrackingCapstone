@@ -7,7 +7,7 @@
   padding: 0; 
   position: relative; 
   max-width: 95vw; 
-  width: 95vw; 
+  // width: 95vw; 
   max-height: 90vh; 
   overflow: auto; 
 }
@@ -17,8 +17,8 @@
 @media (min-width: 1024px) {
   .content { 
     max-width: 1200px; 
-    width: 90vw; 
-    min-width: 800px;
+    // width: 90vw; 
+    // min-width: 800px;
     min-height: 400px;
   }
 }
@@ -26,7 +26,7 @@
 @media (max-width: 768px) {
   .content { 
     max-width: 95vw; 
-    width: 95vw; 
+    // width: 95vw; 
     min-width: auto;
     min-height: auto;
   }
