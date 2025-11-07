@@ -1,10 +1,17 @@
 const studentMenu = [
-  // Chức năng chung (cùng thứ tự với supervisor)
+  // Trang chủ
+  { 
+    path: "/student/home", 
+    label: "Home", 
+    icon: "🏠"
+  },
+  // Thông tin nhóm
   { 
     path: "/student/groups", 
     label: "My Group", 
     icon: "👥"
   },
+  // Công việc và lịch trình
   { 
     path: "/student/tasks", 
     label: "My Issues", 
@@ -18,8 +25,15 @@ const studentMenu = [
   { 
     path: "/student/meetings", 
     label: "Meeting Management", 
-    icon: "📅"
+    icon: "🤝"
   },
+  // Theo dõi tiến độ
+  { 
+    path: "/student/milestones", 
+    label: "Milestones", 
+    icon: "📋"
+  },
+  // Tài liệu và đánh giá
   { 
     path: "/student/documents", 
     label: "Documents", 
@@ -30,27 +44,6 @@ const studentMenu = [
     label: "My Evaluation", 
     icon: "⭐"
   },
-  // Chức năng riêng của student
-  { 
-    path: "/student/milestones", 
-    label: "Milestones", 
-    icon: "📋"
-  },
-  { 
-    path: "/student/deliveries", 
-    label: "Delivery Management", 
-    icon: "📦"
-  },
-  { 
-    path: "/student/minutes", 
-    label: "Meeting Minutes", 
-    icon: "📝"
-  },
-  { 
-    path: "/student/home", 
-    label: "Home", 
-    icon: "🏠"
-  }
 ];
 
 export default studentMenu;
