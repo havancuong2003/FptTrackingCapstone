@@ -56,18 +56,19 @@ export default function Schedule() {
   const [finalMeeting, setFinalMeeting] = useState(null);
   const [members, setMembers] = useState([]);
   const [memberSchedules, setMemberSchedules] = useState({});
+  const [mergedSchedule, setMergedSchedule] = useState({});
   const [isSupervisor, setIsSupervisor] = useState(false);
   // Bỏ useTimeInput - chỉ sử dụng text input với format HH:MM
 
   // Days of the week
   const daysOfWeek = [
-    { id: 1, name: 'Thứ 2', value: 'monday' },
-    { id: 2, name: 'Thứ 3', value: 'tuesday' },
-    { id: 3, name: 'Thứ 4', value: 'wednesday' },
-    { id: 4, name: 'Thứ 5', value: 'thursday' },
-    { id: 5, name: 'Thứ 6', value: 'friday' },
-    { id: 6, name: 'Thứ 7', value: 'saturday' },
-    { id: 7, name: 'Chủ nhật', value: 'sunday' }
+    { id: 1, name: 'Monday', value: 'monday' },
+    { id: 2, name: 'Tuesday', value: 'tuesday' },
+    { id: 3, name: 'Wednesday', value: 'wednesday' },
+    { id: 4, name: 'Thursday', value: 'thursday' },
+    { id: 5, name: 'Friday', value: 'friday' },
+    { id: 6, name: 'Saturday', value: 'saturday' },
+    { id: 7, name: 'Sunday', value: 'sunday' }
   ];
 
   // Bỏ generateTimeSlots - không cần nữa vì user tự nhập giờ
@@ -190,10 +191,68 @@ export default function Schedule() {
           }
         });
         setMemberSchedules(memberSchedulesData);
+        
+        // Calculate merged schedule (common free times across all members)
+        calculateMergedSchedule(memberSchedulesData);
       }
     } catch (error) {
       console.error('Error fetching student free time slots:', error);
     }
+  };
+
+  // Calculate merged schedule (common free times across all members)
+  const calculateMergedSchedule = (memberSchedulesData) => {
+    const merged = {};
+    const studentIds = Object.keys(memberSchedulesData);
+    
+    if (studentIds.length === 0) {
+      setMergedSchedule({});
+      return {};
+    }
+    
+    daysOfWeek.forEach(day => {
+      const dayKey = day.value;
+      const allTimeSlots = new Set();
+      
+      // Collect all unique time slots for this day from all members
+      studentIds.forEach(studentId => {
+        const memberSchedule = memberSchedulesData[studentId] || {};
+        const daySlots = memberSchedule[dayKey] || [];
+        daySlots.forEach(slot => allTimeSlots.add(slot));
+      });
+      
+      // Calculate intersection: only time slots that ALL members have
+      let commonSlots = [];
+      if (studentIds.length > 0) {
+        // Find slots that exist in all members' schedules
+        allTimeSlots.forEach(slot => {
+          let isCommon = true;
+          for (let i = 0; i < studentIds.length; i++) {
+            const memberSchedule = memberSchedulesData[studentIds[i]] || {};
+            const daySlots = memberSchedule[dayKey] || [];
+            if (!daySlots.includes(slot)) {
+              isCommon = false;
+              break;
+            }
+          }
+          if (isCommon) {
+            commonSlots.push(slot);
+          }
+        });
+      }
+      
+      // Sort time slots from smallest to largest
+      commonSlots.sort((a, b) => {
+        const [h1, m1] = a.split(':').map(Number);
+        const [h2, m2] = b.split(':').map(Number);
+        return h1 * 60 + m1 - (h2 * 60 + m2);
+      });
+      
+      merged[dayKey] = commonSlots;
+    });
+    
+    setMergedSchedule(merged);
+    return merged;
   };
 
   // Validate time format - bắt buộc format HH:MM
@@ -257,12 +316,12 @@ export default function Schedule() {
       if (emptySlots.length > 0) {
         hasEmptyTime = true;
         const dayName = daysOfWeek.find(d => d.value === dayValue)?.name || dayValue;
-        emptyTimeMessages.push(`${dayName}: Chưa chọn thời gian rảnh`);
+        emptyTimeMessages.push(`${dayName}: No free time selected`);
       }
     });
     
     if (hasEmptyTime) {
-      alert('Vui lòng kiểm tra lại:\n' + emptyTimeMessages.join('\n') + '\n\nVui lòng chọn thời gian cho tất cả các giờ rảnh đã thêm.');
+      alert('Please check again:\n' + emptyTimeMessages.join('\n') + '\n\nPlease select time for all added free time slots.');
       return;
     }
 
@@ -273,7 +332,7 @@ export default function Schedule() {
     });
 
     if (daysWithSlots.length === 0) {
-      alert('Vui lòng nhập ít nhất một giờ rảnh cho một ngày trong tuần');
+      alert('Please enter at least one free time slot for a day of the week');
       return;
     }
     
@@ -287,12 +346,12 @@ export default function Schedule() {
       if (invalidSlots.length > 0) {
         hasInvalidSlot = true;
         const dayName = daysOfWeek.find(d => d.value === dayValue)?.name || dayValue;
-        invalidMessages.push(`${dayName}: Có ${invalidSlots.length} giờ rảnh sai định dạng`);
+        invalidMessages.push(`${dayName}: ${invalidSlots.length} free time slot(s) with invalid format`);
       }
     });
     
     if (hasInvalidSlot) {
-      alert('Vui lòng kiểm tra lại:\n' + invalidMessages.join('\n') + '\n\nĐịnh dạng thời gian phải là HH:MM (VD: 09:00, 17:30)');
+      alert('Please check again:\n' + invalidMessages.join('\n') + '\n\nTime format must be HH:MM (e.g: 09:00, 17:30)');
       return;
     }
 
@@ -321,13 +380,13 @@ export default function Schedule() {
       if (response.data && response.data.status === 200) {
         // Reload lại dữ liệu để cập nhật calendar view
         await fetchStudentFreeTimeSlots();
-        alert('Đã lưu thời gian rảnh thành công!');
+        alert('Free time slots saved successfully!');
       } else {
-        alert('Có lỗi xảy ra khi lưu thời gian rảnh');
+        alert('Error occurred while saving free time slots');
       }
     } catch (error) {
       console.error('Error saving free time slots:', error);
-      alert('Có lỗi xảy ra khi lưu thời gian rảnh');
+      alert('Error occurred while saving free time slots');
     } finally {
       setLoading(false);
     }
@@ -342,7 +401,7 @@ export default function Schedule() {
       const meetingLink = document.querySelector('input[name="meetingLink"]')?.value || '';
       
       if (!selectedDay || !selectedTime) {
-        alert('Vui lòng chọn ngày và giờ họp');
+        alert('Please select meeting day and time');
         return;
       }
       
@@ -361,11 +420,11 @@ export default function Schedule() {
       if (response.data) {
         setMeetingSchedule(response.data);
         setIsFinalized(true);
-        alert('Lịch họp đã được xác nhận thành công!');
+        alert('Meeting schedule confirmed successfully!');
       }
     } catch (error) {
       console.error('Error finalizing schedule:', error);
-      alert('Có lỗi xảy ra khi xác nhận lịch họp');
+      alert('Error occurred while confirming meeting schedule');
     } finally {
       setLoading(false);
     }
@@ -382,11 +441,11 @@ export default function Schedule() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Lịch họp Nhóm</h1>     {isSupervisor && (
+        <h1>Group Meeting Schedule</h1>     {isSupervisor && (
         <div className={styles.headerControls}>
      
             <div className={styles.supervisorBadge}>
-              Giảng viên: {currentUser.name}
+              Supervisor: {currentUser.name}
             </div>
           
         </div>)}
@@ -394,15 +453,15 @@ export default function Schedule() {
 
       {!isFinalized ? (
         <div className={styles.notFinalized}>
-          Lịch họp chưa được xác nhận. Vui lòng chọn thời gian rảnh của bạn.
+          Meeting schedule has not been confirmed. Please select your free time.
         </div>
       ) : (
         <div className={styles.finalizeBanner}>
           <div className={styles.finalized}>
           <div className={styles.finalizedContent}>
-              <h3>Lịch họp đã được xác nhận!</h3>
-              <p>Thời gian: {meetingSchedule?.dayOfWeek} - {meetingSchedule?.time}</p>
-              <p>Ngày tạo: {new Date(meetingSchedule?.createAt).toLocaleDateString('vi-VN')}</p>
+              <h3>Meeting Schedule Confirmed!</h3>
+              <p>Time: {meetingSchedule?.dayOfWeek ? meetingSchedule.dayOfWeek.charAt(0).toUpperCase() + meetingSchedule.dayOfWeek.slice(1) : ''} - {meetingSchedule?.time}</p>
+              <p>Created Date: {new Date(meetingSchedule?.createAt).toLocaleDateString('en-US')}</p>
               {meetingSchedule?.meetingLink && (
                 <a 
                   href={meetingSchedule?.meetingLink} 
@@ -410,7 +469,7 @@ export default function Schedule() {
                   rel="noopener noreferrer"
                   className={styles.meetingLinkButton}
                 >
-                  Tham gia cuộc họp
+                  Join Meeting
                 </a>
               )}
             </div>
@@ -420,14 +479,14 @@ export default function Schedule() {
 
       {!isFinalized && (
         <div className={styles.instruction}>
-          <span>Chọn tab ngày và nhập giờ rảnh (HH:MM) cho từng ngày</span>
+          <span>Select day tab and enter free time (HH:MM) for each day</span>
         </div>
       )}
 
       {/* Free Time Slots Management - Tab Based UI */}
       {!isFinalized && (
         <div className={styles.freeTimeSection}>
-          <h2>Thời gian rảnh của bạn</h2>
+          <h2>Your Free Time</h2>
           
           {/* Tab Navigation */}
           <div className={styles.tabNavigation}>
@@ -453,13 +512,13 @@ export default function Schedule() {
             <div className={styles.timeSlotPanel}>
               <div className={styles.timeSlotHeader}>
                 <label className={styles.timeSlotLabel}>
-                  Giờ rảnh cho {daysOfWeek.find(d => d.value === activeTab)?.name} (HH:MM):
+                  Free time for {daysOfWeek.find(d => d.value === activeTab)?.name} (HH:MM):
                 </label>
                 <button
                   onClick={() => addTimeSlot(activeTab)}
                   className={styles.addTimeBtn}
                 >
-                  + Thêm giờ
+                  + Add Time
                 </button>
               </div>
               <div className={styles.timeSlotsContainer}>
@@ -474,7 +533,7 @@ export default function Schedule() {
                     <button
                       onClick={() => removeTimeSlot(activeTab, timeSlot.id)}
                       className={styles.removeTimeBtn}
-                      title="Xóa giờ này"
+                      title="Remove this time"
                     >
                       ×
                     </button>
@@ -482,7 +541,7 @@ export default function Schedule() {
                 ))}
                 {(freeTimeSlots[activeTab] || []).length === 0 && (
                   <div className={styles.emptyTimeSlot}>
-                    Chưa có giờ rảnh nào. Click "+ Thêm giờ" để thêm.
+                    No free time slots yet. Click "+ Add Time" to add.
                   </div>
                 )}
               </div>
@@ -496,17 +555,17 @@ export default function Schedule() {
               className={styles.saveSlotsBtn}
               disabled={loading}
             >
-              {loading ? 'Đang lưu...' : 'Lưu thời gian rảnh'}
+              {loading ? 'Saving...' : 'Save Free Time'}
             </button>
           </div>
         </div>
       )}
 
         <div className={styles.groupOverview}>
-          <h2>Lịch rảnh của nhóm</h2>
+          <h2>Group Free Time Schedule</h2>
           <div className={styles.calendarView}>
             <div className={styles.calendarHeader}>
-              <div className={styles.calendarMemberCol}>Thành viên</div>
+              <div className={styles.calendarDayCol}>Day</div>
               {daysOfWeek.map(day => (
                 <div key={day.id} className={styles.calendarDayCol}>
                   {day.name}
@@ -514,54 +573,42 @@ export default function Schedule() {
               ))}
             </div>
             <div className={styles.calendarBody}>
-              {members.map(member => {
-                const memberSchedule = memberSchedules[member.id] || {};
-                const hasSchedule = Object.keys(memberSchedule).length > 0;
-                
-                return (
-                  <div key={member.id} className={styles.calendarRow}>
-                    <div className={styles.calendarMemberCell}>
-                      <div className={styles.memberName}>{member.name}</div>
-                      <div className={styles.memberStatus}>
-                        {hasSchedule ? '✓ Đã cập nhật' : '✗ Chưa cập nhật'}
-                      </div>
-                    </div>
-                    {daysOfWeek.map(day => {
-                      const dayKey = day.value;
-                      const timeSlots = memberSchedule[dayKey] || [];
-                      
-                      return (
-                        <div key={day.id} className={styles.calendarDayCell}>
-                          {timeSlots.length > 0 ? (
-                            <div className={styles.timeSlotsList}>
-                              {timeSlots.map((slot, index) => (
-                                <div key={index} className={styles.timeSlotBadge}>{slot}</div>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className={styles.emptySlot}>-</div>
-                          )}
+              <div className={styles.calendarRow}>
+                <div className={styles.calendarDayLabel}>Common Free Time</div>
+                {daysOfWeek.map(day => {
+                  const dayKey = day.value;
+                  const timeSlots = mergedSchedule[dayKey] || [];
+                  
+                  return (
+                    <div key={day.id} className={styles.calendarDayCell}>
+                      {timeSlots.length > 0 ? (
+                        <div className={styles.timeSlotsList}>
+                          {timeSlots.map((slot, index) => (
+                            <div key={index} className={styles.timeSlotBadge}>{slot}</div>
+                          ))}
                         </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+                      ) : (
+                        <div className={styles.emptySlot}>-</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
 
       {isSupervisor && (
             <div className={styles.finalizeSection}>
-          <h3>Xác nhận lịch họp</h3>
+          <h3>Confirm Meeting Schedule</h3>
               <div className={styles.finalizeForm}>
             <input 
               type="date" 
               className={styles.dateSelect}
-              placeholder="Chọn ngày"
+              placeholder="Select Date"
             />
                 <select className={styles.timeSelect}>
-                  <option value="">Chọn giờ</option>
+                  <option value="">Select Time</option>
                   <option value="08:00">08:00</option>
                   <option value="09:00">09:00</option>
                   <option value="10:00">10:00</option>
@@ -577,7 +624,7 @@ export default function Schedule() {
                   className={styles.finalizeButton}
               disabled={loading}
             >
-              {loading ? 'Đang xác nhận...' : 'Xác nhận lịch họp'}
+              {loading ? 'Confirming...' : 'Confirm Meeting Schedule'}
             </button>
           </div>
         </div>
