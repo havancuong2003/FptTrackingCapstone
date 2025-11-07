@@ -46,13 +46,13 @@ export default function SupervisorSchedule() {
 
   // Days of the week
   const daysOfWeek = [
-    { id: 1, name: 'Thứ 2', value: 'monday' },
-    { id: 2, name: 'Thứ 3', value: 'tuesday' },
-    { id: 3, name: 'Thứ 4', value: 'wednesday' },
-    { id: 4, name: 'Thứ 5', value: 'thursday' },
-    { id: 5, name: 'Thứ 6', value: 'friday' },
-    { id: 6, name: 'Thứ 7', value: 'saturday' },
-    { id: 7, name: 'Chủ nhật', value: 'sunday' }
+    { id: 1, name: 'Monday', value: 'monday' },
+    { id: 2, name: 'Tuesday', value: 'tuesday' },
+    { id: 3, name: 'Wednesday', value: 'wednesday' },
+    { id: 4, name: 'Thursday', value: 'thursday' },
+    { id: 5, name: 'Friday', value: 'friday' },
+    { id: 6, name: 'Saturday', value: 'saturday' },
+    { id: 7, name: 'Sunday', value: 'sunday' }
   ];
 
 
@@ -270,7 +270,7 @@ export default function SupervisorSchedule() {
   // Finalize/Update meeting schedule
   const handleFinalizeMeeting = async () => {
     if (!meetingData.day || !meetingData.time || !meetingData.meetingLink) {
-      alert('Vui lòng điền đầy đủ thông tin lịch họp');
+      alert('Please fill in all meeting schedule information');
       return;
     }
 
@@ -315,23 +315,23 @@ export default function SupervisorSchedule() {
           const studentEmails = members.map(member => member.email).filter(email => email);
           if (studentEmails.length > 0) {
             const dayNames = {
-              'monday': 'Thứ 2',
-              'tuesday': 'Thứ 3', 
-              'wednesday': 'Thứ 4',
-              'thursday': 'Thứ 5',
-              'friday': 'Thứ 6',
-              'saturday': 'Thứ 7',
-              'sunday': 'Chủ nhật'
+              'monday': 'Monday',
+              'tuesday': 'Tuesday', 
+              'wednesday': 'Wednesday',
+              'thursday': 'Thursday',
+              'friday': 'Friday',
+              'saturday': 'Saturday',
+              'sunday': 'Sunday'
             };
             
             const meetingTime = `${dayNames[meetingData.day.toLowerCase()]} - ${meetingData.time}`;
             
             await sendMeetingNotification({
               recipients: studentEmails,
-              subject: `[${group.groupName || 'Capstone Project'}] Thông báo lịch họp nhóm`,
+              subject: `[${group.groupName || 'Capstone Project'}] Group Meeting Schedule Notification`,
               meetingTime: meetingTime,
               meetingLink: meetingData.meetingLink,
-              message: `Giảng viên ${currentUser.name} đã xác nhận lịch họp nhóm. Vui lòng tham gia đúng giờ.`
+              message: `Supervisor ${currentUser.name} has confirmed the group meeting schedule. Please join on time.`
             });
             
           }
@@ -340,13 +340,13 @@ export default function SupervisorSchedule() {
           // Không hiển thị lỗi email cho user, chỉ log
         }
         
-        alert(isFinalized ? 'Đã cập nhật lịch họp thành công!' : 'Đã xác nhận lịch họp thành công!');
+        alert(isFinalized ? 'Meeting schedule updated successfully!' : 'Meeting schedule confirmed successfully!');
       } else {
-        alert('Có lỗi xảy ra khi xác nhận lịch họp');
+        alert('Error occurred while confirming meeting schedule');
       }
     } catch (error) {
       console.error('Error finalizing meeting:', error);
-      alert('Có lỗi xảy ra khi xác nhận lịch họp');
+      alert('Error occurred while confirming meeting schedule');
     } finally {
       setLoading(false);
     }
@@ -399,17 +399,17 @@ export default function SupervisorSchedule() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Lịch họp Nhóm</h1>
+        <h1>Group Meeting Schedule</h1>
         <div className={styles.headerControls}>
           <div className={styles.supervisorBadge}>
-            Giảng viên: {currentUser.name}
+            Supervisor: {currentUser.name}
           </div>
         </div>
       </div>
 
       {/* Group Selection - Luôn hiển thị */}
       <div className={styles.section}>
-        <h2>Chọn nhóm</h2>
+        <h2>Select Group</h2>
         <div className={styles.groupSelector}>
           <select
             value={selectedGroup}
@@ -417,7 +417,7 @@ export default function SupervisorSchedule() {
             className={styles.groupSelect}
             disabled={loading}
           >
-            <option value="">Chọn nhóm</option>
+            <option value="">Select Group</option>
             {availableGroups.map(group => (
               <option key={group.id} value={group.id}>
                 {group.name}
@@ -435,24 +435,24 @@ export default function SupervisorSchedule() {
             {isFinalized && meetingSchedule ? (
               <div className={styles.finalizedMeeting}>
                 <div className={styles.finalizedHeader}>
-                  <h3>Lịch họp đã được xác nhận</h3>
+                  <h3>Meeting Schedule Confirmed</h3>
                   <div className={styles.warningBadge}>
-                    Lịch họp đã được xác nhận và không thể chỉnh sửa
+                    Meeting schedule has been confirmed and cannot be edited
                   </div>
                 </div>
                 <div className={styles.meetingInfo}>
                   <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>Thời gian:</span>
+                    <span className={styles.infoLabel}>Time:</span>
                     <span className={styles.infoValue}>
                       {(() => {
                         const dayNames = {
-                          'monday': 'Thứ 2',
-                          'tuesday': 'Thứ 3', 
-                          'wednesday': 'Thứ 4',
-                          'thursday': 'Thứ 5',
-                          'friday': 'Thứ 6',
-                          'saturday': 'Thứ 7',
-                          'sunday': 'Chủ nhật'
+                          'monday': 'Monday',
+                          'tuesday': 'Tuesday', 
+                          'wednesday': 'Wednesday',
+                          'thursday': 'Thursday',
+                          'friday': 'Friday',
+                          'saturday': 'Saturday',
+                          'sunday': 'Sunday'
                         };
                         const dayName = dayNames[meetingSchedule.dayOfWeek?.toLowerCase()] || meetingSchedule.dayOfWeek || '';
                         return `${dayName} - ${meetingSchedule.time || ''}`;
@@ -460,11 +460,11 @@ export default function SupervisorSchedule() {
                     </span>
                   </div>
                   <div className={styles.infoRow}>
-                    <span className={styles.infoLabel}>Ngày tạo:</span>
+                    <span className={styles.infoLabel}>Created Date:</span>
                     <span className={styles.infoValue}>
                       {meetingSchedule.createAt 
-                        ? new Date(meetingSchedule.createAt).toLocaleDateString('vi-VN')
-                        : new Date().toLocaleDateString('vi-VN')
+                        ? new Date(meetingSchedule.createAt).toLocaleDateString('en-US')
+                        : new Date().toLocaleDateString('en-US')
                       }
                     </span>
                   </div>
@@ -475,7 +475,7 @@ export default function SupervisorSchedule() {
                         onClick={() => window.open(meetingSchedule.meetingLink, '_blank')}
                         className={styles.meetingLinkButton}
                       >
-                        Click để tham gia
+                        Click to Join
                       </button>
                     </div>
                   )}
@@ -484,24 +484,24 @@ export default function SupervisorSchedule() {
             ) : (
               <div className={styles.notFinalized}>
                 <div className={styles.warningBox}>
-                  <h3>Lưu ý quan trọng</h3>
-                  <p>Lịch họp chưa được xác nhận. Sau khi xác nhận, bạn sẽ không thể thay đổi lịch họp này nữa.</p>
-                  <p className={styles.warningText}>Vui lòng kiểm tra kỹ thông tin trước khi xác nhận!</p>
+                  <h3>Important Notice</h3>
+                  <p>Meeting schedule has not been confirmed. Once confirmed, you will not be able to change this schedule.</p>
+                  <p className={styles.warningText}>Please check the information carefully before confirming!</p>
                 </div>
               </div>
             )}
           </div>
 
           <div className={styles.instruction}>
-            <span>Xem lịch rảnh của các thành viên và xác nhận lịch họp chung</span>
+            <span>View members' free time and confirm the common meeting schedule</span>
           </div>
 
           {/* Student Free Time Slots - Merged Calendar View */}
           <div className={styles.freeTimeSection}>
-            <h2>Lịch rảnh của các thành viên</h2>
+            <h2>Members' Free Time</h2>
             <div className={styles.calendarView}>
               <div className={styles.calendarHeader}>
-                <div className={styles.calendarDayCol}>Thứ</div>
+                <div className={styles.calendarDayCol}>Day</div>
                 {daysOfWeek.map(day => (
                   <div key={day.id} className={styles.calendarDayCol}>
                     {day.name}
@@ -510,7 +510,7 @@ export default function SupervisorSchedule() {
               </div>
               <div className={styles.calendarBody}>
                 <div className={styles.calendarRow}>
-                  <div className={styles.calendarDayLabel}>Giờ rảnh chung</div>
+                  <div className={styles.calendarDayLabel}>Common Free Time</div>
                   {daysOfWeek.map(day => {
                     const dayKey = day.value;
                     const timeSlots = mergedSchedule[dayKey] || [];
@@ -536,7 +536,7 @@ export default function SupervisorSchedule() {
             {/* Suggested Times Section - Only show when not finalized */}
             {!isFinalized && suggestedTimes.length > 0 && (
               <div className={styles.suggestedTimesSection}>
-                <h3>Đề xuất thời gian họp</h3>
+                <h3>Suggested Meeting Times</h3>
                 <div className={styles.suggestedTimesList}>
                   {suggestedTimes.map((suggestion, index) => (
                     <button
@@ -546,7 +546,7 @@ export default function SupervisorSchedule() {
                     >
                       <span className={styles.suggestedDay}>{suggestion.dayName}</span>
                       <span className={styles.suggestedTime}>{suggestion.time}</span>
-                      <span className={styles.suggestedSlotCount}>({suggestion.slotCount} giờ rảnh)</span>
+                      <span className={styles.suggestedSlotCount}>({suggestion.slotCount} free hours)</span>
                     </button>
                   ))}
                 </div>
@@ -557,17 +557,17 @@ export default function SupervisorSchedule() {
           {/* Meeting Finalization/Update Form - Only show when not finalized */}
           {!isFinalized && (
             <div className={styles.meetingSection}>
-              <h2>Xác nhận lịch họp</h2>
+              <h2>Confirm Meeting Schedule</h2>
               
               <div className={styles.meetingForm}>
                 <div className={styles.formGroup}>
-                  <label>Chọn thứ</label>
+                  <label>Select Day</label>
                   <select
                     value={meetingData.day}
                     onChange={(e) => updateMeetingData('day', e.target.value)}
                     className={styles.daySelect}
                   >
-                    <option value="">-- Chọn thứ --</option>
+                    <option value="">-- Select Day --</option>
                     {daysOfWeek.map(day => (
                       <option key={day.id} value={day.value}>{day.name}</option>
                     ))}
@@ -575,18 +575,18 @@ export default function SupervisorSchedule() {
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label>Giờ bắt đầu</label>
+                  <label>Start Time</label>
                   <input
                     type="time"
                     value={meetingData.time}
                     onChange={(e) => updateMeetingData('time', e.target.value)}
                     className={styles.timeInput}
-                    placeholder="VD: 14:00"
+                    placeholder="e.g: 14:00"
                   />
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label>Link Google Meet</label>
+                  <label>Google Meet Link</label>
                   <input
                     type="url"
                     value={meetingData.meetingLink}
@@ -602,7 +602,7 @@ export default function SupervisorSchedule() {
                     className={styles.finalizeBtn}
                     disabled={loading}
                   >
-                    {loading ? 'Đang xử lý...' : 'Xác nhận lịch họp'}
+                    {loading ? 'Processing...' : 'Confirm Meeting Schedule'}
                   </button>
                 </div>
               </div>

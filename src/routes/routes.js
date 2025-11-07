@@ -205,11 +205,6 @@ export const routes = [
     meta: { title: "System", protected: true, roles: ["ADMIN"] },
   },
   {
-    path: "*",
-    element: NotFound,
-    meta: { title: "Not Found", public: true },
-  },
-  {
     path: "/tracking",
     element: Tracking,
     meta: { title: "Tracking", protected: true, roles: ["STAFF"] },
@@ -445,5 +440,10 @@ export const routes = [
       protected: true,
       roles: ["SUPERVISOR"],
     },
+  },
+  {
+    path: "*",
+    element: NotFound,
+    meta: { title: "Not Found", public: true },
   }
 ];
