@@ -92,8 +92,11 @@ export default function Schedule() {
       const response = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
       if (response.data.status === 200) {
         setMeetingSchedule(response.data.data);
-        setIsFinalized(response.data.message !== 'Meeting not found.');
-        return response.data.message === 'Meeting not found.';
+        if(response.data.data.isActive) {
+          setIsFinalized(true);
+        } else {
+          setIsFinalized(false);
+        }
       }
     } catch (error) {
       console.error('Error checking meeting schedule:', error);

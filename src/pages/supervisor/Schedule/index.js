@@ -130,14 +130,11 @@ export default function SupervisorSchedule() {
         const scheduleResponse = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
         if (scheduleResponse.data.status === 200 && scheduleResponse.data.data.isActive) {
           setMeetingSchedule(scheduleResponse.data.data);
-          setIsFinalized(scheduleResponse.data.data.isActive);
-         // setIsFinalized(false);
-        }
-        else{
-          setIsFinalized(false);
+          setIsFinalized(scheduleResponse.data.data.isActive);  
         }
       } catch (error) {
         console.error('No existing schedule found');
+        setIsFinalized(false);
       }
     } catch (error) {
       console.error('Error loading group data:', error);
