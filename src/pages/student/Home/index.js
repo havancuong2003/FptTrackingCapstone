@@ -1,8 +1,10 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
+import DataTable from '../../../components/DataTable/DataTable';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const TIME_SLOTS = [
@@ -15,6 +17,7 @@ const TIME_SLOTS = [
 ];
 
 export default function StudentHome() {
+  const navigate = useNavigate();
   const [userInfo, setUserInfo] = React.useState(null);
   const [groupInfo, setGroupInfo] = React.useState(null);
   const [semesterInfo, setSemesterInfo] = React.useState(null);
@@ -25,15 +28,14 @@ export default function StudentHome() {
   const [selectedWeek, setSelectedWeek] = React.useState(1);
   const [loading, setLoading] = React.useState(true);
   const [selectedMilestone, setSelectedMilestone] = React.useState(null);
-  const [selectedTask, setSelectedTask] = React.useState(null);
   const [selectedMeeting, setSelectedMeeting] = React.useState(null);
   const [detailModal, setDetailModal] = React.useState(false);
-  const [taskModal, setTaskModal] = React.useState(false);
   const [meetingModal, setMeetingModal] = React.useState(false);
   const [milestoneDetails, setMilestoneDetails] = React.useState(null);
   const [uploading, setUploading] = React.useState(false);
   const [selectedFile, setSelectedFile] = React.useState(null);
   const [minuteData, setMinuteData] = React.useState(null);
+  const [meetingIssues, setMeetingIssues] = React.useState([]);
 
   // Load user info
   React.useEffect(() => {
@@ -119,28 +121,27 @@ export default function StudentHome() {
     return () => { mounted = false; };
   }, [userInfo?.groups]);
 
-  // Load tasks
+  // Load tasks assigned to logged-in student
   React.useEffect(() => {
     let mounted = true;
     async function loadTasks() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
+      if (!userInfo) return;
       try {
-        // Lấy group đầu tiên từ danh sách groups
-        const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Task/get-by-group/${groupId}`);
-        if (res.data.status === 200) {
-          const tasksData = res.data.data;
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Task/assignee`);
+        if (res.data.statusCode === 200) {
+          const tasksData = res.data.data || [];
           if (!mounted) return;
-          setTasks(tasksData || []);
+          setTasks(Array.isArray(tasksData) ? tasksData : []);
         }
-      } catch {
+      } catch (error) {
+        console.error('Error loading assigned tasks:', error);
         if (!mounted) return;
         setTasks([]);
       }
     }
     loadTasks();
     return () => { mounted = false; };
-  }, [userInfo?.groups]);
+  }, [userInfo]);
 
   // Load meetings
   React.useEffect(() => {
@@ -211,7 +212,7 @@ export default function StudentHome() {
     });
   };
 
-  // Get tasks for selected week
+  // Get tasks for selected week (only tasks assigned to logged-in student)
   const getTasksForWeek = () => {
     if (!selectedWeek || !tasks.length) return [];
     
@@ -235,12 +236,13 @@ export default function StudentHome() {
     return weekTasks;
   };
 
-  // Get milestone for specific day and time slot
-  const getMilestoneForSlot = (day, timeSlot) => {
+  // Get milestones for specific day and time slot (returns array to handle multiple milestones)
+  const getMilestonesForSlot = (day, timeSlot) => {
     const weekMilestones = getMilestonesForWeek();
-    if (!weekMilestones.length) return null;
+    if (!weekMilestones.length) return [];
     
-    // Tìm milestone phù hợp với ngày và giờ
+    // Tìm tất cả milestones phù hợp với ngày và giờ
+    const matchedMilestones = [];
     for (const milestone of weekMilestones) {
       const deadline = new Date(milestone.endAt);
       const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -250,19 +252,20 @@ export default function StudentHome() {
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
       if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-        return milestone;
+        matchedMilestones.push(milestone);
       }
     }
     
-    return null;
+    return matchedMilestones;
   };
 
-  // Get meeting for specific day and time slot
-  const getMeetingForSlot = (day, timeSlot) => {
+  // Get meetings for specific day and time slot (returns array to handle multiple meetings)
+  const getMeetingsForSlot = (day, timeSlot) => {
     const weekMeetings = getMeetingsForWeek();
-    if (!weekMeetings.length) return null;
+    if (!weekMeetings.length) return [];
     
-    // Tìm meeting phù hợp với ngày và giờ
+    // Tìm tất cả meetings phù hợp với ngày và giờ
+    const matchedMeetings = [];
     for (const meeting of weekMeetings) {
       const meetingDate = new Date(meeting.meetingDate);
       const dayOfWeek = meetingDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -272,19 +275,20 @@ export default function StudentHome() {
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
       if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-        return meeting;
+        matchedMeetings.push(meeting);
       }
     }
     
-    return null;
+    return matchedMeetings;
   };
 
-  // Get task for specific day and time slot
-  const getTaskForSlot = (day, timeSlot) => {
+  // Get tasks for specific day and time slot (returns array to handle multiple tasks)
+  const getTasksForSlot = (day, timeSlot) => {
     const weekTasks = getTasksForWeek();
-    if (!weekTasks.length) return null;
+    if (!weekTasks.length) return [];
     
-    // Tìm task phù hợp với ngày và giờ
+    // Tìm tất cả tasks phù hợp với ngày và giờ
+    const matchedTasks = [];
     for (const task of weekTasks) {
       const deadline = new Date(task.deadline);
       const dayOfWeek = deadline.getDay(); // 0 = Sunday, 1 = Monday, etc.
@@ -294,11 +298,11 @@ export default function StudentHome() {
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
       if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
-        return task;
+        matchedTasks.push(task);
       }
     }
     
-    return null;
+    return matchedTasks;
   };
 
   const getStatusColor = (status) => {
@@ -338,6 +342,7 @@ export default function StudentHome() {
   const getTaskStatusColor = (status) => {
     switch (status) {
       case 'ToDo':
+      case 'Todo':
         return '#64748b'; // Gray
       case 'InProgress':
         return '#d97706'; // Orange
@@ -353,6 +358,7 @@ export default function StudentHome() {
   const getTaskStatusText = (status) => {
     switch (status) {
       case 'ToDo':
+      case 'Todo':
         return '📋 To Do';
       case 'InProgress':
         return '🔄 In Progress';
@@ -395,44 +401,302 @@ export default function StudentHome() {
     }
   };
 
-  const openTaskModal = (task) => {
-    setSelectedTask(task);
-    setTaskModal(true);
+  const openTaskDetail = (task) => {
+    // Use task.group.id if available, otherwise fallback to userInfo.groups[0]
+    const groupId = task?.group?.id || (userInfo?.groups?.[0]);
+    if (!groupId || !task?.id) return;
+    navigate(`/student/task-detail/${groupId}?taskId=${task.id}`);
   };
+
+  // Fetch meeting issues (tasks) by meetingId
+  const fetchMeetingIssues = async (meetingId) => {
+    try {
+      const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Task/meeting-tasks/${meetingId}`);
+      const data = res.data?.data;
+      const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+      setMeetingIssues(tasks.map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        deadline: t.deadline,
+        isActive: t.isActive,
+        groupId: t.groupId || userInfo?.groups?.[0]
+      })));
+    } catch (e) {
+      setMeetingIssues([]);
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    try {
+      return new Date(dateString).toLocaleString('vi-VN');
+    } catch { return dateString; }
+  };
+
+  const meetingIssueColumns = [
+    { key: 'name', title: 'Issue' },
+    { key: 'deadline', title: 'Hạn', render: (row) => formatDateTime(row.deadline) },
+    {
+      key: 'actions',
+      title: '',
+      render: (row) => (
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/student/task-detail/${row.groupId}?taskId=${row.id}`);
+            }}
+            style={{
+              background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
+            }}
+          >Chi tiết</button>
+        </div>
+      )
+    }
+  ];
 
   const openMeetingModal = async (meeting) => {
     setSelectedMeeting(meeting);
     setMeetingModal(true);
     
-    // Fetch meeting minute if exists
-    try {
-      const response = await client.get(`https://160.30.21.113:5000/api/v1/MeetingMinute?meetingDateId=${meeting.id}`);
-      if (response.data.status === 200 && response.data.data) {
-        setMinuteData(response.data.data);
-      } else {
+    // Chỉ fetch meeting minute nếu isMinute === true
+    if (meeting.isMinute === true) {
+      try {
+        const response = await client.get(`https://160.30.21.113:5000/api/v1/MeetingMinute?meetingDateId=${meeting.id}`);
+        if (response.data.status === 200 && response.data.data) {
+          setMinuteData(response.data.data);
+        } else {
+          setMinuteData(null);
+        }
+      } catch (error) {
+        console.error('Error fetching meeting minute:', error);
         setMinuteData(null);
       }
-    } catch (error) {
-      console.error('Error fetching meeting minute:', error);
+    } else {
       setMinuteData(null);
     }
-  };
 
-  const closeTaskModal = () => {
-    setTaskModal(false);
-    setSelectedTask(null);
+    // Load meeting issues
+    await fetchMeetingIssues(meeting.id);
   };
 
   const closeMeetingModal = () => {
     setMeetingModal(false);
     setSelectedMeeting(null);
     setMinuteData(null);
+    setMeetingIssues([]);
   };
 
   // Join meeting
   const joinMeeting = (meetingLink) => {
     window.open(meetingLink, '_blank');
   };
+
+  // Get upcoming tasks sorted by deadline (prioritize overdue tasks, then upcoming tasks) - chỉ lấy 3 tasks
+  const getUpcomingTasks = React.useMemo(() => {
+    if (!tasks.length) return [];
+    
+    const now = new Date();
+    const sortedTasks = [...tasks].sort((a, b) => {
+      if (!a.deadline || !b.deadline) return 0;
+      const deadlineA = new Date(a.deadline);
+      const deadlineB = new Date(b.deadline);
+      return deadlineA - deadlineB;
+    });
+
+    // Ưu tiên các task quá hạn trước
+    const overdueTasks = sortedTasks.filter(task => {
+      if (!task.deadline) return false;
+      return new Date(task.deadline) < now;
+    });
+
+    // Sau đó là các task sắp tới
+    const upcomingTasks = sortedTasks.filter(task => {
+      if (!task.deadline) return false;
+      return new Date(task.deadline) >= now;
+    });
+
+    // Nếu có task quá hạn, hiển thị chúng trước, sau đó là task sắp tới
+    // Nếu không có task quá hạn, chỉ hiển thị task sắp tới
+    const allTasks = [...overdueTasks, ...upcomingTasks];
+    
+    // Chỉ lấy 3 tasks đầu tiên
+    return allTasks.slice(0, 3);
+  }, [tasks]);
+
+  // Get 3 nearest milestones sorted by deadline
+  const getNearestMilestones = React.useMemo(() => {
+    if (!milestones.length) return [];
+    
+    const now = new Date();
+    const sortedMilestones = [...milestones].sort((a, b) => {
+      if (!a.endAt || !b.endAt) return 0;
+      const deadlineA = new Date(a.endAt);
+      const deadlineB = new Date(b.endAt);
+      return deadlineA - deadlineB;
+    });
+
+    // Lọc các milestone có deadline >= hiện tại (sắp tới) hoặc đã quá hạn nhưng chưa nộp
+    const relevantMilestones = sortedMilestones.filter(milestone => {
+      if (!milestone.endAt) return false;
+      const deadline = new Date(milestone.endAt);
+      // Nếu đã quá hạn nhưng status chưa phải SUBMITTED thì vẫn hiển thị
+      if (deadline < now && milestone.status === 'SUBMITTED') {
+        return false; // Đã nộp rồi thì không hiển thị
+      }
+      return true;
+    });
+
+    // Lấy 3 milestone gần nhất
+    return relevantMilestones.slice(0, 3);
+  }, [milestones]);
+
+  // Task columns
+  const taskTableColumns = React.useMemo(() => [
+    { 
+      key: 'title', 
+      title: 'Task Title',
+      render: (row) => (
+        <div style={{ fontWeight: 500, color: '#1f2937' }}>
+          {row.title || row.name || 'N/A'}
+        </div>
+      )
+    },
+    { 
+      key: 'deadline', 
+      title: 'Deadline',
+      render: (row) => {
+        if (!row.deadline) return 'N/A';
+        const deadline = new Date(row.deadline);
+        const now = new Date();
+        const isOverdue = deadline < now;
+        return (
+          <div style={{ 
+            color: isOverdue ? '#dc2626' : '#374151',
+            fontWeight: isOverdue ? 600 : 400
+          }}>
+            {formatDate(row.deadline, 'DD/MM/YYYY HH:mm')}
+          </div>
+        );
+      }
+    },
+    { 
+      key: 'status', 
+      title: 'Status',
+      render: (row) => (
+        <span style={{
+          color: getTaskStatusColor(row.status),
+          background: getTaskStatusColor(row.status) === '#059669' ? '#ecfdf5' : 
+                     getTaskStatusColor(row.status) === '#dc2626' ? '#fee2e2' :
+                     getTaskStatusColor(row.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+          padding: '4px 8px',
+          borderRadius: 4,
+          fontSize: 12,
+          fontWeight: 500,
+          border: `1px solid ${getTaskStatusColor(row.status)}`
+        }}>
+          {getTaskStatusText(row.status)}
+        </span>
+      )
+    },
+    { 
+      key: 'priority', 
+      title: 'Priority',
+      render: (row) => {
+        const priorityColors = {
+          'High': '#dc2626',
+          'Medium': '#f59e0b',
+          'Low': '#64748b'
+        };
+        const color = priorityColors[row.priority] || '#64748b';
+        return (
+          <span style={{ color, fontWeight: 500 }}>
+            {row.priority || 'N/A'}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'actions',
+      title: 'Actions',
+      render: (row) => (
+        <Button
+          onClick={(e) => {
+            e.stopPropagation();
+            openTaskDetail(row);
+          }}
+          style={{ padding: '4px 12px', fontSize: 12 }}
+        >
+          Chi tiết
+        </Button>
+      )
+    }
+  ], []);
+
+  // Milestone columns
+  const milestoneTableColumns = React.useMemo(() => [
+    { 
+      key: 'name', 
+      title: 'Milestone Name',
+      render: (row) => (
+        <div style={{ fontWeight: 500, color: '#1f2937' , width: '500px'}}>
+          {row.name || 'N/A'}
+        </div>
+      )
+    },
+    { 
+      key: 'endAt', 
+      title: 'Deadline',
+      render: (row) => {
+        if (!row.endAt) return 'N/A';
+        const deadline = new Date(row.endAt);
+        const now = new Date();
+        const isOverdue = deadline < now && row.status !== 'SUBMITTED';
+        return (
+          <div style={{ 
+            color: isOverdue ? '#dc2626' : '#374151',
+            fontWeight: isOverdue ? 600 : 400
+          }}>
+            {formatDate(row.endAt, 'DD/MM/YYYY HH:mm')}
+          </div>
+        );
+      }
+    },
+    { 
+      key: 'status', 
+      title: 'Status',
+      render: (row) => (
+        <span style={{
+          color: getStatusColor(row.status),
+          background: getStatusColor(row.status) === '#059669' ? '#ecfdf5' : 
+                     getStatusColor(row.status) === '#dc2626' ? '#fee2e2' :
+                     getStatusColor(row.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+          padding: '4px 8px',
+          borderRadius: 4,
+          fontSize: 12,
+          fontWeight: 500,
+          border: `1px solid ${getStatusColor(row.status)}`
+        }}>
+          {getStatusText(row.status)}
+        </span>
+      )
+    },
+    {
+      key: 'actions',
+      title: 'Actions',
+      render: (row) => (
+        <Button
+          onClick={(e) => {
+            e.stopPropagation();
+            openDetailModal(row);
+          }}
+          style={{ padding: '4px 12px', fontSize: 12 }}
+        >
+          Chi tiết
+        </Button>
+      )
+    }
+  ], []);
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -655,9 +919,9 @@ export default function StudentHome() {
                   {timeSlot.label}
                 </td>
                 {DAYS.map((day, dayIndex) => {
-                  const milestone = getMilestoneForSlot(dayIndex, timeSlot);
-                  const meeting = getMeetingForSlot(dayIndex, timeSlot);
-                  const task = getTaskForSlot(dayIndex, timeSlot);
+                  const milestones = getMilestonesForSlot(dayIndex, timeSlot);
+                  const meetings = getMeetingsForSlot(dayIndex, timeSlot);
+                  const tasks = getTasksForSlot(dayIndex, timeSlot);
                   
                   return (
                     <td key={day} style={{ 
@@ -668,9 +932,10 @@ export default function StudentHome() {
                       verticalAlign: 'top'
                     }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {/* Milestone */}
-                        {milestone && (
+                        {/* Milestones - Display all milestones in this slot */}
+                        {milestones.map((milestone, idx) => (
                           <div 
+                            key={milestone.id || idx}
                             onClick={() => openDetailModal(milestone)}
                             style={{ 
                               background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
@@ -704,11 +969,12 @@ export default function StudentHome() {
                               {formatDate(milestone.endAt, 'HH:mm')}
                             </div>
                           </div>
-                        )}
+                        ))}
                         
-                        {/* Meeting */}
-                        {meeting && (
+                        {/* Meetings - Display all meetings in this slot */}
+                        {meetings.map((meeting, idx) => (
                           <div 
+                            key={meeting.id || idx}
                             onClick={() => openMeetingModal(meeting)}
                             style={{ 
                               background: getMeetingStatusColor(meeting) === '#059669' ? '#ecfdf5' : 
@@ -741,12 +1007,13 @@ export default function StudentHome() {
                               {meeting.time}
                             </div>
                           </div>
-                        )}
+                        ))}
                         
-                        {/* Task */}
-                        {task && (
+                        {/* Tasks - Display all tasks in this slot */}
+                        {tasks.map((task, idx) => (
                           <div 
-                            onClick={() => openTaskModal(task)}
+                            key={task.id || idx}
+                            onClick={() => openTaskDetail(task)}
                             style={{ 
                               background: getTaskStatusColor(task.status) === '#059669' ? '#ecfdf5' : 
                                          getTaskStatusColor(task.status) === '#dc2626' ? '#fee2e2' :
@@ -779,7 +1046,7 @@ export default function StudentHome() {
                               {formatDate(task.deadline, 'HH:mm')}
                             </div>
                           </div>
-                        )}
+                        ))}
                       </div>
                     </td>
                   );
@@ -878,6 +1145,52 @@ export default function StudentHome() {
               {milestones.filter(m => m.status === 'LATE').length}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Upcoming Tasks Table */}
+      <div style={{ marginTop: 32 }}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#1f2937' }}>
+          Tasks Sắp Tới
+        </h3>
+        <div style={{ 
+          background: '#fff',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          padding: 16,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <DataTable
+            columns={taskTableColumns}
+            data={getUpcomingTasks}
+            loading={loading}
+            emptyMessage="Không có task nào"
+            showIndex={true}
+            indexTitle="STT"
+          />
+        </div>
+      </div>
+
+      {/* Nearest Milestones Table */}
+      <div style={{ marginTop: 32 }}>
+        <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#1f2937' }}>
+          3 Milestones Gần Nhất
+        </h3>
+        <div style={{ 
+          background: '#fff',
+          border: '1px solid #e5e7eb',
+          borderRadius: 8,
+          padding: 16,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <DataTable
+            columns={milestoneTableColumns}
+            data={getNearestMilestones}
+            loading={loading}
+            emptyMessage="Không có milestone nào"
+            showIndex={true}
+            indexTitle="STT"
+          />
         </div>
       </div>
 
@@ -1069,133 +1382,6 @@ export default function StudentHome() {
         )}
       </Modal>
 
-      {/* Task Modal */}
-      <Modal open={taskModal} onClose={closeTaskModal}>
-        {selectedTask && (
-          <div style={{ padding: 24, maxWidth: '95vw', width: '1200px', maxHeight: '80vh', overflow: 'auto' }}>
-            <h2 style={{ margin: '0 0 16px 0', fontSize: 20 }}>Task Details</h2>
-            
-            <div style={{ display: 'flex', gap: 24, marginBottom: 20 }}>
-              <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Task Information</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div><strong>Title:</strong> {selectedTask.title}</div>
-                  <div><strong>Description:</strong> {selectedTask.description}</div>
-                  <div><strong>Deadline:</strong> {formatDate(selectedTask.deadline, 'YYYY-MM-DD HH:mm')}</div>
-                  <div><strong>Priority:</strong> {selectedTask.priority}</div>
-                  <div><strong>Status:</strong> 
-                    <span style={{ 
-                      color: getTaskStatusColor(selectedTask.status), 
-                      marginLeft: '8px',
-                      background: getTaskStatusColor(selectedTask.status) === '#059669' ? '#ecfdf5' : 
-                                 getTaskStatusColor(selectedTask.status) === '#dc2626' ? '#fee2e2' :
-                                 getTaskStatusColor(selectedTask.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      fontSize: 12
-                    }}>
-                      {getTaskStatusText(selectedTask.status)}
-                    </span>
-                  </div>
-                  <div><strong>Progress:</strong> {selectedTask.process}%</div>
-                  <div><strong>Task Type:</strong> {selectedTask.taskType || 'N/A'}</div>
-                  <div><strong>Is Meeting Task:</strong> {selectedTask.isMeetingTask ? 'Yes' : 'No'}</div>
-                </div>
-              </div>
-              
-              <div style={{ flex: 1 }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Assignment</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div><strong>Assignee:</strong> {selectedTask.assigneeName || 'N/A'}</div>
-                  <div><strong>Reviewer:</strong> {selectedTask.reviewerName || 'N/A'}</div>
-                  <div><strong>Created by:</strong> {selectedTask.createdByName || 'N/A'}</div>
-                  <div><strong>Created at:</strong> {selectedTask.createdAt ? formatDate(selectedTask.createdAt, 'YYYY-MM-DD HH:mm') : 'N/A'}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Milestone Information */}
-            {selectedTask.milestone && (
-              <div style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Related Milestone</h3>
-                <div style={{ 
-                  background: '#f0f9ff', 
-                  border: '1px solid #0ea5e9', 
-                  borderRadius: 8, 
-                  padding: 16 
-                }}>
-                  <div><strong>Milestone:</strong> {selectedTask.milestone.name}</div>
-                  <div><strong>Description:</strong> {selectedTask.milestone.description}</div>
-                </div>
-              </div>
-            )}
-
-            {/* Comments */}
-            {selectedTask.comments && selectedTask.comments.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Comments ({selectedTask.comments.length})</h3>
-                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                  {selectedTask.comments.map((comment, index) => (
-                    <div key={index} style={{
-                      background: '#f9fafb',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 6,
-                      padding: 12,
-                      marginBottom: 8
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <strong style={{ fontSize: 13 }}>{comment.authorName}</strong>
-                        <span style={{ fontSize: 12, color: '#64748b' }}>
-                          {formatDate(comment.timestamp, 'DD/MM/YYYY HH:mm')}
-                        </span>
-                      </div>
-                      <p style={{ margin: 0, fontSize: 13, color: '#374151' }}>{comment.content}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* History */}
-            {selectedTask.history && selectedTask.history.length > 0 && (
-              <div style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Task History</h3>
-                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                  {selectedTask.history.map((history, index) => (
-                    <div key={index} style={{
-                      background: '#f9fafb',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: 6,
-                      padding: 12,
-                      marginBottom: 8
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <strong style={{ fontSize: 13 }}>{history.action}</strong>
-                        <span style={{ fontSize: 12, color: '#64748b' }}>
-                          {formatDate(history.at, 'DD/MM/YYYY HH:mm')}
-                        </span>
-                      </div>
-                      <p style={{ margin: 0, fontSize: 13, color: '#374151' }}>{history.detail}</p>
-                      {history.user && (
-                        <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#64748b' }}>
-                          User: {history.user}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
-              <Button variant="ghost" onClick={closeTaskModal}>
-                Đóng
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
       {/* Meeting Modal */}
       <Modal open={meetingModal} onClose={closeMeetingModal}>
         {selectedMeeting && (
@@ -1341,20 +1527,16 @@ export default function StudentHome() {
                       </div>
                     </div>
                     
+                    {/* Meeting Issues table thay cho phần vấn đề cần giải quyết */}
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Vấn đề cần giải quyết</h4>
-                      <div style={{ 
-                        fontSize: 13, 
-                        color: '#374151', 
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        padding: '12px',
-                        background: 'rgba(255,255,255,0.5)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        minHeight: '80px'
-                      }}>
-                        {minuteData.issue || 'N/A'}
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Issues</h4>
+                      <div style={{ marginTop: 8, maxWidth: '100%', overflowX: 'hidden' }}>
+                        <DataTable
+                          columns={meetingIssueColumns}
+                          data={meetingIssues}
+                          loading={loading}
+                          emptyMessage="Chưa có issue nào"
+                        />
                       </div>
                     </div>
                     

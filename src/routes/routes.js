@@ -24,6 +24,7 @@ const Evaluations = React.lazy(() => import("../pages/teacher/Evaluations"));
 const Analytics = React.lazy(() => import("../pages/staff/Analytics"));
 const Templates = React.lazy(() => import("../pages/staff/Templates"));
 const StaffGroups = React.lazy(() => import("../pages/staff/Groups"));
+const StaffGroupsSync = React.lazy(() => import("../pages/staff/Groups/Sync"));
 const Users = React.lazy(() => import("../pages/admin/Users"));
 const System = React.lazy(() => import("../pages/admin/System"));
 const Tracking = React.lazy(() => import("../pages/staff/Tracking"));
@@ -184,6 +185,11 @@ export const routes = [
     meta: { title: "Capstone Groups", protected: true, roles: ["STAFF"] },
   },
   {
+    path: "/staff/groups/sync",
+    element: StaffGroupsSync,
+    meta: { title: "Sync Group from Call4Project", protected: true, roles: ["STAFF"] },
+  },
+  {
     path: "/templates",
     element: Templates,
     meta: { title: "Templates", protected: true, roles: ["STAFF"] },
@@ -197,11 +203,6 @@ export const routes = [
     path: "/system",
     element: System,
     meta: { title: "System", protected: true, roles: ["ADMIN"] },
-  },
-  {
-    path: "*",
-    element: NotFound,
-    meta: { title: "Not Found", public: true },
   },
   {
     path: "/tracking",
@@ -439,5 +440,10 @@ export const routes = [
       protected: true,
       roles: ["SUPERVISOR"],
     },
+  },
+  {
+    path: "*",
+    element: NotFound,
+    meta: { title: "Not Found", public: true },
   }
 ];

@@ -244,7 +244,7 @@ export default function Delivery() {
                     {index + 1}
                 </span>
             ),
-            headerStyle: { width: '50zpx', textAlign: 'center' },
+            headerStyle: { width: '60px', textAlign: 'center' },
             cellStyle: { textAlign: 'center' }
         },
         {
@@ -252,35 +252,49 @@ export default function Delivery() {
             title: 'Milestone',
             render: (deliverable) => (
                 <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{deliverable.name}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: "#374151", lineHeight: 1.3 }}>{deliverable.name}</div>
                     {deliverable.description && (
-                        <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>{deliverable.description}</div>
+                        <div style={{ fontSize: 12, color: "#64748b", marginTop: 2, lineHeight: 1.3 }}>{deliverable.description}</div>
                     )}
                 </div>
             ),
-            headerStyle: { width: '250px' }
+            headerStyle: { width: '600px', textAlign: 'left' },
+            cellStyle: { textAlign: 'left' }
         },
         {
             key: 'endAt',
             title: 'Deadline',
             render: (deliverable) => (
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
                     {deliverable.endAt ? (
-                        <div style={{ color: "#059669", fontWeight: 600, fontSize: 14 }}>{formatDate(deliverable.endAt)}</div>
+                        <>
+                            <div style={{ color: "#059669", fontWeight: 600, fontSize: 14 , textAlign: 'center'}}>{formatDate(deliverable.endAt, 'YYYY/MM/DD')} - {formatDate(deliverable.endAt, 'HH:mm')}</div>
+                            {/* <div style={{ color: "#059669", fontWeight: 500, fontSize: 12 }}>{formatDate(deliverable.endAt, 'HH:mm')}</div> */}
+                        </>
                     ) : (
                         <span style={{ color: "#dc2626", fontWeight: 600, background: "#fee2e2", padding: "2px 6px", borderRadius: 8, fontSize: 14 }}>No deadline</span>
                     )}
                 </div>
             ),
-            headerStyle: { width: '120px' }
+            headerStyle: { width: '250px', textAlign: 'center' },
+            cellStyle: { textAlign: 'center' }
         },
         {
             key: 'items',
             title: 'Items',
             render: (deliverable) => (
-                <span style={{ fontWeight: 600, color: "#374151", background: "#f1f5f9", padding: "4px 8px", borderRadius: 8, fontSize: 14 }}>
-                    {Array.isArray(deliverable.deliveryItems) ? deliverable.deliveryItems.length : 0} items
-                </span>
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    <span style={{ 
+                        fontWeight: 600, 
+                        color: "#374151", 
+                        background: "#e0f2fe", 
+                        padding: "4px 10px", 
+                        borderRadius: 12, 
+                        fontSize: 13 
+                    }}>
+                        {Array.isArray(deliverable.deliveryItems) ? deliverable.deliveryItems.length : 0} items
+                    </span>
+                </div>
             ),
             headerStyle: { width: '150px', textAlign: 'center' },
             cellStyle: { textAlign: 'center' }
@@ -290,14 +304,15 @@ export default function Delivery() {
             title: 'Item names',
             render: (deliverable) => (
                 Array.isArray(deliverable.deliveryItems) && deliverable.deliveryItems.length > 0 ? (
-                    <div style={{ fontSize: 14 }}>
+                    <div style={{ fontSize: 14, color: "#374151", textAlign: 'center' }}>
                         {deliverable.deliveryItems.map((it) => it.name).join(', ')}
                     </div>
                 ) : (
                     <span style={{ color: "#64748b", fontSize: 14 }}>No items</span>
                 )
             ),
-            headerStyle: { width: '300px' }
+            headerStyle: { width: 'auto', textAlign: 'center' },
+            cellStyle: { textAlign: 'left' }
         }
     ];
 
@@ -488,7 +503,7 @@ export default function Delivery() {
 
 
             {/* Modal for set deadline */}
-            <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)}>
+            <Modal open={isModalOpen} onClose={() => setIsModalOpen(false)} showCloseButton={false}>
                 <form onSubmit={saveDeadline} style={{ 
                     display: "flex", 
                     flexDirection: "column", 

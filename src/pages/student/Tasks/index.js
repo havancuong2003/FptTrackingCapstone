@@ -38,7 +38,7 @@ export default function StudentTasks() {
     title: '',
     description: '',
     assignee: '',
-    priority: '',
+    priority: 'low', // Default priority là Low
     deliverableId: '',
     deadline: '',
     reviewer: ''
@@ -69,11 +69,12 @@ export default function StudentTasks() {
   // API: lấy deliverables theo group (backend vẫn là deliverable, chỉ data trả về gọi là milestone)
   const fetchMilestonesByGroup = async (gid) => {
     try {
-      const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
+      //const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
+      const response = await axiosClient.get(`/deliverables/group/${gid}`);
       
-      if (response.data.status === 200) {
+      if (response.data) {
         // Kiểm tra data có tồn tại và không null/undefined
-        const apiData = response.data.data;
+        const apiData = response.data;
         const deliverablesData = Array.isArray(apiData) ? apiData : [];
         
         // Map data từ API response sang format frontend (vẫn gọi là milestone cho UI)
@@ -86,7 +87,7 @@ export default function StudentTasks() {
         }));
       } else {
         console.error('Error fetching deliverables:', response.data.message);
-        alert(`Error lấy deliverables: ${response.data.message}`);
+    //    alert(`Error lấy deliverables: ${response.data.message}`);
         return [];
       }
     } catch (error) {
@@ -96,53 +97,24 @@ export default function StudentTasks() {
     }
   };
 
-  // API: lấy deliverables theo group (giữ lại cho tương thích)
-  const fetchDeliverablesByGroup = async (gid) => {
-    try {
-      const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
-      
-      if (response.data.status === 200) {
-        // Kiểm tra data có tồn tại và không null/undefined
-        const apiData = response.data.data;
-        const deliverablesData = Array.isArray(apiData) ? apiData : [];
-        
-        // Map data từ API response sang format frontend
-        return deliverablesData.map(deliverable => ({
-          id: deliverable.id,
-          name: deliverable.name,
-          groupId: gid,
-          description: deliverable.description,
-          deadline: deliverable.deadline
-        }));
-      } else {
-        console.error('Error fetching deliverables:', response.data.message);
-        alert(`Error lấy deliverables: ${response.data.message}`);
-        return [];
-      }
-    } catch (error) {
-      console.error('Error fetching deliverables:', error);
-      alert(`Error kết nối deliverables: ${error.message}`);
-      return [];
-    }
-  };
 
   // API: lấy students theo group
   const fetchStudentsByGroup = async (gid) => {
     try {
       const response = await axiosClient.get(`/Staff/capstone-groups/${gid}`);
-      
       if (response.data.status === 200) {
         // Kiểm tra data có tồn tại và không null/undefined
-        const apiData = response.data.data.students;
-        const studentsData = Array.isArray(apiData) ? apiData : [];
-        
-        // Map data từ API response sang format frontend
-        return studentsData.map(student => ({
-          id: student.id,
-          name: student.name,
-          studentId: student.studentId || student.id,
-          email: student.email || ''
-        }));
+        if (response.data.data && response.data.data.students) {
+          const apiData = response.data.data.students;
+          const studentsData = Array.isArray(apiData) ? apiData : [];
+          return studentsData.map(student => ({
+            id: student.id,
+            name: student.name,
+            studentId: student.studentId || student.id,
+            email: student.email || ''
+          }));
+        }
+        return [];
       } else {
         console.error('Error fetching students:', response.data.message);
         alert(`Error lấy danh sách students: ${response.data.message}`);
@@ -162,6 +134,12 @@ export default function StudentTasks() {
       
       if (response.data.status === 200) {
         const groupData = response.data.data;
+        
+        // Kiểm tra groupData có tồn tại và không null/undefined
+        if (!groupData) {
+          return [];
+        }
+        
         const reviewersList = [];
         
         // Add supervisors
@@ -242,29 +220,35 @@ export default function StudentTasks() {
       if (response.data.status === 200) {
         const apiData = response.data.data;
         const tasksData = Array.isArray(apiData) ? apiData : [];
-        const mappedTasks = tasksData.map(task => ({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          groupId: task.group?.id?.toString() || groupId || '1',
-          assignee: task.assigneeId,
-          assigneeName: task.assigneeName,
-          deadline: task.deadline,
-          priority: task.priority?.toLowerCase() || 'medium',
-          status: task.status === 'ToDo' ? 'todo' : 
-                 task.status === 'InProgress' ? 'inProgress' : 'done',
-          deliverableId: task.milestone?.id || null,
-          deliverableName: task.milestone?.name || 'No Deliverable',
-          createdAt: task.createdAt,
-          progress: parseInt(task.process) || 0,
-          attachments: task.attachments || [],
-          comments: task.comments || [],
-          history: task.history || [],
-          isActive: task.isActive !== undefined ? task.isActive : true, // Thêm trường isActive từ API
-          isMeetingTask: task.isMeetingTask || false, // Thêm trường isMeetingTask
-          meetingId: task.meetingId || null, // Thêm trường meetingId
-          reviewerId: task.reviewerId || null // Thêm trường reviewerId
-        }));
+        const mappedTasks = tasksData.map(task => {
+          // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
+          const mappedStatus = task.status?.toLowerCase() === 'todo' ? 'todo' : 
+                              task.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
+          
+          return {
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            groupId: task.group?.id?.toString() || groupId || '1',
+            assignee: task.assigneeId,
+            assigneeName: task.assigneeName,
+            deadline: task.deadline,
+            priority: task.priority?.toLowerCase() || 'medium',
+            status: mappedStatus,
+            deliverableId: task.milestone?.id || null,
+            deliverableName: task.milestone?.name || 'No Deliverable',
+            createdAt: task.createdAt,
+            progress: parseInt(task.process) || 0,
+            attachments: task.attachments || [],
+            comments: task.comments || [],
+            history: task.history || [],
+            isActive: task.isActive !== undefined ? task.isActive : true, // Thêm trường isActive từ API
+            isMeetingTask: task.isMeetingTask || false, // Thêm trường isMeetingTask
+            meetingId: task.meetingId || null, // Thêm trường meetingId
+            reviewerId: task.reviewerId || null, // Thêm trường reviewerId
+            reviewerName: task.reviewerName || 'No Reviewer' // Thêm trường reviewerName
+          };
+        });
 
         setAllTasks(mappedTasks);
         setIsSearched(true);
@@ -418,19 +402,20 @@ export default function StudentTasks() {
       }
     },
     {
-      key: 'progress',
-      title: 'Progress',
-      render: (task) => (
-        <div className={styles.progressInfo}>
-          <div className={styles.progressBar}>
-            <div 
-              className={styles.progressFill}
-              style={{ width: `${task.progress}%` }}
-            />
-          </div>
-          <div className={styles.progressText}>{task.progress}%</div>
-        </div>
-      )
+      key: 'reviewer',
+      title: 'Reviewer',
+      render: (task) => {
+        const reviewerName = task.reviewerName || 'No Reviewer';
+        const isNoReviewer = !task.reviewerName || task.reviewerName === 'No Reviewer';
+        return (
+          <span style={{ 
+            color: isNoReviewer ? '#9ca3af' : 'inherit',
+            fontStyle: isNoReviewer ? 'italic' : 'normal'
+          }}>
+            {reviewerName}
+          </span>
+        );
+      }
     },
     {
       key: 'deadline',
@@ -574,35 +559,90 @@ export default function StudentTasks() {
       };  
 
       const response = await axiosClient.post('/Student/Task/create', taskData);
-      
       if (response.data.status === 200) {
-        // Tạo task object mới với thông tin từ API response
-        const createdTask = response.data.data;
-        const task = {
-          id: createdTask.id,
-          title: createdTask.title || newTask.title,
-          description: createdTask.description || newTask.description,
-          assignee: createdTask.assigneeId, // ID của student được assign
-          assigneeName: createdTask.assigneeName || selectedAssignee?.label || 'Unknown',
-          deadline: createdTask.deadline || newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          priority: createdTask.priority?.toLowerCase() || newTask.priority,
-          status: createdTask.status === 'ToDo' ? 'todo' : 
-                 createdTask.status === 'InProgress' ? 'inProgress' : 'done',
-          deliverableId: createdTask.deliverableId || (newTask.deliverableId ? parseInt(newTask.deliverableId) : null),
-          deliverableName: createdTask.deliverableName || selectedMilestone?.name || 'No Deliverable',
-          createdAt: createdTask.createdAt || new Date().toISOString(),
-          progress: parseInt(createdTask.process) || 0,
-          attachments: createdTask.attachments || [],
-          comments: createdTask.comments || []
-        };
+        const createdTaskId = response.data.data?.id;
+        
+        if (createdTaskId) {
+          // Fetch lại task vừa tạo để có đầy đủ thông tin từ API
+          try {
+            const fetchResponse = await axiosClient.get(`/Student/Task/get-by-id/${createdTaskId}`);
+            if (fetchResponse.data.status === 200) {
+              const taskData = fetchResponse.data.data;
+              
+              // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
+              const mappedStatus = taskData.status?.toLowerCase() === 'todo' ? 'todo' : 
+                                  taskData.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
+              
+              // Map task object giống như fetchTasks
+              const task = {
+                id: taskData.id,
+                title: taskData.title,
+                description: taskData.description,
+                groupId: taskData.group?.id?.toString() || groupId || '1',
+                assignee: taskData.assigneeId,
+                assigneeName: taskData.assigneeName,
+                deadline: taskData.deadline,
+                priority: taskData.priority?.toLowerCase() || 'medium',
+                status: mappedStatus,
+                deliverableId: taskData.milestone?.id || null,
+                deliverableName: taskData.milestone?.name || 'No Deliverable',
+                createdAt: taskData.createdAt,
+                progress: parseInt(taskData.process) || 0,
+                attachments: taskData.attachments || [],
+                comments: taskData.comments || [],
+                history: taskData.history || [],
+                isActive: taskData.isActive !== undefined ? taskData.isActive : true,
+                isMeetingTask: taskData.isMeetingTask || false,
+                meetingId: taskData.meetingId || null,
+                reviewerId: taskData.reviewerId || null,
+                reviewerName: taskData.reviewerName || 'No Reviewer'
+              };
 
-        setTasks(prev => [task, ...prev]);
+              // Thêm task mới vào allTasks để hiển thị ngay lập tức
+              setAllTasks(prev => [task, ...prev]);
+              setTasks(prev => [task, ...prev]);
+            }
+          } catch (fetchError) {
+            console.error('Error fetching created task:', fetchError);
+            // Nếu không fetch được, vẫn thử tạo task object từ response ban đầu
+            const createdTask = response.data.data;
+            const mappedStatus = createdTask.status?.toLowerCase() === 'todo' ? 'todo' : 
+                                createdTask.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
+            
+            const task = {
+              id: createdTask.id,
+              title: createdTask.title || createdTask.name || newTask.title,
+              description: createdTask.description || newTask.description,
+              groupId: createdTask.groupId?.toString() || groupId || '1',
+              assignee: createdTask.assigneeId || createdTask.assignedUserId || parseInt(newTask.assignee),
+              assigneeName: createdTask.assigneeName || selectedAssignee?.label || 'Unknown',
+              deadline: createdTask.deadline || createdTask.endAt || newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              priority: createdTask.priority?.toLowerCase() || newTask.priority,
+              status: mappedStatus,
+              deliverableId: createdTask.deliverableId || createdTask.milestone?.id || (newTask.deliverableId ? parseInt(newTask.deliverableId) : null),
+              deliverableName: createdTask.deliverableName || createdTask.milestone?.name || selectedMilestone?.name || 'No Deliverable',
+              createdAt: createdTask.createdAt || new Date().toISOString(),
+              progress: parseInt(createdTask.process) || 0,
+              attachments: createdTask.attachments || [],
+              comments: createdTask.comments || [],
+              history: createdTask.history || [],
+              isActive: createdTask.isActive !== undefined ? createdTask.isActive : true,
+              isMeetingTask: createdTask.isMeetingTask || false,
+              meetingId: createdTask.meetingId || null,
+              reviewerId: createdTask.reviewerId || (selectedReviewer ? parseInt(selectedReviewer.id) : null),
+              reviewerName: createdTask.reviewerName || (selectedReviewer ? selectedReviewer.name : 'No Reviewer')
+            };
+            
+            setAllTasks(prev => [task, ...prev]);
+            setTasks(prev => [task, ...prev]);
+          }
+        }
 
         setNewTask({
           title: '',
           description: '',
           assignee: '',
-          priority: 'low',
+          priority: 'low', // Default priority là Low
           deliverableId: '',
           deadline: '',
           reviewer: ''
@@ -611,11 +651,11 @@ export default function StudentTasks() {
         alert('Task created successfully!');
       } else {
         console.error('Error creating task:', response.data.message);
-        alert(`Error tạo task: ${response.data.message}`);
+        alert(`Error creating task: ${response.data.message}`);
       }
     } catch (error) {
       console.error('Error creating task:', error);
-      alert(`Error tạo task: ${error.message}`);
+      alert(`Error creating task: ${error.message}`);
     }
   };
 
@@ -691,7 +731,7 @@ export default function StudentTasks() {
     try {
       // Gọi API create comment
       const commentData = {
-
+        taskId: parseInt(selectedTask.id),
         content: newComment.trim(),
         groupId: parseInt(groupId) ,
 
@@ -1149,10 +1189,9 @@ export default function StudentTasks() {
                 value={newTask.priority}
                 onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
               >
-                <option value="">Select Priority</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
                 <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
               </select>
             </div>
             
@@ -1173,7 +1212,32 @@ export default function StudentTasks() {
           <div className={styles.modalActions}>
             <button 
               className={`${styles.modalButton} ${styles.secondary}`}
-              onClick={() => setTaskModal(false)}
+              onClick={() => {
+                // Kiểm tra xem có dữ liệu đã nhập không
+                const hasData = newTask.title || newTask.description || newTask.assignee || 
+                               newTask.deliverableId || newTask.deadline || newTask.reviewer;
+                
+                if (hasData) {
+                  // Nếu có dữ liệu, hiển thị confirm dialog
+                  const confirmCancel = window.confirm('Bạn có muốn hủy tạo task không? Tất cả thông tin đã nhập sẽ bị xóa.');
+                  if (confirmCancel) {
+                    // Clear toàn bộ data và đóng modal
+                    setNewTask({
+                      title: '',
+                      description: '',
+                      assignee: '',
+                      priority: 'low', // Default priority là Low
+                      deliverableId: '',
+                      deadline: '',
+                      reviewer: ''
+                    });
+                    setTaskModal(false);
+                  }
+                } else {
+                  // Nếu không có dữ liệu, đóng modal luôn
+                  setTaskModal(false);
+                }
+              }}
             >
               Cancel
             </button>

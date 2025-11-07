@@ -67,12 +67,11 @@ export default function SupervisorTaskDetail() {
             assigneeName: taskData.assigneeName,
             deadline: taskData.deadline,
             priority: taskData.priority?.toLowerCase() || 'medium',
-            status: taskData.status === 'ToDo' ? 'todo' : 
-                   taskData.status === 'InProgress' ? 'inProgress' : 'done',
+            status: taskData.status.toLowerCase() === 'todo' ? 'todo' : 
+                   taskData.status.toLowerCase() === 'inprogress' ? 'inProgress' : 'done',
             milestoneId: taskData.milestone?.id || null,
             milestoneName: taskData.milestone?.name || 'No Milestone',
             createdAt: taskData.createdAt,
-            progress: parseInt(taskData.process) || 0,
             attachments: taskData.attachments || [],
             comments: taskData.comments || [],
             history: taskData.history || [],
@@ -131,7 +130,7 @@ export default function SupervisorTaskDetail() {
     try {
       // Gọi API create comment
       const commentData = {
-
+        taskId: parseInt(taskId),
         feedback: newComment.trim(),
         groupId: parseInt(groupId) ,
 
@@ -250,18 +249,6 @@ export default function SupervisorTaskDetail() {
                   {task.status === 'todo' ? 'To Do' : 
                    task.status === 'inProgress' ? 'In Progress' : 'Done'}
                 </span>
-              </div>
-              <div className={styles.infoItem}>
-                <label>Progress:</label>
-                <div className={styles.progressDisplay}>
-                  <span>{task.progress}%</span>
-                  <div className={styles.progressBar}>
-                    <div
-                      className={styles.progressFill}
-                      style={{ width: `${task.progress}%` }}
-                    />
-                  </div>
-                </div>
               </div>
               <div className={styles.infoItem}>
                 <label>Active:</label>

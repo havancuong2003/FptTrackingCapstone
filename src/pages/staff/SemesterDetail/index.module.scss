@@ -302,7 +302,17 @@
 
 .vacationActions {
   display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.saveContainer {
+  display: flex;
   justify-content: center;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #dee2e6;
 }
 
 .updateVacationBtn {
@@ -455,6 +465,11 @@
       font-weight: 500;
       color: #555;
       font-size: 14px;
+      
+      .required {
+        color: #dc3545;
+        margin-left: 2px;
+      }
     }
     
     input {
@@ -477,18 +492,19 @@
 }
 
 .addPeriodBtn {
-  background: #28a745;
-  color: white;
-  border: none;
-  padding: 10px 20px;
+  background: transparent;
+  color: #6c757d;
+  border: 1px solid #6c757d;
+  padding: 8px 16px;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
-  transition: background 0.2s ease;
-  margin-right: 10px;
+  transition: all 0.2s ease;
   
   &:hover {
-    background: #218838;
+    background: #f8f9fa;
+    color: #495057;
+    border-color: #495057;
   }
 }
 

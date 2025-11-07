@@ -1,316 +1,258 @@
 import React from 'react';
 import styles from './index.module.scss';
-import Button from '../../../components/Button/Button';
-import Modal from '../../../components/Modal/Modal';
+import DataTable from '../../../components/DataTable/DataTable';
+import client from '../../../utils/axiosClient';
 
 export default function StudentDocuments() {
-  const [documents, setDocuments] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-  const [uploadModal, setUploadModal] = React.useState(false);
-  const [selectedDocument, setSelectedDocument] = React.useState(null);
-  const [viewModal, setViewModal] = React.useState(false);
-  const [newDocument, setNewDocument] = React.useState({
-    fileName: '',
-    fileType: 'reference',
-    description: '',
-    tags: ''
-  });
+  const [loading, setLoading] = React.useState(false);
+  const [message, setMessage] = React.useState('');
+  const [groupOptions, setGroupOptions] = React.useState([]);
+  const [selectedGroupId, setSelectedGroupId] = React.useState('');
+  const [groupInfo, setGroupInfo] = React.useState(null);
+  const [files, setFiles] = React.useState([]);
 
   React.useEffect(() => {
-    const fetchDocuments = async () => {
-      try {
-        setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        const mockData = {
-          "status": 200,
-          "message": "Fetched successfully",
-          "data": [
-            {
-              "id": 1,
-              "fileName": "react_best_practices.pdf",
-              "fileSize": "3.2MB",
-              "uploadDate": "2025-10-12T09:00:00Z",
-              "uploadedBy": "SE00001",
-              "uploadedByName": "Nguyen Van A",
-              "aiSummary": {
-                "summary": "This document covers React best practices including component structure, state management, and performance optimization techniques.",
-                "keywords": ["React", "Components", "State Management", "Performance", "Best Practices"],
-                "objective": "To provide guidelines for writing clean and efficient React code",
-                "conclusion": "Following these practices will improve code quality and maintainability"
-              },
-              "type": "reference",
-              "tags": ["React", "Frontend", "Development"]
-            },
-            {
-              "id": 2,
-              "fileName": "database_design_notes.docx",
-              "fileSize": "1.5MB",
-              "uploadDate": "2025-10-14T16:30:00Z",
-              "uploadedBy": "SE00002",
-              "uploadedByName": "Nguyen Van B",
-              "aiSummary": {
-                "summary": "Database design notes covering entity relationships, normalization, and indexing strategies for the project.",
-                "keywords": ["Database", "Design", "Relationships", "Normalization", "Indexing"],
-                "objective": "To document database design decisions and rationale",
-                "conclusion": "The database design follows 3NF normalization and includes proper indexing for performance"
-              },
-              "type": "internal",
-              "tags": ["Database", "Design", "Internal"]
-            }
-          ]
-        };
-        
-        setDocuments(mockData.data);
-      } catch (error) {
-        console.error('Error fetching documents:', error);
+    loadUserAndGroups();
+  }, []);
+
+  const loadUserAndGroups = async () => {
+    setLoading(true);
+    setMessage('');
+    try {
+      const res = await client.get('/auth/user-info');
+      if (res?.data?.status === 200) {
+        const groups = Array.isArray(res.data.data?.groups) ? res.data.data.groups : [];
+        if (groups.length === 0) {
+          setGroupOptions([]);
+          setSelectedGroupId('');
+          setFiles([]);
+          return;
+        }
+        const fetchInfos = await Promise.allSettled(
+          groups.map((gid) => client.get(`/Staff/capstone-groups/${gid}`))
+        );
+        const options = fetchInfos.map((r, idx) => {
+          const gid = String(groups[idx]);
+          if (r.status === 'fulfilled' && r.value?.data?.status === 200) {
+            const gi = r.value.data.data || {};
+            const label = gi.groupCode ? `${gi.groupCode} - ${gi.projectName || ''}`.trim() : `Nhóm #${gid}`;
+            return { value: gid, label };
+          }
+          return { value: gid, label: `Nhóm #${gid}` };
+        });
+        setGroupOptions(options);
+        const firstId = String(groups[0]);
+        setSelectedGroupId(firstId);
+        await Promise.all([loadGroupInfo(firstId), loadFiles(firstId)]);
+      } else {
+        setMessage(res?.data?.message || 'Không lấy được thông tin người dùng');
+      }
+    } catch (e) {
+      setMessage(e?.message || 'Không lấy được thông tin người dùng');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDocuments();
-  }, []);
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const onSelectGroup = async (groupId) => {
+    setSelectedGroupId(groupId);
+    setGroupInfo(null);
+    setFiles([]);
+    if (!groupId) return;
+    await Promise.all([loadGroupInfo(groupId), loadFiles(groupId)]);
   };
 
-  const getTypeInfo = (type) => {
-    switch (type) {
-      case 'reference':
-        return { color: '#3b82f6', text: 'Reference', icon: '📚' };
-      case 'internal':
-        return { color: '#059669', text: 'Internal', icon: '📄' };
-      case 'guideline':
-        return { color: '#d97706', text: 'Guideline', icon: '📋' };
-      default:
-        return { color: '#64748b', text: 'Unknown', icon: '📄' };
+  const loadGroupInfo = async (groupId) => {
+    try {
+      setLoading(true);
+      const res = await client.get(`/Staff/capstone-groups/${groupId}`);
+      if (res?.data?.status === 200) {
+        setGroupInfo(res.data.data);
+      } else {
+        setMessage(res?.data?.message || 'Không lấy được thông tin nhóm');
+      }
+    } catch (e) {
+      setMessage(e?.message || 'Không lấy được thông tin nhóm');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const openViewModal = (document) => {
-    setSelectedDocument(document);
-    setViewModal(true);
+  const loadFiles = async (groupId) => {
+    try {
+      setLoading(true);
+      const res = await client.get(`/upload/files`, { params: { groupId } });
+      if (res?.data?.status === 200) {
+        setFiles(res.data.data || []);
+      } else {
+        setFiles([]);
+        setMessage(res?.data?.message || 'Không lấy được danh sách tài liệu');
+      }
+    } catch (e) {
+      setFiles([]);
+      setMessage(e?.message || 'Không lấy được danh sách tài liệu');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const openUploadModal = () => {
-    setUploadModal(true);
+  const getUploadsBaseOrigin = () => {
+    try {
+      const base = client.defaults.baseURL || '';
+      const u = new URL(base, window.location.origin);
+      return u.origin;
+    } catch {
+      return '';
+    }
   };
 
-  const uploadDocument = () => {
-    alert('Document uploaded successfully! (Mock)');
-    setUploadModal(false);
-    setNewDocument({
-      fileName: '',
-      fileType: 'reference',
-      description: '',
-      tags: ''
-    });
+  const handleDownload = async (row) => {
+    const origin = getUploadsBaseOrigin();
+    const url = `${origin}${row.path}`;
+    try {
+      // Tải blob để buộc trình duyệt tải xuống thay vì mở xem
+      const resp = await fetch(url, { credentials: 'include' });
+      if (!resp.ok) throw new Error('Không thể tải file');
+      const blob = await resp.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = row.fileName || 'download';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      // Fallback: mở link trực tiếp nếu blob thất bại
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = row.fileName || 'download';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   };
 
-  if (loading) {
-    return (
-      <div className={styles.loading}>
-        <div>Loading documents...</div>
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return 'Invalid Date';
+      return d.toLocaleString('vi-VN');
+    } catch {
+      return 'Invalid Date';
+    }
+  };
+
+  const columns = [
+    {
+      key: 'fileName',
+      title: 'Tên tài liệu',
+      render: (row) => (
+        <div>
+          <div style={{ fontWeight: 600 }}>{row.fileName || '—'}</div>
+          <div style={{ fontSize: 12, opacity: 0.7 }}>{row.path}</div>
+        </div>
+      )
+    },
+    {
+      key: 'userName',
+      title: 'Người upload',
+      render: (row) => row.userName || '—'
+    },
+    {
+      key: 'createAt',
+      title: 'Thời gian',
+      render: (row) => formatDate(row.createAt)
+    },
+    {
+      key: 'actions',
+      title: 'Thao tác',
+      render: (row) => (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDownload(row); }}
+            style={{
+              background: '#2563EB',
+              color: '#fff',
+              border: 'none',
+              padding: '6px 10px',
+              borderRadius: 6,
+              cursor: 'pointer'
+            }}
+          >Tải xuống</button>
       </div>
-    );
+      )
   }
+  ];
 
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <h1>Documents</h1>
-        <Button onClick={openUploadModal}>
-          Upload Document
-        </Button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          <div>
+            <h1 style={{ margin: 0 }}>Tài liệu từ Supervisor</h1>
+            <div style={{ opacity: 0.7, marginTop: 4 }}>Sinh viên có thể tải các tài liệu được supervisor chia sẻ</div>
       </div>
-      
-      <p className={styles.subtitle}>
-        Share and access documents with your team. AI summaries are automatically generated for each document.
-      </p>
-      
-      <div className={styles.documentsList}>
-        {documents.map((document) => {
-          const typeInfo = getTypeInfo(document.type);
-          return (
-            <div key={document.id} className={styles.documentCard}>
-              <div className={styles.documentHeader}>
-                <div className={styles.documentInfo}>
-                  <h3>{document.fileName}</h3>
-                  <p className={styles.documentMeta}>
-                    {document.fileSize} • Uploaded by {document.uploadedByName} • {formatDate(document.uploadDate)}
-                  </p>
-                </div>
-                <div className={styles.documentType}>
-                  <span 
-                    className={styles.typeIcon}
-                    style={{ color: typeInfo.color }}
-                  >
-                    {typeInfo.icon}
-                  </span>
-                  <span 
-                    className={styles.typeText}
-                    style={{ color: typeInfo.color }}
-                  >
-                    {typeInfo.text}
-                  </span>
-                </div>
-              </div>
-              
-              <div className={styles.documentTags}>
-                {document.tags.map((tag, index) => (
-                  <span key={index} className={styles.tag}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
-              
-              <div className={styles.documentSummary}>
-                <h4>AI Summary</h4>
-                <p className={styles.summaryText}>{document.aiSummary.summary}</p>
-                <div className={styles.summaryDetails}>
-                  <div className={styles.summaryItem}>
-                    <strong>Keywords:</strong> {document.aiSummary.keywords.join(', ')}
-                  </div>
-              </div>
-            </div>
-            
-            <div className={styles.documentActions}>
-              <Button variant="secondary" size="sm">
-                Download
-              </Button>
-              <Button 
-                variant="secondary" 
-                size="sm"
-                onClick={() => openViewModal(document)}
+          {groupOptions.length > 1 && (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 260 }}>
+              <select
+                value={selectedGroupId}
+                onChange={(e) => onSelectGroup(e.target.value)}
+                className={styles.select}
               >
-                View Details
-              </Button>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-    
-    {documents.length === 0 && (
-      <div className={styles.emptyState}>
-        <p>No documents available yet.</p>
-        <p>Upload your first document to get started.</p>
+                {groupOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
       </div>
     )}
-
-    <Modal open={uploadModal} onClose={() => setUploadModal(false)}>
-      <div className={styles.uploadModal}>
-        <h2>Upload New Document</h2>
-        
-        <div className={styles.formGroup}>
-          <label>File Name</label>
-          <input
-            type="text"
-            value={newDocument.fileName}
-            onChange={(e) => setNewDocument({...newDocument, fileName: e.target.value})}
-            placeholder="Enter file name"
-            className={styles.input}
-          />
-        </div>
-        
-        <div className={styles.formGroup}>
-          <label>Document Type</label>
-          <select
-            value={newDocument.fileType}
-            onChange={(e) => setNewDocument({...newDocument, fileType: e.target.value})}
-            className={styles.select}
-          >
-            <option value="reference">Reference</option>
-            <option value="internal">Internal</option>
-            <option value="guideline">Guideline</option>
-          </select>
-        </div>
-        
-        <div className={styles.formGroup}>
-          <label>Description</label>
-          <textarea
-            value={newDocument.description}
-            onChange={(e) => setNewDocument({...newDocument, description: e.target.value})}
-            placeholder="Enter document description"
-            className={styles.textarea}
-            rows={3}
-          />
-        </div>
-        
-        <div className={styles.formGroup}>
-          <label>Tags (comma separated)</label>
-          <input
-            type="text"
-            value={newDocument.tags}
-            onChange={(e) => setNewDocument({...newDocument, tags: e.target.value})}
-            placeholder="e.g., React, Frontend, Development"
-            className={styles.input}
-          />
-        </div>
-        
-        <div className={styles.modalActions}>
-          <Button variant="secondary" onClick={() => setUploadModal(false)}>
-            Cancel
-          </Button>
-          <Button onClick={uploadDocument}>
-            Upload Document
-          </Button>
         </div>
       </div>
-    </Modal>
 
-    <Modal open={viewModal} onClose={() => setViewModal(false)}>
-      {selectedDocument && (
-        <div className={styles.viewModal}>
-          <h2>Document Details</h2>
-          
-          <div className={styles.documentDetail}>
-            <h3>{selectedDocument.fileName}</h3>
-            <p><strong>Type:</strong> {getTypeInfo(selectedDocument.type).text}</p>
-            <p><strong>Size:</strong> {selectedDocument.fileSize}</p>
-            <p><strong>Uploaded by:</strong> {selectedDocument.uploadedByName}</p>
-            <p><strong>Upload date:</strong> {formatDate(selectedDocument.uploadDate)}</p>
+      {message && (
+        <div className={styles.message}>{message}</div>
+      )}
+
+      {selectedGroupId && groupInfo && (
+        <div className={styles.groupInfo}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0 }}>{groupInfo.groupCode} — {groupInfo.projectName}</h2>
+            <button
+              onClick={() => loadFiles(selectedGroupId)}
+              style={{
+                background: '#0EA5E9',
+                color: '#fff',
+                border: 'none',
+                padding: '6px 10px',
+                borderRadius: 6,
+                cursor: 'pointer'
+              }}
+            >Làm mới</button>
           </div>
-          
-          <div className={styles.aiSummary}>
-            <h3>AI Summary</h3>
-            <div className={styles.summarySection}>
-              <h4>Summary</h4>
-              <p>{selectedDocument.aiSummary.summary}</p>
-            </div>
-            
-            <div className={styles.summarySection}>
-              <h4>Keywords</h4>
-              <div className={styles.keywordsList}>
-                {selectedDocument.aiSummary.keywords.map((keyword, index) => (
-                  <span key={index} className={styles.keyword}>
-                    {keyword}
-                  </span>
-                ))}
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
+            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Semester: <b>{groupInfo.semesterId}</b></div>
+            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Số SV: <b>{Array.isArray(groupInfo.students) ? groupInfo.students.length : 0}</b></div>
+            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Supervisors: <b>{(groupInfo.supervisors || []).join(', ')}</b></div>
               </div>
             </div>
-            
-            <div className={styles.summarySection}>
-              <h4>Objective</h4>
-              <p>{selectedDocument.aiSummary.objective}</p>
-            </div>
-            
-            <div className={styles.summarySection}>
-              <h4>Conclusion</h4>
-              <p>{selectedDocument.aiSummary.conclusion}</p>
-            </div>
+      )}
+
+      {selectedGroupId && (
+        <div className={styles.semesterList}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontWeight: 600 }}>Danh sách tài liệu</div>
+            <div style={{ opacity: 0.7 }}>{files.length} tài liệu</div>
           </div>
+          <DataTable
+            columns={columns}
+            data={files}
+            loading={loading}
+            emptyMessage="Chưa có tài liệu nào"
+          />
         </div>
       )}
-    </Modal>
   </div>
 );
 }

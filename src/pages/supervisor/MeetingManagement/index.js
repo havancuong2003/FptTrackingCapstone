@@ -1,11 +1,15 @@
 import React from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
+import DataTable from '../../../components/DataTable/DataTable';
+import { useNavigate } from 'react-router-dom';
+import useLocalStorage from '../../../hooks/useLocalStorage';
 import Input from '../../../components/Input/Input';
 import Textarea from '../../../components/Textarea/Textarea';
 import client from '../../../utils/axiosClient';
 
 export default function SupervisorMeetingManagement() {
+  const navigate = useNavigate();
   const [meetings, setMeetings] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedMeeting, setSelectedMeeting] = React.useState(null);
@@ -24,6 +28,9 @@ export default function SupervisorMeetingManagement() {
   const [formErrors, setFormErrors] = React.useState({});
   const [selectedMeetingGroupInfo, setSelectedMeetingGroupInfo] = React.useState(null);
   const [allGroupsInfo, setAllGroupsInfo] = React.useState({});
+  const [selectedGroupId, setSelectedGroupId] = useLocalStorage('supervisorSelectedGroupId', '');
+  const [groupOptions, setGroupOptions] = React.useState([]);
+  const [meetingIssues, setMeetingIssues] = React.useState([]);
 
   // API Base URL
   const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
@@ -40,12 +47,15 @@ export default function SupervisorMeetingManagement() {
         const userData = response.data.data;
         setUserInfo(userData);
         
-        // Lấy danh sách meetings cho tất cả nhóm mà supervisor hướng dẫn
+        // Chỉ load thông tin nhóm để chọn; chưa load meetings
         if (userData.groups && userData.groups.length > 0) {
-          await fetchAllMeetings(userData.groups);
-        } else {
-          setLoading(false);
+          await fetchAllGroupsInfo(userData.groups);
+          // Nếu đã lưu nhóm trước đó và thuộc danh sách nhóm hiện tại, tự động load meetings
+          if (selectedGroupId && userData.groups.includes(Number(selectedGroupId))) {
+            await fetchMeetingsByGroup(selectedGroupId);
+          }
         }
+        setLoading(false);
       } else {
         setLoading(false);
       }
@@ -71,58 +81,39 @@ export default function SupervisorMeetingManagement() {
         }
       }
       setAllGroupsInfo(groupsInfo);
+      // Build group options cho select
+      const options = groupIds.map(gid => ({
+        value: String(gid),
+        label: groupsInfo[gid]?.projectName ? `${groupsInfo[gid].projectName} (Nhóm ${gid})` : `Nhóm ${gid}`
+      }));
+      setGroupOptions(options);
     } catch (error) {
       console.error('Error fetching all groups info:', error);
     }
   };
 
-  // Lấy meetings của tất cả nhóm mà supervisor hướng dẫn
-  const fetchAllMeetings = async (groupIds) => {
+  // Lấy meetings theo nhóm đã chọn
+  const fetchMeetingsByGroup = async (groupId) => {
+    if (!groupId) return;
     try {
-      
-      // Fetch thông tin tất cả các nhóm trước
-      await fetchAllGroupsInfo(groupIds);
-      
-      // Lấy meetings của tất cả nhóm
-      const allMeetings = [];
-      for (const groupId of groupIds) {
-        try {
-          const response = await client.get(`${API_BASE_URL}/Student/Meeting/group/${groupId}/schedule-dates`);
-          if (response.data.status === 200) {
-            const meetingsData = response.data.data;
-            if (meetingsData && meetingsData.length > 0) {
-              // Thêm thông tin nhóm vào mỗi meeting
-              const meetingsWithGroup = meetingsData.map(meeting => ({
-                ...meeting,
-                groupId: groupId
-              }));
-              allMeetings.push(...meetingsWithGroup);
-            }
-          }
-        } catch (error) {
-          console.error(`Error fetching meetings for group ${groupId}:`, error);
-        }
+      setLoading(true);
+      const response = await client.get(`${API_BASE_URL}/Student/Meeting/group/${groupId}/schedule-dates`);
+      if (response.data.status === 200) {
+        const meetingsData = response.data.data || [];
+        // API đã trả về isMinute, không cần gọi API để check nữa
+        const meetingsWithGroup = meetingsData.map(meeting => ({
+          ...meeting,
+          groupId
+        }));
+        meetingsWithGroup.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
+        setMeetings(meetingsWithGroup);
+      } else {
+        setMeetings([]);
       }
-      
-      // Sắp xếp theo thời gian diễn ra cuộc họp
-      allMeetings.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
-      
-      // Lấy meeting minutes cho từng meeting
-      const meetingsWithMinutes = await Promise.all(
-        allMeetings.map(async (meeting) => {
-          const meetingMinute = await fetchMeetingMinute(meeting.id);
-          return {
-            ...meeting,
-            hasMinute: !!meetingMinute,
-            minuteData: meetingMinute
-          };
-        })
-      );
-      setMeetings(meetingsWithMinutes);
-      setLoading(false);
     } catch (error) {
-      console.error('Error fetching all meetings:', error);
-      console.error('Error details:', error.response?.data || error.message);
+      console.error('Error fetching meetings by group:', error);
+      setMeetings([]);
+    } finally {
       setLoading(false);
     }
   };
@@ -241,11 +232,39 @@ export default function SupervisorMeetingManagement() {
   const getStatusText = (status) => {
     switch (status) {
       case 'Completed': return 'Đã họp';
-      case 'Past': return 'Đã qua';
+      case 'Past': return 'Chưa họp';
       case 'Upcoming': return 'Sắp diễn ra';
       default: return 'Không xác định';
     }
   };
+
+  const formatDateTime = (dateString) => {
+    try {
+      return new Date(dateString).toLocaleString('vi-VN');
+    } catch { return dateString; }
+  };
+
+  const meetingIssueColumns = [
+    { key: 'name', title: 'Issue' },
+    { key: 'deadline', title: 'Hạn', render: (row) => formatDateTime(row.deadline) },
+    {
+      key: 'actions',
+      title: '',
+      render: (row) => (
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/supervisor/task/group/${row.groupId}?taskId=${row.id}`);
+            }}
+            style={{
+              background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
+            }}
+          >Chi tiết</button>
+        </div>
+      )
+    }
+  ];
 
   // Fetch group info for meeting
   const fetchMeetingGroupInfo = async (groupId) => {
@@ -260,6 +279,25 @@ export default function SupervisorMeetingManagement() {
     }
   };
 
+  // Fetch meeting issues (tasks) by meetingId
+  const fetchMeetingIssues = async (meetingId) => {
+    try {
+      const res = await client.get(`${API_BASE_URL}/Student/Task/meeting-tasks/${meetingId}`);
+      const data = res.data?.data;
+      const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
+      setMeetingIssues(tasks.map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        deadline: t.deadline,
+        isActive: t.isActive,
+        groupId: t.groupId
+      })));
+    } catch (e) {
+      setMeetingIssues([]);
+    }
+  };
+
   // Hàm mở modal biên bản họp
   const openMinuteModal = async (meeting) => {
     setSelectedMeeting(meeting);
@@ -268,21 +306,35 @@ export default function SupervisorMeetingManagement() {
     // Fetch group info for this meeting
     await fetchMeetingGroupInfo(meeting.groupId);
     
-    // Sử dụng dữ liệu đã có hoặc fetch mới
-    const existingMinute = meeting.minuteData || await fetchMeetingMinute(meeting.id);
-    
-    if (existingMinute) {
-      setMinuteData(existingMinute);
-      setFormData({
-        startAt: existingMinute.startAt ? existingMinute.startAt.split('T')[0] + 'T' + existingMinute.startAt.split('T')[1].substring(0, 5) : '',
-        endAt: existingMinute.endAt ? existingMinute.endAt.split('T')[0] + 'T' + existingMinute.endAt.split('T')[1].substring(0, 5) : '',
-        attendance: existingMinute.attendance || '',
-        issue: existingMinute.issue || '',
-        meetingContent: existingMinute.meetingContent || '',
-        other: existingMinute.other || ''
-      });
-      setIsEditing(true);
+    // Chỉ fetch meeting minute nếu isMinute === true
+    if (meeting.isMinute === true) {
+      const meetingMinute = await fetchMeetingMinute(meeting.id);
+      if (meetingMinute) {
+        setMinuteData(meetingMinute);
+        setFormData({
+          startAt: meetingMinute.startAt ? meetingMinute.startAt.split('T')[0] + 'T' + meetingMinute.startAt.split('T')[1].substring(0, 5) : '',
+          endAt: meetingMinute.endAt ? meetingMinute.endAt.split('T')[0] + 'T' + meetingMinute.endAt.split('T')[1].substring(0, 5) : '',
+          attendance: meetingMinute.attendance || '',
+          issue: meetingMinute.issue || '',
+          meetingContent: meetingMinute.meetingContent || '',
+          other: meetingMinute.other || ''
+        });
+        setIsEditing(true);
+      } else {
+        // Nếu API báo có minute nhưng fetch không ra, reset form
+        setMinuteData(null);
+        setFormData({
+          startAt: '',
+          endAt: '',
+          attendance: '',
+          issue: '',
+          meetingContent: '',
+          other: ''
+        });
+        setIsEditing(false);
+      }
     } else {
+      // Chưa có minute, chỉ xem (supervisor không tạo được)
       setMinuteData(null);
       setFormData({
         startAt: '',
@@ -294,6 +346,9 @@ export default function SupervisorMeetingManagement() {
       });
       setIsEditing(false);
     }
+
+    // Load meeting issues
+    await fetchMeetingIssues(meeting.id);
   };
 
   // Hàm đóng modal
@@ -389,9 +444,9 @@ export default function SupervisorMeetingManagement() {
         alert('Tạo biên bản họp thành công!');
       }
       
-      // Refresh meetings data
-      if (userInfo?.groups) {
-        await fetchAllMeetings(userInfo.groups);
+      // Refresh meetings data theo nhóm đang chọn
+      if (selectedGroupId) {
+        await fetchMeetingsByGroup(selectedGroupId);
       }
       
       closeMinuteModal();
@@ -411,9 +466,9 @@ export default function SupervisorMeetingManagement() {
       await deleteMeetingMinute(minuteData.id);
       alert('Xóa biên bản họp thành công!');
       
-      // Refresh meetings data
-      if (userInfo?.groups) {
-        await fetchAllMeetings(userInfo.groups);
+      // Refresh meetings data theo nhóm đang chọn
+      if (selectedGroupId) {
+        await fetchMeetingsByGroup(selectedGroupId);
       }
       
       closeMinuteModal();
@@ -431,75 +486,7 @@ export default function SupervisorMeetingManagement() {
     );
   }
 
-  // Hiển thị thông báo nếu không có meetings
-  if (!loading && meetings.length === 0) {
-  return (
-    <div className={styles.container}>
-      <div className={styles.header} style={{
-        background: 'white',
-        padding: '24px',
-        borderRadius: '8px',
-        marginBottom: '20px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        border: '1px solid #e5e7eb'
-      }}>
-        <h1 style={{ 
-          margin: '0 0 8px 0', 
-          fontSize: '24px', 
-          fontWeight: '600',
-          color: '#1f2937'
-        }}>
-          Meeting Management - Supervisor
-        </h1>
-        <p style={{ 
-          margin: '0 0 16px 0', 
-          fontSize: '14px', 
-          color: '#6b7280'
-        }}>
-          Quản lý các buổi họp nhóm
-        </p>
-        
-        {userInfo && (
-          <div className={styles.userInfo} style={{
-            display: 'flex',
-            gap: '16px',
-            flexWrap: 'wrap'
-          }}>
-            <span style={{ fontSize: '14px', color: '#374151' }}>
-              <strong>Người dùng:</strong> {userInfo.name}
-            </span>
-            <span style={{ fontSize: '14px', color: '#374151' }}>
-              <strong>Vai trò:</strong> {userInfo.roleInGroup || userInfo.role}
-            </span>
-          </div>
-        )}
-        </div>
-        <div className={styles.noData}>
-          <h3>Không có cuộc họp nào</h3>
-          <p>Hiện tại chưa có cuộc họp nào được lên lịch cho các nhóm mà bạn hướng dẫn.</p>
-          {!userInfo && (
-            <div style={{ color: 'red', marginTop: '10px' }}>
-              <p><strong>Lỗi:</strong> Không thể lấy thông tin người dùng. Vui lòng kiểm tra:</p>
-              <ul style={{ textAlign: 'left', display: 'inline-block' }}>
-                <li>Đã đăng nhập chưa?</li>
-                <li>Token có hợp lệ không?</li>
-                <li>API có hoạt động không?</li>
-              </ul>
-          <Button 
-            onClick={() => {
-                  setLoading(true);
-                  fetchUserInfo();
-            }}
-                style={{ marginTop: '10px' }}
-          >
-                Thử lại
-          </Button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // Bỏ trạng thái hiển thị mặc định không meeting; sẽ hiện theo nhóm được chọn
 
   return (
     <div className={styles.container}>
@@ -542,7 +529,28 @@ export default function SupervisorMeetingManagement() {
           </div>
         )}
       </div>
+      {/* Select nhóm để lọc meetings */}
+      <div style={{ margin: '0 0 16px 0', display: 'flex', gap: 12, alignItems: 'center' }}>
+        <label style={{ fontSize: 14, color: '#374151' }}>Chọn nhóm:</label>
+        <select
+          value={selectedGroupId}
+          onChange={async (e) => {
+            const gid = e.target.value;
+            setSelectedGroupId(gid);
+            setMeetings([]);
+            if (gid) await fetchMeetingsByGroup(gid);
+          }}
+          style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', minWidth: 260 }}
+        >
+          <option value="">-- Chọn nhóm để xem meetings --</option>
+          {groupOptions.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
 
+      {/* Chỉ hiển thị danh sách khi đã chọn nhóm */}
+      {selectedGroupId && (
       <div className={styles.meetingsList}>
         {meetings.map((meeting) => {
           const meetingDate = new Date(meeting.meetingDate);
@@ -647,7 +655,7 @@ export default function SupervisorMeetingManagement() {
                 </div>
               </div>
 
-                {meeting.minuteData && (
+                {meeting.isMinute === true && (
                   <div className={styles.minutesSection} style={{
                     padding: '8px 10px',
                     backgroundColor: '#f0fdf4',
@@ -664,10 +672,7 @@ export default function SupervisorMeetingManagement() {
                     </h4>
                     <div className={styles.minutesInfo} style={{ fontSize: '12px', color: '#047857' }}>
                       <p style={{ margin: '2px 0' }}>
-                        <strong>Tạo bởi:</strong> {meeting.minuteData.createBy}
-                      </p>
-                      <p style={{ margin: '2px 0' }}>
-                        <strong>Thời gian tạo:</strong> {new Date(meeting.minuteData.createAt).toLocaleString('vi-VN')}
+                        Đã có biên bản họp cho cuộc họp này
                       </p>
                   </div>
                 </div>
@@ -699,7 +704,7 @@ export default function SupervisorMeetingManagement() {
                   Tham gia họp
                 </Button>
               
-                {meeting.minuteData ? (
+                {meeting.isMinute === true ? (
                 <Button 
                     onClick={() => openMinuteModal(meeting)}
                     className={styles.minuteButton}
@@ -722,6 +727,7 @@ export default function SupervisorMeetingManagement() {
           );
         })}
       </div>
+      )}
 
       {showMinuteModal && selectedMeeting && (
         <div 
@@ -747,7 +753,7 @@ export default function SupervisorMeetingManagement() {
               backgroundColor: 'white',
               borderRadius: '8px',
               padding: '24px',
-              maxWidth: '800px',
+              maxWidth: '1000px',
               width: '90%',
               maxHeight: '90vh',
               overflow: 'auto',
@@ -830,20 +836,17 @@ export default function SupervisorMeetingManagement() {
                       </div>
                     </div>
                     
+                    {/* Meeting Issues table thay cho phần vấn đề cần giải quyết */}
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Vấn đề cần giải quyết</h4>
-                      <div style={{ 
-                        fontSize: 13, 
-                        color: '#374151', 
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        padding: '12px',
-                        background: 'rgba(255,255,255,0.5)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        minHeight: '80px'
-                      }}>
-                        {minuteData?.issue || 'N/A'}
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Issues</h4>
+                      <div style={{ marginTop: 8, maxWidth: '100%', overflowX: 'hidden' }}>
+                        <DataTable
+                          columns={meetingIssueColumns}
+                          data={meetingIssues}
+                          loading={loading}
+                          emptyMessage="Chưa có issue nào"
+                          className={styles.compactTable || ''}
+                        />
                       </div>
                     </div>
                     
@@ -878,6 +881,7 @@ export default function SupervisorMeetingManagement() {
                   </p>
                 </div>
               )}
+
             </div>
 
             <div className={styles.modalFooter}>

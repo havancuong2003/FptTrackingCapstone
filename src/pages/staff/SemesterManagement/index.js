@@ -15,6 +15,18 @@ const SemesterManagement = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
+  // Convert yyyy-MM-dd (from input type="date") to dd/MM/yyyy for API
+  const convertDateToDDMMYYYY = (dateString) => {
+    if (!dateString) return '';
+    // Input type="date" returns yyyy-MM-dd format
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      const [year, month, day] = dateString.split('-');
+      return `${day}/${month}/${year}`;
+    }
+    // If already in dd/MM/yyyy format, return as is
+    return dateString;
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
@@ -28,12 +40,25 @@ const SemesterManagement = () => {
     setLoading(true);
     setMessage('');
 
+    // Validate dates are selected
+    if (!formData.startAt) {
+      setMessage('Error: Start Date is required');
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.endAt) {
+      setMessage('Error: End Date is required');
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Format dates to yyyy-MM-dd
+      // Convert dates from yyyy-MM-dd to dd/MM/yyyy for API
       const formattedData = {
         ...formData,
-        startAt: formData.startAt ? new Date(formData.startAt).toISOString().split('T')[0] : '',
-        endAt: formData.endAt ? new Date(formData.endAt).toISOString().split('T')[0] : ''
+        startAt: convertDateToDDMMYYYY(formData.startAt),
+        endAt: convertDateToDDMMYYYY(formData.endAt)
       };
       
       const response = await createSemester(formattedData);

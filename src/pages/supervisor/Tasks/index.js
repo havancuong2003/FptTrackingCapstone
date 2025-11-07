@@ -55,10 +55,10 @@ export default function SupervisorTasks() {
   const fetchMilestonesByGroup = async (gid) => {
     if (!gid) return [];
     try {
-      const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
-      
-      if (response.data.status === 200) {
-        const apiData = response.data.data;
+      //const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
+      const response = await axiosClient.get(`/deliverables/group/${gid}`);
+      if (response.data) {
+        const apiData = response.data;
         const milestonesData = Array.isArray(apiData) ? apiData : [];
         
         return milestonesData.map(milestone => ({
@@ -325,19 +325,20 @@ export default function SupervisorTasks() {
       }
     },
     {
-      key: 'progress',
-      title: 'Progress',
-      render: (task) => (
-        <div className={styles.progressInfo}>
-          <div className={styles.progressBar}>
-            <div 
-              className={styles.progressFill}
-              style={{ width: `${task.progress}%` }}
-            />
-          </div>
-          <div className={styles.progressText}>{task.progress}%</div>
-        </div>
-      )
+      key: 'reviewer',
+      title: 'Reviewer',
+      render: (task) => {
+        const reviewerName = task.reviewerName || 'No Reviewer';
+        const isNoReviewer = !task.reviewerName || task.reviewerName === 'No Reviewer';
+        return (
+          <span style={{ 
+            color: isNoReviewer ? '#9ca3af' : 'inherit',
+            fontStyle: isNoReviewer ? 'italic' : 'normal'
+          }}>
+            {reviewerName}
+          </span>
+        );
+      }
     },
     {
       key: 'deadline',
@@ -388,6 +389,10 @@ export default function SupervisorTasks() {
         
         // Map data từ API response sang format frontend
         const mappedTasks = tasksData.map(task => {
+          // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
+          const mappedStatus = task.status?.toLowerCase() === 'todo' ? 'todo' : 
+                              task.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
+          
           return {
             id: task.id,
             title: task.title,
@@ -397,8 +402,7 @@ export default function SupervisorTasks() {
             assigneeName: task.assigneeName,
             deadline: task.deadline,
             priority: task.priority?.toLowerCase() || 'medium',
-            status: task.status === 'ToDo' ? 'todo' : 
-                   task.status === 'InProgress' ? 'inProgress' : 'done',
+            status: mappedStatus,
             deliverableId: task.milestone?.id || null,
             deliverableName: task.milestone?.name || 'No Deliverable',
             createdAt: task.createdAt,
@@ -407,7 +411,9 @@ export default function SupervisorTasks() {
             comments: task.comments || [],
             history: task.history || [],
             isActive: task.isActive !== undefined ? task.isActive : true, // Thêm trường isActive từ API
-            isMeetingTask: task.isMeetingTask || false
+            isMeetingTask: task.isMeetingTask || false,
+            reviewerId: task.reviewerId || null, // Thêm trường reviewerId
+            reviewerName: task.reviewerName || 'No Reviewer' // Thêm trường reviewerName
           };
         });
 
@@ -459,6 +465,10 @@ export default function SupervisorTasks() {
         
         // Map data từ API response sang format frontend
         const mappedTasks = tasksData.map(task => {
+          // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
+          const mappedStatus = task.status?.toLowerCase() === 'todo' ? 'todo' : 
+                              task.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
+          
           return {
             id: task.id,
             title: task.title,
@@ -468,8 +478,7 @@ export default function SupervisorTasks() {
             assigneeName: task.assigneeName,
             deadline: task.deadline,
             priority: task.priority?.toLowerCase() || 'medium',
-            status: task.status === 'ToDo' ? 'todo' : 
-                   task.status === 'InProgress' ? 'inProgress' : 'done',
+            status: mappedStatus,
             deliverableId: task.milestone?.id || null,
             deliverableName: task.milestone?.name || 'No Deliverable',
             createdAt: task.createdAt,
@@ -478,7 +487,9 @@ export default function SupervisorTasks() {
             comments: task.comments || [],
             history: task.history || [],
             isActive: task.isActive !== undefined ? task.isActive : true, // Thêm trường isActive từ API
-            isMeetingTask: task.isMeetingTask || false
+            isMeetingTask: task.isMeetingTask || false,
+            reviewerId: task.reviewerId || null, // Thêm trường reviewerId
+            reviewerName: task.reviewerName || 'No Reviewer' // Thêm trường reviewerName
           };
         });
 
