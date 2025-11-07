@@ -1,51 +1,54 @@
 const supervisorMenu = [
-  // Chức năng chung (cùng thứ tự với student)
+  // Quản lý nhóm - quan trọng nhất
+  { 
+    path: "/supervisor/groups", 
+    label: "Groups", 
+    icon: "👥"
+  },
+  // Quản lý công việc
+  { 
+    path: "/supervisor/tasks", 
+    label: "Issues", 
+    icon: "✅"
+  },
+  // Quản lý lịch trình và cuộc họp
   {
     path: "/supervisor/calendar", 
     label: "Calendar", 
     icon: "📅"
   },
   { 
-    path: "/supervisor/tasks", 
-    label: "Issues", 
-    icon: "✅"
-  },
-  { 
     path: "/supervisor/schedule", 
     label: "Schedule Management", 
-    icon: "📅"
+    icon: "📆"
   },
   { 
     path: "/supervisor/meetings", 
     label: "Meeting Management", 
-    icon: "📅"
+    icon: "🤝"
   },
-  { 
-    path: "/supervisor/documents", 
-    label: "Documents", 
-    icon: "📦"
-  },
+  // Đánh giá và theo dõi
   { 
     path: "/supervisor/evaluation", 
     label: "Evaluation", 
     icon: "⭐"
   },
   { 
+    path: "/supervisor/tracking", 
+    label: "Tracking", 
+    icon: "📊"
+  },
+  // Tài liệu và quản lý phạt
+  { 
+    path: "/supervisor/documents", 
+    label: "Documents", 
+    icon: "📚"
+  },
+  { 
     path: "/supervisor/penalty-management", 
     label: "Penalty Management", 
     icon: "⚠️"
   },
-  // Chức năng riêng của supervisor
-  { 
-    path: "/supervisor/groups", 
-    label: "Groups", 
-    icon: "👥"
-  },
-  { 
-    path: "/supervisor/tracking", 
-    label: "Tracking", 
-    icon: "📊"
-  }
 ];
 
 export default supervisorMenu;
