@@ -220,30 +220,35 @@ export default function StudentTasks() {
       if (response.data.status === 200) {
         const apiData = response.data.data;
         const tasksData = Array.isArray(apiData) ? apiData : [];
-        const mappedTasks = tasksData.map(task => ({
-          id: task.id,
-          title: task.title,
-          description: task.description,
-          groupId: task.group?.id?.toString() || groupId || '1',
-          assignee: task.assigneeId,
-          assigneeName: task.assigneeName,
-          deadline: task.deadline,
-          priority: task.priority?.toLowerCase() || 'medium',
-          status: task.status === 'ToDo' ? 'todo' : 
-                 task.status === 'InProgress' ? 'inProgress' : 'done',
-          deliverableId: task.milestone?.id || null,
-          deliverableName: task.milestone?.name || 'No Deliverable',
-          createdAt: task.createdAt,
-          progress: parseInt(task.process) || 0,
-          attachments: task.attachments || [],
-          comments: task.comments || [],
-          history: task.history || [],
-          isActive: task.isActive !== undefined ? task.isActive : true, // Thêm trường isActive từ API
-          isMeetingTask: task.isMeetingTask || false, // Thêm trường isMeetingTask
-          meetingId: task.meetingId || null, // Thêm trường meetingId
-          reviewerId: task.reviewerId || null, // Thêm trường reviewerId
-          reviewerName: task.reviewerName || 'No Reviewer' // Thêm trường reviewerName
-        }));
+        const mappedTasks = tasksData.map(task => {
+          // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
+          const mappedStatus = task.status?.toLowerCase() === 'todo' ? 'todo' : 
+                              task.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
+          
+          return {
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            groupId: task.group?.id?.toString() || groupId || '1',
+            assignee: task.assigneeId,
+            assigneeName: task.assigneeName,
+            deadline: task.deadline,
+            priority: task.priority?.toLowerCase() || 'medium',
+            status: mappedStatus,
+            deliverableId: task.milestone?.id || null,
+            deliverableName: task.milestone?.name || 'No Deliverable',
+            createdAt: task.createdAt,
+            progress: parseInt(task.process) || 0,
+            attachments: task.attachments || [],
+            comments: task.comments || [],
+            history: task.history || [],
+            isActive: task.isActive !== undefined ? task.isActive : true, // Thêm trường isActive từ API
+            isMeetingTask: task.isMeetingTask || false, // Thêm trường isMeetingTask
+            meetingId: task.meetingId || null, // Thêm trường meetingId
+            reviewerId: task.reviewerId || null, // Thêm trường reviewerId
+            reviewerName: task.reviewerName || 'No Reviewer' // Thêm trường reviewerName
+          };
+        });
 
         setAllTasks(mappedTasks);
         setIsSearched(true);
@@ -554,29 +559,84 @@ export default function StudentTasks() {
       };  
 
       const response = await axiosClient.post('/Student/Task/create', taskData);
-      
       if (response.data.status === 200) {
-        // Tạo task object mới với thông tin từ API response
-        const createdTask = response.data.data;
-        const task = {
-          id: createdTask.id,
-          title: createdTask.title || newTask.title,
-          description: createdTask.description || newTask.description,
-          assignee: createdTask.assigneeId, // ID của student được assign
-          assigneeName: createdTask.assigneeName || selectedAssignee?.label || 'Unknown',
-          deadline: createdTask.deadline || newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-          priority: createdTask.priority?.toLowerCase() || newTask.priority,
-          status: createdTask.status === 'ToDo' ? 'todo' : 
-                 createdTask.status === 'InProgress' ? 'inProgress' : 'done',
-          deliverableId: createdTask.deliverableId || (newTask.deliverableId ? parseInt(newTask.deliverableId) : null),
-          deliverableName: createdTask.deliverableName || selectedMilestone?.name || 'No Deliverable',
-          createdAt: createdTask.createdAt || new Date().toISOString(),
-          progress: parseInt(createdTask.process) || 0,
-          attachments: createdTask.attachments || [],
-          comments: createdTask.comments || []
-        };
+        const createdTaskId = response.data.data?.id;
+        
+        if (createdTaskId) {
+          // Fetch lại task vừa tạo để có đầy đủ thông tin từ API
+          try {
+            const fetchResponse = await axiosClient.get(`/Student/Task/get-by-id/${createdTaskId}`);
+            if (fetchResponse.data.status === 200) {
+              const taskData = fetchResponse.data.data;
+              
+              // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
+              const mappedStatus = taskData.status?.toLowerCase() === 'todo' ? 'todo' : 
+                                  taskData.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
+              
+              // Map task object giống như fetchTasks
+              const task = {
+                id: taskData.id,
+                title: taskData.title,
+                description: taskData.description,
+                groupId: taskData.group?.id?.toString() || groupId || '1',
+                assignee: taskData.assigneeId,
+                assigneeName: taskData.assigneeName,
+                deadline: taskData.deadline,
+                priority: taskData.priority?.toLowerCase() || 'medium',
+                status: mappedStatus,
+                deliverableId: taskData.milestone?.id || null,
+                deliverableName: taskData.milestone?.name || 'No Deliverable',
+                createdAt: taskData.createdAt,
+                progress: parseInt(taskData.process) || 0,
+                attachments: taskData.attachments || [],
+                comments: taskData.comments || [],
+                history: taskData.history || [],
+                isActive: taskData.isActive !== undefined ? taskData.isActive : true,
+                isMeetingTask: taskData.isMeetingTask || false,
+                meetingId: taskData.meetingId || null,
+                reviewerId: taskData.reviewerId || null,
+                reviewerName: taskData.reviewerName || 'No Reviewer'
+              };
 
-        setTasks(prev => [task, ...prev]);
+              // Thêm task mới vào allTasks để hiển thị ngay lập tức
+              setAllTasks(prev => [task, ...prev]);
+              setTasks(prev => [task, ...prev]);
+            }
+          } catch (fetchError) {
+            console.error('Error fetching created task:', fetchError);
+            // Nếu không fetch được, vẫn thử tạo task object từ response ban đầu
+            const createdTask = response.data.data;
+            const mappedStatus = createdTask.status?.toLowerCase() === 'todo' ? 'todo' : 
+                                createdTask.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
+            
+            const task = {
+              id: createdTask.id,
+              title: createdTask.title || createdTask.name || newTask.title,
+              description: createdTask.description || newTask.description,
+              groupId: createdTask.groupId?.toString() || groupId || '1',
+              assignee: createdTask.assigneeId || createdTask.assignedUserId || parseInt(newTask.assignee),
+              assigneeName: createdTask.assigneeName || selectedAssignee?.label || 'Unknown',
+              deadline: createdTask.deadline || createdTask.endAt || newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              priority: createdTask.priority?.toLowerCase() || newTask.priority,
+              status: mappedStatus,
+              deliverableId: createdTask.deliverableId || createdTask.milestone?.id || (newTask.deliverableId ? parseInt(newTask.deliverableId) : null),
+              deliverableName: createdTask.deliverableName || createdTask.milestone?.name || selectedMilestone?.name || 'No Deliverable',
+              createdAt: createdTask.createdAt || new Date().toISOString(),
+              progress: parseInt(createdTask.process) || 0,
+              attachments: createdTask.attachments || [],
+              comments: createdTask.comments || [],
+              history: createdTask.history || [],
+              isActive: createdTask.isActive !== undefined ? createdTask.isActive : true,
+              isMeetingTask: createdTask.isMeetingTask || false,
+              meetingId: createdTask.meetingId || null,
+              reviewerId: createdTask.reviewerId || (selectedReviewer ? parseInt(selectedReviewer.id) : null),
+              reviewerName: createdTask.reviewerName || (selectedReviewer ? selectedReviewer.name : 'No Reviewer')
+            };
+            
+            setAllTasks(prev => [task, ...prev]);
+            setTasks(prev => [task, ...prev]);
+          }
+        }
 
         setNewTask({
           title: '',
@@ -591,11 +651,11 @@ export default function StudentTasks() {
         alert('Task created successfully!');
       } else {
         console.error('Error creating task:', response.data.message);
-        alert(`Error tạo task: ${response.data.message}`);
+        alert(`Error creating task: ${response.data.message}`);
       }
     } catch (error) {
       console.error('Error creating task:', error);
-      alert(`Error tạo task: ${error.message}`);
+      alert(`Error creating task: ${error.message}`);
     }
   };
 

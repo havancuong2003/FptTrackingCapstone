@@ -735,6 +735,26 @@
   font-weight: 500;
 }
 
+.calendarDayLabel {
+  padding: 16px;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-right: 1px solid #e2e8f0;
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  &:hover {
+    background: #f8fafc;
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
 .calendarDayCell {
   padding: 8px;
   border-right: 1px solid #e2e8f0;

@@ -389,6 +389,10 @@ export default function SupervisorTasks() {
         
         // Map data từ API response sang format frontend
         const mappedTasks = tasksData.map(task => {
+          // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
+          const mappedStatus = task.status?.toLowerCase() === 'todo' ? 'todo' : 
+                              task.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
+          
           return {
             id: task.id,
             title: task.title,
@@ -398,8 +402,7 @@ export default function SupervisorTasks() {
             assigneeName: task.assigneeName,
             deadline: task.deadline,
             priority: task.priority?.toLowerCase() || 'medium',
-            status: task.status === 'ToDo' ? 'todo' : 
-                   task.status === 'InProgress' ? 'inProgress' : 'done',
+            status: mappedStatus,
             deliverableId: task.milestone?.id || null,
             deliverableName: task.milestone?.name || 'No Deliverable',
             createdAt: task.createdAt,
@@ -462,6 +465,10 @@ export default function SupervisorTasks() {
         
         // Map data từ API response sang format frontend
         const mappedTasks = tasksData.map(task => {
+          // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
+          const mappedStatus = task.status?.toLowerCase() === 'todo' ? 'todo' : 
+                              task.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
+          
           return {
             id: task.id,
             title: task.title,
@@ -471,8 +478,7 @@ export default function SupervisorTasks() {
             assigneeName: task.assigneeName,
             deadline: task.deadline,
             priority: task.priority?.toLowerCase() || 'medium',
-            status: task.status === 'ToDo' ? 'todo' : 
-                   task.status === 'InProgress' ? 'inProgress' : 'done',
+            status: mappedStatus,
             deliverableId: task.milestone?.id || null,
             deliverableName: task.milestone?.name || 'No Deliverable',
             createdAt: task.createdAt,

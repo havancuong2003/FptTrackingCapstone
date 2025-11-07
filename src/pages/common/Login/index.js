@@ -118,29 +118,6 @@ export default function Login() {
             )}
           </Button>
         </form>
-
-        <div className={styles.demoAccounts}>
-          <h3>Tài khoản demo</h3>
-          <div className={styles.accountList}>
-            <div className={styles.accountItem}>
-              <span className={styles.role}>Admin</span>
-              <span className={styles.credentials}>admin / 123456</span>
-            </div>
-            <div className={styles.accountItem}>
-              <span className={styles.role}>Staff</span>
-              <span className={styles.credentials}>sont5 / 123456</span>
-            </div>
-            <div className={styles.accountItem}>
-              <span className={styles.role}>Student</span>
-              <span className={styles.credentials}>haildhe172452 / 123456</span>
-            </div>
-            <div className={styles.accountItem}>
-              <span className={styles.role}>Supervisor</span>
-              <span className={styles.credentials}>anhpn / 123456</span>
-            </div>
-
-          </div>
-        </div>
       </div>
     </div>
   );

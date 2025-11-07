@@ -28,16 +28,37 @@ export default function App() {
 
   useEffect(() => {
     const pathname = location.pathname;
-    const match = routes.find(r => r.path === pathname) || routes.find(r => r.path === '*');
+    // Tìm route match chính xác trước
+    let match = routes.find(r => r.path === pathname);
+    
+    // Nếu không tìm thấy, thử match với route có tham số
+    if (!match) {
+      match = routes.find(r => {
+        if (r.path === '*' || !r.path.includes(':')) return false;
+        // Chuyển route path thành regex để match
+        const regex = new RegExp('^' + r.path.replace(/:[^/]+/g, '[^/]+') + '$');
+        return regex.test(pathname);
+      });
+    }
+    
+    // Cuối cùng mới dùng route catch-all
+    if (!match) {
+      match = routes.find(r => r.path === '*');
+    }
+    
     document.title = (match && match.meta && match.meta.title) ? match.meta.title : 'FPT Tracking Capstone';
   }, [location.pathname]);
+
+  // Tách route catch-all ra khỏi các route thường
+  const regularRoutes = routes.filter(route => route.path !== '*');
+  const notFoundRoute = routes.find(route => route.path === '*');
 
   return (
     <AppErrorBoundary>
       <LoadingOverlay />
       <Suspense fallback={<Spinner fullScreen />}>
         <Routes>
-          {routes.map(route => {
+          {regularRoutes.map(route => {
             const Element = route.element;
             const isProtected = route.meta && route.meta.protected;
             const noLayout = route.meta && route.meta.layout === 'none';
@@ -59,6 +80,17 @@ export default function App() {
               <Route key={route.path} path={route.path} element={content} />
             );
           })}
+          {notFoundRoute && (() => {
+            const Element = notFoundRoute.element;
+            const noLayout = notFoundRoute.meta && notFoundRoute.meta.layout === 'none';
+            let content = <Element />;
+            if (!noLayout) {
+              content = <DefaultLayout>{content}</DefaultLayout>;
+            }
+            return (
+              <Route key="*" path="*" element={content} />
+            );
+          })()}
         </Routes>
       </Suspense>
     </AppErrorBoundary>
