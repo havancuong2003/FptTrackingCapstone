@@ -69,10 +69,6 @@ export default function SupervisorEvaluation() {
   const [penaltyCards, setPenaltyCards] = React.useState([]);
   const [loadingPenaltyCards, setLoadingPenaltyCards] = React.useState(false);
   const [refreshTrigger, setRefreshTrigger] = React.useState(0);
-  
-  // State for penalty statistics
-  const [groupPenalties, setGroupPenalties] = React.useState([]);
-  const [loadingPenaltyStats, setLoadingPenaltyStats] = React.useState(false);
 
   // ------------------ Fetch Evaluations ------------------
   const fetchEvaluations = async () => {
@@ -275,157 +271,6 @@ export default function SupervisorEvaluation() {
     studentsToEvaluate = selectedMilestoneData?.students || [];
   }
   
-  // ------------------ Fetch Penalty Cards for Statistics ------------------
-  // Fetch penalty stats when studentsToEvaluate changes
-  React.useEffect(() => {
-    const fetchGroupPenalties = async () => {
-      if (!selectedGroup || !studentsToEvaluate || studentsToEvaluate.length === 0) {
-        setGroupPenalties([]);
-        return;
-      }
-      
-      setLoadingPenaltyStats(true);
-      try {
-        const response = await axiosClient.get('/Common/Evaluation/getCardGeneralFromMentorId');
-        
-        let allPenalties = [];
-        
-        // Kiểm tra nếu response.data là array trực tiếp
-        if (Array.isArray(response.data)) {
-          allPenalties = response.data;
-        } else if (response.data && response.data.status === 200) {
-          allPenalties = response.data.data || [];
-        } else {
-          allPenalties = [];
-        }
-        
-        // Lọc thẻ phạt theo nhóm được chọn và map studentName
-        const filteredPenalties = allPenalties.map(penalty => {
-          // Tìm student từ studentsToEvaluate
-          const student = studentsToEvaluate.find(s => {
-            const matchById = s.studentId === penalty.userId?.toString();
-            const matchByNumber = s.studentId === penalty.userId;
-            return matchById || matchByNumber;
-          });
-          
-          return {
-            ...penalty,
-            studentName: student?.name || penalty.studentName || 'Unknown',
-            studentId: penalty.userId
-          };
-        }).filter(penalty => {
-          // Chỉ lấy penalties của các sinh viên trong nhóm hiện tại
-          return studentsToEvaluate.some(s => {
-            const matchById = s.studentId === penalty.userId?.toString();
-            const matchByNumber = s.studentId === penalty.userId;
-            return matchById || matchByNumber;
-          });
-        });
-        
-        setGroupPenalties(filteredPenalties);
-      } catch (err) {
-        setGroupPenalties([]);
-      } finally {
-        setLoadingPenaltyStats(false);
-      }
-    };
-    
-    if (selectedGroup && studentsToEvaluate && studentsToEvaluate.length > 0) {
-      fetchGroupPenalties();
-    }
-  }, [selectedGroup, studentsToEvaluate.length]);
-  
-  // ------------------ Calculate Penalty Statistics by Student ------------------
-  const normalizePenaltyType = (rawType) => {
-    if (!rawType) return '';
-    const t = String(rawType).trim().toLowerCase();
-    // English variants
-    if (t === 'warning' || t.includes('warn')) return 'warning';
-    if (t === 'no-deduction' || t === 'no_deduction' || t === 'no deduction' || t.includes('no-deduct')) return 'no-deduction';
-    if (t === 'deduction' || t.includes('deduct') || t.includes('minus')) return 'deduction';
-    // Vietnamese variants
-    if (t.includes('nhắc') || t.includes('nhac')) return 'warning';
-    if (t.includes('không trừ') || t.includes('khong tru') || t.includes('không tru') || t.includes('khong trừ')) return 'no-deduction';
-    if (t.includes('trừ điểm') || t.includes('tru diem') || t.includes('trừ diem') || t.includes('tru điểm')) return 'deduction';
-    return t;
-  };
-
-  const getStudentPenaltyStats = () => {
-    if (!studentsToEvaluate || studentsToEvaluate.length === 0) return [];
-    
-    return studentsToEvaluate.map(student => {
-      const studentPenalties = groupPenalties.filter(p => {
-        const matchById = p.userId?.toString() === student.studentId;
-        const matchByNumber = p.userId === parseInt(student.studentId);
-        return matchById || matchByNumber;
-      });
-      
-      const normalized = studentPenalties.map(p => ({ ...p, _type: normalizePenaltyType(p.type) }));
-
-      const stats = {
-        studentId: student.studentId,
-        studentName: student.name,
-        studentCode: student.id,
-        total: studentPenalties.length,
-        warning: normalized.filter(p => p._type === 'warning').length,
-        noDeduction: normalized.filter(p => p._type === 'no-deduction').length,
-        deduction: normalized.filter(p => p._type === 'deduction').length
-      };
-      
-      return stats;
-    });
-  };
-  
-  const studentPenaltyStats = getStudentPenaltyStats();
-  
-  // ------------------ Penalty Statistics Columns ------------------
-  const penaltyStatsColumns = [
-    {
-      key: 'student',
-      title: 'Student',
-      render: (stats) => (
-        <div className={styles.studentInfo}>
-          <strong>{stats.studentName}</strong>
-          <div className={styles.studentCode}>{stats.studentCode || ''}</div>
-        </div>
-      )
-    },
-    {
-      key: 'total',
-      title: 'Tổng số',
-      render: (stats) => (
-        <span className={styles.statTotal}>{stats.total}</span>
-      )
-    },
-    {
-      key: 'warning',
-      title: 'Nhắc nhở',
-      render: (stats) => (
-        <span className={`${styles.statBadge} ${styles.statWarning}`}>
-          {stats.warning}
-        </span>
-      )
-    },
-    {
-      key: 'noDeduction',
-      title: 'Không trừ điểm',
-      render: (stats) => (
-        <span className={`${styles.statBadge} ${styles.statNoDeduction}`}>
-          {stats.noDeduction}
-        </span>
-      )
-    },
-    {
-      key: 'deduction',
-      title: 'Trừ điểm',
-      render: (stats) => (
-        <span className={`${styles.statBadge} ${styles.statDeduction}`}>
-          {stats.deduction}
-        </span>
-      )
-    }
-  ];
-  
 
 
 
@@ -545,19 +390,19 @@ export default function SupervisorEvaluation() {
 
         return (
           <div className={styles.actions}>
-            <Button 
-              variant="primary"
-              size="small"
-              onClick={() => openEvaluateModal(student)}
-            >
-              Evaluate
-            </Button>
-            {studentEvaluation && (
+            {!studentEvaluation ? (
+              <Button 
+                variant="primary"
+                size="small"
+                onClick={() => openEvaluateModal(student)}
+              >
+                Evaluate
+              </Button>
+            ) : (
               <Button 
                 variant="secondary"
                 size="small"
                 onClick={() => openEditModal(student, studentEvaluation)}
-                style={{ marginLeft: '8px' }}
               >
                 Edit
               </Button>
@@ -1064,28 +909,6 @@ export default function SupervisorEvaluation() {
           </div>
         </div>
 
-        {/* ------------------ Penalty Statistics Section (moved below student table) ------------------ */}
-        {selectedGroup && (
-          <div className={styles.penaltyStatsSection}>
-            <div className={styles.statsHeader}>
-              <h2>Thống kê Thẻ phạt theo Sinh viên</h2>
-            </div>
-            <div className={styles.statsTableContainer}>
-              {loadingPenaltyStats ? (
-                <div className={styles.loadingStats}>Đang tải thống kê...</div>
-              ) : studentPenaltyStats.length > 0 ? (
-                <DataTable
-                  columns={penaltyStatsColumns}
-                  data={studentPenaltyStats}
-                  loading={false}
-                  emptyMessage="Không có thẻ phạt nào"
-                />
-              ) : (
-                <div className={styles.noStats}>Không có dữ liệu thống kê</div>
-              )}
-            </div>
-          </div>
-        )}
 
       </div>
 

@@ -26,14 +26,12 @@ const supervisorMenu = [
     icon: "📦"
   },
   { 
-    path: "/supervisor/evaluation", 
-    label: "Evaluation", 
-    icon: "⭐"
-  },
-  { 
-    path: "/supervisor/penalty-management", 
-    label: "Penalty Management", 
-    icon: "⚠️"
+    label: "Evaluation Management", 
+    icon: "⭐",
+    children: [
+      { path: "/supervisor/evaluation", label: "Evaluation List" },
+      { path: "/supervisor/penalty-management", label: "Penalty List" }
+    ]
   },
   // Chức năng riêng của supervisor
   { 
