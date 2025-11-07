@@ -144,7 +144,7 @@ export default function SupervisorSchedule() {
     }
   };
 
-  // Calculate merged schedule (common free times across all members)
+  // Calculate merged schedule (merge all free times from all members)
   const calculateMergedSchedule = (memberSchedulesData) => {
     const merged = {};
     const studentIds = Object.keys(memberSchedulesData);
@@ -158,43 +158,22 @@ export default function SupervisorSchedule() {
       const dayKey = day.value;
       const allTimeSlots = new Set();
       
-      // Collect all unique time slots for this day from all members
+      // Collect all unique time slots for this day from all members (union)
       studentIds.forEach(studentId => {
         const memberSchedule = memberSchedulesData[studentId] || {};
         const daySlots = memberSchedule[dayKey] || [];
         daySlots.forEach(slot => allTimeSlots.add(slot));
       });
       
-      // Calculate intersection: only time slots that ALL members have
-      let commonSlots = [];
-      if (studentIds.length > 0) {
-        const firstMemberSlots = new Set(memberSchedulesData[studentIds[0]]?.[dayKey] || []);
-        
-        // Find slots that exist in all members' schedules
-        allTimeSlots.forEach(slot => {
-          let isCommon = true;
-          for (let i = 0; i < studentIds.length; i++) {
-            const memberSchedule = memberSchedulesData[studentIds[i]] || {};
-            const daySlots = memberSchedule[dayKey] || [];
-            if (!daySlots.includes(slot)) {
-              isCommon = false;
-              break;
-            }
-          }
-          if (isCommon) {
-            commonSlots.push(slot);
-          }
-        });
-      }
-      
-      // Sort time slots from smallest to largest
-      commonSlots.sort((a, b) => {
+      // Convert Set to array and sort time slots from smallest to largest
+      const mergedSlots = Array.from(allTimeSlots);
+      mergedSlots.sort((a, b) => {
         const [h1, m1] = a.split(':').map(Number);
         const [h2, m2] = b.split(':').map(Number);
         return h1 * 60 + m1 - (h2 * 60 + m2);
       });
       
-      merged[dayKey] = commonSlots;
+      merged[dayKey] = mergedSlots;
     });
     
     setMergedSchedule(merged);
@@ -507,7 +486,7 @@ export default function SupervisorSchedule() {
               </div>
               <div className={styles.calendarBody}>
                 <div className={styles.calendarRow}>
-                  <div className={styles.calendarDayLabel}>Common Free Time</div>
+                  <div className={styles.calendarDayLabel}>All Free Time (Merged)</div>
                   {daysOfWeek.map(day => {
                     const dayKey = day.value;
                     const timeSlots = mergedSchedule[dayKey] || [];
