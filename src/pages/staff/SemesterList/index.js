@@ -40,6 +40,22 @@ const SemesterList = () => {
     }
   };
 
+  // Helper function to normalize date to YYYY-MM-DD format for comparison
+  const normalizeDate = (dateString) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      // Get date in local timezone and format as YYYY-MM-DD
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } catch (error) {
+      return '';
+    }
+  };
+
   const applyFilters = () => {
     let filtered = [...semesters];
 
@@ -50,15 +66,19 @@ const SemesterList = () => {
     }
 
     if (filters.startAt) {
-      filtered = filtered.filter(semester => 
-        new Date(semester.startAt) >= new Date(filters.startAt)
-      );
+      const filterDate = normalizeDate(filters.startAt);
+      filtered = filtered.filter(semester => {
+        const semesterDate = normalizeDate(semester.startAt);
+        return semesterDate >= filterDate;
+      });
     }
 
     if (filters.endAt) {
-      filtered = filtered.filter(semester => 
-        new Date(semester.endAt) <= new Date(filters.endAt)
-      );
+      const filterDate = normalizeDate(filters.endAt);
+      filtered = filtered.filter(semester => {
+        const semesterDate = normalizeDate(semester.endAt);
+        return semesterDate <= filterDate;
+      });
     }
 
     if (filters.description) {
@@ -93,20 +113,21 @@ const SemesterList = () => {
     });
   };
 
+  // Format date to dd/MM/yyyy
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
       const date = new Date(dateString);
       if (isNaN(date.getTime())) return 'Invalid Date';
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
     } catch (error) {
       return 'Invalid Date';
     }
   };
+
 
 
   const columns = [
