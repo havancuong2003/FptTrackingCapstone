@@ -486,7 +486,7 @@ export default function SupervisorSchedule() {
               </div>
               <div className={styles.calendarBody}>
                 <div className={styles.calendarRow}>
-                  <div className={styles.calendarDayLabel}>All Free Time (Merged)</div>
+                  <div className={styles.calendarDayLabel}>Common Free Time</div>
                   {daysOfWeek.map(day => {
                     const dayKey = day.value;
                     const timeSlots = mergedSchedule[dayKey] || [];
