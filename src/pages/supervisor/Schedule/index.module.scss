@@ -1,9 +1,12 @@
 .container {
-  padding: 24px;
+  padding: 16px;
   max-width: 1400px;
   margin: 0 auto;
   background: #f8fafc;
   min-height: 100vh;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .loading {
@@ -21,8 +24,8 @@
 .header {
   background: #fff;
   border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
+  padding: 16px;
+  margin-bottom: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   border: 1px solid #e2e8f0;
 }
@@ -55,7 +58,8 @@
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 24px;
+  padding: 16px;
+  margin-bottom: 16px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
@@ -229,6 +233,163 @@
 }
 
 /* Calendar View Styles */
+// Members Calendar View - Using DataTable
+.membersCalendarView {
+  margin-top: 12px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  
+  // Override DataTable styles for Members' Free Time
+  :global(.tableContainer) {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    max-width: 100% !important;
+  }
+  
+  :global(.table) {
+    min-width: 700px !important;
+    width: 100%;
+    table-layout: fixed;
+    
+    thead {
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8) !important;
+      color: #fff !important;
+      
+      th {
+        padding: 12px 8px !important;
+        text-align: center !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.2) !important;
+        color: #fff !important;
+        
+        &:first-child {
+          background: linear-gradient(135deg, #1e40af, #1e3a8a) !important;
+          min-width: 130px !important;
+        }
+        
+        &:last-child {
+          border-right: none !important;
+        }
+      }
+    }
+    
+    tbody {
+      tr {
+        border-bottom: 1px solid #e2e8f0;
+        transition: background-color 0.2s ease;
+        
+        &:hover {
+          background-color: #f8fafc;
+        }
+        
+        &:last-child {
+          border-bottom: none;
+        }
+        
+        td {
+          padding: 10px 8px !important;
+        }
+      }
+    }
+  }
+}
+
+.slotTimeHeader {
+  min-width: 150px;
+  background: linear-gradient(135deg, #1e40af, #1e3a8a) !important;
+}
+
+.slotTimeCell {
+  padding: 10px 8px;
+  background: #f8fafc;
+  border-right: 2px solid #e2e8f0;
+  vertical-align: top;
+  min-width: 130px;
+}
+
+.slotTimeLabel {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 13px;
+  margin-bottom: 3px;
+}
+
+.slotTimeRange {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.dayHeader {
+  min-width: 120px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 13px;
+}
+
+.calendarCell {
+  padding: 8px 6px;
+  vertical-align: top;
+  min-width: 100px;
+  text-align: center;
+}
+
+.studentsList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+
+.studentBadge {
+  display: inline-block;
+  padding: 4px 8px;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: linear-gradient(135deg, #bfdbfe, #93c5fd);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+  }
+}
+
+.emptyCell {
+  color: #cbd5e1;
+  font-style: italic;
+  font-size: 14px;
+  padding: 8px;
+}
+
+.noDataCell {
+  text-align: center;
+  padding: 40px;
+  color: #94a3b8;
+  font-size: 16px;
+  font-style: italic;
+}
+
+.slotRow {
+  &:nth-child(even) {
+    background-color: #fafbfc;
+  }
+}
+
 .calendarView {
   overflow-x: auto;
   border: 1px solid #e2e8f0;
@@ -479,27 +640,477 @@
 }
 
 // Responsive design
+@media (max-width: 1024px) {
+  .container {
+    padding: 16px;
+    overflow-x: hidden;
+  }
+  
+  .header {
+    padding: 16px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .header h1 {
+    font-size: 24px;
+    word-wrap: break-word;
+  }
+  
+  .section {
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  
+  .groupSelector, .daySelector {
+    flex-wrap: wrap;
+    gap: 12px;
+    width: 100%;
+  }
+  
+  .groupSelect, .daySelect {
+    min-width: 150px;
+    flex: 1;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .membersCalendarView {
+    overflow-x: auto;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+  }
+  
+  .membersCalendarTable {
+    min-width: 600px; // Trigger scroll when smaller
+    font-size: 12px;
+    
+    thead th {
+      padding: 10px 8px;
+      font-size: 11px;
+    }
+  }
+  
+  .slotTimeHeader {
+    min-width: 120px;
+  }
+  
+  .slotTimeCell {
+    padding: 10px 8px;
+    min-width: 120px;
+  }
+  
+  .slotTimeLabel {
+    font-size: 12px;
+  }
+  
+  .slotTimeRange {
+    font-size: 10px;
+  }
+  
+  .dayHeader {
+    min-width: 90px;
+    font-size: 11px;
+  }
+  
+  .calendarCell {
+    padding: 8px 6px;
+    min-width: 80px;
+  }
+  
+  .cellContent {
+    gap: 6px;
+  }
+  
+  .studentBadge {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+  
+  .emptyCell {
+    font-size: 12px;
+    padding: 6px;
+  }
+  
+  .suggestedTimesSection {
+    margin-top: 16px;
+    padding: 16px;
+  }
+  
+  .suggestedTimesSection h3 {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+  
+  .suggestedTimesList {
+    gap: 10px;
+  }
+  
+  .suggestedTimeButton {
+    padding: 12px;
+    font-size: 13px;
+  }
+  
+  .suggestedDay {
+    font-size: 14px;
+  }
+  
+  .suggestedTime {
+    font-size: 13px;
+  }
+  
+  .suggestedSlotCount {
+    font-size: 11px;
+  }
+}
+
 @media (max-width: 768px) {
+  .container {
+    padding: 12px;
+    overflow-x: hidden;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .header {
+    padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .header h1 {
+    font-size: 20px;
+    word-wrap: break-word;
+  }
+  
+  .header p {
+    font-size: 14px;
+    word-wrap: break-word;
+  }
+  
+  .section {
+    padding: 16px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  
+  .section h2 {
+    font-size: 18px;
+    word-wrap: break-word;
+  }
+  
+  .groupSelector, .daySelector {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+  }
+  
+  .groupSelect, .daySelect {
+    width: 100%;
+    min-width: auto;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .groupInfo {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+  
   .meetingForm {
     grid-template-columns: 1fr;
     gap: 16px;
+    width: 100%;
+    box-sizing: border-box;
   }
   
   .memberInfo {
     grid-template-columns: 1fr;
     gap: 4px;
+    width: 100%;
   }
   
   .freeTimeSlots {
     grid-template-columns: 1fr;
+    width: 100%;
   }
   
   .formActions {
     flex-direction: column;
+    width: 100%;
   }
   
   .finalizeBtn {
     width: 100%;
+    box-sizing: border-box;
+  }
+  
+  // Members Calendar Table Responsive
+  .membersCalendarView {
+    margin-top: 12px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    overflow-y: visible;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+  }
+  
+  .membersCalendarTable {
+    min-width: 500px; // Trigger scroll when smaller
+    font-size: 12px;
+    
+    thead th {
+      padding: 10px 8px;
+      font-size: 11px;
+    }
+  }
+  
+  .slotTimeCell {
+    padding: 10px 8px;
+    min-width: 120px;
+  }
+  
+  .slotTimeLabel {
+    font-size: 12px;
+  }
+  
+  .slotTimeRange {
+    font-size: 10px;
+  }
+  
+  .calendarCell {
+    padding: 8px 6px;
+    min-width: 80px;
+  }
+  
+  .studentBadge {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+  
+  .suggestedTimesSection {
+    margin-top: 16px;
+  }
+  
+  .suggestedTimesList {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 10px;
+  }
+  
+  .suggestedTimeButton {
+    padding: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  
+  .suggestedDay {
+    font-size: 13px;
+  }
+  
+  .suggestedTime {
+    font-size: 12px;
+  }
+  
+  .suggestedSlotCount {
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 8px;
+    overflow-x: hidden;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .header {
+    padding: 10px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .header h1 {
+    font-size: 18px;
+    word-wrap: break-word;
+  }
+  
+  .section {
+    padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+  
+  .section h2 {
+    font-size: 16px;
+    word-wrap: break-word;
+  }
+  
+  .membersCalendarView {
+    margin-top: 10px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    overflow-x: auto;
+    overflow-y: visible;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+  }
+  
+  .membersCalendarTable {
+    min-width: 400px; // Trigger scroll when smaller
+    font-size: 10px;
+    
+    thead th {
+      padding: 6px 4px;
+      font-size: 9px;
+    }
+  }
+  
+  .slotTimeHeader {
+    min-width: 80px;
+  }
+  
+  .slotTimeCell {
+    padding: 8px 6px;
+    min-width: 100px;
+  }
+  
+  .slotTimeLabel {
+    font-size: 11px;
+  }
+  
+  .slotTimeRange {
+    font-size: 9px;
+  }
+  
+  .calendarCell {
+    padding: 6px 4px;
+    min-width: 60px;
+  }
+  
+  .studentBadge {
+    padding: 3px 5px;
+    font-size: 9px;
+    max-width: 100%;
+  }
+  
+  .studentsList {
+    gap: 4px;
+  }
+  
+  .emptyCell {
+    font-size: 10px;
+    padding: 4px;
+  }
+  
+  .suggestedTimesSection {
+    margin-top: 12px;
+    padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .suggestedTimesSection h3 {
+    font-size: 14px;
+    margin-bottom: 10px;
+    word-wrap: break-word;
+  }
+  
+  .suggestedTimesList {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+  
+  .suggestedTimeButton {
+    padding: 10px;
+    font-size: 11px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: 100%;
+    box-sizing: border-box;
+    word-wrap: break-word;
+  }
+  
+  .suggestedDay {
+    font-size: 12px;
+    word-wrap: break-word;
+  }
+  
+  .suggestedTime {
+    font-size: 11px;
+    word-wrap: break-word;
+  }
+  
+  .suggestedSlotCount {
+    font-size: 9px;
+    word-wrap: break-word;
+  }
+  
+  .meetingSection {
+    padding: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .meetingSection h2 {
+    font-size: 14px;
+    margin-bottom: 12px;
+    word-wrap: break-word;
+  }
+  
+  .meetingForm {
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .formGroup {
+    width: 100%;
+    box-sizing: border-box;
+    
+    label {
+      font-size: 12px;
+      margin-bottom: 6px;
+      word-wrap: break-word;
+    }
+  }
+  
+  .daySelect,
+  .timeInput,
+  .meetingLinkInput {
+    padding: 8px;
+    font-size: 12px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+  
+  .formActions {
+    margin-top: 12px;
+    width: 100%;
+  }
+  
+  .finalizeBtn {
+    padding: 10px 16px;
+    font-size: 12px;
+    width: 100%;
+    box-sizing: border-box;
   }
 }
 
@@ -1420,22 +2031,28 @@
 }
 
 .suggestedTimesList {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 12px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .suggestedTimeButton {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px;
   background: #fff;
   border: 2px solid #3b82f6;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
+  width: 100%;
+  box-sizing: border-box;
   
   &:hover {
     background: linear-gradient(135deg, #3b82f6, #2563eb);
@@ -1449,6 +2066,20 @@
       color: white;
     }
   }
+}
+
+.suggestedTimeRow1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.suggestedTimeRow2 {
+  display: flex;
+  align-items: center;
+  width: 100%;
 }
 
 .suggestedTimeSelected {
@@ -1470,6 +2101,7 @@
   color: #1e40af;
   font-size: 15px;
   transition: color 0.3s ease;
+  white-space: nowrap;
 }
 
 .suggestedTime {
@@ -1477,6 +2109,7 @@
   color: #3b82f6;
   font-size: 16px;
   transition: color 0.3s ease;
+  white-space: nowrap;
 }
 
 .suggestedSlotCount {
@@ -1484,6 +2117,7 @@
   color: #64748b;
   font-weight: 500;
   transition: color 0.3s ease;
+  white-space: nowrap;
 }
 
 .meetingLinkSection {
@@ -1567,16 +2201,16 @@
 .freeTimeSection {
   background: #fff;
   border-radius: 12px;
-  padding: 24px;
+  padding: 16px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  margin-bottom: 32px;
+  margin-bottom: 16px;
   border: 1px solid #e2e8f0;
 }
 
 .freeTimeSection h2 {
-  margin: 0 0 24px 0;
+  margin: 0 0 16px 0;
   color: #1e293b;
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   background: linear-gradient(135deg, #3b82f6, #1d4ed8);
   -webkit-background-clip: text;

@@ -76,4 +76,14 @@ export async function updateStudentFreeTimeSlots(groupId, freeTimeData) {
 
 // ================== Supervisor Groups ==================
 
+// Get supervisor groups
+export async function getSupervisorGroups() {
+  try {
+    const response = await client.get('/Mentor/getGroups');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching supervisor groups:', error);
+    throw error;
+  }
+}
 
