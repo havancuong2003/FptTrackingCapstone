@@ -592,7 +592,7 @@ export default function SyncGroup() {
                               member.roleInGroup === 'Supervisor' ? styles.badgeSupervisor :
                               styles.badgeStudent
                             }>
-                              {member.roleInGroup || 'Student'}
+                              {member.roleInGroup === 'Student' ? 'Member' : (member.roleInGroup || 'Member')}
                             </span>
                           </td>
                           <td>

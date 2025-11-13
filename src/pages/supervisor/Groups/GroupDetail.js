@@ -33,6 +33,7 @@ export default function GroupDetail() {
             
             if (response.data.status === 200) {
                 const groupData = response.data.data;
+                console.log(" group data:  ", groupData);
                 const formattedGroup = {
                     id: groupData.id,
                     groupCode: groupData.groupCode,
@@ -42,7 +43,7 @@ export default function GroupDetail() {
                         id: student.rollNumber,
                         studentId: student.id,
                         name: student.name,
-                        currentRole: student.role === "1" ? 'Member' : (student.role || 'Member'),
+                        currentRole: student.role === "Student" ? 'Member' : (student.role || 'Member'),
                         email: student.email || ''
                     })),
                     supervisors: groupData.supervisors || [],
@@ -240,7 +241,7 @@ export default function GroupDetail() {
             </div>
         );
     }
-
+    console.log(" group members: ", group.members);
     return (
         <div className={styles.container}>
             <BackButton to="/supervisor/groups">← Quay lại</BackButton>
