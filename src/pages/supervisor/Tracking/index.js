@@ -135,6 +135,8 @@ export default function SupervisorTracking() {
         return '#dc2626'; // Red
       case 'Pending':
         return '#d97706'; // Orange/Yellow
+      case 'PENDING':
+        return '#d97706'; // Orange/Yellow
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
       case 'REJECTED':
@@ -151,6 +153,8 @@ export default function SupervisorTracking() {
       case 'LATE':
         return '⚠ Late';
       case 'Pending':
+        return '⏳ Pending Review';
+      case 'PENDING':
         return '⏳ Pending Review';
       case 'UNSUBMITTED':
         return '✗ Unsubmitted';
@@ -192,6 +196,16 @@ export default function SupervisorTracking() {
     }
   };
 
+  // Check if all items have at least one attachment (submitted)
+  const checkAllItemsSubmitted = () => {
+    if (!milestoneDetails?.deliveryItems) return false;
+    
+    return milestoneDetails.deliveryItems.every(item => {
+      // Item must have at least one attachment to be considered submitted
+      return item.attachments && item.attachments.length > 0;
+    });
+  };
+
   const checkAllAttachmentsDownloaded = () => {
     if (!milestoneDetails?.deliveryItems) return false;
     
@@ -207,8 +221,19 @@ export default function SupervisorTracking() {
     });
   };
 
+  // Combined check: all items submitted AND all attachments downloaded
+  const checkCanConfirm = () => {
+    return checkAllItemsSubmitted() && checkAllAttachmentsDownloaded();
+  };
+
   const handleConfirm = async () => {
     if (!selectedGroup?.id || !selectedMilestone) return;
+    
+    // Check if all items are submitted
+    if (!checkAllItemsSubmitted()) {
+      alert('Cannot confirm: Some items have not been submitted yet. Please wait for all items to be submitted.');
+      return;
+    }
     
     // Check if all attachments are downloaded
     if (!checkAllAttachmentsDownloaded()) {
@@ -749,7 +774,7 @@ export default function SupervisorTracking() {
             )}
 
             {/* Note Input and Actions */}
-            {selectedMilestone.status === 'Pending' && (
+            {selectedMilestone.status === 'Pending' || selectedMilestone.status === 'PENDING' && (
               <div style={{ marginTop: 24, padding: 16, background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#374151' }}>
                   Review Note (Required for rejection)
@@ -790,12 +815,24 @@ export default function SupervisorTracking() {
                     fontSize: isMobile ? '11px' : '12px', 
                     color: '#64748b',
                     wordBreak: 'break-word',
-                    flex: isMobile || isTablet ? 'none' : '1'
+                    flex: isMobile || isTablet ? 'none' : '1',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
                   }}>
-                    {checkAllAttachmentsDownloaded() ? 
-                      '✓ Latest attachments downloaded' : 
-                      '⚠ Please download the latest attachments before confirming'
-                    }
+                    {!checkAllItemsSubmitted() ? (
+                      <div style={{ color: '#dc2626', fontWeight: 600 }}>
+                        ⚠ Cannot confirm: Some items have not been submitted yet
+                      </div>
+                    ) : checkAllAttachmentsDownloaded() ? (
+                      <div style={{ color: '#059669', fontWeight: 600 }}>
+                        ✓ All items submitted and latest attachments downloaded
+                      </div>
+                    ) : (
+                      <div style={{ color: '#d97706', fontWeight: 600 }}>
+                        ⚠ Please download the latest attachments before confirming
+                      </div>
+                    )}
                   </div>
                   
                   <div style={{ 
@@ -819,13 +856,15 @@ export default function SupervisorTracking() {
                     </Button>
                     <Button
                       onClick={handleConfirm}
-                      disabled={confirming || !checkAllAttachmentsDownloaded()}
+                      disabled={confirming || !checkCanConfirm()}
                       style={{ 
                         background: '#059669', 
                         color: 'white',
                         fontSize: isMobile ? '11px' : '12px',
                         padding: isMobile ? '6px 10px' : '6px 12px',
-                        width: isMobile || isTablet ? '100%' : 'auto'
+                        width: isMobile || isTablet ? '100%' : 'auto',
+                        opacity: !checkCanConfirm() ? 0.5 : 1,
+                        cursor: !checkCanConfirm() ? 'not-allowed' : 'pointer'
                       }}
                     >
                       {confirming ? 'Confirming...' : 'Confirm'}

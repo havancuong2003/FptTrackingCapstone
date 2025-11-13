@@ -40,6 +40,18 @@ export default function StudentMeetingManagement() {
   });
   const [assigneeOptions, setAssigneeOptions] = React.useState([]);
   const [reviewerOptions, setReviewerOptions] = React.useState([]);
+  const [groupInfo, setGroupInfo] = React.useState(null);
+  const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
+  const [loadingMinuteModal, setLoadingMinuteModal] = React.useState(false);
+  const [showEditScheduleModal, setShowEditScheduleModal] = React.useState(false);
+  const [editingMeeting, setEditingMeeting] = React.useState(null);
+  const [scheduleForm, setScheduleForm] = React.useState({
+    meetingDate: '',
+    startAt: '',
+    endAt: '',
+    description: ''
+  });
+  const [weekDays, setWeekDays] = React.useState([]);
 
   // API Base URL
   const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
@@ -245,6 +257,102 @@ export default function StudentMeetingManagement() {
     }
   };
 
+  // Hàm lấy thông tin nhóm
+  const fetchGroupInfo = async (groupId) => {
+    try {
+      const response = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${groupId}`);
+      if (response.data.status === 200) {
+        return response.data.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching group info:', error);
+      return null;
+    }
+  };
+
+  // Hàm parse attendance text thành danh sách
+  const parseAttendance = (attendanceText, students) => {
+    if (!students || students.length === 0) {
+      return [];
+    }
+
+    if (!attendanceText || !attendanceText.trim()) {
+      // Nếu chưa có attendance text, tạo danh sách mặc định với tất cả đều không tham gia
+      return students.map(student => ({
+        studentId: student.id,
+        name: student.name,
+        rollNumber: student.rollNumber,
+        role: student.role || '',
+        attended: false,
+        reason: ''
+      }));
+    }
+
+    // Parse format: "Name (RollNumber): Tham gia" hoặc "Name (RollNumber): Nghỉ - Lý do"
+    const lines = attendanceText.split('\n').filter(line => line.trim());
+    const parsed = new Map();
+
+    lines.forEach(line => {
+      const match = line.match(/^(.+?)\s*\(([^)]+)\):\s*(.+)$/);
+      if (match) {
+        const [, name, rollNumber, status] = match;
+        const statusLower = status.toLowerCase();
+        const isAbsent = statusLower.includes('nghỉ') || statusLower.includes('vắng');
+        let reason = '';
+        
+        if (isAbsent) {
+          // Extract reason after "Nghỉ - " or "vắng - "
+          const reasonMatch = status.match(/(?:nghỉ|vắng)\s*-\s*(.+)/i);
+          reason = reasonMatch ? reasonMatch[1].trim() : status.replace(/^(nghỉ|vắng)\s*-?\s*/i, '').trim();
+        }
+        
+        parsed.set(rollNumber.trim(), {
+          name: name.trim(),
+          rollNumber: rollNumber.trim(),
+          attended: !isAbsent,
+          reason: reason
+        });
+      }
+    });
+
+    // Tạo danh sách từ students, nếu có trong parsed thì dùng, không thì mặc định tham gia
+    return students.map(student => {
+      const existing = parsed.get(student.rollNumber);
+      if (existing) {
+        return {
+          studentId: student.id,
+          name: student.name,
+          rollNumber: student.rollNumber,
+          role: student.role || '',
+          attended: existing.attended,
+          reason: existing.reason
+        };
+      }
+      return {
+        studentId: student.id,
+        name: student.name,
+        rollNumber: student.rollNumber,
+        role: student.role || '',
+        attended: false,
+        reason: ''
+      };
+    });
+  };
+
+  // Hàm format attendance list thành text
+  const formatAttendance = (attendanceList) => {
+    if (!attendanceList || attendanceList.length === 0) return '';
+    
+    return attendanceList.map(item => {
+      if (item.attended) {
+        return `${item.name} (${item.rollNumber}): Tham gia`;
+      } else {
+        return `${item.name} (${item.rollNumber}): Nghỉ - ${item.reason || 'Không có lý do'}`;
+      }
+    }).join('\n');
+  };
+
   // Hàm xác định màu sắc cho meeting card
   const getMeetingCardColor = (meeting) => {
     const now = new Date();
@@ -314,62 +422,30 @@ export default function StudentMeetingManagement() {
     }
   };
 
-  // Hàm mở modal biên bản họp
-  const openMinuteModal = async (meeting) => {
-    setSelectedMeeting(meeting);
-    setShowMinuteModal(true);
+  // Hàm format datetime-local từ meeting date và time
+  const formatDateTimeLocal = (meetingDate, timeString) => {
+    if (!meetingDate || !timeString) return '';
+    const date = new Date(meetingDate);
+    const [hours, minutes] = timeString.split(':');
+    date.setHours(parseInt(hours) || 0, parseInt(minutes) || 0, 0);
     
-    // Chỉ fetch meeting minute nếu isMinute === true
-    if (meeting.isMinute === true) {
-      const meetingMinute = await fetchMeetingMinute(meeting.id);
-      if (meetingMinute) {
-        setMinuteData(meetingMinute);
-        setFormData({
-          startAt: meetingMinute.startAt ? meetingMinute.startAt.split('T')[0] + 'T' + meetingMinute.startAt.split('T')[1].substring(0, 5) : '',
-          endAt: meetingMinute.endAt ? meetingMinute.endAt.split('T')[0] + 'T' + meetingMinute.endAt.split('T')[1].substring(0, 5) : '',
-          attendance: meetingMinute.attendance || '',
-          issue: '',
-          meetingContent: meetingMinute.meetingContent || '',
-          other: meetingMinute.other || ''
-        });
-        setIsEditing(true);
-      } else {
-        // Nếu API báo có minute nhưng fetch không ra, reset form
-        setMinuteData(null);
-        setFormData({
-          startAt: '',
-          endAt: '',
-          attendance: '',
-          issue: '',
-          meetingContent: '',
-          other: ''
-        });
-        setIsEditing(false);
-      }
-    } else {
-      // Chưa có minute, tạo mới
-      setMinuteData(null);
-      setFormData({
-        startAt: '',
-        endAt: '',
-        attendance: '',
-        issue: '',
-        meetingContent: '',
-        other: ''
-      });
-      setIsEditing(false);
-    }
-
-    // Load meeting issues
-    await fetchMeetingIssues(meeting.id);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hour}:${minute}`;
   };
 
-  // Hàm đóng modal
-  const closeMinuteModal = () => {
-    setShowMinuteModal(false);
-    setSelectedMeeting(null);
+  // Hàm mở modal biên bản họp
+  const openMinuteModal = async (meeting) => {
+    // Reset tất cả state trước
+    setSelectedMeeting(meeting);
     setMinuteData(null);
     setIsEditing(false);
+    setGroupInfo(null);
+    setAttendanceList([]);
     setFormData({
       startAt: '',
       endAt: '',
@@ -379,6 +455,110 @@ export default function StudentMeetingManagement() {
       other: ''
     });
     setFormErrors({});
+    setLoadingMinuteModal(true);
+    setShowMinuteModal(true);
+    
+    try {
+      // Fetch group info
+      if (userInfo?.groups && userInfo.groups.length > 0) {
+        const groupData = await fetchGroupInfo(userInfo.groups[0]);
+        if (groupData) {
+          setGroupInfo(groupData);
+          const students = Array.isArray(groupData.students) ? groupData.students : [];
+          
+          // Chỉ fetch meeting minute nếu isMinute === true
+          if (meeting.isMinute === true) {
+            const meetingMinute = await fetchMeetingMinute(meeting.id);
+            if (meetingMinute) {
+              setMinuteData(meetingMinute);
+              
+              // Parse attendance từ text
+              const parsedAttendance = parseAttendance(meetingMinute.attendance, students);
+              setAttendanceList(parsedAttendance);
+              
+              setFormData({
+                startAt: meetingMinute.startAt ? meetingMinute.startAt.split('T')[0] + 'T' + meetingMinute.startAt.split('T')[1].substring(0, 5) : formatDateTimeLocal(meeting.meetingDate, meeting.startAt),
+                endAt: meetingMinute.endAt ? meetingMinute.endAt.split('T')[0] + 'T' + meetingMinute.endAt.split('T')[1].substring(0, 5) : formatDateTimeLocal(meeting.meetingDate, meeting.endAt),
+                attendance: meetingMinute.attendance || '',
+                issue: '',
+                meetingContent: meetingMinute.meetingContent || '',
+                other: meetingMinute.other || ''
+              });
+              setIsEditing(true);
+            } else {
+              // Nếu API báo có minute nhưng fetch không ra, reset form
+              setMinuteData(null);
+              const defaultAttendance = parseAttendance('', students);
+              setAttendanceList(defaultAttendance);
+              setFormData({
+                startAt: formatDateTimeLocal(meeting.meetingDate, meeting.startAt),
+                endAt: formatDateTimeLocal(meeting.meetingDate, meeting.endAt),
+                attendance: '',
+                issue: '',
+                meetingContent: '',
+                other: ''
+              });
+              setIsEditing(false);
+            }
+          } else {
+            // Chưa có minute, tạo mới với default time
+            setMinuteData(null);
+            const defaultAttendance = parseAttendance('', students);
+            setAttendanceList(defaultAttendance);
+            setFormData({
+              startAt: formatDateTimeLocal(meeting.meetingDate, meeting.startAt),
+              endAt: formatDateTimeLocal(meeting.meetingDate, meeting.endAt),
+              attendance: '',
+              issue: '',
+              meetingContent: '',
+              other: ''
+            });
+            setIsEditing(false);
+          }
+        }
+      }
+
+      // Load meeting issues
+      await fetchMeetingIssues(meeting.id);
+    } finally {
+      setLoadingMinuteModal(false);
+    }
+  };
+
+  // Hàm đóng modal
+  const closeMinuteModal = () => {
+    setShowMinuteModal(false);
+    setSelectedMeeting(null);
+    setMinuteData(null);
+    setIsEditing(false);
+    setGroupInfo(null);
+    setAttendanceList([]);
+    setLoadingMinuteModal(false);
+    setFormData({
+      startAt: '',
+      endAt: '',
+      attendance: '',
+      issue: '',
+      meetingContent: '',
+      other: ''
+    });
+    setFormErrors({});
+  };
+
+  // Hàm xử lý thay đổi attendance
+  const handleAttendanceChange = (index, field, value) => {
+    setAttendanceList(prev => {
+      const updated = [...prev];
+      updated[index] = {
+        ...updated[index],
+        [field]: value
+      };
+      // Nếu đánh dấu là tham gia, xóa lý do
+      if (field === 'attended' && value === true) {
+        updated[index].reason = '';
+      }
+      return updated;
+    });
   };
 
   // Hàm xử lý thay đổi input
@@ -409,8 +589,14 @@ export default function StudentMeetingManagement() {
       errors.endAt = 'Thời gian kết thúc là bắt buộc';
     }
     
-    if (!formData.attendance || !formData.attendance.trim()) {
+    if (!attendanceList || attendanceList.length === 0) {
       errors.attendance = 'Danh sách tham gia là bắt buộc';
+    } else {
+      // Check nếu có người nghỉ nhưng không có lý do
+      const missingReasons = attendanceList.filter(item => !item.attended && !item.reason.trim());
+      if (missingReasons.length > 0) {
+        errors.attendance = 'Vui lòng nhập lý do cho những người không tham gia';
+      }
     }
     
     if (!formData.meetingContent || !formData.meetingContent.trim()) {
@@ -427,6 +613,10 @@ export default function StudentMeetingManagement() {
 
   // Hàm lưu biên bản họp
   const saveMeetingMinute = async () => {
+    // Format attendance từ attendanceList thành text trước khi validate
+    const attendanceText = formatAttendance(attendanceList);
+    setFormData(prev => ({ ...prev, attendance: attendanceText }));
+    
     if (!validateForm()) {
       return;
     }
@@ -434,15 +624,15 @@ export default function StudentMeetingManagement() {
     try {
       if (isEditing && minuteData) {
         // Cập nhật biên bản họp
-      const data = {
+        const data = {
           id: minuteData.id,
-        startAt: new Date(formData.startAt).toISOString(),
-        endAt: new Date(formData.endAt).toISOString(),
-        attendance: formData.attendance,
+          startAt: new Date(formData.startAt).toISOString(),
+          endAt: new Date(formData.endAt).toISOString(),
+          attendance: attendanceText,
           issue: '',
-        meetingContent: formData.meetingContent,
-        other: formData.other
-      };
+          meetingContent: formData.meetingContent,
+          other: formData.other
+        };
         await updateMeetingMinute(data);
         alert('Cập nhật biên bản họp thành công!');
       } else {
@@ -451,7 +641,7 @@ export default function StudentMeetingManagement() {
           meetingDateId: selectedMeeting.id,
           startAt: new Date(formData.startAt).toISOString(),
           endAt: new Date(formData.endAt).toISOString(),
-          attendance: formData.attendance,
+          attendance: attendanceText,
           issue: '',
           meetingContent: formData.meetingContent,
           other: formData.other
@@ -580,6 +770,108 @@ export default function StudentMeetingManagement() {
     }
   };
 
+  // Hàm tính các ngày trong tuần của meeting (tuần bắt đầu từ thứ 2)
+  const getWeekDays = (meetingDate) => {
+    const date = new Date(meetingDate);
+    const dayOfWeek = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    // Tính số ngày cần lùi lại để đến thứ 2 (Monday = 1)
+    // Nếu là Chủ nhật (0), lùi 6 ngày; nếu là thứ 2 (1), lùi 0 ngày; ...
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const startOfWeek = new Date(date);
+    startOfWeek.setDate(date.getDate() - daysToMonday);
+    
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(startOfWeek);
+      day.setDate(startOfWeek.getDate() + i);
+      days.push({
+        date: day,
+        dateString: day.toISOString().split('T')[0],
+        dayName: day.toLocaleDateString('vi-VN', { weekday: 'long' }),
+        display: day.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })
+      });
+    }
+    return days;
+  };
+
+  // Hàm mở modal sửa thời gian
+  const openEditScheduleModal = (meeting) => {
+    // Không cho sửa thời gian nếu đã họp
+    if (meeting.isMeeting === true) {
+      alert('Không thể sửa thời gian cuộc họp đã diễn ra!');
+      return;
+    }
+    
+    setEditingMeeting(meeting);
+    const weekDaysList = getWeekDays(meeting.meetingDate);
+    setWeekDays(weekDaysList);
+    
+    setScheduleForm({
+      meetingDate: meeting.meetingDate.split('T')[0],
+      startAt: meeting.startAt || '',
+      endAt: meeting.endAt || '',
+      description: meeting.description || ''
+    });
+    setShowEditScheduleModal(true);
+  };
+
+  // Hàm đóng modal sửa thời gian
+  const closeEditScheduleModal = () => {
+    setShowEditScheduleModal(false);
+    setEditingMeeting(null);
+    setScheduleForm({
+      meetingDate: '',
+      startAt: '',
+      endAt: '',
+      description: ''
+    });
+    setWeekDays([]);
+  };
+
+  // Hàm cập nhật thời gian meeting
+  const updateMeetingSchedule = async () => {
+    if (!editingMeeting) return;
+    
+    if (!scheduleForm.meetingDate || !scheduleForm.startAt || !scheduleForm.endAt || !scheduleForm.description.trim()) {
+      alert('Vui lòng nhập đầy đủ thông tin');
+      return;
+    }
+
+    if (scheduleForm.startAt >= scheduleForm.endAt) {
+      alert('Thời gian kết thúc phải sau thời gian bắt đầu');
+      return;
+    }
+
+    try {
+      const payload = {
+        meetingDate: new Date(scheduleForm.meetingDate).toISOString(),
+        startAt: scheduleForm.startAt,
+        endAt: scheduleForm.endAt,
+        description: scheduleForm.description.trim()
+      };
+
+      const response = await client.put(
+        `${API_BASE_URL}/Student/Meeting/schedule/${editingMeeting.id}`,
+        payload
+      );
+
+      if (response.data.status === 200) {
+        alert('Cập nhật thời gian cuộc họp thành công!');
+        closeEditScheduleModal();
+        
+        // Refresh meetings data
+        if (userInfo?.groups && userInfo.groups.length > 0) {
+          await fetchMeetings(userInfo.groups[0]);
+        }
+      } else {
+        alert(response.data.message || 'Cập nhật thất bại');
+      }
+    } catch (error) {
+      console.error('Error updating meeting schedule:', error);
+      alert('Có lỗi xảy ra khi cập nhật thời gian cuộc họp!');
+    }
+  };
+
 
   if (loading) {
     return (
@@ -684,6 +976,18 @@ export default function StudentMeetingManagement() {
             month: 'long',
             day: 'numeric'
           });
+          
+          // Format thời gian từ "HH:mm:ss" thành "HH:mm"
+          const formatTime = (timeString) => {
+            if (!timeString) return '';
+            const parts = timeString.split(':');
+            return `${parts[0]}:${parts[1]}`;
+          };
+          
+          const startTime = formatTime(meeting.startAt);
+          const endTime = formatTime(meeting.endAt);
+          const timeRange = startTime && endTime ? `${startTime} - ${endTime}` : (meeting.time || '');
+          
           const status = getMeetingStatus(meeting);
           const cardColor = getMeetingCardColor(meeting);
           
@@ -717,7 +1021,7 @@ export default function StudentMeetingManagement() {
                     fontSize: '13px',
                     color: '#6b7280'
                   }}>
-                    {formattedDate} - {meeting.time}
+                    {formattedDate} {timeRange && `- ${timeRange}`}
                   </p>
               </div>
               <div className={styles.meetingStatus} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -863,6 +1167,24 @@ export default function StudentMeetingManagement() {
                   Tham gia họp
                 </Button>
                 
+                {isSecretary && meeting.isMeeting !== true && (
+                  <Button 
+                    onClick={() => openEditScheduleModal(meeting)}
+                    style={{
+                      backgroundColor: '#8b5cf6',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Sửa thời gian
+                  </Button>
+                )}
+                
                 {meeting.isMinute === true ? (
                   <Button 
                     onClick={() => openMinuteModal(meeting)}
@@ -947,6 +1269,11 @@ export default function StudentMeetingManagement() {
               )}
             </div>
 
+            {loadingMinuteModal ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                <div>Đang tải dữ liệu...</div>
+              </div>
+            ) : (
             <div className={styles.modalBody}>
               <div className={styles.formRow}>
                 <div className={styles.formGroup}>
@@ -971,13 +1298,69 @@ export default function StudentMeetingManagement() {
 
               <div className={styles.formGroup}>
                 <label>Danh sách tham gia *</label>
-                <Textarea
-                  value={formData.attendance}
-                  onChange={(e) => handleInputChange('attendance', e.target.value)}
-                  placeholder="Ghi lại những ai tham gia cuộc họp..."
-                  rows={3}
-                  style={formErrors.attendance ? { borderColor: '#dc2626' } : {}}
-                />
+                {attendanceList.length > 0 ? (
+                  <div style={{
+                    border: `1px solid ${formErrors.attendance ? '#dc2626' : '#d1d5db'}`,
+                    borderRadius: '6px',
+                    padding: '8px',
+                    backgroundColor: '#f9fafb'
+                  }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Thành viên</th>
+                          <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Tham gia</th>
+                          <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Lý do nghỉ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {attendanceList.map((item, index) => (
+                          <tr key={item.studentId} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '6px 8px' }}>
+                              <div style={{ fontSize: '13px', fontWeight: '500', color: '#1f2937' }}>
+                                {item.name}
+                              </div>
+                              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '1px' }}>
+                                {item.rollNumber} {item.role && `- ${item.role}`}
+                              </div>
+                            </td>
+                            <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={item.attended}
+                                onChange={(e) => handleAttendanceChange(index, 'attended', e.target.checked)}
+                                style={{
+                                  width: '18px',
+                                  height: '18px',
+                                  cursor: 'pointer'
+                                }}
+                              />
+                            </td>
+                            <td style={{ padding: '6px 8px' }}>
+                              <Input
+                                type="text"
+                                value={item.reason}
+                                onChange={(e) => handleAttendanceChange(index, 'reason', e.target.value)}
+                                placeholder={item.attended ? "Lý do (nếu có)" : "Nhập lý do nghỉ..."}
+                                disabled={item.attended}
+                                style={{
+                                  fontSize: '12px',
+                                  padding: '4px 8px',
+                                  width: '100%',
+                                  backgroundColor: item.attended ? '#f3f4f6' : 'white'
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ padding: '12px', textAlign: 'center', color: '#6b7280', fontSize: '13px' }}>
+                    Đang tải danh sách thành viên...
+                  </div>
+                )}
                 {formErrors.attendance && (
                   <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
                     {formErrors.attendance}
@@ -1030,7 +1413,9 @@ export default function StudentMeetingManagement() {
                 />
               </div>
             </div>
+            )}
 
+            {!loadingMinuteModal && (
             <div className={styles.modalFooter}>
               {isSecretary && (
                 <>
@@ -1058,6 +1443,7 @@ export default function StudentMeetingManagement() {
                 {isSecretary ? 'Hủy' : 'Đóng'}
               </Button>
             </div>
+            )}
           </div>
         </div>
       )}
@@ -1149,6 +1535,119 @@ export default function StudentMeetingManagement() {
             <div className={styles.modalActions}>
               <button className={`${styles.modalButton} ${styles.secondary}`} onClick={() => setShowIssueModal(false)}>Hủy</button>
               <button className={`${styles.modalButton} ${styles.primary}`} onClick={createMeetingIssue}>Tạo issue</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditScheduleModal && editingMeeting && (
+        <div 
+          className={styles.modalOverlay}
+          onClick={closeEditScheduleModal}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '600px',
+              width: '90%',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+            }}
+          >
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: '600' }}>
+              Sửa thời gian cuộc họp
+            </h3>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
+                Chọn ngày trong tuần <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {weekDays.map((day) => (
+                  <button
+                    key={day.dateString}
+                    type="button"
+                    onClick={() => setScheduleForm(prev => ({ ...prev, meetingDate: day.dateString }))}
+                    style={{
+                      padding: '8px 12px',
+                      border: `2px solid ${scheduleForm.meetingDate === day.dateString ? '#8b5cf6' : '#d1d5db'}`,
+                      borderRadius: '6px',
+                      backgroundColor: scheduleForm.meetingDate === day.dateString ? '#f3e8ff' : 'white',
+                      color: scheduleForm.meetingDate === day.dateString ? '#8b5cf6' : '#374151',
+                      fontSize: '13px',
+                      fontWeight: scheduleForm.meetingDate === day.dateString ? '600' : '400',
+                      cursor: 'pointer',
+                      minWidth: '100px'
+                    }}
+                  >
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>{day.dayName}</div>
+                    <div>{day.display}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
+                Mô tả cuộc họp <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <Input
+                type="text"
+                value={scheduleForm.description}
+                onChange={(e) => setScheduleForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Nhập mô tả cuộc họp..."
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
+                  Thời gian bắt đầu <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <Input
+                  type="time"
+                  value={scheduleForm.startAt}
+                  onChange={(e) => setScheduleForm(prev => ({ ...prev, startAt: e.target.value }))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
+                  Thời gian kết thúc <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <Input
+                  type="time"
+                  value={scheduleForm.endAt}
+                  onChange={(e) => setScheduleForm(prev => ({ ...prev, endAt: e.target.value }))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <Button 
+                variant="secondary"
+                onClick={closeEditScheduleModal}
+              >
+                Hủy
+              </Button>
+              <Button 
+                onClick={updateMeetingSchedule}
+                style={{
+                  backgroundColor: '#8b5cf6',
+                  color: 'white'
+                }}
+              >
+                Cập nhật
+              </Button>
             </div>
           </div>
         </div>

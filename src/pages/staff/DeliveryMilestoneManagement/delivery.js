@@ -9,6 +9,34 @@ import { formatDate } from "../../../utils/date";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
+// Helper function to compare deadlines
+function compareDeadlines(deadlineA, deadlineB) {
+    if (!deadlineA && !deadlineB) return 0;
+    if (!deadlineA) return 1;
+    if (!deadlineB) return -1;
+    
+    // Parse "Week X - Day - HH:MM"
+    const partsA = deadlineA.split(" - ");
+    const partsB = deadlineB.split(" - ");
+    
+    if (partsA.length < 3 || partsB.length < 3) {
+        return deadlineA.localeCompare(deadlineB);
+    }
+    
+    // Compare week number
+    const weekA = parseInt(partsA[0].replace("Week ", "")) || 0;
+    const weekB = parseInt(partsB[0].replace("Week ", "")) || 0;
+    if (weekA !== weekB) return weekA - weekB;
+    
+    // Compare day
+    const dayA = DAYS.indexOf(partsA[1]);
+    const dayB = DAYS.indexOf(partsB[1]);
+    if (dayA !== dayB) return dayA - dayB;
+    
+    // Compare time
+    return (partsA[2] || "").localeCompare(partsB[2] || "");
+}
+
 export default function Delivery() {
     const [majors, setMajors] = React.useState([]);
     const [selectedMajorId, setSelectedMajorId] = React.useState("");
@@ -77,14 +105,20 @@ export default function Delivery() {
                 const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${selectedMajorId}`;
                 const res = await client.get(url);
                 const list = Array.isArray(res?.data?.data) ? res.data.data : [];
-                // Sort milestones: those without deadline first, then by createAt
+                // Sort milestones: those with deadline first (by deadline), then those without deadline (by createAt)
                 const sortedList = list.sort((a, b) => {
-                    // Milestones without deadline go first
-                    if (!a.deadline && b.deadline) return -1;
-                    if (a.deadline && !b.deadline) return 1;
-                    // Then sort by createAt
-                    if (a.createAt && b.createAt) {
-                        return new Date(a.createAt) - new Date(b.createAt);
+                    // Milestones with deadline go first
+                    if (a.deadline && !b.deadline) return -1;
+                    if (!a.deadline && b.deadline) return 1;
+                    // Both have deadline: sort by deadline (ascending - earlier deadline first)
+                    if (a.deadline && b.deadline) {
+                        return compareDeadlines(a.deadline, b.deadline);
+                    }
+                    // Both don't have deadline: sort by createAt (ascending - older first)
+                    if (!a.deadline && !b.deadline) {
+                        if (a.createAt && b.createAt) {
+                            return new Date(a.createAt) - new Date(b.createAt);
+                        }
                     }
                     return 0;
                 });
@@ -192,7 +226,7 @@ export default function Delivery() {
                     )}
                 </div>
             ),
-            headerStyle: { width: '120px' }
+            headerStyle: { width: '120px' , textAlign: 'center'}
         },
         {
             key: 'items',
@@ -308,11 +342,11 @@ export default function Delivery() {
                         {deliverable.deliveryItems.map((it) => it.name).join(', ')}
                     </div>
                 ) : (
-                    <span style={{ color: "#64748b", fontSize: 14 }}>No items</span>
+                    <span style={{ color: "#64748b", fontSize: 14 , justifyContent: 'center'}}>No items</span>
                 )
             ),
             headerStyle: { width: 'auto', textAlign: 'center' },
-            cellStyle: { textAlign: 'left' }
+            cellStyle: { textAlign: 'center' }
         }
     ];
 
@@ -394,14 +428,20 @@ export default function Delivery() {
             const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${selectedMajorId}`;
             const res = await client.get(url);
             const list = Array.isArray(res?.data?.data) ? res.data.data : [];
-            // Sort milestones: those without deadline first, then by createAt
+            // Sort milestones: those with deadline first (by deadline), then those without deadline (by createAt)
             const sortedList = list.sort((a, b) => {
-                // Milestones without deadline go first
-                if (!a.deadline && b.deadline) return -1;
-                if (a.deadline && !b.deadline) return 1;
-                // Then sort by createAt
-                if (a.createAt && b.createAt) {
-                    return new Date(a.createAt) - new Date(b.createAt);
+                // Milestones with deadline go first
+                if (a.deadline && !b.deadline) return -1;
+                if (!a.deadline && b.deadline) return 1;
+                // Both have deadline: sort by deadline (ascending - earlier deadline first)
+                if (a.deadline && b.deadline) {
+                    return compareDeadlines(a.deadline, b.deadline);
+                }
+                // Both don't have deadline: sort by createAt (ascending - older first)
+                if (!a.deadline && !b.deadline) {
+                    if (a.createAt && b.createAt) {
+                        return new Date(a.createAt) - new Date(b.createAt);
+                    }
                 }
                 return 0;
             });
@@ -513,7 +553,7 @@ export default function Delivery() {
                     padding:16
                 }}>
                     <h3 style={{ margin: 0 }}>
-                        {selectedMilestone && selectedMilestone.deadline ? "Edit Milestone Deadline" : "Set Milestone Deadline"}
+                        {selectedMilestone && selectedMilestone.deadline ? "Edit Deliverable Deadline" : "Save Deliverable Deadline"}
                     </h3>
                     {modalError && <div style={{ color: "#dc2626" }}>{modalError}</div>}
                     
@@ -556,54 +596,7 @@ export default function Delivery() {
                         </div>
                     )}
 
-                    {/* Deadline Settings */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 , padding:16}}>
-                        <span style={{ fontWeight: 600 }}>Set Deadline:</span>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                <label style={{ fontSize: 12, fontWeight: 600 }}>Week</label>
-                                <select 
-                                    value={modalWeek} 
-                                    onChange={(e) => setModalWeek(Number(e.target.value))}
-                                    style={{
-                                        padding: "8px 12px",
-                                        border: "1px solid #d1d5db",
-                                        borderRadius: "6px",
-                                        fontSize: "14px",
-                                        backgroundColor: "white",
-                                        outline: "none"
-                                    }}
-                                >
-                                    {Array.from({ length: weeks }, (_, i) => (
-                                        <option key={i + 1} value={i + 1}>Week {i + 1}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                <label style={{ fontSize: 12, fontWeight: 600 }}>Day</label>
-                                <select 
-                                    value={modalDay} 
-                                    onChange={(e) => setModalDay(e.target.value)}
-                                    style={{
-                                        padding: "8px 12px",
-                                        border: "1px solid #d1d5db",
-                                        borderRadius: "6px",
-                                        fontSize: "14px",
-                                        backgroundColor: "white",
-                                        outline: "none"
-                                    }}
-                                >
-                                    {DAYS.map((day) => (
-                                        <option key={day} value={day}>{day}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                <label style={{ fontSize: 12, fontWeight: 600 }}>Time</label>
-                                <Input type="time" value={deadlineTime} onChange={(e) => setDeadlineTime(e.target.value)} />
-                            </div>
-                        </div>
-                    </div>
+
 
                     {selectedMilestone && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -670,6 +663,55 @@ export default function Delivery() {
                         </div>
                     )}
 
+                                        {/* Deadline Settings */}
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 12 , padding:16}}>
+                        <span style={{ fontWeight: 600 }}>Set Deadline:</span>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <label style={{ fontSize: 12, fontWeight: 600 }}>Week</label>
+                                <select 
+                                    value={modalWeek} 
+                                    onChange={(e) => setModalWeek(Number(e.target.value))}
+                                    style={{
+                                        padding: "8px 12px",
+                                        border: "1px solid #d1d5db",
+                                        borderRadius: "6px",
+                                        fontSize: "14px",
+                                        backgroundColor: "white",
+                                        outline: "none"
+                                    }}
+                                >
+                                    {Array.from({ length: weeks }, (_, i) => (
+                                        <option key={i + 1} value={i + 1}>Week {i + 1}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <label style={{ fontSize: 12, fontWeight: 600 }}>Day</label>
+                                <select 
+                                    value={modalDay} 
+                                    onChange={(e) => setModalDay(e.target.value)}
+                                    style={{
+                                        padding: "8px 12px",
+                                        border: "1px solid #d1d5db",
+                                        borderRadius: "6px",
+                                        fontSize: "14px",
+                                        backgroundColor: "white",
+                                        outline: "none"
+                                    }}
+                                >
+                                    {DAYS.map((day) => (
+                                        <option key={day} value={day}>{day}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                <label style={{ fontSize: 12, fontWeight: 600 }}>Time</label>
+                                <Input type="time" value={deadlineTime} onChange={(e) => setDeadlineTime(e.target.value)} />
+                            </div>
+                        </div>
+                    </div>
+
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         {/* {selectedMilestone && selectedMilestone.deadline && (
                             <Button 
@@ -684,7 +726,7 @@ export default function Delivery() {
                         <div style={{ display: "flex", gap: 8 }}>
                             <Button variant="ghost" type="button" onClick={() => setIsModalOpen(false)}>Cancel</Button>
                             <Button type="submit" disabled={!selectedMilestone}>
-                                {selectedMilestone && selectedMilestone.deadline ? "Update" : "Set Deadline"}
+                                {selectedMilestone && selectedMilestone.deadline ? "Update" : "Save Deadline"}
                             </Button>
                         </div>
                     </div>

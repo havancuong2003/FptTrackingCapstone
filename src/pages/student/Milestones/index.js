@@ -268,6 +268,8 @@ export default function StudentMilestones() {
         return '#dc2626'; // Red
       case 'Pending':
         return '#d97706'; // Orange/Yellow
+      case 'PENDING':
+        return '#d97706'; // Orange/Yellow
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
       case 'REJECTED':
@@ -291,6 +293,8 @@ export default function StudentMilestones() {
         return '❌ Rejected';
       default:
         return '❓ Unknown';
+      case 'PENDING':
+        return '⏳ Pending Review';
     }
   };
 

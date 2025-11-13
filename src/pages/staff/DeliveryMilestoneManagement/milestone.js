@@ -91,7 +91,7 @@ function Milestone() {
         list.sort((a, b) => {
             if (sortBy === "name") return (a.name || "").localeCompare(b.name || "");
             if (sortBy === "createAt")
-                return new Date(b.createAt || 0) - new Date(a.createAt || 0); // Descending order (newest first)
+                return new Date(a.createAt || 0) - new Date(b.createAt || 0); // Ascending order (oldest first)
             return 0;
         });
 
@@ -332,16 +332,16 @@ function Milestone() {
                     </div>
                     {selectedMajor && (
                         <div style={{ 
-                            fontSize: "14px", 
-                            color: "#64748b", 
-                            fontStyle: "italic",
-                            maxWidth: "200px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                            paddingLeft: "60px"
+                            fontSize: "16px", 
+                            color: "#1f2937", 
+                            fontWeight: "600",
+                            paddingLeft: "20px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px"
                         }}>
-                            Name: {selectedMajor.name}
+                            <span style={{ color: "#64748b", fontWeight: "500" }}>Name:</span>
+                            <span>{selectedMajor.name}</span>
                         </div>
                     )}
                 </div>
