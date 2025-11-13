@@ -11,12 +11,12 @@ export default function DefaultPage() {
             <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" strokeWidth="2"/>
           </svg>
         </div>
-        <h1 className={styles.title}>Chưa chọn nội dung nào</h1>
+        <h1 className={styles.title}>No content selected</h1>
         <p className={styles.description}>
-          Click vào menu để thực hiện các chức năng của hệ thống.
+          Click on the menu to access system functions.
         </p>
         <div className={styles.hint}>
-          <p>💡 Sử dụng menu bên trái để điều hướng đến các trang khác nhau</p>
+          <p>Use the left menu to navigate to different pages</p>
         </div>
       </div>
     </div>

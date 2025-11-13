@@ -4,6 +4,7 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import axiosClient from '../../../utils/axiosClient';
 import { sendMeetingNotification } from '../../../api/email';
+import { getStudentFreeTimeSlotsNew } from '../../../api/schedule';
 
 export default function SupervisorSchedule() {
   const { groupId: urlGroupId } = useParams();
@@ -41,8 +42,13 @@ export default function SupervisorSchedule() {
   const [meetingData, setMeetingData] = React.useState({
     day: '',
     time: '',
+    endTime: '',
     meetingLink: ''
   });
+  
+  // Selected slot from Common Free Time
+  const [selectedSlot, setSelectedSlot] = React.useState(null);
+  const [selectedDay, setSelectedDay] = React.useState('');
 
   // Days of the week
   const daysOfWeek = [
@@ -154,23 +160,58 @@ export default function SupervisorSchedule() {
       return {};
     }
     
+    // Map Vietnamese day names to English values
+    const dayNameMap = {
+      'thứ hai': 'monday',
+      'thứ ba': 'tuesday',
+      'thứ tư': 'wednesday',
+      'thứ năm': 'thursday',
+      'thứ sáu': 'friday',
+      'thứ bảy': 'saturday',
+      'chủ nhật': 'sunday'
+    };
+    
     daysOfWeek.forEach(day => {
       const dayKey = day.value;
-      const allTimeSlots = new Set();
+      const allSlots = new Map(); // Use Map to store unique slots by id
       
-      // Collect all unique time slots for this day from all members (union)
+      // Collect all unique slots for this day from all members (union)
       studentIds.forEach(studentId => {
         const memberSchedule = memberSchedulesData[studentId] || {};
-        const daySlots = memberSchedule[dayKey] || [];
-        daySlots.forEach(slot => allTimeSlots.add(slot));
+        // Check both English and Vietnamese day names
+        Object.keys(memberSchedule).forEach(memberDayKey => {
+          const normalizedKey = dayNameMap[memberDayKey.toLowerCase()] || memberDayKey.toLowerCase();
+          if (normalizedKey === dayKey) {
+            const daySlots = memberSchedule[memberDayKey] || [];
+            daySlots.forEach(slot => {
+              // slot is now an object with id, nameSlot, startAt, endAt
+              if (slot && slot.id) {
+                allSlots.set(slot.id, slot);
+              }
+            });
+          }
+        });
       });
       
-      // Convert Set to array and sort time slots from smallest to largest
-      const mergedSlots = Array.from(allTimeSlots);
+      // Convert Map to array and sort by startAt
+      const mergedSlots = Array.from(allSlots.values());
       mergedSlots.sort((a, b) => {
-        const [h1, m1] = a.split(':').map(Number);
-        const [h2, m2] = b.split(':').map(Number);
-        return h1 * 60 + m1 - (h2 * 60 + m2);
+        // Parse time strings like "7:30 AM" or "09:50:00"
+        const parseTime = (timeStr) => {
+          if (!timeStr) return 0;
+          const cleaned = timeStr.replace(/[AP]M/i, '').trim();
+          const [hours, minutes] = cleaned.split(':').map(Number);
+          let totalMinutes = (hours || 0) * 60 + (minutes || 0);
+          // Handle AM/PM
+          if (timeStr.toUpperCase().includes('PM') && hours !== 12) {
+            totalMinutes += 12 * 60;
+          }
+          if (timeStr.toUpperCase().includes('AM') && hours === 12) {
+            totalMinutes -= 12 * 60;
+          }
+          return totalMinutes;
+        };
+        return parseTime(a.startAt) - parseTime(b.startAt);
       });
       
       merged[dayKey] = mergedSlots;
@@ -190,11 +231,13 @@ export default function SupervisorSchedule() {
       
       if (slots.length > 0) {
         // Suggest the first available slot for each day
+        const firstSlot = slots[0];
         suggestions.push({
           day: day.value,
           dayName: day.name,
-          time: slots[0],
-          slotCount: slots.length
+          time: firstSlot.startAt ? `${firstSlot.startAt} - ${firstSlot.endAt}` : firstSlot,
+          slotCount: slots.length,
+          slot: firstSlot
         });
       }
     });
@@ -210,18 +253,21 @@ export default function SupervisorSchedule() {
   // Fetch student free time slots
   const fetchStudentFreeTimeSlots = async (groupId) => {
     try {
-      const response = await axiosClient.get(`/Student/Meeting/groups/${groupId}/schedule/free-time`);
+      const response = await getStudentFreeTimeSlotsNew(groupId);
 
-      if (response.data && response.data.status === 200) {
-        const apiData = response.data.data;
+      if (response && response.status === 200 && response.data) {
+        const apiData = response.data.students || [];
         
         // Lưu dữ liệu của tất cả thành viên để hiển thị
         const memberSchedulesData = {};
         apiData.forEach(studentData => {
-          if (studentData.freeTimeSlots.length > 0) {
+          if (studentData.freeTimeSlots && studentData.freeTimeSlots.length > 0) {
             const schedule = {};
             studentData.freeTimeSlots.forEach(dayData => {
-              schedule[dayData.dayOfWeek.toLowerCase()] = dayData.timeSlots;
+              // dayData.dayOfWeek có thể là "Thứ hai", "Thứ ba", etc.
+              const dayKey = dayData.dayOfWeek.toLowerCase();
+              // timeSlots là mảng các slot object với id, nameSlot, startAt, endAt
+              schedule[dayKey] = dayData.timeSlots || [];
             });
             memberSchedulesData[studentData.studentId] = schedule;
           }
@@ -238,15 +284,15 @@ export default function SupervisorSchedule() {
       }
       return {};
     } catch (error) {
-      console.error('No student free time slots found');
+      console.error('No student free time slots found:', error);
       return {};
     }
   };
 
   // Finalize/Update meeting schedule
   const handleFinalizeMeeting = async () => {
-    if (!meetingData.day || !meetingData.time || !meetingData.meetingLink) {
-      alert('Please fill in all meeting schedule information');
+    if (!meetingData.day || !meetingData.time || !meetingData.endTime || !meetingData.meetingLink) {
+      alert('Vui lòng điền đầy đủ thông tin lịch họp (ngày, giờ bắt đầu, giờ kết thúc, và link meeting)');
       return;
     }
 
@@ -257,12 +303,14 @@ export default function SupervisorSchedule() {
         isActive: true,
         meetingLink: meetingData.meetingLink,
         time: meetingData.time,
+        endTime: meetingData.endTime,
         dayOfWeek: meetingData.day.toLowerCase(),
       };
       const meetingDataAPI ={
         finalMeeting: {
           day: meetingScheduleData.dayOfWeek,
           time: meetingScheduleData.time,
+          endTime: meetingScheduleData.endTime,
           meetingLink: meetingScheduleData.meetingLink
         }
       }
@@ -338,11 +386,45 @@ export default function SupervisorSchedule() {
 
   // Handle suggested time click
   const handleSuggestedTimeClick = (suggestion) => {
+    const slot = suggestion.slot;
+    const startTime = convertTimeToInputFormat(slot?.startAt || '');
+    const endTime = convertTimeToInputFormat(slot?.endAt || '');
+    
     setMeetingData({
       day: suggestion.day,
-      time: suggestion.time,
+      time: startTime,
+      endTime: endTime,
       meetingLink: meetingData.meetingLink || ''
     });
+    
+    // Highlight slot
+    setSelectedSlot(slot);
+    setSelectedDay(suggestion.day);
+  };
+
+  // Convert time format để hiển thị trong input type="time" (HH:MM)
+  const convertTimeToInputFormat = (timeStr) => {
+    if (!timeStr) return '';
+    // Nếu đã là format HH:MM hoặc HH:MM:SS thì lấy phần đầu
+    if (timeStr.includes(':')) {
+      const parts = timeStr.split(':');
+      return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+    }
+    // Nếu có AM/PM thì convert
+    const isPM = timeStr.toUpperCase().includes('PM');
+    const isAM = timeStr.toUpperCase().includes('AM');
+    if (isPM || isAM) {
+      const cleaned = timeStr.replace(/[AP]M/i, '').trim();
+      const [hours, minutes] = cleaned.split(':').map(Number);
+      let hour24 = hours || 0;
+      if (isPM && hour24 !== 12) {
+        hour24 += 12;
+      } else if (isAM && hour24 === 12) {
+        hour24 = 0;
+      }
+      return `${String(hour24).padStart(2, '0')}:${String(minutes || 0).padStart(2, '0')}`;
+    }
+    return timeStr;
   };
 
 
@@ -496,7 +578,9 @@ export default function SupervisorSchedule() {
                         {timeSlots.length > 0 ? (
                           <div className={styles.timeSlotsList}>
                             {timeSlots.map((slot, index) => (
-                              <div key={index} className={styles.timeSlotBadge}>{slot}</div>
+                              <div key={slot.id || index} className={styles.timeSlotBadge}>
+                                {slot.nameSlot ? `${slot.nameSlot}: ${slot.startAt} - ${slot.endAt}` : slot}
+                              </div>
                             ))}
                           </div>
                         ) : (
@@ -514,17 +598,20 @@ export default function SupervisorSchedule() {
               <div className={styles.suggestedTimesSection}>
                 <h3>Suggested Meeting Times</h3>
                 <div className={styles.suggestedTimesList}>
-                  {suggestedTimes.map((suggestion, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleSuggestedTimeClick(suggestion)}
-                      className={styles.suggestedTimeButton}
-                    >
-                      <span className={styles.suggestedDay}>{suggestion.dayName}</span>
-                      <span className={styles.suggestedTime}>{suggestion.time}</span>
-                      <span className={styles.suggestedSlotCount}>({suggestion.slotCount} free hours)</span>
-                    </button>
-                  ))}
+                  {suggestedTimes.map((suggestion, index) => {
+                    const isSelected = selectedSlot?.id === suggestion.slot?.id && selectedDay === suggestion.day;
+                    return (
+                      <button
+                        key={index}
+                        onClick={() => handleSuggestedTimeClick(suggestion)}
+                        className={`${styles.suggestedTimeButton} ${isSelected ? styles.suggestedTimeSelected : ''}`}
+                      >
+                        <span className={styles.suggestedDay}>{suggestion.dayName}</span>
+                        <span className={styles.suggestedTime}>{suggestion.time}</span>
+                        <span className={styles.suggestedSlotCount}>({suggestion.slotCount} free hours)</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -558,6 +645,17 @@ export default function SupervisorSchedule() {
                     onChange={(e) => updateMeetingData('time', e.target.value)}
                     className={styles.timeInput}
                     placeholder="e.g: 14:00"
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>End Time</label>
+                  <input
+                    type="time"
+                    value={meetingData.endTime}
+                    onChange={(e) => updateMeetingData('endTime', e.target.value)}
+                    className={styles.timeInput}
+                    placeholder="e.g: 15:00"
                   />
                 </div>
 

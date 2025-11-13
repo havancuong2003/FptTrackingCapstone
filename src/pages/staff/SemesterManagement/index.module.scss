@@ -29,6 +29,16 @@
   gap: 20px;
 }
 
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+
+  @media (max-width: 768px) {
+    grid-template-columns: 1fr;
+  }
+}
+
 .formGroup {
   display: flex;
   flex-direction: column;
@@ -40,7 +50,7 @@
     font-size: 14px;
   }
   
-  input, textarea {
+  input, select, textarea {
     padding: 12px;
     border: 2px solid #e1e5e9;
     border-radius: 6px;
@@ -55,6 +65,11 @@
     &::placeholder {
       color: #999;
     }
+  }
+
+  select {
+    cursor: pointer;
+    background-color: #fff;
   }
   
   textarea {
