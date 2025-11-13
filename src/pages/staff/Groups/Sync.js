@@ -2,30 +2,48 @@ import React from 'react';
 import styles from './Sync.module.scss';
 import Button from '../../../components/Button/Button';
 import DataTable from '../../../components/DataTable/DataTable';
+import Modal from '../../../components/Modal/Modal';
+import Input from '../../../components/Input/Input';
 import { getMockDataGroups, syncMockDataGroups } from '../../../api/staff/groups';
 
 export default function SyncGroup() {
   const [loading, setLoading] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
   const [groupsData, setGroupsData] = React.useState([]);
+  const [majorCategories, setMajorCategories] = React.useState({ alreadyExist: [], notExistYet: [] });
   const [message, setMessage] = React.useState('');
+  const [syncProgress, setSyncProgress] = React.useState(0);
+  const [syncStatus, setSyncStatus] = React.useState(''); // 'idle', 'syncing', 'completed', 'error'
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [selectedGroup, setSelectedGroup] = React.useState(null);
+  const [detailModalOpen, setDetailModalOpen] = React.useState(false);
 
   const handleLoadData = async () => {
     setLoading(true);
     setMessage('');
+    setSyncProgress(0);
+    setSyncStatus('idle');
     try {
       const res = await getMockDataGroups();
       if (res.status === 200) {
-        setGroupsData(res.data || []);
-        setMessage(`Đã tải ${res.data?.length || 0} nhóm từ Call4Project`);
+        // Parse data từ format mới: data.result.groups và data.result.majorCategories
+        const result = res.data?.result || res.data || {};
+        const groups = result.groups || [];
+        const majorCats = result.majorCategories || { alreadyExist: [], notExistYet: [] };
+        
+        setGroupsData(groups);
+        setMajorCategories(majorCats);
+        setMessage(`Loaded ${groups.length} groups from FAP System`);
       } else {
-        setMessage(res.message || 'Lỗi khi tải dữ liệu');
+        setMessage(res.message || 'Error loading data');
         setGroupsData([]);
+        setMajorCategories({ alreadyExist: [], notExistYet: [] });
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      setMessage('Lỗi khi tải dữ liệu. Vui lòng thử lại.');
+      setMessage('Error loading data. Please try again.');
       setGroupsData([]);
+      setMajorCategories({ alreadyExist: [], notExistYet: [] });
     } finally {
       setLoading(false);
     }
@@ -33,32 +51,101 @@ export default function SyncGroup() {
 
   const handleSync = async () => {
     if (!groupsData || groupsData.length === 0) {
-      alert('Vui lòng tải dữ liệu trước khi đồng bộ!');
+      alert('Please load data before syncing!');
       return;
     }
 
-    if (!window.confirm(`Bạn có chắc chắn muốn đồng bộ ${groupsData.length} nhóm từ Call4Project?`)) {
+    if (!window.confirm(`Are you sure you want to sync ${groupsData.length} groups from FAP System?`)) {
       return;
     }
 
     setSyncing(true);
     setMessage('');
+    setSyncStatus('syncing');
+    setSyncProgress(0);
+
+    // Simulate progress (trong thực tế có thể dùng WebSocket hoặc polling để lấy progress từ server)
+    const progressInterval = setInterval(() => {
+      setSyncProgress(prev => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return prev;
+        }
+        return prev + 10;
+      });
+    }, 200);
+
     try {
       const res = await syncMockDataGroups(groupsData);
+      clearInterval(progressInterval);
+      setSyncProgress(100);
+      
       if (res.status === 200) {
-        alert('Đồng bộ dữ liệu thành công!');
-        setMessage('Đồng bộ dữ liệu thành công!');
+        setSyncStatus('completed');
+        setMessage('Data synced successfully!');
+        setTimeout(() => {
+          alert('Data synced successfully!');
+        }, 100);
       } else {
-        alert(res.message || 'Lỗi khi đồng bộ dữ liệu');
-        setMessage(res.message || 'Lỗi khi đồng bộ dữ liệu');
+        setSyncStatus('error');
+        setMessage(res.message || 'Error syncing data');
+        alert(res.message || 'Error syncing data');
       }
     } catch (error) {
+      clearInterval(progressInterval);
+      setSyncProgress(0);
+      setSyncStatus('error');
       console.error('Error syncing data:', error);
-      alert('Lỗi khi đồng bộ dữ liệu. Vui lòng thử lại.');
-      setMessage('Lỗi khi đồng bộ dữ liệu. Vui lòng thử lại.');
+      setMessage('Error syncing data. Please try again.');
+      alert('Error syncing data. Please try again.');
     } finally {
       setSyncing(false);
     }
+  };
+
+  // Filter groups based on search query
+  const filteredGroupsData = React.useMemo(() => {
+    if (!searchQuery.trim()) {
+      return groupsData;
+    }
+    
+    const query = searchQuery.toLowerCase().trim();
+    return groupsData.filter(group => {
+      // Search in Group Code
+      if ((group.groupCode || '').toLowerCase().includes(query)) return true;
+      
+      // Search in Group Name
+      if ((group.groupName || '').toLowerCase().includes(query)) return true;
+      
+      // Search in Vietnamese Title
+      if ((group.vietnameseTitle || '').toLowerCase().includes(query)) return true;
+      
+      // Search in Major ID
+      if (String(group.majorId || '').toLowerCase().includes(query)) return true;
+      
+      // Search in Profession
+      if ((group.profession || '').toLowerCase().includes(query)) return true;
+      
+      // Search in Description
+      if ((group.description || '').toLowerCase().includes(query)) return true;
+      
+      // Search in Members (name, rollNumber, email)
+      if (group.members && group.members.length > 0) {
+        const memberMatch = group.members.some(member => 
+          (member.fullname || '').toLowerCase().includes(query) ||
+          (member.rollNumber || '').toLowerCase().includes(query) ||
+          (member.email || '').toLowerCase().includes(query)
+        );
+        if (memberMatch) return true;
+      }
+      
+      return false;
+    });
+  }, [groupsData, searchQuery]);
+
+  const handleOpenDetail = (group) => {
+    setSelectedGroup(group);
+    setDetailModalOpen(true);
   };
 
   const columns = [
@@ -119,10 +206,10 @@ export default function SyncGroup() {
         <div>
           {row.members && row.members.length > 0 ? (
             <span style={{ color: '#3b82f6', fontWeight: 500 }}>
-              {row.members.length} thành viên
+              {row.members.length} member{row.members.length !== 1 ? 's' : ''}
             </span>
           ) : (
-            '-'
+            '0 members'
           )}
         </div>
       )
@@ -140,12 +227,25 @@ export default function SyncGroup() {
           {row.description || '-'}
         </div>
       )
+    },
+    {
+      key: 'details',
+      title: 'Details',
+      render: (row) => (
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => handleOpenDetail(row)}
+        >
+          Details
+        </Button>
+      )
     }
   ];
 
   return (
     <div className={styles.container}>
-      <h1>Sync Group from Call4Project</h1>
+      <h1>Sync Groups from FAP System</h1>
       
       <div className={styles.actions}>
         <Button
@@ -153,7 +253,7 @@ export default function SyncGroup() {
           disabled={loading}
           variant="primary"
         >
-          {loading ? 'Đang tải...' : 'Load Data from Call4Project'}
+          {loading ? 'Loading...' : 'Load Data from FAP System'}
         </Button>
         
         <Button
@@ -161,7 +261,7 @@ export default function SyncGroup() {
           disabled={syncing || groupsData.length === 0}
           variant="primary"
         >
-          {syncing ? 'Đang đồng bộ...' : 'Sync'}
+          {syncing ? 'Syncing...' : 'Sync'}
         </Button>
       </div>
 
@@ -171,27 +271,127 @@ export default function SyncGroup() {
         </div>
       )}
 
+      {/* Progress Bar */}
+      {syncing && (
+        <div className={styles.progressSection}>
+          <div className={styles.progressHeader}>
+            <span className={styles.progressLabel}>Sync Progress</span>
+            <span className={styles.progressPercent}>{syncProgress}%</span>
+          </div>
+          <div className={styles.progressBar}>
+            <div 
+              className={styles.progressFill}
+              style={{ width: `${syncProgress}%` }}
+            />
+          </div>
+          {syncStatus === 'syncing' && (
+            <div className={styles.progressStatus}>
+              Processing data...
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Major Categories Info */}
+      {(majorCategories.alreadyExist.length > 0 || majorCategories.notExistYet.length > 0) && (
+        <div className={styles.majorCategoriesSection}>
+          <h2>Major Categories Information</h2>
+          {majorCategories.alreadyExist.length > 0 && (
+            <div className={styles.majorCategoryBox}>
+              <h3>Already Exist ({majorCategories.alreadyExist.length})</h3>
+              <div className={styles.majorList}>
+                {majorCategories.alreadyExist.map((major, index) => (
+                  <span key={index} className={styles.majorTag}>
+                    {major.code} - {major.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {majorCategories.notExistYet.length > 0 && (
+            <div className={styles.majorCategoryBox}>
+              <h3>Not Exist Yet ({majorCategories.notExistYet.length})</h3>
+              <div className={styles.majorList}>
+                {majorCategories.notExistYet.map((major, index) => (
+                  <span key={index} className={styles.majorTag}>
+                    {major.code} - {major.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {groupsData.length > 0 && (
         <div className={styles.previewSection}>
-          <h2>Preview Data ({groupsData.length} groups)</h2>
+          <h2>Group Data ({filteredGroupsData.length} of {groupsData.length} groups)</h2>
+          <div className={styles.searchBox}>
+            <Input
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
           <div className={styles.tableWrapper}>
             <DataTable
               columns={columns}
-              data={groupsData}
+              data={filteredGroupsData}
               loading={loading}
-              emptyMessage="Không có dữ liệu"
+              emptyMessage="No data found"
               showIndex={true}
               indexTitle="STT"
             />
           </div>
+        </div>
+      )}
 
-          {/* Members Detail */}
-          <div className={styles.membersDetail}>
-            <h3>Chi tiết thành viên các nhóm</h3>
-            {groupsData.map((group, groupIndex) => (
-              <div key={groupIndex} className={styles.groupDetail}>
-                <h4>{group.groupCode} - {group.groupName}</h4>
-                {group.members && group.members.length > 0 ? (
+      {/* Group Detail Modal */}
+      <Modal open={detailModalOpen} onClose={() => setDetailModalOpen(false)}>
+        {selectedGroup && (
+          <div className={styles.groupDetailModal}>
+            <h2>Group Details</h2>
+            
+            <section className={styles.groupInfoSection}>
+              <h3>Group Information</h3>
+              <div className={styles.infoGrid}>
+                <div className={styles.infoItem}>
+                  <strong>Group Code:</strong>
+                  <span>{selectedGroup.groupCode || '-'}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <strong>Group Name:</strong>
+                  <span>{selectedGroup.groupName || '-'}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <strong>Vietnamese Title:</strong>
+                  <span>{selectedGroup.vietnameseTitle || '-'}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <strong>Major ID:</strong>
+                  <span>{selectedGroup.majorId || '-'}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <strong>Profession:</strong>
+                  <span>{selectedGroup.profession || '-'}</span>
+                </div>
+                <div className={styles.infoItem}>
+                  <strong>Status:</strong>
+                  <span className={selectedGroup.status === 'ACTIVE' ? styles.badgeActive : styles.badgeInactive}>
+                    {selectedGroup.status || '-'}
+                  </span>
+                </div>
+                <div className={styles.infoItem} style={{ gridColumn: '1 / -1' }}>
+                  <strong>Description:</strong>
+                  <span>{selectedGroup.description || '-'}</span>
+                </div>
+              </div>
+            </section>
+
+            <section className={styles.membersSection}>
+              <h3>Members ({selectedGroup.members?.length || 0})</h3>
+              {selectedGroup.members && selectedGroup.members.length > 0 ? (
+                <div className={styles.membersTableWrapper}>
                   <table className={styles.membersTable}>
                     <thead>
                       <tr>
@@ -204,30 +404,23 @@ export default function SyncGroup() {
                       </tr>
                     </thead>
                     <tbody>
-                      {group.members.map((member, memberIndex) => (
-                        <tr key={memberIndex}>
+                      {selectedGroup.members.map((member, index) => (
+                        <tr key={index}>
                           <td>{member.fullname || '-'}</td>
                           <td>{member.rollNumber || '-'}</td>
                           <td>{member.email || '-'}</td>
                           <td>{member.phone || '-'}</td>
                           <td>
-                            <span style={{
-                              color: member.roleInGroup === 'Leader' ? '#3b82f6' :
-                                     member.roleInGroup === 'Supervisor' ? '#059669' : '#64748b',
-                              fontWeight: 500
-                            }}>
-                              {member.roleInGroup || '-'}
+                            <span className={
+                              member.roleInGroup === 'Leader' ? styles.badgeLeader :
+                              member.roleInGroup === 'Supervisor' ? styles.badgeSupervisor :
+                              styles.badgeStudent
+                            }>
+                              {member.roleInGroup || 'Student'}
                             </span>
                           </td>
                           <td>
-                            <span style={{
-                              color: member.status === 'Active' ? '#059669' : '#64748b',
-                              background: member.status === 'Active' ? '#ecfdf5' : '#f3f4f6',
-                              padding: '2px 6px',
-                              borderRadius: 4,
-                              fontSize: 11,
-                              border: `1px solid ${member.status === 'Active' ? '#a7f3d0' : '#d1d5db'}`
-                            }}>
+                            <span className={member.status === 'Active' ? styles.badgeActive : styles.badgeInactive}>
                               {member.status || '-'}
                             </span>
                           </td>
@@ -235,20 +428,18 @@ export default function SyncGroup() {
                       ))}
                     </tbody>
                   </table>
-                ) : (
-                  <div style={{ padding: 12, color: '#64748b', fontStyle: 'italic' }}>
-                    Không có thành viên
-                  </div>
-                )}
-              </div>
-            ))}
+                </div>
+              ) : (
+                <p style={{ color: '#64748b', fontStyle: 'italic', padding: '12px' }}>No members found</p>
+              )}
+            </section>
           </div>
-        </div>
-      )}
+        )}
+      </Modal>
 
       {!loading && groupsData.length === 0 && !message && (
         <div className={styles.emptyState}>
-          <p>Nhấn "Load Data from Call4Project" để tải dữ liệu từ Call4Project</p>
+          <p>Click "Load Data from FAP System" to load data from FAP System</p>
         </div>
       )}
     </div>

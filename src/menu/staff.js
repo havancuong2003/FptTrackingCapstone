@@ -27,7 +27,7 @@ const staffMenu = [
     hasSubmenu: true,
     children: [
       { path: "/staff/groups", label: "Group List" },
-      { path: "/staff/groups/sync", label: "Sync Group from Call4Project" },
+      { path: "/staff/groups/sync", label: "Sync Groups" },
     ],
   },
   // Quản lý mốc và giao hàng

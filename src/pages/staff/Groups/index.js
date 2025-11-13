@@ -41,13 +41,15 @@ export default function StaffGroups() {
   const [emailContent, setEmailContent] = React.useState('');
   const [sendingEmail, setSendingEmail] = React.useState(false);
   const [page, setPage] = React.useState(1);
-  const [pageSize, setPageSize] = React.useState(10);
+  const [pageSize, setPageSize] = React.useState(20);
   const [total, setTotal] = React.useState(0);
   const [options, setOptions] = React.useState({ semesters: [], courseCodes: [] });
   const [blocks, setBlocks] = React.useState({}); // key: blockIndex -> items (BLOCK_SIZE)
   const BLOCK_SIZE = 100;
   const prefetchingRef = React.useRef(new Set());
   const [filtered, setFiltered] = React.useState([]);
+  const [searchInput, setSearchInput] = React.useState(''); // Separate state for search input with debounce
+  const [jumpToPage, setJumpToPage] = React.useState('');
 
   // Load filter options on mount
   React.useEffect(() => {
@@ -174,6 +176,32 @@ export default function StaffGroups() {
     setFilters(prev => ({ ...prev, [key]: value }));
   }
 
+  // Debounce search input
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setFilters(prev => ({ ...prev, search: searchInput }));
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  // Memoize filtered count
+  const filteredCount = React.useMemo(() => {
+    if (!filters.search && filters.term === 'all' && filters.courseCode === 'all') {
+      return total;
+    }
+    return filtered.length;
+  }, [filtered.length, total, filters]);
+
+  // Handle jump to page
+  const handleJumpToPage = () => {
+    const pageNum = parseInt(jumpToPage);
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      setPage(pageNum);
+      setJumpToPage('');
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   // Load current page from cache or fetch its block
@@ -267,18 +295,27 @@ export default function StaffGroups() {
           <label>Search</label>
           <Input
             placeholder="Group ID / Supervisor / Student Name / Student ID"
-            value={filters.search}
-            onChange={e => onChangeFilter('search', e.target.value)}
+            value={searchInput}
+            onChange={e => setSearchInput(e.target.value)}
           />
         </div>
         <div>
           <label>Rows per page</label>
           <select className={styles.filterSelect} value={pageSize} onChange={e => { setPage(1); setPageSize(Number(e.target.value)); }}>
-            <option value={5}>5</option>
             <option value={10}>10</option>
             <option value={20}>20</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
           </select>
         </div>
+      </div>
+
+      {/* Summary Info */}
+      <div className={styles.summaryInfo}>
+        <span className={styles.totalCount}>
+          Showing {items.length > 0 ? (page - 1) * pageSize + 1 : 0} - {Math.min(page * pageSize, filteredCount)} of {filteredCount.toLocaleString()} groups
+          {filteredCount !== total && ` (${total.toLocaleString()} total)`}
+        </span>
       </div>
 
       <div className={styles.tableWrap}>
@@ -295,11 +332,17 @@ export default function StaffGroups() {
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr>
-                <td colSpan="7" style={{ textAlign: 'center' }}>Loading...</td>
+            {loading && Array.from({ length: pageSize }).map((_, idx) => (
+              <tr key={`skeleton-${idx}`} className={styles.skeletonRow}>
+                <td><div className={styles.skeleton}></div></td>
+                <td><div className={styles.skeleton}></div></td>
+                <td><div className={styles.skeleton}></div></td>
+                <td><div className={styles.skeleton}></div></td>
+                <td><div className={styles.skeleton}></div></td>
+                <td><div className={styles.skeleton}></div></td>
+                <td><div className={styles.skeleton}></div></td>
               </tr>
-            )}
+            ))}
             {!loading && items.map((g, idx) => (
               <tr key={g.id}>
                 <td>{(page - 1) * pageSize + idx + 1}</td>
@@ -323,9 +366,71 @@ export default function StaffGroups() {
       </div>
 
       <div className={styles.pagination}>
-        <Button variant="ghost" size="sm" disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous</Button>
-        <span>Page {page} / {totalPages}</span>
-        <Button variant="ghost" size="sm" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>Next</Button>
+        <div className={styles.paginationInfo}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            disabled={page === 1} 
+            onClick={() => setPage(1)}
+            title="First page"
+          >
+            ««
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            disabled={page === 1} 
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+        </div>
+        
+        <div className={styles.paginationCenter}>
+          <span className={styles.pageInfo}>
+            Page <strong>{page}</strong> of <strong>{totalPages}</strong>
+          </span>
+          <div className={styles.jumpToPage}>
+            <input
+              type="number"
+              min="1"
+              max={totalPages}
+              placeholder="Go to"
+              value={jumpToPage}
+              onChange={e => setJumpToPage(e.target.value)}
+              onKeyPress={e => e.key === 'Enter' && handleJumpToPage()}
+              className={styles.jumpInput}
+            />
+            <Button 
+              variant="ghost" 
+              size="sm"
+              onClick={handleJumpToPage}
+              disabled={!jumpToPage || parseInt(jumpToPage) < 1 || parseInt(jumpToPage) > totalPages}
+            >
+              Go
+            </Button>
+          </div>
+        </div>
+
+        <div className={styles.paginationInfo}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            disabled={page >= totalPages} 
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            disabled={page >= totalPages} 
+            onClick={() => setPage(totalPages)}
+            title="Last page"
+          >
+            »»
+          </Button>
+        </div>
       </div>
 
       <Modal open={detailOpen} onClose={() => setDetailOpen(false)}>
@@ -342,11 +447,44 @@ export default function StaffGroups() {
             </section>
             <section>
               <h3>Student Members</h3>
-              <ul>
-                {(detail.students || []).map(s => (
-                  <li key={s.id}>{s.id} - {s.name} ({s.role})</li>
-                ))}
-              </ul>
+              {detail.students && detail.students.length > 0 ? (
+                <div className={styles.membersTableWrapper}>
+                  <table className={styles.membersTable}>
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Roll Number</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(detail.students || []).map(s => (
+                        <tr key={s.id}>
+                          <td>{s.id || '-'}</td>
+                          <td>{s.name || '-'}</td>
+                          <td>{s.rollNumber || '-'}</td>
+                          <td>{s.email || '-'}</td>
+                          <td>
+                            <span className={s.role === 'Leader' ? styles.badgeLeader : styles.badgeStudent}>
+                              {s.role || 'Student'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={s.isActive !== false ? styles.badgeOk : styles.badgeNo}>
+                              {s.isActive !== false ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={{ color: '#64748b', fontStyle: 'italic' }}>No students found</p>
+              )}
             </section>
             {/* <section>
               <h3>Activity Log</h3>
