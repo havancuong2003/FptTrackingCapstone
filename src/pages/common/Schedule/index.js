@@ -435,11 +435,11 @@ export default function Schedule() {
         setIsSelectingMode(false);
         alert('Free time slots saved successfully!');
       } else {
-        alert('Error occurred while saving free time slots');
+        alert('Error occurred while saving free time slots: ' + response.data.message);
       }
     } catch (error) {
       console.error('Error saving free time slots:', error);
-      alert('Error occurred while saving free time slots');
+      alert('Error occurred while saving free time slots: ' + error.message);
     } finally {
       setLoading(false);
     }
