@@ -17,6 +17,9 @@ export default function SyncGroup() {
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState(null);
   const [detailModalOpen, setDetailModalOpen] = React.useState(false);
+  const [page, setPage] = React.useState(1);
+  const [pageSize, setPageSize] = React.useState(20);
+  const [jumpToPage, setJumpToPage] = React.useState('');
 
   const handleLoadData = async () => {
     setLoading(true);
@@ -143,6 +146,29 @@ export default function SyncGroup() {
     });
   }, [groupsData, searchQuery]);
 
+  // Paginate filtered data
+  const paginatedGroupsData = React.useMemo(() => {
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredGroupsData.slice(startIndex, endIndex);
+  }, [filteredGroupsData, page, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredGroupsData.length / pageSize));
+
+  // Reset to page 1 when search query changes
+  React.useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
+  // Handle jump to page
+  const handleJumpToPage = () => {
+    const pageNum = parseInt(jumpToPage);
+    if (pageNum >= 1 && pageNum <= totalPages) {
+      setPage(pageNum);
+      setJumpToPage('');
+    }
+  };
+
   const handleOpenDetail = (group) => {
     setSelectedGroup(group);
     setDetailModalOpen(true);
@@ -153,7 +179,13 @@ export default function SyncGroup() {
       key: 'groupCode',
       title: 'Group Code',
       render: (row) => (
-        <div style={{ fontWeight: 500, color: '#1f2937' }}>
+        <div style={{ 
+          fontWeight: 500, 
+          color: '#1f2937',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }} title={row.groupCode || '-'}>
           {row.groupCode || '-'}
         </div>
       )
@@ -162,7 +194,13 @@ export default function SyncGroup() {
       key: 'groupName',
       title: 'Group Name',
       render: (row) => (
-        <div style={{ fontWeight: 500, color: '#1f2937' }}>
+        <div style={{ 
+          fontWeight: 500, 
+          color: '#1f2937',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }} title={row.groupName || '-'}>
           {row.groupName || '-'}
         </div>
       )
@@ -170,17 +208,41 @@ export default function SyncGroup() {
     {
       key: 'vietnameseTitle',
       title: 'Vietnamese Title',
-      render: (row) => row.vietnameseTitle || '-'
+      render: (row) => (
+        <div style={{
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }} title={row.vietnameseTitle || '-'}>
+          {row.vietnameseTitle || '-'}
+        </div>
+      )
     },
     {
       key: 'majorId',
       title: 'Major ID',
-      render: (row) => row.majorId || '-'
+      render: (row) => (
+        <div style={{
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }} title={String(row.majorId || '-')}>
+          {row.majorId || '-'}
+        </div>
+      )
     },
     {
       key: 'profession',
       title: 'Profession',
-      render: (row) => row.profession || '-'
+      render: (row) => (
+        <div style={{
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }} title={row.profession || '-'}>
+          {row.profession || '-'}
+        </div>
+      )
     },
     {
       key: 'status',
@@ -193,8 +255,13 @@ export default function SyncGroup() {
           borderRadius: 4,
           fontSize: 12,
           fontWeight: 500,
-          border: `1px solid ${row.status === 'ACTIVE' ? '#a7f3d0' : '#d1d5db'}`
-        }}>
+          border: `1px solid ${row.status === 'ACTIVE' ? '#a7f3d0' : '#d1d5db'}`,
+          whiteSpace: 'nowrap',
+          display: 'inline-block',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          maxWidth: '100%'
+        }} title={row.status || '-'}>
           {row.status || '-'}
         </span>
       )
@@ -203,7 +270,11 @@ export default function SyncGroup() {
       key: 'members',
       title: 'Members',
       render: (row) => (
-        <div>
+        <div style={{
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}>
           {row.members && row.members.length > 0 ? (
             <span style={{ color: '#3b82f6', fontWeight: 500 }}>
               {row.members.length} member{row.members.length !== 1 ? 's' : ''}
@@ -219,11 +290,10 @@ export default function SyncGroup() {
       title: 'Description',
       render: (row) => (
         <div style={{ 
-          maxWidth: '300px', 
           overflow: 'hidden', 
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap'
-        }}>
+        }} title={row.description || '-'}>
           {row.description || '-'}
         </div>
       )
@@ -232,13 +302,25 @@ export default function SyncGroup() {
       key: 'details',
       title: 'Details',
       render: (row) => (
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={() => handleOpenDetail(row)}
-        >
-          Details
-        </Button>
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center',
+          alignItems: 'center',
+          whiteSpace: 'nowrap'
+        }}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => handleOpenDetail(row)}
+            style={{
+              whiteSpace: 'nowrap',
+              writingMode: 'horizontal-tb',
+              minWidth: '70px'
+            }}
+          >
+            Details
+          </Button>
+        </div>
       )
     }
   ];
@@ -325,7 +407,25 @@ export default function SyncGroup() {
 
       {groupsData.length > 0 && (
         <div className={styles.previewSection}>
-          <h2>Group Data ({filteredGroupsData.length} of {groupsData.length} groups)</h2>
+          <div className={styles.sectionHeader}>
+            <h2>Group Data ({filteredGroupsData.length} of {groupsData.length} groups)</h2>
+            <div className={styles.pageSizeSelector}>
+              <label>Rows per page:</label>
+              <select 
+                value={pageSize} 
+                onChange={e => {
+                  setPage(1);
+                  setPageSize(Number(e.target.value));
+                }}
+                className={styles.pageSizeSelect}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
           <div className={styles.searchBox}>
             <Input
               placeholder="Search..."
@@ -333,16 +433,92 @@ export default function SyncGroup() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          <div className={styles.summaryInfo}>
+            <span className={styles.totalCount}>
+              Showing {paginatedGroupsData.length > 0 ? (page - 1) * pageSize + 1 : 0} - {Math.min(page * pageSize, filteredGroupsData.length)} of {filteredGroupsData.length.toLocaleString()} groups
+            </span>
+          </div>
           <div className={styles.tableWrapper}>
             <DataTable
               columns={columns}
-              data={filteredGroupsData}
+              data={paginatedGroupsData}
               loading={loading}
               emptyMessage="No data found"
               showIndex={true}
               indexTitle="STT"
             />
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className={styles.pagination}>
+              <div className={styles.paginationInfo}>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  disabled={page === 1} 
+                  onClick={() => setPage(1)}
+                  title="First page"
+                >
+                  ««
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  disabled={page === 1} 
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+              </div>
+              
+              <div className={styles.paginationCenter}>
+                <span className={styles.pageInfo}>
+                  Page <strong>{page}</strong> of <strong>{totalPages}</strong>
+                </span>
+                <div className={styles.jumpToPage}>
+                  <input
+                    type="number"
+                    min="1"
+                    max={totalPages}
+                    placeholder="Go to"
+                    value={jumpToPage}
+                    onChange={e => setJumpToPage(e.target.value)}
+                    onKeyPress={e => e.key === 'Enter' && handleJumpToPage()}
+                    className={styles.jumpInput}
+                  />
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={handleJumpToPage}
+                    disabled={!jumpToPage || parseInt(jumpToPage) < 1 || parseInt(jumpToPage) > totalPages}
+                  >
+                    Go
+                  </Button>
+                </div>
+              </div>
+
+              <div className={styles.paginationInfo}>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  disabled={page >= totalPages} 
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  disabled={page >= totalPages} 
+                  onClick={() => setPage(totalPages)}
+                  title="Last page"
+                >
+                  »»
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

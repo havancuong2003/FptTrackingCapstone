@@ -30,12 +30,53 @@ h1 {
 
 .previewSection {
   margin-top: 32px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 16px;
   
   h2 {
-    margin: 0 0 16px 0;
+    margin: 0;
     font-size: 20px;
     font-weight: 600;
     color: #1f2937;
+  }
+}
+
+.pageSizeSelector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  
+  label {
+    font-size: 14px;
+    color: #64748b;
+    font-weight: 500;
+  }
+}
+
+.pageSizeSelect {
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+  
+  &:hover {
+    border-color: #9ca3af;
+  }
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
   }
 }
 
@@ -47,13 +88,132 @@ h1 {
   }
 }
 
+.summaryInfo {
+  margin-bottom: 12px;
+  padding: 8px 0;
+}
+
+.totalCount {
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 500;
+}
+
 .tableWrapper {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  padding: 16px;
+  //padding: 16px;
   margin-bottom: 32px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  
+  // Override DataTable styles for Sync page
+  :global(.tableContainer) {
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    max-width: 100% !important;
+  }
+  
+  :global(.table) {
+    min-width: auto !important;
+    width: 100%;
+    table-layout: fixed; // Fixed layout for better control
+    
+    th, td {
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      word-break: keep-all !important;
+      word-wrap: normal !important;
+      
+      // Ensure all child elements also respect nowrap
+      * {
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+      }
+    }
+    
+    // STT column - narrow
+    th:first-child, td:first-child {
+      width: 60px;
+      min-width: 60px;
+      max-width: 60px;
+    }
+    
+    // Group Code - medium
+    th:nth-child(2), td:nth-child(2) {
+      width: 120px;
+      min-width: 120px;
+      max-width: 120px;
+    }
+    
+    // Group Name - medium
+    th:nth-child(3), td:nth-child(3) {
+      width: 180px;
+      min-width: 180px;
+      max-width: 180px;
+    }
+    
+    // Vietnamese Title - medium
+    th:nth-child(4), td:nth-child(4) {
+      width: 150px;
+      min-width: 150px;
+      max-width: 150px;
+    }
+    
+    // Major ID - narrow
+    th:nth-child(5), td:nth-child(5) {
+      width: 100px;
+      min-width: 100px;
+      max-width: 100px;
+    }
+    
+    // Profession - medium
+    th:nth-child(6), td:nth-child(6) {
+      width: 150px;
+      min-width: 150px;
+      max-width: 150px;
+    }
+    
+    // Status - narrow
+    th:nth-child(7), td:nth-child(7) {
+      width: 100px;
+      min-width: 100px;
+      max-width: 100px;
+    }
+    
+    // Members - narrow
+    th:nth-child(8), td:nth-child(8) {
+      width: 120px;
+      min-width: 120px;
+      max-width: 120px;
+    }
+    
+    // Description - wider, can expand
+    th:nth-child(9), td:nth-child(9) {
+      min-width: 200px;
+      max-width: 400px;
+    }
+    
+    // Details column - narrow, centered
+    th:last-child, td:last-child {
+      width: 100px;
+      min-width: 100px;
+      max-width: 100px;
+      text-align: center;
+      
+      // Ensure button text is horizontal
+      button {
+        white-space: nowrap !important;
+        writing-mode: horizontal-tb !important;
+        text-orientation: mixed !important;
+        width: auto !important;
+        min-width: 70px;
+        padding: 6px 12px !important;
+      }
+    }
+  }
 }
 
 .membersDetail {
@@ -441,7 +601,70 @@ h1 {
   display: inline-block;
 }
 
+// Pagination
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 20px 0;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.paginationInfo {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.paginationCenter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.pageInfo {
+  font-size: 14px;
+  color: #64748b;
+  
+  strong {
+    color: #1f2937;
+    font-weight: 600;
+  }
+}
+
+.jumpToPage {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.jumpInput {
+  width: 80px;
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: center;
+  
+  &:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+}
+
 @media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+  
   .sectionHeader {
     flex-direction: column;
     align-items: stretch;
@@ -462,11 +685,19 @@ h1 {
   .membersTableWrapper {
     overflow-x: auto;
   }
-}
-
-@media (max-width: 768px) {
-  .container {
-    padding: 16px;
+  
+  .pagination {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .paginationInfo {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .paginationCenter {
+    width: 100%;
   }
   
   .actions {
