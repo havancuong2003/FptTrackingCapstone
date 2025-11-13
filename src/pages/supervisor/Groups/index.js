@@ -57,7 +57,7 @@ export default function SupervisorGroups() {
                                             id: student.rollNumber,
                                             studentId: student.id, // Save studentId for API calls
                                             name: student.name,
-                                            currentRole: student.role === "1" ? 'Member' : (student.role || 'Member'),
+                                            currentRole: student.role === "Student" ? 'Member' : (student.role || 'Member'),
                                             email: `${student.rollNumber.toLowerCase()}@student.fpt.edu.vn`
                                         })),
                                         progress: {
