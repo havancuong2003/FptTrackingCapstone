@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
-import axiosClient from '../../../utils/axiosClient';
-import { getStudentFreeTimeSlotsNew } from '../../../api/schedule';
+import { 
+  getMeetingScheduleByGroupId, 
+  getStudentFreeTimeSlotsNew, 
+  saveStudentFreeTimeSlots 
+} from '../../../api/schedule';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
 import { getCampusById } from '../../../api/campus';
 import { getCampusId } from '../../../auth/auth';
 import Checkbox from '../../../components/Checkbox/Checkbox';
@@ -113,10 +117,10 @@ export default function Schedule() {
   // Check if meeting schedule exists
   const checkMeetingSchedule = async () => {
     try {
-      const response = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
-      if (response.data.status === 200) {
-        setMeetingSchedule(response.data.data);
-        if(response.data.data.isActive) {
+      const response = await getMeetingScheduleByGroupId(groupId);
+      if (response.status === 200) {
+        setMeetingSchedule(response.data);
+        if(response.data.isActive) {
           setIsFinalized(true);
         } else {
           setIsFinalized(false);
@@ -136,10 +140,10 @@ export default function Schedule() {
       const hasSchedule = await checkMeetingSchedule();
         
       // API call lấy chi tiết group theo pattern từ Groups
-      const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
+      const response = await getCapstoneGroupDetail(groupId);
    
-      if (response.data.status === 200) {
-        const groupDetail = response.data.data;
+      if (response.status === 200) {
+        const groupDetail = response.data;
         // Format group data theo structure thực tế từ API
         const formattedGroup = {
           id: groupDetail.id || groupId,
@@ -358,9 +362,9 @@ export default function Schedule() {
         dayOfWeek: dayValue.charAt(0).toUpperCase() + dayValue.slice(1)
       }));
 
-      const response = await axiosClient.post(`/Student/Meeting/groups/${groupId}/schedule/free-time`, formattedData);
+      const response = await saveStudentFreeTimeSlots(groupId, formattedData);
       
-      if (response.data && response.data.status === 200) {
+      if (response && response.status === 200) {
         // Reload lại dữ liệu để cập nhật calendar view
         await fetchStudentFreeTimeSlots();
         alert('Free time slots saved successfully!');
