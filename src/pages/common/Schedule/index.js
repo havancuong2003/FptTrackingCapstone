@@ -344,7 +344,7 @@ export default function Schedule() {
     });
 
     if (daysWithSlots.length === 0) {
-      alert('Vui lòng chọn ít nhất một slot cho một ngày trong tuần');
+      alert('Please select at least one slot for a day of the week');
       return;
     }
 
@@ -363,13 +363,13 @@ export default function Schedule() {
       if (response.data && response.data.status === 200) {
         // Reload lại dữ liệu để cập nhật calendar view
         await fetchStudentFreeTimeSlots();
-        alert('Đã lưu thời gian rảnh thành công!');
+        alert('Free time slots saved successfully!');
       } else {
-        alert('Có lỗi xảy ra khi lưu thời gian rảnh');
+        alert('Error occurred while saving free time slots');
       }
     } catch (error) {
       console.error('Error saving free time slots:', error);
-      alert('Có lỗi xảy ra khi lưu thời gian rảnh');
+      alert('Error occurred while saving free time slots');
     } finally {
       setLoading(false);
     }
@@ -425,7 +425,7 @@ export default function Schedule() {
 
       {!isFinalized && (
         <div className={styles.instruction}>
-          <span>Chọn tab ngày và chọn các slot thời gian rảnh cho mỗi ngày</span>
+          <span>Select day tab and choose free time slots for each day</span>
         </div>
       )}
 
@@ -458,7 +458,7 @@ export default function Schedule() {
             <div className={styles.timeSlotPanel}>
               <div className={styles.timeSlotHeader}>
                 <label className={styles.timeSlotLabel}>
-                  Chọn thời gian rảnh cho {daysOfWeek.find(d => d.value === activeTab)?.name}:
+                  Select free time for {daysOfWeek.find(d => d.value === activeTab)?.name}:
                 </label>
               </div>
               <div className={styles.timeSlotsContainer}>
@@ -476,7 +476,7 @@ export default function Schedule() {
                   </div>
                 ) : (
                   <div className={styles.emptyTimeSlot}>
-                    {loading ? 'Đang tải slots...' : 'Không có slot nào. Vui lòng kiểm tra lại campusId.'}
+                    {loading ? 'Loading slots...' : 'No slots available. Please check campusId.'}
                   </div>
                 )}
               </div>
@@ -490,7 +490,7 @@ export default function Schedule() {
               className={styles.saveSlotsBtn}
               disabled={loading}
             >
-              {loading ? 'Đang lưu...' : 'Lưu thời gian rảnh'}
+              {loading ? 'Saving...' : 'Save Free Time'}
             </button>
           </div>
         </div>

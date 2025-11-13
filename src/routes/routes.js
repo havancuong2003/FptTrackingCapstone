@@ -188,7 +188,7 @@ export const routes = [
   {
     path: "/staff/groups/sync",
     element: StaffGroupsSync,
-    meta: { title: "Sync Group from Call4Project", protected: true, roles: ["STAFF"] },
+    meta: { title: "Sync Groups", protected: true, roles: ["STAFF"] },
   },
   {
     path: "/templates",
