@@ -20,6 +20,10 @@ export default function PenaltyManagement() {
   const [createdPenalties, setCreatedPenalties] = React.useState([]);
   const [loadingCreatedPenalties, setLoadingCreatedPenalties] = React.useState(false);
   
+  // State for penalty statistics
+  const [groupPenalties, setGroupPenalties] = React.useState([]);
+  const [loadingPenaltyStats, setLoadingPenaltyStats] = React.useState(false);
+  
   const [newPenalty, setNewPenalty] = React.useState({
     name: "",
     description: "",
@@ -41,8 +45,10 @@ export default function PenaltyManagement() {
     if (selectedGroup) {
       // Refetch khi nhóm đổi hoặc danh sách sinh viên đã sẵn sàng (tránh race condition)
       fetchCreatedPenalties();
+      fetchGroupPenalties();
     } else {
       setCreatedPenalties([]);
+      setGroupPenalties([]);
     }
   }, [selectedGroup, students]);
 
@@ -179,6 +185,102 @@ export default function PenaltyManagement() {
     }
   };
 
+  // ------------------ Fetch Penalty Cards for Statistics ------------------
+  const fetchGroupPenalties = async () => {
+    if (!selectedGroup || !students || students.length === 0) {
+      setGroupPenalties([]);
+      return;
+    }
+    
+    setLoadingPenaltyStats(true);
+    try {
+      const response = await axiosClient.get('/Common/Evaluation/getCardGeneralFromMentorId');
+      
+      let allPenalties = [];
+      
+      // Kiểm tra nếu response.data là array trực tiếp
+      if (Array.isArray(response.data)) {
+        allPenalties = response.data;
+      } else if (response.data && response.data.status === 200) {
+        allPenalties = response.data.data || [];
+      } else {
+        allPenalties = [];
+      }
+      
+      // Lọc thẻ phạt theo nhóm được chọn và map studentName
+      const filteredPenalties = allPenalties.map(penalty => {
+        // Tìm student từ students
+        const student = students.find(s => {
+          const matchById = s.studentId === penalty.userId?.toString();
+          const matchByNumber = s.studentId === penalty.userId;
+          return matchById || matchByNumber;
+        });
+        
+        return {
+          ...penalty,
+          studentName: student?.name || penalty.studentName || 'Unknown',
+          studentId: penalty.userId
+        };
+      }).filter(penalty => {
+        // Chỉ lấy penalties của các sinh viên trong nhóm hiện tại
+        return students.some(s => {
+          const matchById = s.studentId === penalty.userId?.toString();
+          const matchByNumber = s.studentId === penalty.userId;
+          return matchById || matchByNumber;
+        });
+      });
+      
+      setGroupPenalties(filteredPenalties);
+    } catch (err) {
+      setGroupPenalties([]);
+    } finally {
+      setLoadingPenaltyStats(false);
+    }
+  };
+
+  // ------------------ Calculate Penalty Statistics by Student ------------------
+  const normalizePenaltyType = (rawType) => {
+    if (!rawType) return '';
+    const t = String(rawType).trim().toLowerCase();
+    // English variants
+    if (t === 'warning' || t.includes('warn')) return 'warning';
+    if (t === 'no-deduction' || t === 'no_deduction' || t === 'no deduction' || t.includes('no-deduct')) return 'no-deduction';
+    if (t === 'deduction' || t.includes('deduct') || t.includes('minus')) return 'deduction';
+    // Vietnamese variants
+    if (t.includes('nhắc') || t.includes('nhac')) return 'warning';
+    if (t.includes('không trừ') || t.includes('khong tru') || t.includes('không tru') || t.includes('khong trừ')) return 'no-deduction';
+    if (t.includes('trừ điểm') || t.includes('tru diem') || t.includes('trừ diem') || t.includes('tru điểm')) return 'deduction';
+    return t;
+  };
+
+  const getStudentPenaltyStats = () => {
+    if (!students || students.length === 0) return [];
+    
+    return students.map(student => {
+      const studentPenalties = groupPenalties.filter(p => {
+        const matchById = p.userId?.toString() === student.studentId;
+        const matchByNumber = p.userId === parseInt(student.studentId);
+        return matchById || matchByNumber;
+      });
+      
+      const normalized = studentPenalties.map(p => ({ ...p, _type: normalizePenaltyType(p.type) }));
+
+      const stats = {
+        studentId: student.studentId,
+        studentName: student.name,
+        studentCode: student.id,
+        total: studentPenalties.length,
+        warning: normalized.filter(p => p._type === 'warning').length,
+        noDeduction: normalized.filter(p => p._type === 'no-deduction').length,
+        deduction: normalized.filter(p => p._type === 'deduction').length
+      };
+      
+      return stats;
+    });
+  };
+  
+  const studentPenaltyStats = getStudentPenaltyStats();
+
   // ------------------ Penalty Types ------------------
   const penaltyTypes = [
     { value: "warning", label: "Nhắc nhở" },
@@ -276,6 +378,7 @@ export default function PenaltyManagement() {
         
         // Có thể refetch để đồng bộ với server (giữ lại nếu cần)
         await fetchCreatedPenalties();
+        await fetchGroupPenalties();
 
         setPenaltyModal(false);
         setNewPenalty({
@@ -361,6 +464,9 @@ export default function PenaltyManagement() {
           })
         );
         
+        // Refresh penalty stats
+        await fetchGroupPenalties();
+        
       } else {
         alert(`Error: ${response.data.message || 'Unable to update penalty'}`);
       }
@@ -370,6 +476,54 @@ export default function PenaltyManagement() {
     }
   };
 
+
+  // ------------------ Penalty Statistics Columns ------------------
+  const penaltyStatsColumns = [
+    {
+      key: 'student',
+      title: 'Student',
+      render: (stats) => (
+        <div className={styles.studentInfo}>
+          <strong>{stats.studentName}</strong>
+          <div className={styles.studentCode}>{stats.studentCode || ''}</div>
+        </div>
+      )
+    },
+    {
+      key: 'total',
+      title: 'Tổng số',
+      render: (stats) => (
+        <span className={styles.statTotal}>{stats.total}</span>
+      )
+    },
+    {
+      key: 'warning',
+      title: 'Nhắc nhở',
+      render: (stats) => (
+        <span className={`${styles.statBadge} ${styles.statWarning}`}>
+          {stats.warning}
+        </span>
+      )
+    },
+    {
+      key: 'noDeduction',
+      title: 'Không trừ điểm',
+      render: (stats) => (
+        <span className={`${styles.statBadge} ${styles.statNoDeduction}`}>
+          {stats.noDeduction}
+        </span>
+      )
+    },
+    {
+      key: 'deduction',
+      title: 'Trừ điểm',
+      render: (stats) => (
+        <span className={`${styles.statBadge} ${styles.statDeduction}`}>
+          {stats.deduction}
+        </span>
+      )
+    }
+  ];
 
   // ------------------ Created Penalties Table Columns ------------------
   const createdPenaltiesColumns = [
@@ -547,6 +701,29 @@ export default function PenaltyManagement() {
           </select>
         </div>
       </div>
+
+      {/* ------------------ Penalty Statistics Section ------------------ */}
+      {selectedGroup && (
+        <div className={styles.penaltyStatsSection}>
+          <div className={styles.statsHeader}>
+            <h2>Thống kê Thẻ phạt theo Sinh viên</h2>
+          </div>
+          <div className={styles.statsTableContainer}>
+            {loadingPenaltyStats ? (
+              <div className={styles.loadingStats}>Đang tải thống kê...</div>
+            ) : studentPenaltyStats.length > 0 ? (
+              <DataTable
+                columns={penaltyStatsColumns}
+                data={studentPenaltyStats}
+                loading={false}
+                emptyMessage="Không có thẻ phạt nào"
+              />
+            ) : (
+              <div className={styles.noStats}>Không có dữ liệu thống kê</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ------------------ Penalties Table ------------------ */}
       {selectedGroup && (

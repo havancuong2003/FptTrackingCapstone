@@ -27,28 +27,26 @@ const supervisorMenu = [
     label: "Meeting Management", 
     icon: "🤝"
   },
-  // Đánh giá và theo dõi
   { 
-    path: "/supervisor/evaluation", 
-    label: "Evaluation", 
-    icon: "⭐"
+    path: "/supervisor/documents", 
+    label: "Documents", 
+    icon: "📦"
+  },
+  { 
+    label: "Evaluation Management", 
+    icon: "⭐",
+    children: [
+      { path: "/supervisor/evaluation", label: "Evaluation List" },
+      { path: "/supervisor/penalty-management", label: "Penalty List" }
+    ]
   },
   { 
     path: "/supervisor/tracking", 
     label: "Tracking", 
     icon: "📊"
   },
-  // Tài liệu và quản lý phạt
-  { 
-    path: "/supervisor/documents", 
-    label: "Documents", 
-    icon: "📚"
-  },
-  { 
-    path: "/supervisor/penalty-management", 
-    label: "Penalty Management", 
-    icon: "⚠️"
-  },
+
+
 ];
 
 export default supervisorMenu;
