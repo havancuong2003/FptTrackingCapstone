@@ -2,9 +2,14 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
-import axiosClient from '../../../utils/axiosClient';
+import { 
+  getSupervisorGroups, 
+  getMeetingScheduleByGroupId, 
+  finalizeMeetingSchedule,
+  getStudentFreeTimeSlotsNew 
+} from '../../../api/schedule';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
 import { sendMeetingNotification } from '../../../api/email';
-import { getStudentFreeTimeSlotsNew } from '../../../api/schedule';
 
 export default function SupervisorSchedule() {
   const { groupId: urlGroupId } = useParams();
@@ -66,10 +71,10 @@ export default function SupervisorSchedule() {
   const fetchAvailableGroups = async () => {
     try {
       setLoading(true);
-      const response = await axiosClient.get('/Mentor/getGroups');
+      const response = await getSupervisorGroups();
       
-      if (response.data.status === 200) {
-        const groupsData = response.data.data || [];
+      if (response.status === 200) {
+        const groupsData = response.data || [];
         const mappedGroups = groupsData.map(group => ({
           id: group.id,
           name: group.name || `Group ${group.id}`,
@@ -95,9 +100,9 @@ export default function SupervisorSchedule() {
     setLoading(true);
     try {
       // API call lấy chi tiết group theo pattern từ Groups
-      const response = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
-      if (response.data.status === 200) {
-        const groupDetail = response.data.data;
+      const response = await getCapstoneGroupDetail(groupId);
+      if (response.status === 200) {
+        const groupDetail = response.data;
         // Format group data theo structure thực tế từ API
         const formattedGroup = {
           id: groupDetail.id || groupId,
@@ -133,10 +138,10 @@ export default function SupervisorSchedule() {
       
       // Check if meeting schedule exists
       try {
-        const scheduleResponse = await axiosClient.get(`/Student/Meeting/schedule/finalize/getById/${groupId}`);
-        if (scheduleResponse.data.status === 200 && scheduleResponse.data.data.isActive) {
-          setMeetingSchedule(scheduleResponse.data.data);
-          setIsFinalized(scheduleResponse.data.data.isActive);  
+        const scheduleResponse = await getMeetingScheduleByGroupId(groupId);
+        if (scheduleResponse.status === 200 && scheduleResponse.data.isActive) {
+          setMeetingSchedule(scheduleResponse.data);
+          setIsFinalized(scheduleResponse.data.isActive);  
         }
       } catch (error) {
         console.error('No existing schedule found');
@@ -314,11 +319,10 @@ export default function SupervisorSchedule() {
           meetingLink: meetingScheduleData.meetingLink
         }
       }
-    //  const response = await axiosClient.post(`/Student/Meeting/schedule/finalize/update`, meetingData);
-      const response = await axiosClient.post(`/Student/Meeting/groups/${selectedGroup}/schedule/finalize`, meetingDataAPI);
-      if (response.data) {
+      const response = await finalizeMeetingSchedule(selectedGroup, meetingDataAPI);
+      if (response) {
         // Map response data to meetingSchedule structure
-        const responseData = response.data.data || response.data;
+        const responseData = response.data || response;
         const finalMeetingData = responseData.finalMeeting || responseData;
         
         // Format meeting schedule data
