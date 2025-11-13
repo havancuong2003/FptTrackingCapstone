@@ -41,6 +41,85 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+// ------------------ Penalty Statistics Section ------------------
+.penaltyStatsSection {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-bottom: 32px;
+}
+
+.statsHeader {
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+  border-bottom: 2px solid #e2e8f0;
+
+  h2 {
+    margin: 0;
+    color: #1e293b;
+    font-size: 20px;
+    font-weight: 600;
+  }
+}
+
+.statsTableContainer {
+  padding: 0;
+  
+  :global(.data-table) {
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}
+
+.loadingStats {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+  font-size: 14px;
+  font-style: italic;
+}
+
+.noStats {
+  text-align: center;
+  padding: 40px;
+  color: #94a3b8;
+  font-size: 14px;
+  background: #f8fafc;
+  border-radius: 8px;
+  margin: 16px;
+}
+
+.statTotal {
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.statBadge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.statWarning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.statNoDeduction {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.statDeduction {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .tableSection {
   background: #fff;
   border-radius: 16px;

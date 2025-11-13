@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams } from 'react-router-dom';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
+import DataTable from '../../../components/DataTable/DataTable';
 import { 
   getSupervisorGroups, 
   getMeetingScheduleByGroupId, 
@@ -165,17 +166,6 @@ export default function SupervisorSchedule() {
       return {};
     }
     
-    // Map Vietnamese day names to English values
-    const dayNameMap = {
-      'thứ hai': 'monday',
-      'thứ ba': 'tuesday',
-      'thứ tư': 'wednesday',
-      'thứ năm': 'thursday',
-      'thứ sáu': 'friday',
-      'thứ bảy': 'saturday',
-      'chủ nhật': 'sunday'
-    };
-    
     daysOfWeek.forEach(day => {
       const dayKey = day.value;
       const allSlots = new Map(); // Use Map to store unique slots by id
@@ -183,19 +173,16 @@ export default function SupervisorSchedule() {
       // Collect all unique slots for this day from all members (union)
       studentIds.forEach(studentId => {
         const memberSchedule = memberSchedulesData[studentId] || {};
-        // Check both English and Vietnamese day names
-        Object.keys(memberSchedule).forEach(memberDayKey => {
-          const normalizedKey = dayNameMap[memberDayKey.toLowerCase()] || memberDayKey.toLowerCase();
-          if (normalizedKey === dayKey) {
-            const daySlots = memberSchedule[memberDayKey] || [];
-            daySlots.forEach(slot => {
-              // slot is now an object with id, nameSlot, startAt, endAt
-              if (slot && slot.id) {
-                allSlots.set(slot.id, slot);
-              }
-            });
-          }
-        });
+        // memberSchedule keys should already be normalized to English (monday, tuesday, etc.)
+        if (memberSchedule[dayKey]) {
+          const daySlots = memberSchedule[dayKey] || [];
+          daySlots.forEach(slot => {
+            // slot is now an object with id, nameSlot, startAt, endAt
+            if (slot && slot.id) {
+              allSlots.set(slot.id, slot);
+            }
+          });
+        }
       });
       
       // Convert Map to array and sort by startAt
@@ -226,33 +213,173 @@ export default function SupervisorSchedule() {
     return merged;
   };
 
-  // Calculate suggested meeting times
-  const calculateSuggestedTimes = (mergedScheduleData) => {
+  // Calculate suggested meeting times from memberSchedules (same data as Members' Free Time)
+  const calculateSuggestedTimes = (memberSchedulesData) => {
     const suggestions = [];
     
-    daysOfWeek.forEach(day => {
-      const dayKey = day.value;
-      const slots = mergedScheduleData[dayKey] || [];
-      
-      if (slots.length > 0) {
-        // Suggest the first available slot for each day
-        const firstSlot = slots[0];
-        suggestions.push({
-          day: day.value,
-          dayName: day.name,
-          time: firstSlot.startAt ? `${firstSlot.startAt} - ${firstSlot.endAt}` : firstSlot,
-          slotCount: slots.length,
-          slot: firstSlot
+    // Collect ALL unique slots from ALL students across ALL days (same logic as calendar view)
+    const allSlotsMap = new Map();
+    
+    Object.keys(memberSchedulesData).forEach(studentId => {
+      const studentSchedule = memberSchedulesData[studentId];
+      Object.keys(studentSchedule).forEach(dayKey => {
+        const daySlots = studentSchedule[dayKey] || [];
+        daySlots.forEach(slot => {
+          if (slot && slot.id) {
+            if (!allSlotsMap.has(slot.id)) {
+              allSlotsMap.set(slot.id, {
+                id: slot.id,
+                startAt: slot.startAt || '',
+                endAt: slot.endAt || '',
+                nameSlot: slot.nameSlot || '',
+                days: new Set() // Track which days this slot appears
+              });
+            }
+            // Add day to the slot's days set
+            allSlotsMap.get(slot.id).days.add(dayKey);
+          }
         });
-      }
+      });
     });
     
-    // Sort by day of week
-    const dayOrder = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 };
-    suggestions.sort((a, b) => dayOrder[a.day] - dayOrder[b.day]);
+    // Helper function to count available students for a slot on a specific day
+    const getAvailableStudentsCount = (slot, dayKey) => {
+      let count = 0;
+      Object.keys(memberSchedulesData).forEach(studentId => {
+        const studentSchedule = memberSchedulesData[studentId];
+        const daySlots = studentSchedule[dayKey] || [];
+        const isAvailable = daySlots.some(s => {
+          return (s.id === slot.id) || 
+                 (s.startAt === slot.startAt && s.endAt === slot.endAt);
+        });
+        if (isAvailable) {
+          count++;
+        }
+      });
+      return count;
+    };
     
-    setSuggestedTimes(suggestions);
-    return suggestions;
+    // Helper function to calculate hours from time range
+    const calculateHours = (startAt, endAt) => {
+      if (!startAt || !endAt) return 0;
+      const parseTime = (timeStr) => {
+        const cleaned = timeStr.replace(/[AP]M/i, '').trim();
+        const parts = cleaned.split(':');
+        const hours = parseInt(parts[0]) || 0;
+        const minutes = parseInt(parts[1]) || 0;
+        let totalMinutes = hours * 60 + minutes;
+        
+        if (timeStr.toUpperCase().includes('PM') && hours !== 12) {
+          totalMinutes += 12 * 60;
+        }
+        if (timeStr.toUpperCase().includes('AM') && hours === 12) {
+          totalMinutes -= 12 * 60;
+        }
+        return totalMinutes;
+      };
+      
+      const startMinutes = parseTime(startAt);
+      const endMinutes = parseTime(endAt);
+      const diffMinutes = endMinutes - startMinutes;
+      return Math.round((diffMinutes / 60) * 10) / 10; // Round to 1 decimal
+    };
+    
+    // Create suggestions for each slot on each day it appears
+    allSlotsMap.forEach((slot, slotId) => {
+      slot.days.forEach(dayKey => {
+        const day = daysOfWeek.find(d => d.value === dayKey);
+        if (day) {
+          const availableCount = getAvailableStudentsCount(slot, dayKey);
+          if (availableCount > 0) {
+            const hours = calculateHours(slot.startAt, slot.endAt);
+            const formattedStart = formatTime(slot.startAt);
+            const formattedEnd = formatTime(slot.endAt);
+            const timeDisplay = formattedStart && formattedEnd 
+              ? `${formattedStart} - ${formattedEnd}` 
+              : (slot.nameSlot || '');
+            
+            // Parse start time for sorting
+            const parseTimeForSort = (timeStr) => {
+              if (!timeStr) return 0;
+              const cleaned = timeStr.replace(/[AP]M/i, '').trim();
+              const parts = cleaned.split(':');
+              const hours = parseInt(parts[0]) || 0;
+              const minutes = parseInt(parts[1]) || 0;
+              let totalMinutes = hours * 60 + minutes;
+              
+              if (timeStr.toUpperCase().includes('PM') && hours !== 12) {
+                totalMinutes += 12 * 60;
+              }
+              if (timeStr.toUpperCase().includes('AM') && hours === 12) {
+                totalMinutes -= 12 * 60;
+              }
+              return totalMinutes;
+            };
+            
+            suggestions.push({
+              day: dayKey,
+              dayName: day.name,
+              time: timeDisplay,
+              availableCount: availableCount,
+              hours: hours,
+              slot: slot,
+              startTimeMinutes: parseTimeForSort(slot.startAt) // For sorting
+            });
+          }
+        }
+      });
+    });
+    
+    // Sort by: 1) day of week (Monday first), 2) start time (earlier first)
+    const dayOrder = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 };
+    suggestions.sort((a, b) => {
+      // First sort by day (Monday = 1, comes first)
+      if (dayOrder[a.day] !== dayOrder[b.day]) {
+        return dayOrder[a.day] - dayOrder[b.day];
+      }
+      // If same day, sort by start time (earlier first)
+      return a.startTimeMinutes - b.startTimeMinutes;
+    });
+    
+    // Limit to top 10 suggestions
+    const topSuggestions = suggestions.slice(0, 10);
+    
+    setSuggestedTimes(topSuggestions);
+    return topSuggestions;
+  };
+
+  // Helper function to format time (remove seconds, only HH:MM)
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '';
+    // Remove seconds if present (format: HH:MM:SS -> HH:MM)
+    if (timeStr.includes(':') && timeStr.split(':').length === 3) {
+      const parts = timeStr.split(':');
+      return `${parts[0]}:${parts[1]}`;
+    }
+    return timeStr;
+  };
+
+  // Helper function to map Vietnamese day names to English
+  const mapDayOfWeekToEnglish = (dayOfWeek) => {
+    const dayNameMap = {
+      'thứ hai': 'monday',
+      'thứ ba': 'tuesday',
+      'thứ tư': 'wednesday',
+      'thứ năm': 'thursday',
+      'thứ sáu': 'friday',
+      'thứ bảy': 'saturday',
+      'chủ nhật': 'sunday',
+      'monday': 'monday',
+      'tuesday': 'tuesday',
+      'wednesday': 'wednesday',
+      'thursday': 'thursday',
+      'friday': 'friday',
+      'saturday': 'saturday',
+      'sunday': 'sunday'
+    };
+    
+    const normalized = dayOfWeek.toLowerCase().trim();
+    return dayNameMap[normalized] || normalized;
   };
 
   // Fetch student free time slots
@@ -269,10 +396,16 @@ export default function SupervisorSchedule() {
           if (studentData.freeTimeSlots && studentData.freeTimeSlots.length > 0) {
             const schedule = {};
             studentData.freeTimeSlots.forEach(dayData => {
-              // dayData.dayOfWeek có thể là "Thứ hai", "Thứ ba", etc.
-              const dayKey = dayData.dayOfWeek.toLowerCase();
+              // dayData.dayOfWeek có thể là "Thứ hai", "Thứ ba" (tiếng Việt) hoặc "Monday", "Tuesday" (tiếng Anh)
+              const dayKey = mapDayOfWeekToEnglish(dayData.dayOfWeek);
               // timeSlots là mảng các slot object với id, nameSlot, startAt, endAt
-              schedule[dayKey] = dayData.timeSlots || [];
+              // Đảm bảo format đúng: { id, nameSlot, startAt, endAt }
+              schedule[dayKey] = (dayData.timeSlots || []).map(slot => ({
+                id: slot.id,
+                nameSlot: slot.nameSlot || '',
+                startAt: slot.startAt || '',
+                endAt: slot.endAt || ''
+              }));
             });
             memberSchedulesData[studentData.studentId] = schedule;
           }
@@ -282,8 +415,8 @@ export default function SupervisorSchedule() {
         // Calculate merged schedule
         const merged = calculateMergedSchedule(memberSchedulesData);
         
-        // Calculate suggested times
-        calculateSuggestedTimes(merged);
+        // Calculate suggested times from memberSchedules (same data source as calendar)
+        calculateSuggestedTimes(memberSchedulesData);
         
         return memberSchedulesData;
       }
@@ -558,44 +691,164 @@ export default function SupervisorSchedule() {
             <span>View members' free time and confirm the common meeting schedule</span>
           </div>
 
-          {/* Student Free Time Slots - Merged Calendar View */}
+          {/* Student Free Time Slots - DataTable View */}
           <div className={styles.freeTimeSection}>
             <h2>Members' Free Time</h2>
-            <div className={styles.calendarView}>
-              <div className={styles.calendarHeader}>
-                <div className={styles.calendarDayCol}>Day</div>
-                {daysOfWeek.map(day => (
-                  <div key={day.id} className={styles.calendarDayCol}>
-                    {day.name}
-                  </div>
-                ))}
-              </div>
-              <div className={styles.calendarBody}>
-                <div className={styles.calendarRow}>
-                  <div className={styles.calendarDayLabel}>Common Free Time</div>
-                  {daysOfWeek.map(day => {
-                    const dayKey = day.value;
-                    const timeSlots = mergedSchedule[dayKey] || [];
-                    
+            {(() => {
+              // Collect ALL slots from ALL students across ALL days
+              const allSlotsMap = new Map(); // Use Map to store unique slots by id
+              
+              // Lặp qua tất cả students
+              Object.keys(memberSchedules).forEach(studentId => {
+                const studentSchedule = memberSchedules[studentId];
+                
+                // Lặp qua tất cả days của student này
+                Object.keys(studentSchedule).forEach(dayKey => {
+                  const daySlots = studentSchedule[dayKey] || [];
+                  
+                  // Lặp qua tất cả timeSlots của day này
+                  daySlots.forEach(slot => {
+                    // Sử dụng slot.id làm key để tránh duplicate
+                    if (slot && slot.id) {
+                      if (!allSlotsMap.has(slot.id)) {
+                        allSlotsMap.set(slot.id, {
+                          id: slot.id,
+                          startAt: slot.startAt || '',
+                          endAt: slot.endAt || '',
+                          nameSlot: slot.nameSlot || ''
+                        });
+                      }
+                    }
+                  });
+                });
+              });
+              
+              // Convert to array and sort by time
+              const allSlots = Array.from(allSlotsMap.values()).sort((a, b) => {
+                const parseTime = (timeStr) => {
+                  if (!timeStr) return 0;
+                  // Handle format "09:50:00" or "09:50" or "7:30 AM"
+                  const cleaned = timeStr.replace(/[AP]M/i, '').trim();
+                  const parts = cleaned.split(':');
+                  const hours = parseInt(parts[0]) || 0;
+                  const minutes = parseInt(parts[1]) || 0;
+                  let totalMinutes = hours * 60 + minutes;
+                  
+                  // Handle AM/PM if present
+                  if (timeStr.toUpperCase().includes('PM') && hours !== 12) {
+                    totalMinutes += 12 * 60;
+                  }
+                  if (timeStr.toUpperCase().includes('AM') && hours === 12) {
+                    totalMinutes -= 12 * 60;
+                  }
+                  return totalMinutes;
+                };
+                return parseTime(a.startAt) - parseTime(b.startAt);
+              });
+              
+              // Helper function to find students available at a specific slot and day
+              const getAvailableStudents = (slot, dayKey) => {
+                const available = [];
+                
+                // Lặp qua tất cả students
+                Object.keys(memberSchedules).forEach(studentId => {
+                  const studentSchedule = memberSchedules[studentId];
+                  const daySlots = studentSchedule[dayKey] || [];
+                  
+                  // Check if student has this slot (by id or by time match)
+                  const isAvailable = daySlots.some(s => {
+                    // Match by id (preferred) or by time range
+                    return (s.id === slot.id) || 
+                           (s.startAt === slot.startAt && s.endAt === slot.endAt);
+                  });
+                  
+                  if (isAvailable) {
+                    const student = members.find(m => 
+                      m.id === parseInt(studentId) || 
+                      m.studentId === parseInt(studentId) ||
+                      String(m.id) === String(studentId) ||
+                      String(m.studentId) === String(studentId)
+                    );
+                    if (student) {
+                      available.push(student);
+                    }
+                  }
+                });
+                
+                return available;
+              };
+              
+              // Prepare data for DataTable
+              const tableData = allSlots.map(slot => {
+                const row = {
+                  id: slot.id,
+                  timeSlot: slot,
+                  slotName: slot.nameSlot || `${formatTime(slot.startAt)} - ${formatTime(slot.endAt)}`,
+                  slotTime: `${formatTime(slot.startAt)} - ${formatTime(slot.endAt)}`
+                };
+                
+                // Add each day as a column
+                daysOfWeek.forEach(day => {
+                  const dayKey = day.value;
+                  const availableStudents = getAvailableStudents(slot, dayKey);
+                  row[dayKey] = availableStudents;
+                });
+                
+                return row;
+              });
+              
+              // Define columns for DataTable
+              const columns = [
+                {
+                  key: 'timeSlot',
+                  title: 'Time Slot',
+                  render: (row) => (
+                    <div className={styles.slotTimeCell}>
+                      <div className={styles.slotTimeLabel}>
+                        {row.slotName}
+                      </div>
+                      <div className={styles.slotTimeRange}>
+                        {row.slotTime}
+                      </div>
+                    </div>
+                  )
+                },
+                ...daysOfWeek.map(day => ({
+                  key: day.value,
+                  title: day.name,
+                  render: (row) => {
+                    const availableStudents = row[day.value] || [];
                     return (
-                      <div key={day.id} className={styles.calendarDayCell}>
-                        {timeSlots.length > 0 ? (
-                          <div className={styles.timeSlotsList}>
-                            {timeSlots.map((slot, index) => (
-                              <div key={slot.id || index} className={styles.timeSlotBadge}>
-                                {slot.nameSlot ? `${slot.nameSlot}: ${slot.startAt} - ${slot.endAt}` : slot}
+                      <div className={styles.calendarCell}>
+                        {availableStudents.length > 0 ? (
+                          <div className={styles.studentsList}>
+                            {availableStudents.map((student, idx) => (
+                              <div key={idx} className={styles.studentBadge}>
+                                {student.name || student.rollNumber || `Student ${student.id}`}
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <div className={styles.emptySlot}>-</div>
+                          <div className={styles.emptyCell}>-</div>
                         )}
                       </div>
                     );
-                  })}
+                  }
+                }))
+              ];
+              
+              return (
+                <div className={styles.membersCalendarView}>
+                  <DataTable
+                    columns={columns}
+                    data={tableData}
+                    loading={loading}
+                    emptyMessage="No free time slots available"
+                    showIndex={false}
+                  />
                 </div>
-              </div>
-            </div>
+              );
+            })()}
             
             {/* Suggested Times Section - Only show when not finalized */}
             {!isFinalized && suggestedTimes.length > 0 && (
@@ -610,9 +863,13 @@ export default function SupervisorSchedule() {
                         onClick={() => handleSuggestedTimeClick(suggestion)}
                         className={`${styles.suggestedTimeButton} ${isSelected ? styles.suggestedTimeSelected : ''}`}
                       >
-                        <span className={styles.suggestedDay}>{suggestion.dayName}</span>
-                        <span className={styles.suggestedTime}>{suggestion.time}</span>
-                        <span className={styles.suggestedSlotCount}>({suggestion.slotCount} free hours)</span>
+                        <div className={styles.suggestedTimeRow1}>
+                          <span className={styles.suggestedDay}>{suggestion.dayName}</span>
+                          <span className={styles.suggestedTime}>{suggestion.time}</span>
+                        </div>
+                        <div className={styles.suggestedTimeRow2}>
+                          <span className={styles.suggestedSlotCount}>{suggestion.availableCount} members, {suggestion.hours} hours</span>
+                        </div>
                       </button>
                     );
                   })}

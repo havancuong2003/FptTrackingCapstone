@@ -1,1 +1,21 @@
-.wrap { padding: 16px; } 
+.wrap {
+  padding: 16px;
+}
+
+@media (max-width: 1024px) {
+  .wrap {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .wrap {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .wrap {
+    padding: 8px;
+  }
+}
