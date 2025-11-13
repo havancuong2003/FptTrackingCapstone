@@ -162,7 +162,7 @@ export default function StudentTasks() {
               name: student.name,
               email: student.email,
               type: 'Student',
-              role: student.role
+              role: student.role === "Student" ? 'Member' : (student.role || 'Member')
             });
           });
         }
