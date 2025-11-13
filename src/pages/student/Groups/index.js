@@ -52,7 +52,7 @@ export default function StudentGroups() {
                             id: student.rollNumber,
                             studentId: student.id, // Save studentId để gọi API
                             name: student.name,
-                            currentRole: student.role === "1" ? 'Member' : (student.role || 'Member'),
+                            currentRole: student.role === "Student" ? 'Member' : (student.role || 'Member'),
                             email: student.email || ''
                         })),
                         progress: {
@@ -256,13 +256,14 @@ export default function StudentGroups() {
                                     <h4>Members ({group.members.length})</h4>
                                     <div className={styles.membersList}>
                                         {group.members.map((member) => {
+                                            console.log(" member role: ", member);
                                             const canChange = canChangeRole(member);
                                             return (
                                                 <div key={member.id} className={styles.memberItem}>
                                                     <div className={styles.memberInfo}>
                                                         <span className={styles.memberName}>{member.name}</span>
                                                         <span className={styles.memberEmail}>{member.email}</span>
-                                                        <span className={styles.memberRoleTag}>{member.currentRole}</span>
+                                                        <span className={styles.memberRoleTag}>{member.currentRole === 'Student' ? 'Member' : (member.currentRole || 'Member')}</span>
                                                     </div>
                                                     {canChange && (
                                                         <Button 
