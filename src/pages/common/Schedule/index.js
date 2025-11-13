@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import axiosClient from '../../../utils/axiosClient';
+import { getStudentFreeTimeSlotsNew } from '../../../api/schedule';
+import { getCampusById } from '../../../api/campus';
+import { getCampusId } from '../../../auth/auth';
+import Checkbox from '../../../components/Checkbox/Checkbox';
 
 export default function Schedule() {
   // Lấy groupId từ localStorage (như trong auth.js)
@@ -48,9 +52,9 @@ export default function Schedule() {
   const currentUser = getCurrentUser();
   const [loading, setLoading] = useState(false);
   const [group, setGroup] = useState(null);
-  const [freeTimeSlots, setFreeTimeSlots] = useState({}); // Object với key là day value
+  const [freeTimeSlots, setFreeTimeSlots] = useState({}); // Object với key là day value, value là array các slot đã chọn
   const [activeTab, setActiveTab] = useState('monday'); // Tab đang active
-  // Bỏ timeInterval - không cần nữa
+  const [availableSlots, setAvailableSlots] = useState([]); // Tất cả slots từ campus
   const [isFinalized, setIsFinalized] = useState(false);
   const [meetingSchedule, setMeetingSchedule] = useState(null);
   const [finalMeeting, setFinalMeeting] = useState(null);
@@ -58,7 +62,6 @@ export default function Schedule() {
   const [memberSchedules, setMemberSchedules] = useState({});
   const [mergedSchedule, setMergedSchedule] = useState({});
   const [isSupervisor, setIsSupervisor] = useState(false);
-  // Bỏ useTimeInput - chỉ sử dụng text input với format HH:MM
 
   // Days of the week
   const daysOfWeek = [
@@ -71,13 +74,34 @@ export default function Schedule() {
     { id: 7, name: 'Sunday', value: 'sunday' }
   ];
 
-  // Bỏ generateTimeSlots - không cần nữa vì user tự nhập giờ
-
   useEffect(() => {
     if (groupId) {
       loadGroupData();
     }
   }, [groupId]);
+
+  // Load slots từ campus
+  useEffect(() => {
+    loadCampusSlots();
+  }, []);
+
+  // Load campus slots
+  const loadCampusSlots = async () => {
+    try {
+      const campusId = getCampusId();
+      if (!campusId) {
+        console.error('Không tìm thấy campusId trong localStorage');
+        return;
+      }
+      
+      const response = await getCampusById(campusId);
+      if (response.status === 200 && response.data && response.data.slots) {
+        setAvailableSlots(response.data.slots || []);
+      }
+    } catch (error) {
+      console.error('Error loading campus slots:', error);
+    }
+  };
 
   // Kiểm tra role của user
   useEffect(() => {
@@ -160,23 +184,25 @@ export default function Schedule() {
   // Fetch student free time slots
   const fetchStudentFreeTimeSlots = async () => {
     try {
-      const freeTimeResponse = await axiosClient.get(`/Student/Meeting/groups/${groupId}/schedule/free-time`);
-      if (freeTimeResponse.data && freeTimeResponse.data.status === 200) {
-        const apiData = freeTimeResponse.data.data;
+      const freeTimeResponse = await getStudentFreeTimeSlotsNew(groupId);
+      if (freeTimeResponse && freeTimeResponse.status === 200 && freeTimeResponse.data) {
+        const apiData = freeTimeResponse.data.students || [];
           
         // Tìm thời gian rảnh của user hiện tại
         const currentStudentId = parseInt(localStorage.getItem('student_id')) || parseInt(currentUser?.id);
         const currentStudentData = apiData.find(item => item.studentId === currentStudentId);
         
-        if (currentStudentData && currentStudentData.freeTimeSlots.length > 0) {
+        if (currentStudentData && currentStudentData.freeTimeSlots && currentStudentData.freeTimeSlots.length > 0) {
           // Convert backend data to frontend format - object với key là day value
           const formattedSlots = {};
           currentStudentData.freeTimeSlots.forEach((item) => {
             const dayKey = item.dayOfWeek.toLowerCase();
-            formattedSlots[dayKey] = item.timeSlots.map((time, timeIndex) => ({
-              id: `time-${timeIndex + 1}`,
-              time: time,
-              isValid: true
+            // timeSlots là mảng các slot object với id, nameSlot, startAt, endAt
+            formattedSlots[dayKey] = (item.timeSlots || []).map((slot, slotIndex) => ({
+              id: slot.id || `slot-${slotIndex + 1}`,
+              nameSlot: slot.nameSlot || '',
+              startAt: slot.startAt || '',
+              endAt: slot.endAt || ''
             }));
           });
           setFreeTimeSlots(formattedSlots);
@@ -185,10 +211,10 @@ export default function Schedule() {
         // Lưu dữ liệu của tất cả thành viên để hiển thị
         const memberSchedulesData = {};
         apiData.forEach(studentData => {
-          if (studentData.freeTimeSlots.length > 0) {
+          if (studentData.freeTimeSlots && studentData.freeTimeSlots.length > 0) {
             const schedule = {};
             studentData.freeTimeSlots.forEach(dayData => {
-              schedule[dayData.dayOfWeek.toLowerCase()] = dayData.timeSlots;
+              schedule[dayData.dayOfWeek.toLowerCase()] = dayData.timeSlots || [];
             });
             memberSchedulesData[studentData.studentId] = schedule;
           }
@@ -213,23 +239,58 @@ export default function Schedule() {
       return {};
     }
     
+    // Map Vietnamese day names to English values
+    const dayNameMap = {
+      'thứ hai': 'monday',
+      'thứ ba': 'tuesday',
+      'thứ tư': 'wednesday',
+      'thứ năm': 'thursday',
+      'thứ sáu': 'friday',
+      'thứ bảy': 'saturday',
+      'chủ nhật': 'sunday'
+    };
+    
     daysOfWeek.forEach(day => {
       const dayKey = day.value;
-      const allTimeSlots = new Set();
+      const allSlots = new Map(); // Use Map to store unique slots by id
       
-      // Collect all unique time slots for this day from all members (union)
+      // Collect all unique slots for this day from all members (union)
       studentIds.forEach(studentId => {
         const memberSchedule = memberSchedulesData[studentId] || {};
-        const daySlots = memberSchedule[dayKey] || [];
-        daySlots.forEach(slot => allTimeSlots.add(slot));
+        // Check both English and Vietnamese day names
+        Object.keys(memberSchedule).forEach(memberDayKey => {
+          const normalizedKey = dayNameMap[memberDayKey.toLowerCase()] || memberDayKey.toLowerCase();
+          if (normalizedKey === dayKey) {
+            const daySlots = memberSchedule[memberDayKey] || [];
+            daySlots.forEach(slot => {
+              // slot is now an object with id, nameSlot, startAt, endAt
+              if (slot && slot.id) {
+                allSlots.set(slot.id, slot);
+              }
+            });
+          }
+        });
       });
       
-      // Convert Set to array and sort time slots from smallest to largest
-      const mergedSlots = Array.from(allTimeSlots);
+      // Convert Map to array and sort by startAt
+      const mergedSlots = Array.from(allSlots.values());
       mergedSlots.sort((a, b) => {
-        const [h1, m1] = a.split(':').map(Number);
-        const [h2, m2] = b.split(':').map(Number);
-        return h1 * 60 + m1 - (h2 * 60 + m2);
+        // Parse time strings like "7:30 AM" or "09:50:00"
+        const parseTime = (timeStr) => {
+          if (!timeStr) return 0;
+          const cleaned = timeStr.replace(/[AP]M/i, '').trim();
+          const [hours, minutes] = cleaned.split(':').map(Number);
+          let totalMinutes = (hours || 0) * 60 + (minutes || 0);
+          // Handle AM/PM
+          if (timeStr.toUpperCase().includes('PM') && hours !== 12) {
+            totalMinutes += 12 * 60;
+          }
+          if (timeStr.toUpperCase().includes('AM') && hours === 12) {
+            totalMinutes -= 12 * 60;
+          }
+          return totalMinutes;
+        };
+        return parseTime(a.startAt) - parseTime(b.startAt);
       });
       
       merged[dayKey] = mergedSlots;
@@ -239,180 +300,81 @@ export default function Schedule() {
     return merged;
   };
 
-  // Validate time format - bắt buộc format HH:MM
-  const validateTimeFormat = (time) => {
-    if (!time) return false;
-    const timeRegex = /^([0-1][0-9]|2[0-3]):([0-5][0-9])$/;
-    return timeRegex.test(time);
-  };
 
-  // Thêm giờ rảnh cho ngày được chọn
-  const addTimeSlot = (dayValue) => {
-    const newTimeSlot = {
-      id: Date.now(),
-      time: '',
-      isValid: false
-    };
-    setFreeTimeSlots(prev => ({
-      ...prev,
-      [dayValue]: [...(prev[dayValue] || []), newTimeSlot]
-    }));
-  };
-
-  // Xóa giờ rảnh
-  const removeTimeSlot = (dayValue, timeSlotId) => {
-    setFreeTimeSlots(prev => ({
-      ...prev,
-      [dayValue]: (prev[dayValue] || []).filter(slot => slot.id !== timeSlotId)
-    }));
-  };
-
-  // Cập nhật giờ rảnh với validation
-  const updateTimeSlot = (dayValue, timeSlotId, value) => {
-    setFreeTimeSlots(prev => ({
-      ...prev,
-      [dayValue]: (prev[dayValue] || []).map(slot => 
-        slot.id === timeSlotId 
-          ? { 
-              ...slot, 
-              time: value,
-              isValid: validateTimeFormat(value)
-            }
-          : slot
-      )
-    }));
-  };
-
-  // Lấy số lượng giờ rảnh đã nhập cho một ngày
+  // Lấy số lượng giờ rảnh đã chọn cho một ngày
   const getTimeSlotCount = (dayValue) => {
-    return (freeTimeSlots[dayValue] || []).filter(slot => slot.time && slot.isValid).length;
+    return (freeTimeSlots[dayValue] || []).length;
   };
+
+  // Toggle slot selection cho một ngày
+  const toggleSlotSelection = (dayValue, slot) => {
+    setFreeTimeSlots(prev => {
+      const daySlots = prev[dayValue] || [];
+      const slotIndex = daySlots.findIndex(s => s.id === slot.id);
+      
+      if (slotIndex >= 0) {
+        // Đã chọn rồi -> bỏ chọn
+        return {
+          ...prev,
+          [dayValue]: daySlots.filter(s => s.id !== slot.id)
+        };
+      } else {
+        // Chưa chọn -> thêm vào
+        return {
+          ...prev,
+          [dayValue]: [...daySlots, slot]
+        };
+      }
+    });
+  };
+
+  // Kiểm tra slot có được chọn cho một ngày không
+  const isSlotSelected = (dayValue, slotId) => {
+    const daySlots = freeTimeSlots[dayValue] || [];
+    return daySlots.some(s => s.id === slotId);
+  };
+
 
   // Save free time slots
   const handleSaveFreeTimeSlots = async () => {
-    // Kiểm tra có time slot nào chưa chọn giờ
-    let hasEmptyTime = false;
-    let emptyTimeMessages = [];
-    
-    Object.keys(freeTimeSlots).forEach(dayValue => {
-      const slots = freeTimeSlots[dayValue] || [];
-      const emptySlots = slots.filter(slot => !slot.time || slot.time === '');
-      if (emptySlots.length > 0) {
-        hasEmptyTime = true;
-        const dayName = daysOfWeek.find(d => d.value === dayValue)?.name || dayValue;
-        emptyTimeMessages.push(`${dayName}: No free time selected`);
-      }
-    });
-    
-    if (hasEmptyTime) {
-      alert('Please check again:\n' + emptyTimeMessages.join('\n') + '\n\nPlease select time for all added free time slots.');
-      return;
-    }
-
-    // Kiểm tra có ít nhất một ngày có giờ rảnh hợp lệ
+    // Kiểm tra có ít nhất một ngày có slot được chọn
     const daysWithSlots = Object.keys(freeTimeSlots).filter(day => {
       const slots = freeTimeSlots[day] || [];
-      return slots.some(slot => slot.time && slot.isValid);
+      return slots.length > 0;
     });
 
     if (daysWithSlots.length === 0) {
-      alert('Please enter at least one free time slot for a day of the week');
-      return;
-    }
-    
-    // Validate tất cả time slots (nếu có format không hợp lệ)
-    let hasInvalidSlot = false;
-    let invalidMessages = [];
-    
-    Object.keys(freeTimeSlots).forEach(dayValue => {
-      const slots = freeTimeSlots[dayValue] || [];
-      const invalidSlots = slots.filter(slot => slot.time && !slot.isValid);
-      if (invalidSlots.length > 0) {
-        hasInvalidSlot = true;
-        const dayName = daysOfWeek.find(d => d.value === dayValue)?.name || dayValue;
-        invalidMessages.push(`${dayName}: ${invalidSlots.length} free time slot(s) with invalid format`);
-      }
-    });
-    
-    if (hasInvalidSlot) {
-      alert('Please check again:\n' + invalidMessages.join('\n') + '\n\nTime format must be HH:MM (e.g: 09:00, 17:30)');
+      alert('Vui lòng chọn ít nhất một slot cho một ngày trong tuần');
       return;
     }
 
     setLoading(true);
     try {
-      const studentId = parseInt(localStorage.getItem('student_id')) || parseInt(currentUser?.id);
-      const groupIdInt = parseInt(groupId);
-      
       // Format data theo yêu cầu backend
-      const formattedData = {
-        freeTimeSlots: daysWithSlots.map(dayValue => ({
-          studentId: studentId,
-          groupId: groupIdInt,
-          dayOfWeek: dayValue.charAt(0).toUpperCase() + dayValue.slice(1),
-          timeSlots: [{
-            dayOfWeek: dayValue.charAt(0).toUpperCase() + dayValue.slice(1),
-            timeSlots: freeTimeSlots[dayValue]
-              .filter(slot => slot.time && slot.isValid)
-              .map(slot => slot.time)
-          }]
-        }))
-      };
+      // slots: mảng các id của slots đã chọn
+      // dayOfWeek: tên ngày trong tuần
+      const formattedData = daysWithSlots.map(dayValue => ({
+        slots: freeTimeSlots[dayValue].map(slot => slot.id),
+        dayOfWeek: dayValue.charAt(0).toUpperCase() + dayValue.slice(1)
+      }));
 
       const response = await axiosClient.post(`/Student/Meeting/groups/${groupId}/schedule/free-time`, formattedData);
       
       if (response.data && response.data.status === 200) {
         // Reload lại dữ liệu để cập nhật calendar view
         await fetchStudentFreeTimeSlots();
-        alert('Free time slots saved successfully!');
+        alert('Đã lưu thời gian rảnh thành công!');
       } else {
-        alert('Error occurred while saving free time slots');
+        alert('Có lỗi xảy ra khi lưu thời gian rảnh');
       }
     } catch (error) {
       console.error('Error saving free time slots:', error);
-      alert('Error occurred while saving free time slots');
+      alert('Có lỗi xảy ra khi lưu thời gian rảnh');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleFinalizeSchedule = async () => {
-    setLoading(true);
-    try {
-      // Get selected time and day from form
-      const selectedDay = document.querySelector('select[name="dayOfWeek"]')?.value;
-      const selectedTime = document.querySelector('input[name="time"]')?.value;
-      const meetingLink = document.querySelector('input[name="meetingLink"]')?.value || '';
-      
-      if (!selectedDay || !selectedTime) {
-        alert('Please select meeting day and time');
-        return;
-      }
-      
-      const meetingData = {
-        id: meetingSchedule?.id || null, // Use existing ID if updating
-        isActive: true,
-        meetingLink: meetingLink,
-        time: selectedTime,
-        dayOfWeek: selectedDay.toLowerCase(),
-        createdByName: currentUser.name
-      };
-      
-      // API call để tạo hoặc cập nhật lịch họp
-      const response = await axiosClient.post(`/Student/Meeting/schedule/finalize/update`, meetingData);
-      
-      if (response.data) {
-        setMeetingSchedule(response.data);
-        setIsFinalized(true);
-        alert('Meeting schedule confirmed successfully!');
-      }
-    } catch (error) {
-      console.error('Error finalizing schedule:', error);
-      alert('Error occurred while confirming meeting schedule');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading && !group) {
     return <div className={styles.loading}>Loading...</div>;
@@ -463,7 +425,7 @@ export default function Schedule() {
 
       {!isFinalized && (
         <div className={styles.instruction}>
-          <span>Select day tab and enter free time (HH:MM) for each day</span>
+          <span>Chọn tab ngày và chọn các slot thời gian rảnh cho mỗi ngày</span>
         </div>
       )}
 
@@ -496,36 +458,25 @@ export default function Schedule() {
             <div className={styles.timeSlotPanel}>
               <div className={styles.timeSlotHeader}>
                 <label className={styles.timeSlotLabel}>
-                  Free time for {daysOfWeek.find(d => d.value === activeTab)?.name} (HH:MM):
+                  Chọn thời gian rảnh cho {daysOfWeek.find(d => d.value === activeTab)?.name}:
                 </label>
-                <button
-                  onClick={() => addTimeSlot(activeTab)}
-                  className={styles.addTimeBtn}
-                >
-                  + Add Time
-                </button>
               </div>
               <div className={styles.timeSlotsContainer}>
-                {(freeTimeSlots[activeTab] || []).map(timeSlot => (
-                  <div key={timeSlot.id} className={styles.timeSlotItem}>
-                    <input
-                      type="time"
-                      value={timeSlot.time}
-                      onChange={(e) => updateTimeSlot(activeTab, timeSlot.id, e.target.value)}
-                      className={`${styles.timeInput} ${timeSlot.time && !timeSlot.isValid ? styles.invalid : ''}`}
-                    />
-                    <button
-                      onClick={() => removeTimeSlot(activeTab, timeSlot.id)}
-                      className={styles.removeTimeBtn}
-                      title="Remove this time"
-                    >
-                      ×
-                    </button>
+                {availableSlots.length > 0 ? (
+                  <div className={styles.slotsGrid}>
+                    {availableSlots.map(slot => (
+                      <div key={slot.id} className={styles.slotCheckboxItem}>
+                        <Checkbox
+                          label={`${slot.nameSlot || 'Slot'} (${slot.startAt} - ${slot.endAt})`}
+                          checked={isSlotSelected(activeTab, slot.id)}
+                          onChange={() => toggleSlotSelection(activeTab, slot)}
+                        />
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {(freeTimeSlots[activeTab] || []).length === 0 && (
+                ) : (
                   <div className={styles.emptyTimeSlot}>
-                    No free time slots yet. Click "+ Add Time" to add.
+                    {loading ? 'Đang tải slots...' : 'Không có slot nào. Vui lòng kiểm tra lại campusId.'}
                   </div>
                 )}
               </div>
@@ -539,7 +490,7 @@ export default function Schedule() {
               className={styles.saveSlotsBtn}
               disabled={loading}
             >
-              {loading ? 'Saving...' : 'Save Free Time'}
+              {loading ? 'Đang lưu...' : 'Lưu thời gian rảnh'}
             </button>
           </div>
         </div>
@@ -568,7 +519,9 @@ export default function Schedule() {
                       {timeSlots.length > 0 ? (
                         <div className={styles.timeSlotsList}>
                           {timeSlots.map((slot, index) => (
-                            <div key={index} className={styles.timeSlotBadge}>{slot}</div>
+                            <div key={slot.id || index} className={styles.timeSlotBadge}>
+                              {slot.nameSlot ? `${slot.nameSlot}: ${slot.startAt} - ${slot.endAt}` : slot}
+                            </div>
                           ))}
                         </div>
                       ) : (
@@ -582,37 +535,6 @@ export default function Schedule() {
           </div>
         </div>
 
-      {isSupervisor && (
-            <div className={styles.finalizeSection}>
-          <h3>Confirm Meeting Schedule</h3>
-              <div className={styles.finalizeForm}>
-            <input 
-              type="date" 
-              className={styles.dateSelect}
-              placeholder="Select Date"
-            />
-                <select className={styles.timeSelect}>
-                  <option value="">Select Time</option>
-                  <option value="08:00">08:00</option>
-                  <option value="09:00">09:00</option>
-                  <option value="10:00">10:00</option>
-                  <option value="11:00">11:00</option>
-                  <option value="13:00">13:00</option>
-                  <option value="14:00">14:00</option>
-                  <option value="15:00">15:00</option>
-                  <option value="16:00">16:00</option>
-                  <option value="17:00">17:00</option>
-                </select>
-            <button 
-              onClick={handleFinalizeSchedule}
-                  className={styles.finalizeButton}
-              disabled={loading}
-            >
-              {loading ? 'Confirming...' : 'Confirm Meeting Schedule'}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

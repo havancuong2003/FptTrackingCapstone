@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import styles from './index.module.scss';
 import axiosClient from '../../../utils/axiosClient';
+import { getCampusId } from '../../../auth/auth';
+import { getCampusById } from '../../../api/campus';
+import { getStudentFreeTimeSlotsNew, updateStudentFreeTimeSlotsNew } from '../../../api/schedule';
 
 export default function StudentSchedule() {
   const [loading, setLoading] = useState(false);
   const [selectedDayOfWeek, setSelectedDayOfWeek] = useState('');
-  const [selectedTimeSlots, setSelectedTimeSlots] = useState([]);
-  const [availableSlots, setAvailableSlots] = useState([]);
+  const [selectedSlotIds, setSelectedSlotIds] = useState([]);
+  const [campusSlots, setCampusSlots] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
   const [teamAvailability, setTeamAvailability] = useState({});
   const [suggestedSlots, setSuggestedSlots] = useState([]);
@@ -14,6 +17,7 @@ export default function StudentSchedule() {
   const [meetingSchedule, setMeetingSchedule] = useState(null);
   const [isFinalized, setIsFinalized] = useState(false);
   const [showOthersSchedule, setShowOthersSchedule] = useState(true);
+  const [groupFreeTimeData, setGroupFreeTimeData] = useState(null);
 
   // Mock data
   const mockTeamMembers = [
@@ -24,21 +28,15 @@ export default function StudentSchedule() {
     { id: 'SE00005', name: 'Nguyen Van E', role: 'Documentation' }
   ];
 
-  const mockTimeSlots = [
-    '08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-    '12:00', '12:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30',
-    '16:00', '16:30', '17:00', '17:30', '18:00', '18:30', '19:00', '19:30',
-    '20:00', '20:30', '21:00', '21:30', '22:00'
-  ];
 
   const dayOfWeekOptions = [
-    { value: 'monday', label: 'Thứ 2' },
-    { value: 'tuesday', label: 'Thứ 3' },
-    { value: 'wednesday', label: 'Thứ 4' },
-    { value: 'thursday', label: 'Thứ 5' },
-    { value: 'friday', label: 'Thứ 6' },
-    { value: 'saturday', label: 'Thứ 7' },
-    { value: 'sunday', label: 'Chủ nhật' }
+    { value: 'Thứ hai', label: 'Thứ 2' },
+    { value: 'Thứ ba', label: 'Thứ 3' },
+    { value: 'Thứ tư', label: 'Thứ 4' },
+    { value: 'Thứ năm', label: 'Thứ 5' },
+    { value: 'Thứ sáu', label: 'Thứ 6' },
+    { value: 'Thứ bảy', label: 'Thứ 7' },
+    { value: 'Chủ nhật', label: 'Chủ nhật' }
   ];
 
   // Check if meeting schedule exists
@@ -59,64 +57,94 @@ export default function StudentSchedule() {
     }
   };
 
+  // Load campus slots
+  const loadCampusSlots = async () => {
+    try {
+      const campusId = getCampusId();
+      if (!campusId) {
+        console.error('Không tìm thấy campusId');
+        return;
+      }
+      const response = await getCampusById(campusId);
+      if (response.status === 200 && response.data && response.data.slots) {
+        setCampusSlots(response.data.slots);
+      }
+    } catch (error) {
+      console.error('Error loading campus slots:', error);
+    }
+  };
+
+  // Load group free time data
+  const loadGroupFreeTime = async () => {
+    try {
+      const groupId = localStorage.getItem('student_group_id') || '1';
+      const response = await getStudentFreeTimeSlotsNew(groupId);
+      if (response.status === 200 && response.data) {
+        setGroupFreeTimeData(response.data);
+        // Extract team members from response
+        if (response.data.students) {
+          setTeamMembers(response.data.students.map(student => ({
+            id: student.studentId,
+            name: `Student ${student.studentId}`,
+            role: 'Member',
+            freeTimeSlots: student.freeTimeSlots || []
+          })));
+        }
+      }
+    } catch (error) {
+      console.error('Error loading group free time:', error);
+    }
+  };
+
   useEffect(() => {
-    setTeamMembers(mockTeamMembers);
-    setAvailableSlots(mockTimeSlots);
-    
-    // Check if meeting schedule already exists
+    loadCampusSlots();
+    loadGroupFreeTime();
     checkMeetingSchedule();
   }, []);
 
   const handleDayOfWeekChange = (dayOfWeek) => {
     setSelectedDayOfWeek(dayOfWeek);
-    setSelectedTimeSlots([]);
+    setSelectedSlotIds([]);
     setShowSuggestions(false);
   };
 
-  const handleTimeSlotToggle = (timeSlot) => {
-    setSelectedTimeSlots(prev => {
-      if (prev.includes(timeSlot)) {
-        return prev.filter(slot => slot !== timeSlot);
+  const handleSlotToggle = (slotId) => {
+    setSelectedSlotIds(prev => {
+      if (prev.includes(slotId)) {
+        return prev.filter(id => id !== slotId);
       } else {
-        return [...prev, timeSlot];
+        return [...prev, slotId];
       }
     });
   };
 
   const handleSubmitAvailability = async () => {
-    if (!selectedDayOfWeek || selectedTimeSlots.length === 0) {
-      alert('Vui lòng chọn thứ và ít nhất một khung giờ rảnh');
+    if (!selectedDayOfWeek || selectedSlotIds.length === 0) {
+      alert('Vui lòng chọn thứ và ít nhất một slot rảnh');
       return;
     }
 
     setLoading(true);
     try {
-      const studentId = localStorage.getItem('student_id') || localStorage.getItem('userId');
       const groupId = localStorage.getItem('student_group_id');
       
-      if (!studentId || !groupId) {
-        alert('Không tìm thấy thông tin sinh viên hoặc nhóm');
+      if (!groupId) {
+        alert('Không tìm thấy thông tin nhóm');
         return;
       }
 
-      const response = await axiosClient.post(`/Student/Meeting/groups/${groupId}/schedule/free-time`, {
-        freeTimeSlots: [{
-          studentId: parseInt(studentId),
-          groupId: parseInt(groupId),
-          dayOfWeek: selectedDayOfWeek,
-          timeSlots: selectedTimeSlots
-        }]
-      });
+      const requestData = [{
+        slots: selectedSlotIds,
+        dayOfWeek: selectedDayOfWeek
+      }];
 
-      if (response.data.success) {
-        setTeamAvailability(prev => ({
-          ...prev,
-          [selectedDayOfWeek]: {
-            ...prev[selectedDayOfWeek],
-            [studentId]: selectedTimeSlots
-          }
-        }));
+      const response = await updateStudentFreeTimeSlotsNew(groupId, requestData);
+
+      if (response.status === 200) {
         alert('Đã cập nhật lịch rảnh thành công!');
+        // Reload data
+        await loadGroupFreeTime();
+        setSelectedSlotIds([]);
       } else {
         alert('Có lỗi xảy ra khi cập nhật lịch rảnh');
       }
@@ -141,25 +169,32 @@ export default function StudentSchedule() {
         return;
       }
 
-      const response = await axiosClient.get(`/Student/Meeting/groups/${groupId}/schedule/free-time`);
-      if (response.data.success && response.data.data) {
-        // Tìm các khung giờ chung của tất cả thành viên
-        const allSlots = response.data.data
-          .filter(slot => slot.day === selectedDayOfWeek)
-          .map(slot => slot.timeSlots)
-          .flat();
+      const response = await getStudentFreeTimeSlotsNew(groupId);
+      if (response.status === 200 && response.data && response.data.students) {
+        // Tìm các slot chung của tất cả thành viên trong ngày được chọn
+        const daySlots = {};
         
-        // Đếm số lần xuất hiện của mỗi khung giờ
-        const slotCounts = {};
-        allSlots.forEach(slot => {
-          slotCounts[slot] = (slotCounts[slot] || 0) + 1;
+        response.data.students.forEach(student => {
+          const dayData = student.freeTimeSlots.find(ft => ft.dayOfWeek === selectedDayOfWeek);
+          if (dayData && dayData.timeSlots) {
+            dayData.timeSlots.forEach(slot => {
+              if (!daySlots[slot.id]) {
+                daySlots[slot.id] = {
+                  slot: slot,
+                  count: 0
+                };
+              }
+              daySlots[slot.id].count++;
+            });
+          }
         });
         
-        // Lấy các khung giờ xuất hiện nhiều nhất
-        const commonSlots = Object.keys(slotCounts)
-          .filter(slot => slotCounts[slot] > 1)
-          .sort((a, b) => slotCounts[b] - slotCounts[a])
-          .slice(0, 4);
+        // Lấy các slot xuất hiện nhiều nhất (ít nhất 2 người có)
+        const commonSlots = Object.values(daySlots)
+          .filter(item => item.count > 1)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 4)
+          .map(item => item.slot);
         
         setSuggestedSlots(commonSlots);
         setShowSuggestions(true);
@@ -182,7 +217,7 @@ export default function StudentSchedule() {
         id: meetingSchedule?.id || null, // Use existing ID if updating
         isActive: true,
         meetingLink: meetingSchedule?.meetingLink || '', // Keep existing link if updating
-        time: suggestedSlot,
+        time: `${suggestedSlot.startAt} - ${suggestedSlot.endAt}`,
         dayOfWeek: selectedDayOfWeek.toLowerCase()
       };
       
@@ -191,7 +226,7 @@ export default function StudentSchedule() {
       if (response.data) {
         setMeetingSchedule(response.data);
         setIsFinalized(true);
-        alert(`Đã xác nhận lịch họp: ${suggestedSlot} ${dayOfWeekOptions.find(d => d.value === selectedDayOfWeek)?.label}`);
+        alert(`Đã xác nhận lịch họp: ${suggestedSlot.nameSlot} (${suggestedSlot.startAt} - ${suggestedSlot.endAt}) ${dayOfWeekOptions.find(d => d.value === selectedDayOfWeek)?.label}`);
       }
     } catch (error) {
       console.error('Error confirming meeting time:', error);
@@ -200,17 +235,15 @@ export default function StudentSchedule() {
   };
 
   const getMemberAvailability = (memberId, dayOfWeek) => {
-    return teamAvailability[dayOfWeek]?.[memberId] || [];
+    if (!groupFreeTimeData || !groupFreeTimeData.students) return [];
+    const student = groupFreeTimeData.students.find(s => s.studentId === memberId);
+    if (!student || !student.freeTimeSlots) return [];
+    const dayData = student.freeTimeSlots.find(ft => ft.dayOfWeek === dayOfWeek);
+    return dayData ? dayData.timeSlots : [];
   };
 
-  const isSlotSelected = (timeSlot) => {
-    return selectedTimeSlots.includes(timeSlot);
-  };
-
-  const isSlotAvailable = (timeSlot) => {
-    if (!selectedDayOfWeek) return false;
-    const memberAvailabilities = Object.values(teamAvailability[selectedDayOfWeek] || {});
-    return memberAvailabilities.some(availability => availability.includes(timeSlot));
+  const isSlotSelected = (slotId) => {
+    return selectedSlotIds.includes(slotId);
   };
 
   if (loading) {
@@ -274,27 +307,40 @@ export default function StudentSchedule() {
         {/* Time Slots Selection */}
         {selectedDayOfWeek && (
           <div className={styles.section}>
-            <h2>Chọn khung giờ rảnh</h2>
-            <div className={styles.timeSlotsGrid}>
-              {availableSlots.map(timeSlot => (
-                <button
-                  key={timeSlot}
-                  className={`${styles.timeSlot} ${isSlotSelected(timeSlot) ? styles.selected : ''}`}
-                  onClick={() => handleTimeSlotToggle(timeSlot)}
-                >
-                  {timeSlot}
-                </button>
-              ))}
-            </div>
-            <div className={styles.actions}>
-              <button 
-                className={styles.submitButton}
-                onClick={handleSubmitAvailability}
-                disabled={selectedTimeSlots.length === 0}
-              >
-                Cập nhật lịch rảnh
-              </button>
-            </div>
+            <h2>Chọn slot rảnh</h2>
+            {campusSlots.length === 0 ? (
+              <p>Đang tải danh sách slot...</p>
+            ) : (
+              <>
+                <div className={styles.slotsGrid}>
+                  {campusSlots.map(slot => (
+                    <label
+                      key={slot.id}
+                      className={`${styles.slotCheckbox} ${isSlotSelected(slot.id) ? styles.selected : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSlotSelected(slot.id)}
+                        onChange={() => handleSlotToggle(slot.id)}
+                      />
+                      <div className={styles.slotInfo}>
+                        <div className={styles.slotName}>{slot.nameSlot}</div>
+                        <div className={styles.slotTime}>{slot.startAt} - {slot.endAt}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <div className={styles.actions}>
+                  <button 
+                    className={styles.submitButton}
+                    onClick={handleSubmitAvailability}
+                    disabled={selectedSlotIds.length === 0}
+                  >
+                    Cập nhật lịch rảnh
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -313,7 +359,9 @@ export default function StudentSchedule() {
                     {getMemberAvailability(member.id, selectedDayOfWeek).length > 0 ? (
                       <div className={styles.availableSlots}>
                         {getMemberAvailability(member.id, selectedDayOfWeek).map(slot => (
-                          <span key={slot} className={styles.availableSlot}>{slot}</span>
+                          <span key={slot.id} className={styles.availableSlot}>
+                            {slot.nameSlot}: {slot.startAt} - {slot.endAt}
+                          </span>
                         ))}
                       </div>
                     ) : (
@@ -337,11 +385,15 @@ export default function StudentSchedule() {
                   <h4>Lịch rảnh của bạn</h4>
                 </div>
                 <div className={styles.memberAvailability}>
-                  {selectedTimeSlots.length > 0 ? (
+                  {selectedSlotIds.length > 0 ? (
                     <div className={styles.availableSlots}>
-                      {selectedTimeSlots.map(slot => (
-                        <span key={slot} className={styles.availableSlot}>{slot}</span>
-                      ))}
+                      {campusSlots
+                        .filter(slot => selectedSlotIds.includes(slot.id))
+                        .map(slot => (
+                          <span key={slot.id} className={styles.availableSlot}>
+                            {slot.nameSlot}: {slot.startAt} - {slot.endAt}
+                          </span>
+                        ))}
                     </div>
                   ) : (
                     <span className={styles.noAvailability}>Chưa cập nhật</span>
@@ -365,16 +417,18 @@ export default function StudentSchedule() {
             
             {showSuggestions && (
               <div className={styles.suggestions}>
-                <h3>Khung giờ được đề xuất:</h3>
+                <h3>Slot được đề xuất:</h3>
                 <div className={styles.suggestedSlots}>
                   {suggestedSlots.map(slot => (
-                    <div key={slot} className={styles.suggestedSlot}>
-                      <span className={styles.slotTime}>{slot}</span>
+                    <div key={slot.id} className={styles.suggestedSlot}>
+                      <span className={styles.slotTime}>
+                        {slot.nameSlot}: {slot.startAt} - {slot.endAt}
+                      </span>
                       <button 
                         className={styles.acceptButton}
                         onClick={() => handleAcceptSuggestion(slot)}
                       >
-                        Chọn khung giờ này
+                        Chọn slot này
                       </button>
                     </div>
                   ))}

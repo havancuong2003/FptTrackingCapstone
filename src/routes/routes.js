@@ -66,6 +66,7 @@ const SupervisorDocuments = React.lazy(() => import("../pages/supervisor/Documen
 const SupervisorSchedule = React.lazy(() => import("../pages/supervisor/Schedule"));
 const SupervisorMeetingManagement = React.lazy(() => import("../pages/supervisor/MeetingManagement"));
 const SupervisorCalendar = React.lazy(() => import("../pages/supervisor/Calendar"));
+const CampusSlotManagement = React.lazy(() => import("../pages/admin/CampusSlotManagement"));
 export const routes = [
   {
     path: "/",
@@ -203,6 +204,11 @@ export const routes = [
     path: "/system",
     element: System,
     meta: { title: "System", protected: true, roles: ["ADMIN"] },
+  },
+  {
+    path: "/admin/campus-slot",
+    element: CampusSlotManagement,
+    meta: { title: "Campus & Slot Management", protected: true, roles: ["ADMIN"] },
   },
   {
     path: "/tracking",
