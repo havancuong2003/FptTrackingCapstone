@@ -3,9 +3,10 @@ import { getAllSemesters, syncSemester } from '../../../api/semester';
 import { useNavigate } from 'react-router-dom';
 import DataTable from '../../../components/DataTable/DataTable';
 import Modal from '../../../components/Modal/Modal';
+import BackButton from '../../common/BackButton';
 import styles from './index.module.scss';
 
-const SemesterList = () => {
+const SemesterSync = () => {
   const [semesters, setSemesters] = useState([]);
   const [filteredSemesters, setFilteredSemesters] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -14,8 +15,6 @@ const SemesterList = () => {
   const [confirmModal, setConfirmModal] = useState(null);
   const [filters, setFilters] = useState({
     name: '',
-    startAt: '',
-    endAt: '',
     description: '',
     isActive: '' // '', 'true', 'false'
   });
@@ -43,22 +42,6 @@ const SemesterList = () => {
     }
   };
 
-  // Helper function to normalize date to YYYY-MM-DD format for comparison
-  const normalizeDate = (dateString) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) return '';
-      // Get date in local timezone and format as YYYY-MM-DD
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    } catch (error) {
-      return '';
-    }
-  };
-
   const applyFilters = () => {
     let filtered = [...semesters];
 
@@ -66,22 +49,6 @@ const SemesterList = () => {
       filtered = filtered.filter(semester => 
         semester.name.toLowerCase().includes(filters.name.toLowerCase())
       );
-    }
-
-    if (filters.startAt) {
-      const filterDate = normalizeDate(filters.startAt);
-      filtered = filtered.filter(semester => {
-        const semesterDate = normalizeDate(semester.startAt);
-        return semesterDate >= filterDate;
-      });
-    }
-
-    if (filters.endAt) {
-      const filterDate = normalizeDate(filters.endAt);
-      filtered = filtered.filter(semester => {
-        const semesterDate = normalizeDate(semester.endAt);
-        return semesterDate <= filterDate;
-      });
     }
 
     if (filters.description) {
@@ -109,8 +76,6 @@ const SemesterList = () => {
   const clearFilters = () => {
     setFilters({
       name: '',
-      startAt: '',
-      endAt: '',
       description: '',
       isActive: ''
     });
@@ -130,8 +95,6 @@ const SemesterList = () => {
       return 'Invalid Date';
     }
   };
-
-
 
   const handleSyncClick = (semester) => {
     setConfirmModal(semester);
@@ -197,46 +160,26 @@ const SemesterList = () => {
       key: 'actions',
       title: 'Actions',
       render: (semester) => (
-        <div className={styles.actionButtons}>
-          <button 
-            className={styles.actionButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleSemesterClick(semester.id);
-            }}
-          >
-            View Details
-          </button>
-          <button 
-            className={styles.syncButton}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleSyncClick(semester);
-            }}
-            disabled={syncLoading === semester.id}
-          >
-            {syncLoading === semester.id ? 'Đang đồng bộ...' : 'Đồng bộ'}
-          </button>
-        </div>
+        <button 
+          className={styles.syncButton}
+          onClick={(e) => {
+            e.stopPropagation();
+            handleSyncClick(semester);
+          }}
+          disabled={syncLoading === semester.id}
+        >
+          {syncLoading === semester.id ? 'Đang đồng bộ...' : 'Đồng bộ'}
+        </button>
       )
     }
   ];
 
-  const handleSemesterClick = (semesterId) => {
-    navigate(`/category-management/semester/${semesterId}`);
-  };
-
-  const handleCreateSemester = () => {
-    navigate('/category-management/semester/create');
-  };
-
   return (
     <div className={styles.container}>
+      <BackButton to="/category-management/semesters" />
       <div className={styles.header}>
-        <h1>Semester List</h1>
-        <button onClick={handleCreateSemester} className={styles.createBtn}>
-          + Create New Semester
-        </button>
+        <h1>Sync Semester from FAP</h1>
+        <p className={styles.subtitle}>Đồng bộ thông tin kỳ học và tên kỳ từ FAP</p>
       </div>
 
       {/* Filter Section */}
@@ -251,26 +194,6 @@ const SemesterList = () => {
               value={filters.name}
               onChange={handleFilterChange}
               placeholder="Enter semester name..."
-            />
-          </div>
-
-          <div className={styles.filterGroup}>
-            <label>From Date</label>
-            <input
-              type="date"
-              name="startAt"
-              value={filters.startAt}
-              onChange={handleFilterChange}
-            />
-          </div>
-
-          <div className={styles.filterGroup}>
-            <label>To Date</label>
-            <input
-              type="date"
-              name="endAt"
-              value={filters.endAt}
-              onChange={handleFilterChange}
             />
           </div>
 
@@ -327,10 +250,8 @@ const SemesterList = () => {
           data={filteredSemesters}
           loading={loading}
           emptyMessage="No semesters found"
-          onRowClick={(semester) => handleSemesterClick(semester.id)}
         />
       </div>
-
       {/* Confirm Sync Modal */}
       <Modal
         open={!!confirmModal}
@@ -367,4 +288,5 @@ const SemesterList = () => {
   );
 };
 
-export default SemesterList;
+export default SemesterSync;
+

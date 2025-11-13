@@ -68,6 +68,57 @@
   }
 }
 
+.slotsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.slotCheckbox {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 2px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  
+  &:hover {
+    background: #f8fafc;
+    border-color: #3b82f6;
+  }
+  
+  &.selected {
+    background: #dbeafe;
+    border-color: #3b82f6;
+  }
+  
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+}
+
+.slotInfo {
+  flex: 1;
+}
+
+.slotName {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.slotTime {
+  font-size: 12px;
+  color: #6b7280;
+}
+
 .timeSlotsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));

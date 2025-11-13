@@ -1,31 +1,18 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createSemester } from '../../../api/staff/semester';
+import { createSemester } from '../../../api/semester';
 import BackButton from '../../common/BackButton';
 import styles from './index.module.scss';
 
 const SemesterManagement = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    name: '',
-    startAt: '',
-    endAt: '',
+    semesterType: '', // Spring, Summer, Fall
+    year: '',
     description: ''
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-
-  // Convert yyyy-MM-dd (from input type="date") to dd/MM/yyyy for API
-  const convertDateToDDMMYYYY = (dateString) => {
-    if (!dateString) return '';
-    // Input type="date" returns yyyy-MM-dd format
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-      const [year, month, day] = dateString.split('-');
-      return `${day}/${month}/${year}`;
-    }
-    // If already in dd/MM/yyyy format, return as is
-    return dateString;
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -40,39 +27,37 @@ const SemesterManagement = () => {
     setLoading(true);
     setMessage('');
 
-    // Validate dates are selected
-    if (!formData.startAt) {
-      setMessage('Error: Start Date is required');
+    // Validate
+    if (!formData.semesterType) {
+      setMessage('Error: Please select semester type');
       setLoading(false);
       return;
     }
 
-    if (!formData.endAt) {
-      setMessage('Error: End Date is required');
+    if (!formData.year) {
+      setMessage('Error: Please enter year');
       setLoading(false);
       return;
     }
 
     try {
-      // Convert dates from yyyy-MM-dd to dd/MM/yyyy for API
+      // Gộp semesterType và year thành name: "Spring 2025"
+      const name = `${formData.semesterType} ${formData.year}`;
+      
+      // API chỉ gửi name và description
       const formattedData = {
-        ...formData,
-        startAt: convertDateToDDMMYYYY(formData.startAt),
-        endAt: convertDateToDDMMYYYY(formData.endAt)
+        name: name,
+        description: formData.description
       };
       
       const response = await createSemester(formattedData);
       setMessage('Semester created successfully!');
-      // Reset form
-      setFormData({
-        name: '',
-        startAt: '',
-        endAt: '',
-        description: ''
-      });
+      // Navigate back to semester list after 1 second
+      setTimeout(() => {
+        navigate('/category-management/semesters');
+      }, 1000);
     } catch (error) {
       setMessage(`Error: ${error.message || 'An error occurred'}`);
-    } finally {
       setLoading(false);
     }
   };
@@ -82,45 +67,41 @@ const SemesterManagement = () => {
       <BackButton to="/category-management/semesters" />
       <div className={styles.header}>
         <h1>Create New Semester</h1>
-        <p>Enter information to create a new semester and calculate study weeks</p>
+        <p>Enter information to create a new semester</p>
       </div>
 
       <form onSubmit={handleSubmit} className={styles.form}>
-        <div className={styles.formGroup}>
-          <label htmlFor="name">Semester Name *</label>
-          <input
-            type="text"
-            id="name"
-            name="name"
-            value={formData.name}
-            onChange={handleInputChange}
-            required
-            placeholder="Example: Spring 2026"
-          />
-        </div>
+        <div className={styles.formRow}>
+          <div className={styles.formGroup}>
+            <label htmlFor="semesterType">Semester Type *</label>
+            <select
+              id="semesterType"
+              name="semesterType"
+              value={formData.semesterType}
+              onChange={handleInputChange}
+              required
+            >
+              <option value="">Select semester type</option>
+              <option value="Spring">Spring</option>
+              <option value="Summer">Summer</option>
+              <option value="Fall">Fall</option>
+            </select>
+          </div>
 
-        <div className={styles.formGroup}>
-          <label htmlFor="startAt">Start Date *</label>
-          <input
-            type="date"
-            id="startAt"
-            name="startAt"
-            value={formData.startAt}
-            onChange={handleInputChange}
-            required
-          />
-        </div>
-
-        <div className={styles.formGroup}>
-          <label htmlFor="endAt">End Date *</label>
-          <input
-            type="date"
-            id="endAt"
-            name="endAt"
-            value={formData.endAt}
-            onChange={handleInputChange}
-            required
-          />
+          <div className={styles.formGroup}>
+            <label htmlFor="year">Year *</label>
+            <input
+              type="number"
+              id="year"
+              name="year"
+              value={formData.year}
+              onChange={handleInputChange}
+              required
+              min="2000"
+              max="2100"
+              placeholder="2025"
+            />
+          </div>
         </div>
 
         <div className={styles.formGroup}>

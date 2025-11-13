@@ -354,7 +354,9 @@
   font-weight: 600;
   white-space: nowrap;
   box-shadow: 0 1px 2px rgba(5, 150, 105, 0.2);
+  transition: all 0.2s ease;
 }
+
 
 .emptySlot {
   color: #cbd5e1;
@@ -1446,6 +1448,20 @@
     .suggestedSlotCount {
       color: white;
     }
+  }
+}
+
+.suggestedTimeSelected {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  color: white !important;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
+  border-color: #1d4ed8 !important;
+  
+  .suggestedDay,
+  .suggestedTime,
+  .suggestedSlotCount {
+    color: white !important;
   }
 }
 

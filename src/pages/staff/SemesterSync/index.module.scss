@@ -8,9 +8,6 @@
 }
 
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 30px;
   padding-bottom: 20px;
   border-bottom: 2px solid #f8f9fa;
@@ -18,25 +15,13 @@
   h1 {
     color: #333;
     font-size: 28px;
-    margin: 0;
+    margin: 0 0 10px 0;
   }
-}
 
-.createBtn {
-  background: linear-gradient(135deg, #007bff, #0056b3);
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 6px;
-  font-size: 16px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  
-  &:hover {
-    background: linear-gradient(135deg, #0056b3, #004085);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+  .subtitle {
+    color: #666;
+    font-size: 14px;
+    margin: 0;
   }
 }
 
@@ -148,38 +133,14 @@
   }
 }
 
-.loading {
-  text-align: center;
-  padding: 40px;
-  font-size: 18px;
-  color: #666;
-}
-
-.emptyState {
-  text-align: center;
-  padding: 60px 20px;
-  color: #666;
-  font-size: 16px;
-}
-
 .semesterList {
   margin-top: 20px;
 }
 
-// Table specific styles
 .semesterName {
   font-weight: 600;
   color: #333;
   margin-bottom: 4px;
-}
-
-.semesterId {
-  font-size: 12px;
-  color: #6c757d;
-  background: #f8f9fa;
-  padding: 2px 6px;
-  border-radius: 4px;
-  display: inline-block;
 }
 
 .statusBadge {
@@ -203,33 +164,11 @@
   }
 }
 
-.actionButtons {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.actionButton {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background-color: #007bff;
-  color: white;
-  
-  &:hover {
-    background-color: #0056b3;
-  }
-}
-
 .syncButton {
-  padding: 6px 12px;
+  padding: 8px 16px;
   border: none;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -246,11 +185,11 @@
   }
 }
 
-// Modal styles
 .modalContent {
   padding: 24px 24px 0 24px;
   display: flex;
   flex-direction: column;
+  //min-height: 100%;
 
   .modalTitle {
     margin: 0 0 16px 0;
@@ -292,7 +231,7 @@
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  margin-top: auto;
+
   padding: 20px 24px;
   border-top: 1px solid #e9ecef;
   margin-left: -24px;
@@ -350,21 +289,14 @@
   }
   
   .header {
-    flex-direction: column;
-    gap: 15px;
-    align-items: stretch;
-    
     h1 {
       font-size: 24px;
-      text-align: center;
     }
   }
   
   .filterGrid {
     grid-template-columns: 1fr;
   }
-  
-  // Table responsive styles are handled by DataTable component
   
   .filterActions {
     flex-direction: column;
@@ -382,6 +314,5 @@
   .header h1 {
     font-size: 20px;
   }
-  
-  // Table responsive styles are handled by DataTable component
 }
+

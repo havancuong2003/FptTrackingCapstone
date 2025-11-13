@@ -5,7 +5,7 @@ import {
   updateSemester,
   getVacationBySemesterId,
   updateVacationPeriods
-} from '../../../api/staff/semester';
+} from '../../../api/semester';
 import BackButton from '../../common/BackButton';
 import styles from './index.module.scss';
 

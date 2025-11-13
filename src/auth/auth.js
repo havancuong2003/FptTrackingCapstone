@@ -56,6 +56,7 @@ export async function login({ username, password }) {
           name: me.name || me.fullName || 'User', 
           role,
           roleInGroup,
+          campusId: me.campusId || null,
           groups: me.groups || []
         })
       );
@@ -74,6 +75,11 @@ export async function login({ username, password }) {
       // Lưu roleInGroup riêng biệt để dễ truy cập
       if (roleInGroup) {
         localStorage.setItem('user_role_in_group', String(roleInGroup));
+      }
+
+      // Lưu campusId riêng biệt để dễ truy cập
+      if (me.campusId) {
+        localStorage.setItem('user_campus_id', String(me.campusId));
       }
     }
   } catch {}
@@ -100,6 +106,7 @@ export async function logout() {
     localStorage.removeItem(USER_INFO_KEY);
     localStorage.removeItem('student_group_id');
     localStorage.removeItem('user_role_in_group');
+    localStorage.removeItem('user_campus_id');
     localStorage.removeItem(CURRENT_SEMESTER_KEY);
     resetLoading();
     return;
@@ -137,6 +144,24 @@ export function getGroupId() {
     const userInfo = getUserInfo();
     if (userInfo && userInfo.groups && userInfo.groups.length > 0) {
       return userInfo.groups[0];
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper function để lấy campusId từ localStorage
+export function getCampusId() {
+  try {
+    const campusId = localStorage.getItem('user_campus_id');
+    if (campusId) {
+      return parseInt(campusId, 10);
+    }
+    // Fallback: lấy từ userInfo nếu không có trong localStorage riêng
+    const userInfo = getUserInfo();
+    if (userInfo && userInfo.campusId) {
+      return userInfo.campusId;
     }
     return null;
   } catch {
