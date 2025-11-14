@@ -2,6 +2,8 @@ import React from 'react';
 import styles from './index.module.scss';
 import DataTable from '../../../components/DataTable/DataTable';
 import client from '../../../utils/axiosClient';
+import { sendDocumentUploadEmail } from '../../../email/documents';
+import { getUserInfo } from '../../../auth/auth';
 
 export default function SupervisorDocuments() {
   const [loading, setLoading] = React.useState(false);
@@ -171,7 +173,41 @@ export default function SupervisorDocuments() {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       if (res?.data?.status === 200) {
+        const uploadedFile = res.data.data; // File info từ response
         await loadFiles(selectedGroupId);
+        
+        // Gửi email thông báo cho sinh viên trong nhóm
+        try {
+          const currentUser = getUserInfo();
+          if (groupInfo && groupInfo.students && Array.isArray(groupInfo.students)) {
+            const studentEmails = groupInfo.students
+              .map(student => student.email)
+              .filter(email => email);
+            
+            if (studentEmails.length > 0) {
+              // Build file download URL
+              const origin = getUploadsBaseOrigin();
+              const fileUrl = uploadedFile?.path ? `${origin}${uploadedFile.path}` : null;
+              
+              // Build system URL to documents page (student sẽ xem ở đâu?)
+              // Có thể là trang documents của student hoặc trang chung
+              const systemUrl = `${window.location.origin}/student/documents?groupId=${selectedGroupId}`;
+              
+              await sendDocumentUploadEmail({
+                recipientEmails: studentEmails,
+                fileName: file.name,
+                supervisorName: currentUser?.name || 'Giảng viên hướng dẫn',
+                groupName: groupInfo.groupCode || `Nhóm ${selectedGroupId}`,
+                message: '',
+                fileUrl: fileUrl,
+                systemUrl: systemUrl
+              });
+            }
+          }
+        } catch (emailError) {
+          console.error('Error sending document upload email:', emailError);
+          // Không block flow nếu email lỗi
+        }
       } else {
         setMessage(res?.data?.message || 'Upload thất bại');
       }

@@ -549,6 +549,50 @@ export default function StudentMeetingManagement() {
       if (res.data?.status === 200) {
         setShowIssueModal(false);
         await fetchMeetingIssues(selectedMeeting.id);
+        
+        // Gửi email thông báo cho người được assign
+        try {
+          const { sendIssueAssignmentEmail } = await import('../../../email/meetings');
+          const assigneeOption = assigneeOptions.find(a => a.value.toString() === issueForm.assignee);
+          
+          // Lấy email từ students trong group
+          if (assigneeOption && userInfo?.groups?.[0]) {
+            try {
+              const groupRes = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${userInfo.groups[0]}`);
+              if (groupRes.data.status === 200) {
+                const students = groupRes.data.data?.students || [];
+                const assignedStudent = students.find(s => s.id.toString() === issueForm.assignee);
+                
+                if (assignedStudent?.email) {
+                  const systemUrl = `${window.location.origin}`;
+                  // Lấy taskId từ response nếu có, nếu không thì dùng meetingId
+                  const issueDetailUrl = res.data?.data?.id 
+                    ? `${window.location.origin}/student/tasks/${userInfo.groups[0]}?taskId=${res.data.data.id}`
+                    : null;
+                  
+                  await sendIssueAssignmentEmail({
+                    recipientEmail: assignedStudent.email,
+                    recipientName: assigneeOption.label,
+                    issueTitle: issueForm.title,
+                    issueDescription: issueForm.description || '',
+                    deadline: issueForm.deadline,
+                    meetingTopic: selectedMeeting.description || 'Cuộc họp',
+                    secretaryName: userInfo?.name || 'Thư ký nhóm',
+                    groupName: userInfo?.groups?.[0] ? `Nhóm ${userInfo.groups[0]}` : 'Capstone Project',
+                    detailUrl: issueDetailUrl,
+                    systemUrl: systemUrl
+                  });
+                }
+              }
+            } catch (fetchError) {
+              console.error('Error fetching student email:', fetchError);
+            }
+          }
+        } catch (emailError) {
+          console.error('Error sending issue assignment email:', emailError);
+          // Không block flow nếu email lỗi
+        }
+        
         alert('Tạo issue cho meeting thành công!');
       } else {
         alert(res.data?.message || 'Tạo issue thất bại');

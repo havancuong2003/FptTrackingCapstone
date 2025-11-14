@@ -4,6 +4,8 @@ import styles from './TaskDetail.module.scss';
 import Button from '../../../components/Button/Button';
 import BackButton from '../../common/BackButton';
 import axiosClient from '../../../utils/axiosClient';
+import { sendTaskStatusUpdateEmail } from '../../../email/tasks';
+import { getUserInfo } from '../../../auth/auth';
 
 export default function TaskDetail() {
   const { groupId } = useParams();
@@ -353,6 +355,32 @@ export default function TaskDetail() {
           completedAt: newStatus === 'done' ? nowIso : (newStatus !== 'done' ? undefined : prev.completedAt),
           history: [...(prev.history || []), newHistoryItem]
         }));
+
+        // Gửi email thông báo khi update status
+        try {
+          const currentUserInfo = getUserInfo();
+          if (task.assigneeName && task.assignee) {
+            // Cần lấy email của assignee - giả sử có trong task hoặc cần fetch
+            // Tạm thời chỉ gửi nếu có thông tin đầy đủ
+            const systemUrl = `${window.location.origin}`;
+            const taskDetailUrl = `${window.location.origin}/student/tasks/${groupId}?taskId=${taskId}`;
+            
+            await sendTaskStatusUpdateEmail({
+              recipientEmail: task.assigneeEmail || `${task.assignee}@student.fpt.edu.vn`, // Fallback email format
+              recipientName: task.assigneeName,
+              taskTitle: task.title,
+              oldStatus: task.status,
+              newStatus: newStatus,
+              updatedByName: currentUserInfo?.name || currentUser?.name || 'Người cập nhật',
+              groupName: groupId ? `Nhóm ${groupId}` : 'Capstone Project',
+              detailUrl: taskDetailUrl,
+              systemUrl: systemUrl
+            });
+          }
+        } catch (emailError) {
+          console.error('Error sending task status update email:', emailError);
+          // Không block flow nếu email lỗi
+        }
       } else {
         console.error('Error updating task:', response.data.message);
       }

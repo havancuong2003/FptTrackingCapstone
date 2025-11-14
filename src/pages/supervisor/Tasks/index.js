@@ -5,7 +5,7 @@ import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
 import axiosClient from '../../../utils/axiosClient';
-import { sendTaskNotification } from '../../../api/email';
+import { sendTaskNotification } from '../../../email/api';
 
 export default function SupervisorTasks() {
   const navigate = useNavigate();

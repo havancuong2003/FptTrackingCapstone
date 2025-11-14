@@ -10,7 +10,7 @@ import {
   getStudentFreeTimeSlotsNew 
 } from '../../../api/schedule';
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
-import { sendMeetingNotification } from '../../../api/email';
+import { sendMeetingScheduleConfirmationEmail } from '../../../email/schedule';
 import { getCampusId } from '../../../auth/auth';
 import { getCampusById } from '../../../api/campus';
 
@@ -356,23 +356,28 @@ export default function SupervisorSchedule() {
           const studentEmails = members.map(member => member.email).filter(email => email);
           if (studentEmails.length > 0) {
             const dayNames = {
-              'monday': 'Monday',
-              'tuesday': 'Tuesday', 
-              'wednesday': 'Wednesday',
-              'thursday': 'Thursday',
-              'friday': 'Friday',
-              'saturday': 'Saturday',
-              'sunday': 'Sunday'
+              'monday': 'Thứ Hai',
+              'tuesday': 'Thứ Ba', 
+              'wednesday': 'Thứ Tư',
+              'thursday': 'Thứ Năm',
+              'friday': 'Thứ Sáu',
+              'saturday': 'Thứ Bảy',
+              'sunday': 'Chủ Nhật'
             };
             
-            const meetingTime = `${dayNames[meetingData.day.toLowerCase()]} - ${slotTimeDisplay}`;
+            const meetingTime = `${dayNames[meetingData.day.toLowerCase()] || meetingData.day} - ${slotTimeDisplay}`;
             
-            await sendMeetingNotification({
-              recipients: studentEmails,
-              subject: `[${group.groupName || 'Capstone Project'}] Group Meeting Schedule Notification`,
+            const systemUrl = `${window.location.origin}`;
+            const scheduleUrl = `${window.location.origin}/supervisor/schedule/${groupId}`;
+            
+            await sendMeetingScheduleConfirmationEmail({
+              recipientEmails: studentEmails,
+              groupName: group.groupName || group.groupCode || 'Capstone Project',
               meetingTime: meetingTime,
               meetingLink: meetingData.meetingLink,
-              message: `Supervisor ${currentUser.name} has confirmed the group meeting schedule. Please join on time.`
+              supervisorName: currentUser?.name || 'Giảng viên hướng dẫn',
+              detailUrl: scheduleUrl,
+              systemUrl: systemUrl
             });
             
           }
