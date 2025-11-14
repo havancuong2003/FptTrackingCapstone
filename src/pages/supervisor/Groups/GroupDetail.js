@@ -4,6 +4,8 @@ import styles from './GroupDetail.module.scss';
 import Button from '../../../components/Button/Button';
 import BackButton from '../../common/BackButton';
 import axiosClient from '../../../utils/axiosClient';
+import { getRoleInGroup, getUserInfo } from '../../../auth/auth';
+import { sendSecretaryAssignmentEmail, sendRoleAssignmentEmail } from '../../../email/groups';
 
 export default function GroupDetail() {
     const { groupId } = useParams();
@@ -130,7 +132,53 @@ export default function GroupDetail() {
                     )
                 }));
                 
-                alert(`Đã thay đổi role thành ${newRole} cho ${selectedMember.name}!`);
+                // Get current user info to determine if they are Supervisor or Secretary
+                const currentUser = getUserInfo();
+                const userRoleInGroup = getRoleInGroup();
+                const isSecretary = userRoleInGroup === 'Secretary' || userRoleInGroup === 'SECRETARY';
+                const isSupervisor = currentUser?.role === 'SUPERVISOR' || currentUser?.role === 'MENTOR';
+                
+                // Send email notification based on who is assigning the role
+                try {
+                    console.log(" isSupervisor: ", isSupervisor);
+                    console.log(" newRole: ", newRole);
+                    console.log(" isSecretary: ", isSecretary);
+                    const systemUrl = `${window.location.origin}`;
+                    const groupDetailUrl = `${window.location.origin}/supervisor/groups/${groupId}`;
+                    
+                    if (isSupervisor && newRole === 'Secretary') {
+                        // Supervisor assigning Secretary role
+                        await sendSecretaryAssignmentEmail({
+                            memberEmail: selectedMember.email,
+                            memberName: selectedMember.name,
+                            groupName: group.groupName,
+                            projectName: group.projectName,
+                            supervisorName: currentUser?.name || 'Giảng viên hướng dẫn',
+                            detailUrl: groupDetailUrl,
+                            systemUrl: systemUrl,
+                            cc: group.supervisorsInfor?.map(s => s.email).filter(Boolean) || []
+                        });
+                    } else if (isSecretary && newRole !== 'Secretary') {
+                        // Secretary assigning role to other members
+                        await sendRoleAssignmentEmail({
+                            memberEmail: selectedMember.email,
+                            memberName: selectedMember.name,
+                            newRole: newRole,
+                            groupName: group.groupName,
+                            projectName: group.projectName,
+                            secretaryName: currentUser?.name || 'Thư ký nhóm',
+                            detailUrl: groupDetailUrl,
+                            systemUrl: systemUrl,
+                            cc: group.supervisorsInfor?.map(s => s.email).filter(Boolean) || []
+                        });
+                    }
+                } catch (emailError) {
+                    console.error('Error sending role assignment email:', emailError);
+                    // Don't block the role change if email fails, just log it
+                    console.warn('Role changed successfully but email notification failed');
+                }
+                
+                alert(`Đã thay đổi role thành ${newRole} cho ${selectedMember.name}!${isSupervisor && newRole === 'Secretary' ? ' Email thông báo đã được gửi.' : isSecretary ? ' Email thông báo đã được gửi.' : ''}`);
                 setShowRoleModal(false);
                 setSelectedMember(null);
                 setNewRole('');

@@ -5,7 +5,7 @@ import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
 import axiosClient from '../../../utils/axiosClient';
-import { sendTaskNotification } from '../../../api/email';
+import { sendTaskAssignmentEmail } from '../../../email/tasks';
 
 export default function StudentTasks() {
   const navigate = useNavigate();
@@ -524,17 +524,6 @@ export default function StudentTasks() {
           emailRecipients.push(selectedReviewer.email);
         }
         
-        if (emailRecipients.length > 0) {
-          await sendTaskNotification({
-            recipients: emailRecipients,
-            subject: `[Capstone Project] Task mới được tạo: ${newTask.title}`,
-            taskName: newTask.title,
-            deadline: new Date(newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)).toLocaleDateString('vi-VN'),
-            description: newTask.description
-          });
-          
-        } else {
-        }
       } catch (emailError) {
         console.error('Error sending email notification:', emailError);
         // Không hiển thị lỗi email cho user, chỉ log
@@ -561,6 +550,29 @@ export default function StudentTasks() {
       const response = await axiosClient.post('/Student/Task/create', taskData);
       if (response.data.status === 200) {
         const createdTaskId = response.data.data?.id;
+        
+        // Gửi email cho người được assign sau khi tạo task thành công
+        if (selectedAssignee?.email && createdTaskId) {
+          try {
+            const systemUrl = `${window.location.origin}`;
+            const taskDetailUrl = `${window.location.origin}/student/tasks/${groupId}?taskId=${createdTaskId}`;
+            
+            await sendTaskAssignmentEmail({
+              recipientEmail: selectedAssignee.email,
+              recipientName: selectedAssignee.label,
+              taskTitle: newTask.title,
+              taskDescription: newTask.description,
+              deadline: newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              priority: newTask.priority === 'high' ? 'High' : newTask.priority === 'medium' ? 'Medium' : 'Low',
+              assignerName: currentUser?.name || 'Người tạo',
+              groupName: groupId ? `Nhóm ${groupId}` : 'Capstone Project',
+              detailUrl: taskDetailUrl,
+              systemUrl: systemUrl
+            });
+          } catch (emailError) {
+            console.error('Error sending task assignment email:', emailError);
+          }
+        }
         
         if (createdTaskId) {
           // Fetch lại task vừa tạo để có đầy đủ thông tin từ API
