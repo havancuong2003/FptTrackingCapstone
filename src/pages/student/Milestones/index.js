@@ -260,6 +260,50 @@ export default function StudentMilestones() {
     return attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
   };
 
+  // Kiểm tra file có thể xem được không (ảnh, PDF, docs)
+  const canPreviewFile = (filePath) => {
+    if (!filePath) return false;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    
+    // Các định dạng có thể xem được
+    const previewableExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Documents (có thể xem qua Google Docs Viewer hoặc Office Online)
+      'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+      // Text files
+      'txt', 'csv'
+    ];
+    
+    return previewableExtensions.includes(extension);
+  };
+
+  // Mở preview file trong tab mới
+  const openFilePreview = (attachment) => {
+    if (!canPreviewFile(attachment.path)) {
+      alert('File này không thể xem trước. Vui lòng tải xuống để xem.');
+      return;
+    }
+    
+    const filePath = attachment.path;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    
+    let previewUrl = baseUrl;
+    
+    // Office documents - sử dụng Google Docs Viewer
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(extension)) {
+      previewUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(baseUrl)}&embedded=true`;
+    }
+    
+    // Mở trong tab mới
+    window.open(previewUrl, '_blank');
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'SUBMITTED':
@@ -719,8 +763,50 @@ export default function StudentMilestones() {
                                       gap: '4px', 
                                       flexShrink: 0,
                                       marginTop: isMobile ? '8px' : '0',
-                                      width: isMobile ? '100%' : 'auto'
+                                      width: isMobile ? '100%' : 'auto',
+                                      alignItems: 'center'
                                     }}>
+                                      {canPreviewFile(attachment.path) && (
+                                        <button
+                                          onClick={() => openFilePreview(attachment)}
+                                          style={{ 
+                                            padding: '4px 6px',
+                                            background: 'transparent',
+                                            border: '1px solid #d1d5db',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#6b7280',
+                                            width: isMobile ? '100%' : 'auto'
+                                          }}
+                                          title="Xem trước"
+                                          onMouseEnter={(e) => {
+                                            e.target.style.backgroundColor = '#f3f4f6';
+                                            e.target.style.borderColor = '#9ca3af';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.target.style.backgroundColor = 'transparent';
+                                            e.target.style.borderColor = '#d1d5db';
+                                          }}
+                                        >
+                                          <svg 
+                                            width="16" 
+                                            height="16" 
+                                            viewBox="0 0 24 24" 
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            strokeWidth="2" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round"
+                                            style={{ color: '#6b7280' }}
+                                          >
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                          </svg>
+                                        </button>
+                                      )}
                                       <Button
                                         onClick={() => downloadFile(attachment)}
                                         variant="ghost"
@@ -827,19 +913,69 @@ export default function StudentMilestones() {
                           Uploaded by {attachment.userName} on {formatDate(attachment.createAt, 'DD/MM/YYYY HH:mm')}
                         </div>
                       </div>
-                      <Button
-                        onClick={() => downloadFile(attachment)}
-                        variant="ghost"
-                        style={{ 
-                          fontSize: isMobile ? '11px' : '12px', 
-                          padding: isMobile ? '6px 10px' : '6px 12px', 
-                          flexShrink: 0,
-                          marginTop: isMobile ? '8px' : '0',
-                          width: isMobile ? '100%' : 'auto'
-                        }}
-                      >
-                        Download
-                      </Button>
+                      <div style={{ 
+                        display: 'flex', 
+                        gap: '4px', 
+                        flexShrink: 0,
+                        marginTop: isMobile ? '8px' : '0',
+                        alignItems: 'center',
+                        flexDirection: isMobile ? 'column' : 'row',
+                        width: isMobile ? '100%' : 'auto'
+                      }}>
+                        {canPreviewFile(attachment.path) && (
+                          <button
+                            onClick={() => openFilePreview(attachment)}
+                            style={{ 
+                              padding: isMobile ? '6px 10px' : '4px 6px',
+                              background: 'transparent',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#6b7280',
+                              width: isMobile ? '100%' : 'auto'
+                            }}
+                            title="Xem trước"
+                            onMouseEnter={(e) => {
+                              e.target.style.backgroundColor = '#f3f4f6';
+                              e.target.style.borderColor = '#9ca3af';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.backgroundColor = 'transparent';
+                              e.target.style.borderColor = '#d1d5db';
+                            }}
+                          >
+                            <svg 
+                              width="16" 
+                              height="16" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="2" 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round"
+                              style={{ color: '#6b7280' }}
+                            >
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                              <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                          </button>
+                        )}
+                        <Button
+                          onClick={() => downloadFile(attachment)}
+                          variant="ghost"
+                          style={{ 
+                            fontSize: isMobile ? '11px' : '12px', 
+                            padding: isMobile ? '6px 10px' : '6px 12px', 
+                            flexShrink: 0,
+                            width: isMobile ? '100%' : 'auto'
+                          }}
+                        >
+                          Download
+                        </Button>
+                      </div>
                     </div>
                   ))}
               </div>

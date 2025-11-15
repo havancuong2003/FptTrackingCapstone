@@ -262,7 +262,7 @@ export default function StudentHome() {
     });
   };
 
-  // Get tasks for selected week (only tasks assigned to logged-in student)
+  // Get tasks for selected week (only tasks assigned to logged-in student and isActive === true)
   const getTasksForWeek = () => {
     if (!selectedWeek || !tasks.length) return [];
     
@@ -278,6 +278,8 @@ export default function StudentHome() {
     weekEnd.setHours(23, 59, 59, 999);
     
     const weekTasks = tasks.filter(task => {
+      // Chỉ lấy task có isActive === true
+      if (task.isActive !== true) return false;
       if (!task.deadline) return false;
       const deadline = new Date(task.deadline);
       return deadline >= weekStart && deadline <= weekEnd;
@@ -396,6 +398,8 @@ export default function StudentHome() {
         return '#dc2626'; // Red
       case 'Pending':
         return '#d97706'; // Orange/Yellow
+      case 'PENDING':
+        return '#d97706'; // Orange/Yellow
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
       case 'REJECTED':
@@ -413,6 +417,8 @@ export default function StudentHome() {
         return '⚠ Late';
       case 'Pending':
         return '⏳ Pending Review';
+      case 'PENDING':
+        return '⏳ Pending Review';
       case 'UNSUBMITTED':
         return '✗ Unsubmitted';
       case 'REJECTED':
@@ -425,6 +431,7 @@ export default function StudentHome() {
   const getTaskStatusColor = (status) => {
     switch (status) {
       case 'ToDo':
+        return '#64748b'; // Gray
       case 'Todo':
         return '#64748b'; // Gray
       case 'InProgress':
@@ -441,6 +448,7 @@ export default function StudentHome() {
   const getTaskStatusText = (status) => {
     switch (status) {
       case 'ToDo':
+        return '📋 To Do';
       case 'Todo':
         return '📋 To Do';
       case 'InProgress':
@@ -983,6 +991,50 @@ export default function StudentHome() {
       console.error('Error deleting attachment:', error);
       alert('Có lỗi xảy ra khi xóa file. Vui lòng thử lại.');
     }
+  };
+
+  // Kiểm tra file có thể xem được không (ảnh, PDF, docs)
+  const canPreviewFile = (filePath) => {
+    if (!filePath) return false;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    
+    // Các định dạng có thể xem được
+    const previewableExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Documents (có thể xem qua Google Docs Viewer hoặc Office Online)
+      'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+      // Text files
+      'txt', 'csv'
+    ];
+    
+    return previewableExtensions.includes(extension);
+  };
+
+  // Mở preview file trong tab mới
+  const openFilePreview = (attachment) => {
+    if (!canPreviewFile(attachment.path)) {
+      alert('File này không thể xem trước. Vui lòng tải xuống để xem.');
+      return;
+    }
+    
+    const filePath = attachment.path;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    
+    let previewUrl = baseUrl;
+    
+    // Office documents - sử dụng Google Docs Viewer
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(extension)) {
+      previewUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(baseUrl)}&embedded=true`;
+    }
+    
+    // Mở trong tab mới
+    window.open(previewUrl, '_blank');
   };
 
   if (loading) {
@@ -1706,7 +1758,47 @@ export default function StudentHome() {
                                         Uploaded by {attachment.userName} on {formatDate(attachment.createAt, 'DD/MM/YYYY HH:mm')}
                                       </div>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center' }}>
+                                      {canPreviewFile(attachment.path) && (
+                                        <button
+                                          onClick={() => openFilePreview(attachment)}
+                                          style={{ 
+                                            padding: '4px 6px',
+                                            background: 'transparent',
+                                            border: '1px solid #d1d5db',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#6b7280'
+                                          }}
+                                          title="Xem trước"
+                                          onMouseEnter={(e) => {
+                                            e.target.style.backgroundColor = '#f3f4f6';
+                                            e.target.style.borderColor = '#9ca3af';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.target.style.backgroundColor = 'transparent';
+                                            e.target.style.borderColor = '#d1d5db';
+                                          }}
+                                        >
+                                          <svg 
+                                            width="16" 
+                                            height="16" 
+                                            viewBox="0 0 24 24" 
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            strokeWidth="2" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round"
+                                            style={{ color: '#6b7280' }}
+                                          >
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                          </svg>
+                                        </button>
+                                      )}
                                       <Button
                                         onClick={() => downloadFile(attachment)}
                                         variant="ghost"

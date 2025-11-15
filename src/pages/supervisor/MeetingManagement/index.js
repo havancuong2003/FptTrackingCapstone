@@ -651,9 +651,15 @@ export default function SupervisorMeetingManagement() {
     for (let i = 0; i < 7; i++) {
       const day = new Date(startOfWeek);
       day.setDate(startOfWeek.getDate() + i);
+      // Format date string mà không bị ảnh hưởng bởi timezone
+      const year = day.getFullYear();
+      const month = String(day.getMonth() + 1).padStart(2, '0');
+      const date = String(day.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${date}`;
+      
       days.push({
         date: day,
-        dateString: day.toISOString().split('T')[0],
+        dateString: dateString,
         dayName: day.toLocaleDateString('vi-VN', { weekday: 'long' }),
         display: day.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })
       });
@@ -710,8 +716,18 @@ export default function SupervisorMeetingManagement() {
     }
 
     try {
+      // Format meetingDate mà không bị ảnh hưởng bởi timezone
+      // scheduleForm.meetingDate format: "YYYY-MM-DD"
+      // Cần convert thành "YYYY-MM-DDTHH:mm:ss" (ISO format nhưng không có timezone)
+      const formatDateToISO = (dateString) => {
+        if (!dateString) return '';
+        // dateString format: "YYYY-MM-DD"
+        // Thêm "T00:00:00" để tạo ISO format
+        return `${dateString}T00:00:00`;
+      };
+      
       const payload = {
-        meetingDate: new Date(scheduleForm.meetingDate).toISOString(),
+        meetingDate: formatDateToISO(scheduleForm.meetingDate),
         startAt: scheduleForm.startAt,
         endAt: scheduleForm.endAt,
         description: scheduleForm.description.trim()
