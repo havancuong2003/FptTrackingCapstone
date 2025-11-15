@@ -10,7 +10,9 @@ import {
   getStudentFreeTimeSlotsNew 
 } from '../../../api/schedule';
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
-import { sendMeetingNotification } from '../../../api/email';
+import { sendMeetingScheduleConfirmationEmail } from '../../../email/schedule';
+import { getCampusId } from '../../../auth/auth';
+import { getCampusById } from '../../../api/campus';
 
 export default function SupervisorSchedule() {
   const { groupId: urlGroupId } = useParams();
@@ -38,23 +40,18 @@ export default function SupervisorSchedule() {
   const [members, setMembers] = React.useState([]);
   const [memberSchedules, setMemberSchedules] = React.useState({});
   const [mergedSchedule, setMergedSchedule] = React.useState({});
-  const [suggestedTimes, setSuggestedTimes] = React.useState([]);
   const [isFinalized, setIsFinalized] = React.useState(false);
   const [finalMeeting, setFinalMeeting] = React.useState(null);
   const [meetingSchedule, setMeetingSchedule] = React.useState(null);
   const [isSupervisor, setIsSupervisor] = React.useState(true);
+  const [campusSlots, setCampusSlots] = React.useState([]);
   
   // Meeting form data
   const [meetingData, setMeetingData] = React.useState({
     day: '',
-    time: '',
-    endTime: '',
+    slotId: '',
     meetingLink: ''
   });
-  
-  // Selected slot from Common Free Time
-  const [selectedSlot, setSelectedSlot] = React.useState(null);
-  const [selectedDay, setSelectedDay] = React.useState('');
 
   // Days of the week
   const daysOfWeek = [
@@ -96,10 +93,34 @@ export default function SupervisorSchedule() {
     }
   };
 
+  // Load campus slots
+  const loadCampusSlots = async () => {
+    try {
+      const campusId = getCampusId();
+      if (!campusId) {
+        console.error('Không tìm thấy campusId');
+        setCampusSlots([]);
+        return;
+      }
+      const response = await getCampusById(campusId);
+      if (response && response.data && response.data.slots) {
+        setCampusSlots(response.data.slots);
+      } else {
+        setCampusSlots([]);
+      }
+    } catch (error) {
+      console.error('Error loading campus slots:', error);
+      setCampusSlots([]);
+    }
+  };
+
   // Load selected group data
   const loadSelectedGroupData = async (groupId) => {
     setLoading(true);
     try {
+      // Load campus slots
+      await loadCampusSlots();
+      
       // API call lấy chi tiết group theo pattern từ Groups
       const response = await getCapstoneGroupDetail(groupId);
       if (response.status === 200) {
@@ -122,7 +143,7 @@ export default function SupervisorSchedule() {
             rollNumber: student.rollNumber,
             name: student.name,
             email: student.email,
-            role: student.role
+            role: student.role === "Student" ? 'Member' : (student.role || 'Member')
           }))
         };
         
@@ -213,140 +234,6 @@ export default function SupervisorSchedule() {
     return merged;
   };
 
-  // Calculate suggested meeting times from memberSchedules (same data as Members' Free Time)
-  const calculateSuggestedTimes = (memberSchedulesData) => {
-    const suggestions = [];
-    
-    // Collect ALL unique slots from ALL students across ALL days (same logic as calendar view)
-    const allSlotsMap = new Map();
-    
-    Object.keys(memberSchedulesData).forEach(studentId => {
-      const studentSchedule = memberSchedulesData[studentId];
-      Object.keys(studentSchedule).forEach(dayKey => {
-        const daySlots = studentSchedule[dayKey] || [];
-        daySlots.forEach(slot => {
-          if (slot && slot.id) {
-            if (!allSlotsMap.has(slot.id)) {
-              allSlotsMap.set(slot.id, {
-                id: slot.id,
-                startAt: slot.startAt || '',
-                endAt: slot.endAt || '',
-                nameSlot: slot.nameSlot || '',
-                days: new Set() // Track which days this slot appears
-              });
-            }
-            // Add day to the slot's days set
-            allSlotsMap.get(slot.id).days.add(dayKey);
-          }
-        });
-      });
-    });
-    
-    // Helper function to count available students for a slot on a specific day
-    const getAvailableStudentsCount = (slot, dayKey) => {
-      let count = 0;
-      Object.keys(memberSchedulesData).forEach(studentId => {
-        const studentSchedule = memberSchedulesData[studentId];
-        const daySlots = studentSchedule[dayKey] || [];
-        const isAvailable = daySlots.some(s => {
-          return (s.id === slot.id) || 
-                 (s.startAt === slot.startAt && s.endAt === slot.endAt);
-        });
-        if (isAvailable) {
-          count++;
-        }
-      });
-      return count;
-    };
-    
-    // Helper function to calculate hours from time range
-    const calculateHours = (startAt, endAt) => {
-      if (!startAt || !endAt) return 0;
-      const parseTime = (timeStr) => {
-        const cleaned = timeStr.replace(/[AP]M/i, '').trim();
-        const parts = cleaned.split(':');
-        const hours = parseInt(parts[0]) || 0;
-        const minutes = parseInt(parts[1]) || 0;
-        let totalMinutes = hours * 60 + minutes;
-        
-        if (timeStr.toUpperCase().includes('PM') && hours !== 12) {
-          totalMinutes += 12 * 60;
-        }
-        if (timeStr.toUpperCase().includes('AM') && hours === 12) {
-          totalMinutes -= 12 * 60;
-        }
-        return totalMinutes;
-      };
-      
-      const startMinutes = parseTime(startAt);
-      const endMinutes = parseTime(endAt);
-      const diffMinutes = endMinutes - startMinutes;
-      return Math.round((diffMinutes / 60) * 10) / 10; // Round to 1 decimal
-    };
-    
-    // Create suggestions for each slot on each day it appears
-    allSlotsMap.forEach((slot, slotId) => {
-      slot.days.forEach(dayKey => {
-        const day = daysOfWeek.find(d => d.value === dayKey);
-        if (day) {
-          const availableCount = getAvailableStudentsCount(slot, dayKey);
-          if (availableCount > 0) {
-            const hours = calculateHours(slot.startAt, slot.endAt);
-            const formattedStart = formatTime(slot.startAt);
-            const formattedEnd = formatTime(slot.endAt);
-            const timeDisplay = formattedStart && formattedEnd 
-              ? `${formattedStart} - ${formattedEnd}` 
-              : (slot.nameSlot || '');
-            
-            // Parse start time for sorting
-            const parseTimeForSort = (timeStr) => {
-              if (!timeStr) return 0;
-              const cleaned = timeStr.replace(/[AP]M/i, '').trim();
-              const parts = cleaned.split(':');
-              const hours = parseInt(parts[0]) || 0;
-              const minutes = parseInt(parts[1]) || 0;
-              let totalMinutes = hours * 60 + minutes;
-              
-              if (timeStr.toUpperCase().includes('PM') && hours !== 12) {
-                totalMinutes += 12 * 60;
-              }
-              if (timeStr.toUpperCase().includes('AM') && hours === 12) {
-                totalMinutes -= 12 * 60;
-              }
-              return totalMinutes;
-            };
-            
-            suggestions.push({
-              day: dayKey,
-              dayName: day.name,
-              time: timeDisplay,
-              availableCount: availableCount,
-              hours: hours,
-              slot: slot,
-              startTimeMinutes: parseTimeForSort(slot.startAt) // For sorting
-            });
-          }
-        }
-      });
-    });
-    
-    // Sort by: 1) day of week (Monday first), 2) start time (earlier first)
-    const dayOrder = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 7 };
-    suggestions.sort((a, b) => {
-      // First sort by day (Monday = 1, comes first)
-      if (dayOrder[a.day] !== dayOrder[b.day]) {
-        return dayOrder[a.day] - dayOrder[b.day];
-      }
-      // If same day, sort by start time (earlier first)
-      return a.startTimeMinutes - b.startTimeMinutes;
-    });
-    
-    // Limit to top 10 suggestions
-    const topSuggestions = suggestions.slice(0, 10);
-    
-    setSuggestedTimes(topSuggestions);
-    return topSuggestions;
-  };
 
   // Helper function to format time (remove seconds, only HH:MM)
   const formatTime = (timeStr) => {
@@ -415,9 +302,6 @@ export default function SupervisorSchedule() {
         // Calculate merged schedule
         const merged = calculateMergedSchedule(memberSchedulesData);
         
-        // Calculate suggested times from memberSchedules (same data source as calendar)
-        calculateSuggestedTimes(memberSchedulesData);
-        
         return memberSchedulesData;
       }
       return {};
@@ -429,29 +313,20 @@ export default function SupervisorSchedule() {
 
   // Finalize/Update meeting schedule
   const handleFinalizeMeeting = async () => {
-    if (!meetingData.day || !meetingData.time || !meetingData.endTime || !meetingData.meetingLink) {
-      alert('Vui lòng điền đầy đủ thông tin lịch họp (ngày, giờ bắt đầu, giờ kết thúc, và link meeting)');
+    if (!meetingData.day || !meetingData.slotId || !meetingData.meetingLink) {
+      alert('Vui lòng điền đầy đủ thông tin lịch họp (ngày, slot, và link meeting)');
       return;
     }
 
     setLoading(true);
     try {
-      const meetingScheduleData = {
-        id: meetingSchedule?.id || null, // Use existing ID if updating
-        isActive: true,
-        meetingLink: meetingData.meetingLink,
-        time: meetingData.time,
-        endTime: meetingData.endTime,
-        dayOfWeek: meetingData.day.toLowerCase(),
-      };
-      const meetingDataAPI ={
+      const meetingDataAPI = {
         finalMeeting: {
-          day: meetingScheduleData.dayOfWeek,
-          time: meetingScheduleData.time,
-          endTime: meetingScheduleData.endTime,
-          meetingLink: meetingScheduleData.meetingLink
+          day: meetingData.day.toLowerCase(),
+          slotId: parseInt(meetingData.slotId, 10),
+          meetingLink: meetingData.meetingLink
         }
-      }
+      };
       const response = await finalizeMeetingSchedule(selectedGroup, meetingDataAPI);
       if (response) {
         // Map response data to meetingSchedule structure
@@ -459,10 +334,15 @@ export default function SupervisorSchedule() {
         const finalMeetingData = responseData.finalMeeting || responseData;
         
         // Format meeting schedule data
+        const selectedSlotData = campusSlots.find(slot => slot.id === parseInt(meetingData.slotId, 10));
+        const slotTimeDisplay = selectedSlotData 
+          ? `${selectedSlotData.startAt || ''} - ${selectedSlotData.endAt || ''}`
+          : '';
+        
         const formattedMeetingSchedule = {
           id: finalMeetingData.id || meetingSchedule?.id,
           dayOfWeek: finalMeetingData.day || finalMeetingData.dayOfWeek || meetingData.day.toLowerCase(),
-          time: finalMeetingData.time || meetingData.time,
+          slotId: finalMeetingData.slotId || parseInt(meetingData.slotId, 10),
           meetingLink: finalMeetingData.meetingLink || meetingData.meetingLink,
           createAt: finalMeetingData.createAt || finalMeetingData.createdAt || new Date().toISOString(),
           isActive: finalMeetingData.isActive !== undefined ? finalMeetingData.isActive : true
@@ -476,23 +356,28 @@ export default function SupervisorSchedule() {
           const studentEmails = members.map(member => member.email).filter(email => email);
           if (studentEmails.length > 0) {
             const dayNames = {
-              'monday': 'Monday',
-              'tuesday': 'Tuesday', 
-              'wednesday': 'Wednesday',
-              'thursday': 'Thursday',
-              'friday': 'Friday',
-              'saturday': 'Saturday',
-              'sunday': 'Sunday'
+              'monday': 'Thứ Hai',
+              'tuesday': 'Thứ Ba', 
+              'wednesday': 'Thứ Tư',
+              'thursday': 'Thứ Năm',
+              'friday': 'Thứ Sáu',
+              'saturday': 'Thứ Bảy',
+              'sunday': 'Chủ Nhật'
             };
             
-            const meetingTime = `${dayNames[meetingData.day.toLowerCase()]} - ${meetingData.time}`;
+            const meetingTime = `${dayNames[meetingData.day.toLowerCase()] || meetingData.day} - ${slotTimeDisplay}`;
             
-            await sendMeetingNotification({
-              recipients: studentEmails,
-              subject: `[${group.groupName || 'Capstone Project'}] Group Meeting Schedule Notification`,
+            const systemUrl = `${window.location.origin}`;
+            const scheduleUrl = `${window.location.origin}/supervisor/schedule/${groupId}`;
+            
+            await sendMeetingScheduleConfirmationEmail({
+              recipientEmails: studentEmails,
+              groupName: group.groupName || group.groupCode || 'Capstone Project',
               meetingTime: meetingTime,
               meetingLink: meetingData.meetingLink,
-              message: `Supervisor ${currentUser.name} has confirmed the group meeting schedule. Please join on time.`
+              supervisorName: currentUser?.name || 'Giảng viên hướng dẫn',
+              detailUrl: scheduleUrl,
+              systemUrl: systemUrl
             });
             
           }
@@ -503,11 +388,11 @@ export default function SupervisorSchedule() {
         
         alert(isFinalized ? 'Meeting schedule updated successfully!' : 'Meeting schedule confirmed successfully!');
       } else {
-        alert('Error occurred while confirming meeting schedule');
+        alert('Error occurred while confirming meeting schedule: ' + response.data.message);
       }
     } catch (error) {
       console.error('Error finalizing meeting:', error);
-      alert('Error occurred while confirming meeting schedule');
+      alert('Error occurred while confirming meeting schedule: ' + error.message);
     } finally {
       setLoading(false);
     }
@@ -521,48 +406,6 @@ export default function SupervisorSchedule() {
     }));
   };
 
-  // Handle suggested time click
-  const handleSuggestedTimeClick = (suggestion) => {
-    const slot = suggestion.slot;
-    const startTime = convertTimeToInputFormat(slot?.startAt || '');
-    const endTime = convertTimeToInputFormat(slot?.endAt || '');
-    
-    setMeetingData({
-      day: suggestion.day,
-      time: startTime,
-      endTime: endTime,
-      meetingLink: meetingData.meetingLink || ''
-    });
-    
-    // Highlight slot
-    setSelectedSlot(slot);
-    setSelectedDay(suggestion.day);
-  };
-
-  // Convert time format để hiển thị trong input type="time" (HH:MM)
-  const convertTimeToInputFormat = (timeStr) => {
-    if (!timeStr) return '';
-    // Nếu đã là format HH:MM hoặc HH:MM:SS thì lấy phần đầu
-    if (timeStr.includes(':')) {
-      const parts = timeStr.split(':');
-      return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
-    }
-    // Nếu có AM/PM thì convert
-    const isPM = timeStr.toUpperCase().includes('PM');
-    const isAM = timeStr.toUpperCase().includes('AM');
-    if (isPM || isAM) {
-      const cleaned = timeStr.replace(/[AP]M/i, '').trim();
-      const [hours, minutes] = cleaned.split(':').map(Number);
-      let hour24 = hours || 0;
-      if (isPM && hour24 !== 12) {
-        hour24 += 12;
-      } else if (isAM && hour24 === 12) {
-        hour24 = 0;
-      }
-      return `${String(hour24).padStart(2, '0')}:${String(minutes || 0).padStart(2, '0')}`;
-    }
-    return timeStr;
-  };
 
 
 
@@ -650,7 +493,9 @@ export default function SupervisorSchedule() {
                           'sunday': 'Sunday'
                         };
                         const dayName = dayNames[meetingSchedule.dayOfWeek?.toLowerCase()] || meetingSchedule.dayOfWeek || '';
-                        return `${dayName} - ${meetingSchedule.time || ''}`;
+                        const slot = campusSlots.find(s => s.id === meetingSchedule.slotId);
+                        const slotTime = slot ? `${slot.startAt || ''} - ${slot.endAt || ''}` : '';
+                        return `${dayName} - ${slotTime}`;
                       })()}
                     </span>
                   </div>
@@ -849,33 +694,6 @@ export default function SupervisorSchedule() {
                 </div>
               );
             })()}
-            
-            {/* Suggested Times Section - Only show when not finalized */}
-            {!isFinalized && suggestedTimes.length > 0 && (
-              <div className={styles.suggestedTimesSection}>
-                <h3>Suggested Meeting Times</h3>
-                <div className={styles.suggestedTimesList}>
-                  {suggestedTimes.map((suggestion, index) => {
-                    const isSelected = selectedSlot?.id === suggestion.slot?.id && selectedDay === suggestion.day;
-                    return (
-                      <button
-                        key={index}
-                        onClick={() => handleSuggestedTimeClick(suggestion)}
-                        className={`${styles.suggestedTimeButton} ${isSelected ? styles.suggestedTimeSelected : ''}`}
-                      >
-                        <div className={styles.suggestedTimeRow1}>
-                          <span className={styles.suggestedDay}>{suggestion.dayName}</span>
-                          <span className={styles.suggestedTime}>{suggestion.time}</span>
-                        </div>
-                        <div className={styles.suggestedTimeRow2}>
-                          <span className={styles.suggestedSlotCount}>{suggestion.availableCount} members, {suggestion.hours} hours</span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Meeting Finalization/Update Form - Only show when not finalized */}
@@ -899,25 +717,23 @@ export default function SupervisorSchedule() {
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label>Start Time</label>
-                  <input
-                    type="time"
-                    value={meetingData.time}
-                    onChange={(e) => updateMeetingData('time', e.target.value)}
-                    className={styles.timeInput}
-                    placeholder="e.g: 14:00"
-                  />
-                </div>
-
-                <div className={styles.formGroup}>
-                  <label>End Time</label>
-                  <input
-                    type="time"
-                    value={meetingData.endTime}
-                    onChange={(e) => updateMeetingData('endTime', e.target.value)}
-                    className={styles.timeInput}
-                    placeholder="e.g: 15:00"
-                  />
+                  <label>Select Slot</label>
+                  <select
+                    value={meetingData.slotId}
+                    onChange={(e) => updateMeetingData('slotId', e.target.value)}
+                    className={styles.slotSelect}
+                    disabled={campusSlots.length === 0}
+                  >
+                    <option value="">-- Select Slot --</option>
+                    {campusSlots.map(slot => (
+                      <option key={slot.id} value={slot.id}>
+                        {slot.nameSlot || `${slot.startAt || ''} - ${slot.endAt || ''}`}
+                      </option>
+                    ))}
+                  </select>
+                  {campusSlots.length === 0 && (
+                    <div className={styles.errorText}>Không có slot nào. Vui lòng kiểm tra campusId.</div>
+                  )}
                 </div>
 
                 <div className={styles.formGroup}>

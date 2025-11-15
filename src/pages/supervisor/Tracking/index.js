@@ -515,7 +515,7 @@ export default function SupervisorTracking() {
                           display: 'inline-block',
                           whiteSpace: 'nowrap'
                         }}>
-                          {student.role}
+                          {student.role === "Student" ? 'Member' : (student.role || 'Member')}
                         </span>
                       </td>
                     </tr>

@@ -445,7 +445,7 @@ export default function StudentMilestones() {
                           display: 'inline-block',
                           whiteSpace: 'nowrap'
                         }}>
-                          {student.role}
+                          {student.role === "Student" ? 'Member' : (student.role || 'Member')}
                         </span>
                       </td>
                     </tr>
