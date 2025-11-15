@@ -7,14 +7,6 @@ import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const TIME_SLOTS = [
-  { label: '00:00-04:00', start: 0, end: 4 },
-  { label: '04:00-08:00', start: 4, end: 8 },
-  { label: '08:00-12:00', start: 8, end: 12 },
-  { label: '12:00-16:00', start: 12, end: 16 },
-  { label: '16:00-20:00', start: 16, end: 20 },
-  { label: '20:00-24:00', start: 20, end: 24 }
-];
 
 export default function StudentHome() {
   const navigate = useNavigate();
@@ -36,6 +28,9 @@ export default function StudentHome() {
   const [selectedFile, setSelectedFile] = React.useState(null);
   const [minuteData, setMinuteData] = React.useState(null);
   const [meetingIssues, setMeetingIssues] = React.useState([]);
+  const [timeSlots, setTimeSlots] = React.useState([]); // Slots từ API
+  const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
+  const [meetingGroupInfo, setMeetingGroupInfo] = React.useState(null);
 
   // Load user info
   React.useEffect(() => {
@@ -54,6 +49,61 @@ export default function StudentHome() {
     loadUserInfo();
     return () => { mounted = false; };
   }, []);
+
+  // Load slots từ API dựa trên campusId
+  React.useEffect(() => {
+    let mounted = true;
+    async function loadSlots() {
+      if (!userInfo?.campusId) return;
+      try {
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/slot/ById/${userInfo.campusId}`);
+        if (res.data.status === 200 && res.data.data?.slots) {
+          const slots = res.data.data.slots;
+          // Chuyển đổi slots từ API thành format phù hợp
+          const formattedSlots = slots.map(slot => {
+            // Parse thời gian từ "7:30 AM" hoặc "1:00 PM" format
+            const parseTime = (timeStr) => {
+              const time = timeStr.trim();
+              const isPM = time.toUpperCase().includes('PM');
+              const timePart = time.replace(/[AP]M/gi, '').trim();
+              const [hours, minutes] = timePart.split(':').map(Number);
+              let hour24 = hours;
+              if (isPM && hours !== 12) hour24 = hours + 12;
+              if (!isPM && hours === 12) hour24 = 0;
+              return hour24 + (minutes || 0) / 60;
+            };
+            
+            return {
+              id: slot.id,
+              label: `${slot.startAt} - ${slot.endAt}`,
+              nameSlot: slot.nameSlot,
+              start: parseTime(slot.startAt),
+              end: parseTime(slot.endAt),
+              startAt: slot.startAt,
+              endAt: slot.endAt
+            };
+          });
+          
+          if (!mounted) return;
+          setTimeSlots(formattedSlots);
+        }
+      } catch (error) {
+        console.error('Error loading slots:', error);
+        if (!mounted) return;
+        // Fallback về TIME_SLOTS mặc định nếu lỗi
+        setTimeSlots([
+          { label: '00:00-04:00', start: 0, end: 4 },
+          { label: '04:00-08:00', start: 4, end: 8 },
+          { label: '08:00-12:00', start: 8, end: 12 },
+          { label: '12:00-16:00', start: 12, end: 16 },
+          { label: '16:00-20:00', start: 16, end: 20 },
+          { label: '20:00-24:00', start: 20, end: 24 }
+        ]);
+      }
+    }
+    loadSlots();
+    return () => { mounted = false; };
+  }, [userInfo?.campusId]);
 
   // Load group info
   React.useEffect(() => {
@@ -212,7 +262,7 @@ export default function StudentHome() {
     });
   };
 
-  // Get tasks for selected week (only tasks assigned to logged-in student)
+  // Get tasks for selected week (only tasks assigned to logged-in student and isActive === true)
   const getTasksForWeek = () => {
     if (!selectedWeek || !tasks.length) return [];
     
@@ -228,6 +278,8 @@ export default function StudentHome() {
     weekEnd.setHours(23, 59, 59, 999);
     
     const weekTasks = tasks.filter(task => {
+      // Chỉ lấy task có isActive === true
+      if (task.isActive !== true) return false;
       if (!task.deadline) return false;
       const deadline = new Date(task.deadline);
       return deadline >= weekStart && deadline <= weekEnd;
@@ -269,12 +321,45 @@ export default function StudentHome() {
     for (const meeting of weekMeetings) {
       const meetingDate = new Date(meeting.meetingDate);
       const dayOfWeek = meetingDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      const hour = parseInt(meeting.time.split(':')[0]);
       
       // Convert Sunday=0 to Monday=0 format
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
-      if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
+      if (adjustedDay !== day) continue;
+      
+      // Lấy giờ từ meeting.startAt hoặc meeting.time
+      let meetingHour = 0;
+      if (meeting.startAt) {
+        // Nếu có startAt (format "HH:mm:ss" hoặc "HH:mm" hoặc "YYYY-MM-DDTHH:mm:ss")
+        let timeStr = meeting.startAt;
+        // Nếu có format datetime, lấy phần thời gian
+        if (timeStr.includes('T')) {
+          timeStr = timeStr.split('T')[1];
+        }
+        if (timeStr.includes(' ')) {
+          timeStr = timeStr.split(' ')[0];
+        }
+        const parts = timeStr.split(':');
+        if (parts.length >= 2) {
+          meetingHour = parseInt(parts[0]) + (parseInt(parts[1]) || 0) / 60;
+        } else {
+          continue; // Không parse được, bỏ qua
+        }
+      } else if (meeting.time) {
+        // Nếu có time (format "HH:mm")
+        const parts = meeting.time.split(':');
+        if (parts.length >= 2) {
+          meetingHour = parseInt(parts[0]) + (parseInt(parts[1]) || 0) / 60;
+        } else {
+          continue; // Không parse được, bỏ qua
+        }
+      } else {
+        // Không có thời gian, bỏ qua meeting này
+        continue;
+      }
+      
+      // Kiểm tra xem meeting có nằm trong slot không
+      if (meetingHour >= timeSlot.start && meetingHour < timeSlot.end) {
         matchedMeetings.push(meeting);
       }
     }
@@ -313,6 +398,8 @@ export default function StudentHome() {
         return '#dc2626'; // Red
       case 'Pending':
         return '#d97706'; // Orange/Yellow
+      case 'PENDING':
+        return '#d97706'; // Orange/Yellow
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
       case 'REJECTED':
@@ -330,6 +417,8 @@ export default function StudentHome() {
         return '⚠ Late';
       case 'Pending':
         return '⏳ Pending Review';
+      case 'PENDING':
+        return '⏳ Pending Review';
       case 'UNSUBMITTED':
         return '✗ Unsubmitted';
       case 'REJECTED':
@@ -342,6 +431,7 @@ export default function StudentHome() {
   const getTaskStatusColor = (status) => {
     switch (status) {
       case 'ToDo':
+        return '#64748b'; // Gray
       case 'Todo':
         return '#64748b'; // Gray
       case 'InProgress':
@@ -358,6 +448,7 @@ export default function StudentHome() {
   const getTaskStatusText = (status) => {
     switch (status) {
       case 'ToDo':
+        return '📋 To Do';
       case 'Todo':
         return '📋 To Do';
       case 'InProgress':
@@ -408,22 +499,101 @@ export default function StudentHome() {
     navigate(`/student/task-detail/${groupId}?taskId=${task.id}`);
   };
 
+  // Hàm lấy thông tin nhóm
+  const fetchGroupInfo = async (groupId) => {
+    try {
+      const response = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
+      if (response.data.status === 200) {
+        return response.data.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching group info:', error);
+      return null;
+    }
+  };
+
+  // Hàm parse attendance text thành danh sách
+  const parseAttendance = (attendanceText, students) => {
+    if (!students || students.length === 0) {
+      return [];
+    }
+
+    if (!attendanceText || !attendanceText.trim()) {
+      return students.map(student => ({
+        studentId: student.id,
+        name: student.name,
+        rollNumber: student.rollNumber,
+        role: student.role || '',
+        attended: false,
+        reason: ''
+      }));
+    }
+
+    const lines = attendanceText.split('\n').filter(line => line.trim());
+    const parsed = new Map();
+
+    lines.forEach(line => {
+      const match = line.match(/^(.+?)\s*\(([^)]+)\):\s*(.+)$/);
+      if (match) {
+        const [, name, rollNumber, status] = match;
+        const statusLower = status.toLowerCase();
+        const isAbsent = statusLower.includes('nghỉ') || statusLower.includes('vắng');
+        let reason = '';
+        
+        if (isAbsent) {
+          const reasonMatch = status.match(/(?:nghỉ|vắng)\s*-\s*(.+)/i);
+          reason = reasonMatch ? reasonMatch[1].trim() : status.replace(/^(nghỉ|vắng)\s*-?\s*/i, '').trim();
+        }
+        
+        parsed.set(rollNumber.trim(), {
+          name: name.trim(),
+          rollNumber: rollNumber.trim(),
+          attended: !isAbsent,
+          reason: reason
+        });
+      }
+    });
+
+    return students.map(student => {
+      const existing = parsed.get(student.rollNumber);
+      if (existing) {
+        return {
+          studentId: student.id,
+          name: student.name,
+          rollNumber: student.rollNumber,
+          role: student.role || '',
+          attended: existing.attended,
+          reason: existing.reason
+        };
+      }
+      return {
+        studentId: student.id,
+        name: student.name,
+        rollNumber: student.rollNumber,
+        role: student.role || '',
+        attended: false,
+        reason: ''
+      };
+    });
+  };
+
   // Fetch meeting issues (tasks) by meetingId
   const fetchMeetingIssues = async (meetingId) => {
     try {
       const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Task/meeting-tasks/${meetingId}`);
       const data = res.data?.data;
       const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
-      setMeetingIssues(tasks.map(t => ({
+      return tasks.map(t => ({
         id: t.id,
         name: t.name,
         description: t.description,
         deadline: t.deadline,
         isActive: t.isActive,
         groupId: t.groupId || userInfo?.groups?.[0]
-      })));
+      }));
     } catch (e) {
-      setMeetingIssues([]);
+      return [];
     }
   };
 
@@ -457,27 +627,57 @@ export default function StudentHome() {
 
   const openMeetingModal = async (meeting) => {
     setSelectedMeeting(meeting);
-    setMeetingModal(true);
+    setMinuteData(null);
+    setMeetingIssues([]);
+    setAttendanceList([]);
+    setMeetingGroupInfo(null);
+    // Không hiện modal ngay, đợi load xong dữ liệu
     
-    // Chỉ fetch meeting minute nếu isMinute === true
-    if (meeting.isMinute === true) {
-      try {
-        const response = await client.get(`https://160.30.21.113:5000/api/v1/MeetingMinute?meetingDateId=${meeting.id}`);
-        if (response.data.status === 200 && response.data.data) {
-          setMinuteData(response.data.data);
-        } else {
+    try {
+      // Fetch group info để parse attendance
+      let currentGroupInfo = null;
+      if (userInfo?.groups && userInfo.groups.length > 0) {
+        currentGroupInfo = await fetchGroupInfo(userInfo.groups[0]);
+        if (currentGroupInfo) {
+          setMeetingGroupInfo(currentGroupInfo);
+        }
+      }
+
+      // Chỉ fetch meeting minute nếu isMinute === true
+      if (meeting.isMinute === true) {
+        try {
+          const response = await client.get(`https://160.30.21.113:5000/api/v1/MeetingMinute?meetingDateId=${meeting.id}`);
+          if (response.data.status === 200 && response.data.data) {
+            setMinuteData(response.data.data);
+            
+            // Parse attendance từ text
+            if (currentGroupInfo && currentGroupInfo.students) {
+              const students = Array.isArray(currentGroupInfo.students) ? currentGroupInfo.students : [];
+              const parsedAttendance = parseAttendance(response.data.data.attendance, students);
+              setAttendanceList(parsedAttendance);
+            }
+            
+            // Load meeting issues bằng meeting minute id
+            if (response.data.data.id) {
+              const meetingTasks = await fetchMeetingIssues(response.data.data.id);
+              setMeetingIssues(Array.isArray(meetingTasks) ? meetingTasks : []);
+            }
+          } else {
+            setMinuteData(null);
+          }
+        } catch (error) {
+          console.error('Error fetching meeting minute:', error);
           setMinuteData(null);
         }
-      } catch (error) {
-        console.error('Error fetching meeting minute:', error);
+      } else {
         setMinuteData(null);
       }
-    } else {
-      setMinuteData(null);
+    } catch (error) {
+      console.error('Error loading meeting data:', error);
+    } finally {
+      // Chỉ hiện modal sau khi đã load xong tất cả dữ liệu
+      setMeetingModal(true);
     }
-
-    // Load meeting issues
-    await fetchMeetingIssues(meeting.id);
   };
 
   const closeMeetingModal = () => {
@@ -485,6 +685,8 @@ export default function StudentHome() {
     setSelectedMeeting(null);
     setMinuteData(null);
     setMeetingIssues([]);
+    setAttendanceList([]);
+    setMeetingGroupInfo(null);
   };
 
   // Join meeting
@@ -492,12 +694,16 @@ export default function StudentHome() {
     window.open(meetingLink, '_blank');
   };
 
-  // Get upcoming tasks sorted by deadline (prioritize overdue tasks, then upcoming tasks) - chỉ lấy 3 tasks
+  // Get upcoming tasks sorted by deadline (prioritize overdue tasks, then upcoming tasks) - chỉ lấy 3 tasks và chỉ lấy isActive === true
   const getUpcomingTasks = React.useMemo(() => {
     if (!tasks.length) return [];
     
+    // Chỉ lấy các task có isActive === true
+    const activeTasks = tasks.filter(task => task.isActive === true);
+    if (!activeTasks.length) return [];
+    
     const now = new Date();
-    const sortedTasks = [...tasks].sort((a, b) => {
+    const sortedTasks = [...activeTasks].sort((a, b) => {
       if (!a.deadline || !b.deadline) return 0;
       const deadlineA = new Date(a.deadline);
       const deadlineB = new Date(b.deadline);
@@ -787,6 +993,50 @@ export default function StudentHome() {
     }
   };
 
+  // Kiểm tra file có thể xem được không (ảnh, PDF, docs)
+  const canPreviewFile = (filePath) => {
+    if (!filePath) return false;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    
+    // Các định dạng có thể xem được
+    const previewableExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Documents (có thể xem qua Google Docs Viewer hoặc Office Online)
+      'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+      // Text files
+      'txt', 'csv'
+    ];
+    
+    return previewableExtensions.includes(extension);
+  };
+
+  // Mở preview file trong tab mới
+  const openFilePreview = (attachment) => {
+    if (!canPreviewFile(attachment.path)) {
+      alert('File này không thể xem trước. Vui lòng tải xuống để xem.');
+      return;
+    }
+    
+    const filePath = attachment.path;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    
+    let previewUrl = baseUrl;
+    
+    // Office documents - sử dụng Google Docs Viewer
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(extension)) {
+      previewUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(baseUrl)}&embedded=true`;
+    }
+    
+    // Mở trong tab mới
+    window.open(previewUrl, '_blank');
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 32, textAlign: 'center' }}>
@@ -906,153 +1156,323 @@ export default function StudentHome() {
             </tr>
           </thead>
           <tbody>
-            {TIME_SLOTS.map((timeSlot, slotIndex) => (
-              <tr key={timeSlot.label}>
-                <td style={{ 
-                  padding: '8px', 
-                  borderBottom: '1px solid #f1f5f9', 
-                  fontSize: 11, 
-                  fontWeight: 600,
-                  background: '#f8fafc',
-                  textAlign: 'center'
-                }}>
-                  {timeSlot.label}
-                </td>
-                {DAYS.map((day, dayIndex) => {
-                  const milestones = getMilestonesForSlot(dayIndex, timeSlot);
-                  const meetings = getMeetingsForSlot(dayIndex, timeSlot);
-                  const tasks = getTasksForSlot(dayIndex, timeSlot);
-                  
+            {timeSlots.length > 0 ? (() => {
+              // Lấy tất cả milestones của tuần
+              const weekMilestones = getMilestonesForWeek();
+              
+              // Tạo một map để lưu các milestone không có slot phù hợp
+              const milestoneRows = new Map();
+              
+              weekMilestones.forEach(milestone => {
+                if (!milestone.endAt) return;
+                const deadline = new Date(milestone.endAt);
+                const dayOfWeek = deadline.getDay();
+                const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                const hour = deadline.getHours() + (deadline.getMinutes() || 0) / 60;
+                
+                // Kiểm tra xem có slot nào phù hợp không
+                const hasMatchingSlot = timeSlots.some(slot => {
+                  return hour >= slot.start && hour < slot.end;
+                });
+                
+                // Nếu không có slot phù hợp, thêm vào milestoneRows
+                if (!hasMatchingSlot) {
+                  const key = `${adjustedDay}_${hour.toFixed(2)}`;
+                  if (!milestoneRows.has(key)) {
+                    milestoneRows.set(key, []);
+                  }
+                  milestoneRows.get(key).push({ milestone, day: adjustedDay, hour });
+                }
+              });
+              
+              // Tạo danh sách rows: slots + milestone rows
+              const allRows = [];
+              
+              // Thêm các slot rows
+              timeSlots.forEach(slot => {
+                allRows.push({ type: 'slot', data: slot });
+              });
+              
+              // Thêm các milestone rows (sắp xếp theo giờ)
+              Array.from(milestoneRows.entries()).sort((a, b) => {
+                const [dayA, hourA] = a[0].split('_').map(Number);
+                const [dayB, hourB] = b[0].split('_').map(Number);
+                if (dayA !== dayB) return dayA - dayB;
+                return hourA - hourB;
+              }).forEach(([key, milestones]) => {
+                const [day, hour] = key.split('_').map(Number);
+                const milestoneHour = Math.floor(hour);
+                const milestoneMinute = Math.round((hour - milestoneHour) * 60);
+                const timeStr = `${String(milestoneHour).padStart(2, '0')}:${String(milestoneMinute).padStart(2, '0')}`;
+                allRows.push({ 
+                  type: 'milestone', 
+                  data: { 
+                    milestones: milestones.map(m => m.milestone),
+                    day,
+                    hour,
+                    label: `Milestone (${timeStr})`
+                  } 
+                });
+              });
+              
+              return allRows.map((row, rowIndex) => {
+                if (row.type === 'slot') {
+                  const timeSlot = row.data;
                   return (
-                    <td key={day} style={{ 
-                      padding: '8px', 
-                      borderBottom: '1px solid #f1f5f9',
-                      borderRight: '1px solid #f1f5f9',
-                      minHeight: '60px',
-                      verticalAlign: 'top'
-                    }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {/* Milestones - Display all milestones in this slot */}
-                        {milestones.map((milestone, idx) => (
-                          <div 
-                            key={milestone.id || idx}
-                            onClick={() => openDetailModal(milestone)}
-                            style={{ 
-                              background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
-                                         getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
-                                         getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                              border: `1px solid ${getStatusColor(milestone.status)}`,
-                              borderRadius: 4,
-                              padding: 4,
-                              cursor: 'pointer',
-                              fontSize: 9,
-                              maxHeight: '50px',
-                              overflow: 'hidden',
-                              transition: 'all 0.2s ease'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.target.style.transform = 'scale(1.02)';
-                              e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.target.style.transform = 'scale(1)';
-                              e.target.style.boxShadow = 'none';
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
-                              📊 {milestone.name.length > 20 ? milestone.name.substring(0, 20) + '...' : milestone.name}
-                            </div>
-                            <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
-                              {getStatusText(milestone.status)}
-                            </div>
-                            <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
-                              {formatDate(milestone.endAt, 'HH:mm')}
-                            </div>
-                          </div>
-                        ))}
+                    <tr key={`slot_${timeSlot.id || timeSlot.label}`}>
+                      <td style={{ 
+                        padding: '8px', 
+                        borderBottom: '1px solid #f1f5f9', 
+                        fontSize: 11, 
+                        fontWeight: 600,
+                        background: '#f8fafc',
+                        textAlign: 'center',
+                        width: '180px',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {timeSlot.nameSlot ? `${timeSlot.nameSlot} (${timeSlot.startAt} - ${timeSlot.endAt})` : timeSlot.label}
+                      </td>
+                      {DAYS.map((day, dayIndex) => {
+                        const milestones = getMilestonesForSlot(dayIndex, timeSlot);
+                        const meetings = getMeetingsForSlot(dayIndex, timeSlot);
+                        const tasks = getTasksForSlot(dayIndex, timeSlot);
                         
-                        {/* Meetings - Display all meetings in this slot */}
-                        {meetings.map((meeting, idx) => (
-                          <div 
-                            key={meeting.id || idx}
-                            onClick={() => openMeetingModal(meeting)}
-                            style={{ 
-                              background: getMeetingStatusColor(meeting) === '#059669' ? '#ecfdf5' : 
-                                         getMeetingStatusColor(meeting) === '#dc2626' ? '#fee2e2' : '#fef3c7',
-                              border: `1px solid ${getMeetingStatusColor(meeting)}`,
-                              borderRadius: 4,
-                              padding: 4,
-                              cursor: 'pointer',
-                              fontSize: 9,
-                              maxHeight: '50px',
-                              overflow: 'hidden',
-                              transition: 'all 0.2s ease'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.target.style.transform = 'scale(1.02)';
-                              e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.target.style.transform = 'scale(1)';
-                              e.target.style.boxShadow = 'none';
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, color: getMeetingStatusColor(meeting), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
-                              📅 {meeting.description.length > 20 ? meeting.description.substring(0, 20) + '...' : meeting.description}
+                        return (
+                          <td key={day} style={{ 
+                            padding: '8px', 
+                            borderBottom: '1px solid #f1f5f9',
+                            borderRight: '1px solid #f1f5f9',
+                            minHeight: '60px',
+                            verticalAlign: 'top',
+                            width: '120px',
+                            maxWidth: '120px',
+                            wordWrap: 'break-word',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              {/* Milestones - Display all milestones in this slot */}
+                              {milestones.map((milestone, idx) => (
+                                <div 
+                                  key={milestone.id || idx}
+                                  onClick={() => openDetailModal(milestone)}
+                                  style={{ 
+                                    background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
+                                               getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
+                                               getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                                    border: `1px solid ${getStatusColor(milestone.status)}`,
+                                    borderRadius: 4,
+                                    padding: 4,
+                                    cursor: 'pointer',
+                                    fontSize: 9,
+                                    maxHeight: '50px',
+                                    overflow: 'hidden',
+                                    transition: 'all 0.2s ease',
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.transform = 'scale(1.02)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                    e.target.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                                    📊 {milestone.name.length > 15 ? milestone.name.substring(0, 15) + '...' : milestone.name}
+                                  </div>
+                                  <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                                    {getStatusText(milestone.status)}
+                                  </div>
+                                  <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                                    {formatDate(milestone.endAt, 'HH:mm')}
+                                  </div>
+                                </div>
+                              ))}
+                              
+                              {/* Meetings - Display all meetings in this slot */}
+                              {meetings.map((meeting, idx) => (
+                                <div 
+                                  key={meeting.id || idx}
+                                  onClick={() => openMeetingModal(meeting)}
+                                  style={{ 
+                                    background: getMeetingStatusColor(meeting) === '#059669' ? '#ecfdf5' : 
+                                               getMeetingStatusColor(meeting) === '#dc2626' ? '#fee2e2' : '#fef3c7',
+                                    border: `1px solid ${getMeetingStatusColor(meeting)}`,
+                                    borderRadius: 4,
+                                    padding: 4,
+                                    cursor: 'pointer',
+                                    fontSize: 9,
+                                    maxHeight: '50px',
+                                    overflow: 'hidden',
+                                    transition: 'all 0.2s ease',
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.transform = 'scale(1.02)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                    e.target.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600, color: getMeetingStatusColor(meeting), marginBottom: 2, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                                    📅 {meeting.description.length > 15 ? meeting.description.substring(0, 15) + '...' : meeting.description}
+                                  </div>
+                                  <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
+                                    {getMeetingStatusText(meeting)}
+                                  </div>
+                                  <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
+                                    {meeting.startAt ? meeting.startAt.substring(0, 5) : (meeting.time || 'N/A')}
+                                    {meeting.endAt && ` - ${meeting.endAt.substring(0, 5)}`}
+                                  </div>
+                                </div>
+                              ))}
+                              
+                              {/* Tasks - Display all tasks in this slot */}
+                              {tasks.map((task, idx) => (
+                                <div 
+                                  key={task.id || idx}
+                                  onClick={() => openTaskDetail(task)}
+                                  style={{ 
+                                    background: getTaskStatusColor(task.status) === '#059669' ? '#ecfdf5' : 
+                                               getTaskStatusColor(task.status) === '#dc2626' ? '#fee2e2' :
+                                               getTaskStatusColor(task.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                                    border: `1px solid ${getTaskStatusColor(task.status)}`,
+                                    borderRadius: 4,
+                                    padding: 4,
+                                    cursor: 'pointer',
+                                    fontSize: 9,
+                                    maxHeight: '50px',
+                                    overflow: 'hidden',
+                                    transition: 'all 0.2s ease',
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.transform = 'scale(1.02)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                    e.target.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600, color: getTaskStatusColor(task.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                                    📋 {task.title.length > 15 ? task.title.substring(0, 15) + '...' : task.title}
+                                  </div>
+                                  <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
+                                    {getTaskStatusText(task.status)}
+                                  </div>
+                                  <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
+                                    {formatDate(task.deadline, 'HH:mm')}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
-                              {getMeetingStatusText(meeting)}
-                            </div>
-                            <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
-                              {meeting.time}
-                            </div>
-                          </div>
-                        ))}
-                        
-                        {/* Tasks - Display all tasks in this slot */}
-                        {tasks.map((task, idx) => (
-                          <div 
-                            key={task.id || idx}
-                            onClick={() => openTaskDetail(task)}
-                            style={{ 
-                              background: getTaskStatusColor(task.status) === '#059669' ? '#ecfdf5' : 
-                                         getTaskStatusColor(task.status) === '#dc2626' ? '#fee2e2' :
-                                         getTaskStatusColor(task.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                              border: `1px solid ${getTaskStatusColor(task.status)}`,
-                              borderRadius: 4,
-                              padding: 4,
-                              cursor: 'pointer',
-                              fontSize: 9,
-                              maxHeight: '50px',
-                              overflow: 'hidden',
-                              transition: 'all 0.2s ease'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.target.style.transform = 'scale(1.02)';
-                              e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.target.style.transform = 'scale(1)';
-                              e.target.style.boxShadow = 'none';
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, color: getTaskStatusColor(task.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
-                              📋 {task.title.length > 20 ? task.title.substring(0, 20) + '...' : task.title}
-                            </div>
-                            <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
-                              {getTaskStatusText(task.status)}
-                            </div>
-                            <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
-                              {formatDate(task.deadline, 'HH:mm')}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </td>
+                          </td>
+                        );
+                      })}
+                    </tr>
                   );
-                })}
+                } else {
+                  // Milestone row
+                  const { milestones, day, label } = row.data;
+                  return (
+                    <tr key={`milestone_${day}_${row.data.hour}`}>
+                      <td style={{ 
+                        padding: '8px', 
+                        borderBottom: '1px solid #f1f5f9', 
+                        fontSize: 11, 
+                        fontWeight: 600,
+                        background: '#fef3c7',
+                        textAlign: 'center',
+                        width: '180px',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {label}
+                      </td>
+                      {DAYS.map((dayName, dayIndex) => {
+                        const dayMilestones = dayIndex === day ? milestones : [];
+                        return (
+                          <td key={dayName} style={{ 
+                            padding: '8px', 
+                            borderBottom: '1px solid #f1f5f9',
+                            borderRight: '1px solid #f1f5f9',
+                            minHeight: '60px',
+                            verticalAlign: 'top',
+                            width: '120px',
+                            maxWidth: '120px',
+                            wordWrap: 'break-word',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              {dayMilestones.map((milestone, idx) => (
+                                <div 
+                                  key={milestone.id || idx}
+                                  onClick={() => openDetailModal(milestone)}
+                                  style={{ 
+                                    background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
+                                               getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
+                                               getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                                    border: `1px solid ${getStatusColor(milestone.status)}`,
+                                    borderRadius: 4,
+                                    padding: 4,
+                                    cursor: 'pointer',
+                                    fontSize: 9,
+                                    maxHeight: '50px',
+                                    overflow: 'hidden',
+                                    transition: 'all 0.2s ease',
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.transform = 'scale(1.02)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                    e.target.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                                    📊 {milestone.name.length > 15 ? milestone.name.substring(0, 15) + '...' : milestone.name}
+                                  </div>
+                                  <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                                    {getStatusText(milestone.status)}
+                                  </div>
+                                  <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                                    {formatDate(milestone.endAt, 'HH:mm')}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                }
+              });
+            })() : (
+              <tr>
+                <td colSpan={8} style={{ 
+                  padding: '20px', 
+                  textAlign: 'center', 
+                  color: '#6b7280',
+                  fontSize: 11
+                }}>
+                  Đang tải slots...
+                </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -1338,7 +1758,47 @@ export default function StudentHome() {
                                         Uploaded by {attachment.userName} on {formatDate(attachment.createAt, 'DD/MM/YYYY HH:mm')}
                                       </div>
                                     </div>
-                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center' }}>
+                                      {canPreviewFile(attachment.path) && (
+                                        <button
+                                          onClick={() => openFilePreview(attachment)}
+                                          style={{ 
+                                            padding: '4px 6px',
+                                            background: 'transparent',
+                                            border: '1px solid #d1d5db',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#6b7280'
+                                          }}
+                                          title="Xem trước"
+                                          onMouseEnter={(e) => {
+                                            e.target.style.backgroundColor = '#f3f4f6';
+                                            e.target.style.borderColor = '#9ca3af';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.target.style.backgroundColor = 'transparent';
+                                            e.target.style.borderColor = '#d1d5db';
+                                          }}
+                                        >
+                                          <svg 
+                                            width="16" 
+                                            height="16" 
+                                            viewBox="0 0 24 24" 
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            strokeWidth="2" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round"
+                                            style={{ color: '#6b7280' }}
+                                          >
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                          </svg>
+                                        </button>
+                                      )}
                                       <Button
                                         onClick={() => downloadFile(attachment)}
                                         variant="ghost"
@@ -1420,7 +1880,7 @@ export default function StudentHome() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div><strong>Mô tả:</strong> {selectedMeeting.description}</div>
                   <div><strong>Ngày:</strong> {formatDate(selectedMeeting.meetingDate, 'YYYY-MM-DD')}</div>
-                  <div><strong>Giờ:</strong> {selectedMeeting.time}</div>
+                  <div><strong>Giờ:</strong> {selectedMeeting.startAt ? `${selectedMeeting.startAt.substring(0, 5)} - ${selectedMeeting.endAt ? selectedMeeting.endAt.substring(0, 5) : ''}` : (selectedMeeting.time || 'N/A')}</div>
                   <div><strong>Thứ:</strong> {selectedMeeting.dayOfWeek}</div>
                   <div><strong>Trạng thái:</strong> 
                     <span style={{ 
@@ -1488,26 +1948,80 @@ export default function StudentHome() {
                     <div>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Thời gian</h4>
                       <div style={{ fontSize: 13, color: '#374151' }}>
-                        <div><strong>Bắt đầu:</strong> {formatDate(minuteData.startAt, 'DD/MM/YYYY HH:mm')}</div>
-                        <div><strong>Kết thúc:</strong> {formatDate(minuteData.endAt, 'DD/MM/YYYY HH:mm')}</div>
+                        {selectedMeeting?.startAt && selectedMeeting?.endAt ? (
+                          <>
+                            <div><strong>Bắt đầu:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                            <div><strong>Kết thúc:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                          </>
+                        ) : (
+                          <>
+                            <div><strong>Bắt đầu:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                            <div><strong>Kết thúc:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                          </>
+                        )}
                       </div>
                     </div>
                     
                     <div>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Danh sách tham gia</h4>
-                      <div style={{ 
-                        fontSize: 13, 
-                        color: '#374151', 
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        padding: '12px',
-                        background: 'rgba(255,255,255,0.5)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        minHeight: '80px'
-                      }}>
-                        {minuteData.attendance || 'N/A'}
-                      </div>
+                      {attendanceList.length > 0 ? (
+                        <div style={{
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          padding: '8px',
+                          backgroundColor: 'rgba(255,255,255,0.5)'
+                        }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Thành viên</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Tham gia</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Lý do nghỉ</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {attendanceList.map((item) => (
+                                <tr key={item.studentId} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '6px 8px' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: '500', color: '#1f2937' }}>
+                                      {item.name}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '1px' }}>
+                                      {item.rollNumber} {item.role && `- ${item.role}`}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                    <span style={{
+                                      padding: '4px 8px',
+                                      borderRadius: '4px',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      backgroundColor: item.attended ? '#d1fae5' : '#fee2e2',
+                                      color: item.attended ? '#065f46' : '#991b1b'
+                                    }}>
+                                      {item.attended ? 'Có' : 'Không'}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '6px 8px', fontSize: '12px', color: '#6b7280' }}>
+                                    {item.reason || '-'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div style={{ 
+                          fontSize: 13, 
+                          color: '#6b7280', 
+                          padding: '12px',
+                          background: 'rgba(255,255,255,0.5)',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(0,0,0,0.1)'
+                        }}>
+                          {minuteData?.attendance || 'Chưa có thông tin điểm danh'}
+                        </div>
+                      )}
                     </div>
                     
                     <div>
