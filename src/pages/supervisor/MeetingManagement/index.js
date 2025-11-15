@@ -31,6 +31,17 @@ export default function SupervisorMeetingManagement() {
   const [selectedGroupId, setSelectedGroupId] = useLocalStorage('supervisorSelectedGroupId', '');
   const [groupOptions, setGroupOptions] = React.useState([]);
   const [meetingIssues, setMeetingIssues] = React.useState([]);
+  const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
+  const [loadingMinuteModal, setLoadingMinuteModal] = React.useState(false);
+  const [showEditScheduleModal, setShowEditScheduleModal] = React.useState(false);
+  const [editingMeeting, setEditingMeeting] = React.useState(null);
+  const [scheduleForm, setScheduleForm] = React.useState({
+    meetingDate: '',
+    startAt: '',
+    endAt: '',
+    description: ''
+  });
+  const [weekDays, setWeekDays] = React.useState([]);
 
   // API Base URL
   const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
@@ -229,7 +240,7 @@ export default function SupervisorMeetingManagement() {
     }
   };
 
-  const getStatusText = (status) => {
+  const getMeetingStatusText = (status) => {
     switch (status) {
       case 'Completed': return 'Đã họp';
       case 'Past': return 'Chưa họp';
@@ -244,9 +255,45 @@ export default function SupervisorMeetingManagement() {
     } catch { return dateString; }
   };
 
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Todo': return '#6b7280';
+      case 'InProgress': return '#3b82f6';
+      case 'Done': return '#10b981';
+      case 'Review': return '#f59e0b';
+      default: return '#6b7280';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'Todo': return 'Chưa làm';
+      case 'InProgress': return 'Đang làm';
+      case 'Done': return 'Hoàn thành';
+      case 'Review': return 'Đang review';
+      default: return status || 'N/A';
+    }
+  };
+
   const meetingIssueColumns = [
     { key: 'name', title: 'Issue' },
     { key: 'deadline', title: 'Hạn', render: (row) => formatDateTime(row.deadline) },
+    { 
+      key: 'status', 
+      title: 'Trạng thái', 
+      render: (row) => (
+        <span style={{
+          padding: '4px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: '500',
+          backgroundColor: getStatusColor(row.status) + '20',
+          color: getStatusColor(row.status)
+        }}>
+          {getStatusText(row.status)}
+        </span>
+      )
+    },
     {
       key: 'actions',
       title: '',
@@ -279,76 +326,188 @@ export default function SupervisorMeetingManagement() {
     }
   };
 
-  // Fetch meeting issues (tasks) by meetingId
-  const fetchMeetingIssues = async (meetingId) => {
+  // Fetch meeting issues (tasks) by meeting minute id
+  const fetchMeetingIssues = async (meetingMinuteId) => {
     try {
-      const res = await client.get(`${API_BASE_URL}/Student/Task/meeting-tasks/${meetingId}`);
+      const res = await client.get(`${API_BASE_URL}/Student/Task/meeting-tasks/${meetingMinuteId}`);
       const data = res.data?.data;
       const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
-      setMeetingIssues(tasks.map(t => ({
+      return tasks.map(t => ({
         id: t.id,
         name: t.name,
         description: t.description,
         deadline: t.deadline,
         isActive: t.isActive,
-        groupId: t.groupId
-      })));
+        groupId: t.groupId,
+        status: t.status
+      }));
     } catch (e) {
-      setMeetingIssues([]);
+      return [];
     }
+  };
+
+  // Hàm parse attendance text thành danh sách
+  const parseAttendance = (attendanceText, students) => {
+    if (!students || students.length === 0) {
+      return [];
+    }
+
+    if (!attendanceText || !attendanceText.trim()) {
+      return students.map(student => ({
+        studentId: student.id,
+        name: student.name,
+        rollNumber: student.rollNumber,
+        role: student.role || '',
+        attended: false,
+        reason: ''
+      }));
+    }
+
+    const lines = attendanceText.split('\n').filter(line => line.trim());
+    const parsed = new Map();
+
+    lines.forEach(line => {
+      const match = line.match(/^(.+?)\s*\(([^)]+)\):\s*(.+)$/);
+      if (match) {
+        const [, name, rollNumber, status] = match;
+        const statusLower = status.toLowerCase();
+        const isAbsent = statusLower.includes('nghỉ') || statusLower.includes('vắng');
+        let reason = '';
+        
+        if (isAbsent) {
+          const reasonMatch = status.match(/(?:nghỉ|vắng)\s*-\s*(.+)/i);
+          reason = reasonMatch ? reasonMatch[1].trim() : status.replace(/^(nghỉ|vắng)\s*-?\s*/i, '').trim();
+        }
+        
+        parsed.set(rollNumber.trim(), {
+          name: name.trim(),
+          rollNumber: rollNumber.trim(),
+          attended: !isAbsent,
+          reason: reason
+        });
+      }
+    });
+
+    return students.map(student => {
+      const existing = parsed.get(student.rollNumber);
+      if (existing) {
+        return {
+          studentId: student.id,
+          name: student.name,
+          rollNumber: student.rollNumber,
+          role: student.role || '',
+          attended: existing.attended,
+          reason: existing.reason
+        };
+      }
+      return {
+        studentId: student.id,
+        name: student.name,
+        rollNumber: student.rollNumber,
+        role: student.role || '',
+        attended: false,
+        reason: ''
+      };
+    });
+  };
+
+  // Hàm format datetime-local từ meeting date và time
+  const formatDateTimeLocal = (meetingDate, timeString) => {
+    if (!meetingDate || !timeString) return '';
+    const date = new Date(meetingDate);
+    const [hours, minutes] = timeString.split(':');
+    date.setHours(parseInt(hours) || 0, parseInt(minutes) || 0, 0);
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hour}:${minute}`;
   };
 
   // Hàm mở modal biên bản họp
   const openMinuteModal = async (meeting) => {
     setSelectedMeeting(meeting);
-    setShowMinuteModal(true);
+    setMinuteData(null);
+    setIsEditing(false);
+    setAttendanceList([]);
+    setLoadingMinuteModal(true);
+    // Không hiện modal ngay, đợi load xong dữ liệu
     
-    // Fetch group info for this meeting
-    await fetchMeetingGroupInfo(meeting.groupId);
-    
-    // Chỉ fetch meeting minute nếu isMinute === true
-    if (meeting.isMinute === true) {
-      const meetingMinute = await fetchMeetingMinute(meeting.id);
-      if (meetingMinute) {
-        setMinuteData(meetingMinute);
-        setFormData({
-          startAt: meetingMinute.startAt ? meetingMinute.startAt.split('T')[0] + 'T' + meetingMinute.startAt.split('T')[1].substring(0, 5) : '',
-          endAt: meetingMinute.endAt ? meetingMinute.endAt.split('T')[0] + 'T' + meetingMinute.endAt.split('T')[1].substring(0, 5) : '',
-          attendance: meetingMinute.attendance || '',
-          issue: meetingMinute.issue || '',
-          meetingContent: meetingMinute.meetingContent || '',
-          other: meetingMinute.other || ''
-        });
-        setIsEditing(true);
+    try {
+      // Fetch group info for this meeting
+      const groupInfoResponse = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${meeting.groupId}`);
+      const currentGroupInfo = groupInfoResponse.data.status === 200 ? groupInfoResponse.data.data : null;
+      
+      // Set group info vào state
+      if (currentGroupInfo) {
+        setSelectedMeetingGroupInfo(currentGroupInfo);
+      }
+      
+      // Chỉ fetch meeting minute nếu isMinute === true
+      if (meeting.isMinute === true) {
+        const meetingMinute = await fetchMeetingMinute(meeting.id);
+        if (meetingMinute) {
+          setMinuteData(meetingMinute);
+          
+          // Parse attendance từ text
+          const students = Array.isArray(currentGroupInfo?.students) ? currentGroupInfo.students : [];
+          const parsedAttendance = parseAttendance(meetingMinute.attendance, students);
+          setAttendanceList(parsedAttendance);
+          
+          setFormData({
+            startAt: meetingMinute.startAt ? meetingMinute.startAt.split('T')[0] + 'T' + meetingMinute.startAt.split('T')[1].substring(0, 5) : formatDateTimeLocal(meeting.meetingDate, meeting.startAt),
+            endAt: meetingMinute.endAt ? meetingMinute.endAt.split('T')[0] + 'T' + meetingMinute.endAt.split('T')[1].substring(0, 5) : formatDateTimeLocal(meeting.meetingDate, meeting.endAt),
+            attendance: meetingMinute.attendance || '',
+            issue: '',
+            meetingContent: meetingMinute.meetingContent || '',
+            other: meetingMinute.other || ''
+          });
+          setIsEditing(true);
+          
+          // Load meeting issues bằng meeting minute id
+          if (meetingMinute.id) {
+            const meetingTasks = await fetchMeetingIssues(meetingMinute.id);
+            setMeetingIssues(Array.isArray(meetingTasks) ? meetingTasks : []);
+          }
+        } else {
+          setMinuteData(null);
+          setFormData({
+            startAt: formatDateTimeLocal(meeting.meetingDate, meeting.startAt),
+            endAt: formatDateTimeLocal(meeting.meetingDate, meeting.endAt),
+            attendance: '',
+            issue: '',
+            meetingContent: '',
+            other: ''
+          });
+          setIsEditing(false);
+          setMeetingIssues([]);
+        }
       } else {
-        // Nếu API báo có minute nhưng fetch không ra, reset form
         setMinuteData(null);
         setFormData({
-          startAt: '',
-          endAt: '',
+          startAt: formatDateTimeLocal(meeting.meetingDate, meeting.startAt),
+          endAt: formatDateTimeLocal(meeting.meetingDate, meeting.endAt),
           attendance: '',
           issue: '',
           meetingContent: '',
           other: ''
         });
         setIsEditing(false);
+        setMeetingIssues([]);
       }
-    } else {
-      // Chưa có minute, chỉ xem (supervisor không tạo được)
+    } catch (error) {
+      console.error('Error loading meeting minute data:', error);
       setMinuteData(null);
-      setFormData({
-        startAt: '',
-        endAt: '',
-        attendance: '',
-        issue: '',
-        meetingContent: '',
-        other: ''
-      });
-      setIsEditing(false);
+      setMeetingIssues([]);
+      setAttendanceList([]);
+    } finally {
+      setLoadingMinuteModal(false);
+      // Chỉ hiện modal sau khi đã load xong tất cả dữ liệu
+      setShowMinuteModal(true);
     }
-
-    // Load meeting issues
-    await fetchMeetingIssues(meeting.id);
   };
 
   // Hàm đóng modal
@@ -358,6 +517,8 @@ export default function SupervisorMeetingManagement() {
     setSelectedMeetingGroupInfo(null);
     setMinuteData(null);
     setIsEditing(false);
+    setAttendanceList([]);
+    setLoadingMinuteModal(false);
     setFormData({
       startAt: '',
       endAt: '',
@@ -478,6 +639,122 @@ export default function SupervisorMeetingManagement() {
     }
   };
 
+  // Hàm tính các ngày trong tuần của meeting (tuần bắt đầu từ thứ 2)
+  const getWeekDays = (meetingDate) => {
+    const date = new Date(meetingDate);
+    const dayOfWeek = date.getDay();
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const startOfWeek = new Date(date);
+    startOfWeek.setDate(date.getDate() - daysToMonday);
+    
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(startOfWeek);
+      day.setDate(startOfWeek.getDate() + i);
+      // Format date string mà không bị ảnh hưởng bởi timezone
+      const year = day.getFullYear();
+      const month = String(day.getMonth() + 1).padStart(2, '0');
+      const date = String(day.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${date}`;
+      
+      days.push({
+        date: day,
+        dateString: dateString,
+        dayName: day.toLocaleDateString('vi-VN', { weekday: 'long' }),
+        display: day.toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' })
+      });
+    }
+    return days;
+  };
+
+  // Hàm mở modal sửa thời gian
+  const openEditScheduleModal = (meeting) => {
+    // Không cho sửa thời gian nếu đã họp
+    if (meeting.isMeeting === true) {
+      alert('Không thể sửa thời gian cuộc họp đã diễn ra!');
+      return;
+    }
+    
+    setEditingMeeting(meeting);
+    const weekDaysList = getWeekDays(meeting.meetingDate);
+    setWeekDays(weekDaysList);
+    
+    setScheduleForm({
+      meetingDate: meeting.meetingDate.split('T')[0],
+      startAt: meeting.startAt || '',
+      endAt: meeting.endAt || '',
+      description: meeting.description || ''
+    });
+    setShowEditScheduleModal(true);
+  };
+
+  // Hàm đóng modal sửa thời gian
+  const closeEditScheduleModal = () => {
+    setShowEditScheduleModal(false);
+    setEditingMeeting(null);
+    setScheduleForm({
+      meetingDate: '',
+      startAt: '',
+      endAt: '',
+      description: ''
+    });
+    setWeekDays([]);
+  };
+
+  // Hàm cập nhật thời gian meeting
+  const updateMeetingSchedule = async () => {
+    if (!editingMeeting) return;
+    
+    if (!scheduleForm.meetingDate || !scheduleForm.startAt || !scheduleForm.endAt || !scheduleForm.description.trim()) {
+      alert('Vui lòng nhập đầy đủ thông tin');
+      return;
+    }
+
+    if (scheduleForm.startAt >= scheduleForm.endAt) {
+      alert('Thời gian kết thúc phải sau thời gian bắt đầu');
+      return;
+    }
+
+    try {
+      // Format meetingDate mà không bị ảnh hưởng bởi timezone
+      // scheduleForm.meetingDate format: "YYYY-MM-DD"
+      // Cần convert thành "YYYY-MM-DDTHH:mm:ss" (ISO format nhưng không có timezone)
+      const formatDateToISO = (dateString) => {
+        if (!dateString) return '';
+        // dateString format: "YYYY-MM-DD"
+        // Thêm "T00:00:00" để tạo ISO format
+        return `${dateString}T00:00:00`;
+      };
+      
+      const payload = {
+        meetingDate: formatDateToISO(scheduleForm.meetingDate),
+        startAt: scheduleForm.startAt,
+        endAt: scheduleForm.endAt,
+        description: scheduleForm.description.trim()
+      };
+
+      const response = await client.put(
+        `${API_BASE_URL}/Student/Meeting/schedule/${editingMeeting.id}`,
+        payload
+      );
+
+      if (response.data.status === 200) {
+        alert('Cập nhật thời gian cuộc họp thành công!');
+        closeEditScheduleModal();
+        
+        // Refresh meetings data
+        if (selectedGroupId) {
+          await fetchMeetingsByGroup(selectedGroupId);
+        }
+      } else {
+        alert(response.data.message || 'Cập nhật thất bại');
+      }
+    } catch (error) {
+      console.error('Error updating meeting schedule:', error);
+      alert('Có lỗi xảy ra khi cập nhật thời gian cuộc họp!');
+    }
+  };
+
   if (loading) {
     return (
       <div className={styles.loading}>
@@ -593,8 +870,17 @@ export default function SupervisorMeetingManagement() {
                     fontSize: '13px',
                     color: '#6b7280'
                   }}>
-                    {formattedDate} - {meeting.time}
+                    {formattedDate}
                   </p>
+                  {meeting.startAt && meeting.endAt && (
+                    <p style={{
+                      margin: '0 0 8px 0',
+                      fontSize: '12px',
+                      color: '#6b7280'
+                    }}>
+                      Thời gian: {meeting.startAt.substring(0, 5)} - {meeting.endAt.substring(0, 5)}
+                    </p>
+                  )}
                   <p style={{
                     margin: '0 0 8px 0',
                     fontSize: '12px',
@@ -618,7 +904,7 @@ export default function SupervisorMeetingManagement() {
                       textTransform: 'uppercase'
                     }}
                   >
-                    {getStatusText(status)}
+                    {getMeetingStatusText(status)}
                 </span>
               </div>
             </div>
@@ -703,6 +989,24 @@ export default function SupervisorMeetingManagement() {
                 >
                   Tham gia họp
                 </Button>
+              
+                {meeting.isMeeting !== true && (
+                  <Button 
+                    onClick={() => openEditScheduleModal(meeting)}
+                    style={{
+                      backgroundColor: '#8b5cf6',
+                      color: 'white',
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Sửa thời gian
+                  </Button>
+                )}
               
                 {meeting.isMinute === true ? (
                 <Button 
@@ -797,26 +1101,80 @@ export default function SupervisorMeetingManagement() {
                     <div>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Thời gian</h4>
                       <div style={{ fontSize: 13, color: '#374151' }}>
-                        <div><strong>Bắt đầu:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('vi-VN') : 'N/A'}</div>
-                        <div><strong>Kết thúc:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                        {selectedMeeting?.startAt && selectedMeeting?.endAt ? (
+                          <>
+                            <div><strong>Bắt đầu:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                            <div><strong>Kết thúc:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                          </>
+                        ) : (
+                          <>
+                            <div><strong>Bắt đầu:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                            <div><strong>Kết thúc:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                          </>
+                        )}
                       </div>
                     </div>
                     
                     <div>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Danh sách tham gia</h4>
-                      <div style={{ 
-                        fontSize: 13, 
-                        color: '#374151', 
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        padding: '12px',
-                        background: 'rgba(255,255,255,0.5)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        minHeight: '80px'
-                      }}>
-                        {minuteData?.attendance || 'N/A'}
-                      </div>
+                      {attendanceList.length > 0 ? (
+                        <div style={{
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          padding: '8px',
+                          backgroundColor: 'rgba(255,255,255,0.5)'
+                        }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Thành viên</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Tham gia</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Lý do nghỉ</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {attendanceList.map((item) => (
+                                <tr key={item.studentId} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '6px 8px' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: '500', color: '#1f2937' }}>
+                                      {item.name}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '1px' }}>
+                                      {item.rollNumber} {item.role && `- ${item.role}`}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                    <span style={{
+                                      padding: '4px 8px',
+                                      borderRadius: '4px',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      backgroundColor: item.attended ? '#d1fae5' : '#fee2e2',
+                                      color: item.attended ? '#065f46' : '#991b1b'
+                                    }}>
+                                      {item.attended ? 'Có' : 'Không'}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '6px 8px', fontSize: '12px', color: '#6b7280' }}>
+                                    {item.reason || '-'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div style={{ 
+                          fontSize: 13, 
+                          color: '#6b7280', 
+                          padding: '12px',
+                          background: 'rgba(255,255,255,0.5)',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(0,0,0,0.1)'
+                        }}>
+                          Chưa có thông tin điểm danh
+                        </div>
+                      )}
                     </div>
                     
                     <div>
@@ -890,6 +1248,119 @@ export default function SupervisorMeetingManagement() {
                 onClick={closeMinuteModal}
               >
                 Đóng
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditScheduleModal && editingMeeting && (
+        <div 
+          className={styles.modalOverlay}
+          onClick={closeEditScheduleModal}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '600px',
+              width: '90%',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+            }}
+          >
+            <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: '600' }}>
+              Sửa thời gian cuộc họp
+            </h3>
+            
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
+                Chọn ngày trong tuần <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {weekDays.map((day) => (
+                  <button
+                    key={day.dateString}
+                    type="button"
+                    onClick={() => setScheduleForm(prev => ({ ...prev, meetingDate: day.dateString }))}
+                    style={{
+                      padding: '8px 12px',
+                      border: `2px solid ${scheduleForm.meetingDate === day.dateString ? '#8b5cf6' : '#d1d5db'}`,
+                      borderRadius: '6px',
+                      backgroundColor: scheduleForm.meetingDate === day.dateString ? '#f3e8ff' : 'white',
+                      color: scheduleForm.meetingDate === day.dateString ? '#8b5cf6' : '#374151',
+                      fontSize: '13px',
+                      fontWeight: scheduleForm.meetingDate === day.dateString ? '600' : '400',
+                      cursor: 'pointer',
+                      minWidth: '100px'
+                    }}
+                  >
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>{day.dayName}</div>
+                    <div>{day.display}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
+                Mô tả cuộc họp <span style={{ color: '#dc2626' }}>*</span>
+              </label>
+              <Input
+                type="text"
+                value={scheduleForm.description}
+                onChange={(e) => setScheduleForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Nhập mô tả cuộc họp..."
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
+                  Thời gian bắt đầu <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <Input
+                  type="time"
+                  value={scheduleForm.startAt}
+                  onChange={(e) => setScheduleForm(prev => ({ ...prev, startAt: e.target.value }))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
+                  Thời gian kết thúc <span style={{ color: '#dc2626' }}>*</span>
+                </label>
+                <Input
+                  type="time"
+                  value={scheduleForm.endAt}
+                  onChange={(e) => setScheduleForm(prev => ({ ...prev, endAt: e.target.value }))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <Button 
+                variant="secondary"
+                onClick={closeEditScheduleModal}
+              >
+                Hủy
+              </Button>
+              <Button 
+                onClick={updateMeetingSchedule}
+                style={{
+                  backgroundColor: '#8b5cf6',
+                  color: 'white'
+                }}
+              >
+                Cập nhật
               </Button>
             </div>
           </div>
