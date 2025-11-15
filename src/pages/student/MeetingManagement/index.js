@@ -533,9 +533,10 @@ export default function StudentMeetingManagement() {
         setPendingIssues([]); // Reset pending issues khi xem biên bản đã có
       } else {
         // Nếu chưa có minute (tạo mới), load cả incomplete tasks của nhóm
-        if (isSecretary) {
+        if (isSecretary && userInfo?.groups && userInfo.groups.length > 0) {
           try {
-            const incompleteTasks = await fetchIncompleteTasks();
+            const groupId = userInfo.groups[0];
+            const incompleteTasks = await fetchIncompleteTasks(groupId);
             // Chỉ hiển thị incomplete tasks, không fetch meeting tasks vì chưa có minute
             setMeetingIssues(Array.isArray(incompleteTasks) ? incompleteTasks : []);
             setPendingIssues([]); // Reset pending issues khi mở modal mới
@@ -735,9 +736,13 @@ export default function StudentMeetingManagement() {
   };
 
   // Fetch incomplete tasks for the group
-  const fetchIncompleteTasks = async () => {
+  const fetchIncompleteTasks = async (groupId) => {
+    if (!groupId) {
+      console.error('GroupId is required to fetch incomplete tasks');
+      return [];
+    }
     try {
-      const res = await client.get(`${API_BASE_URL}/Student/Task/Incomplete`);
+      const res = await client.get(`${API_BASE_URL}/Student/Task/Incomplete/${groupId}`);
       // API trả về { status: 200, message: "...", data: [...] }
       const data = res.data?.data;
       const tasks = Array.isArray(data) ? data : [];
