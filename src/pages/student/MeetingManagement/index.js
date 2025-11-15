@@ -29,6 +29,7 @@ export default function StudentMeetingManagement() {
   const [meetingMinutes, setMeetingMinutes] = React.useState({}); // Lưu trữ meeting minutes theo meetingId
   // Meeting Issues state
   const [meetingIssues, setMeetingIssues] = React.useState([]);
+  const [pendingIssues, setPendingIssues] = React.useState([]); // Lưu các issue tạm chưa tạo
   const [showIssueModal, setShowIssueModal] = React.useState(false);
   const [issueForm, setIssueForm] = React.useState({
     title: '',
@@ -413,7 +414,7 @@ export default function StudentMeetingManagement() {
     }
   };
 
-  const getStatusText = (status) => {
+  const getMeetingStatusText = (status) => {
     switch (status) {
       case 'Completed': return 'Đã họp';
       case 'Past': return 'Sắp diễn ra';
@@ -519,7 +520,33 @@ export default function StudentMeetingManagement() {
       }
 
       // Load meeting issues
-      await fetchMeetingIssues(meeting.id);
+      if (meeting.isMinute === true) {
+        // Nếu đã có minute, fetch meeting minute để lấy id
+        const meetingMinute = await fetchMeetingMinute(meeting.id);
+        if (meetingMinute && meetingMinute.id) {
+          // Load issues bằng meeting minute id
+          const meetingTasks = await fetchMeetingIssues(meetingMinute.id);
+          setMeetingIssues(Array.isArray(meetingTasks) ? meetingTasks : []);
+        } else {
+          setMeetingIssues([]);
+        }
+        setPendingIssues([]); // Reset pending issues khi xem biên bản đã có
+      } else {
+        // Nếu chưa có minute (tạo mới), load cả incomplete tasks của nhóm
+        if (isSecretary) {
+          try {
+            const incompleteTasks = await fetchIncompleteTasks();
+            // Chỉ hiển thị incomplete tasks, không fetch meeting tasks vì chưa có minute
+            setMeetingIssues(Array.isArray(incompleteTasks) ? incompleteTasks : []);
+            setPendingIssues([]); // Reset pending issues khi mở modal mới
+          } catch (error) {
+            console.error('Error loading tasks:', error);
+            setMeetingIssues([]);
+          }
+        } else {
+          setMeetingIssues([]);
+        }
+      }
     } finally {
       setLoadingMinuteModal(false);
     }
@@ -534,6 +561,7 @@ export default function StudentMeetingManagement() {
     setGroupInfo(null);
     setAttendanceList([]);
     setLoadingMinuteModal(false);
+    setPendingIssues([]); // Reset pending issues khi đóng modal
     setFormData({
       startAt: '',
       endAt: '',
@@ -622,6 +650,8 @@ export default function StudentMeetingManagement() {
     }
     
     try {
+      let meetingMinuteId;
+      
       if (isEditing && minuteData) {
         // Cập nhật biên bản họp
         const data = {
@@ -633,7 +663,8 @@ export default function StudentMeetingManagement() {
           meetingContent: formData.meetingContent,
           other: formData.other
         };
-        await updateMeetingMinute(data);
+        const response = await updateMeetingMinute(data);
+        meetingMinuteId = minuteData.id;
         alert('Cập nhật biên bản họp thành công!');
       } else {
         // Tạo biên bản họp mới
@@ -646,8 +677,28 @@ export default function StudentMeetingManagement() {
           meetingContent: formData.meetingContent,
           other: formData.other
         };
-        await createMeetingMinute(data);
+        const response = await createMeetingMinute(data);
+        // Lấy meeting minute id từ response
+        meetingMinuteId = response?.data?.id || response?.data?.data?.id;
+        if (!meetingMinuteId) {
+          // Nếu không có trong response, fetch lại để lấy id
+          const meetingMinute = await fetchMeetingMinute(selectedMeeting.id);
+          meetingMinuteId = meetingMinute?.id;
+        }
         alert('Tạo biên bản họp thành công!');
+      }
+      
+      // Tạo các issue tạm sau khi có meeting minute id
+      if (meetingMinuteId && pendingIssues.length > 0) {
+        try {
+          await createPendingIssues(meetingMinuteId);
+          // Refresh danh sách issues sau khi tạo
+          const meetingTasks = await fetchMeetingIssues(meetingMinuteId);
+          setMeetingIssues(Array.isArray(meetingTasks) ? meetingTasks : []);
+        } catch (error) {
+          console.error('Error creating pending issues:', error);
+          alert('Đã lưu biên bản họp nhưng có lỗi khi tạo một số issue. Vui lòng kiểm tra lại.');
+        }
       }
       
       // Refresh meetings data
@@ -662,22 +713,46 @@ export default function StudentMeetingManagement() {
     }
   };
 
-  // Fetch meeting issues (tasks) by meetingId
-  const fetchMeetingIssues = async (meetingId) => {
+  // Fetch meeting issues (tasks) by meeting minute id
+  const fetchMeetingIssues = async (meetingMinuteId) => {
     try {
-      const res = await client.get(`${API_BASE_URL}/Student/Task/meeting-tasks/${meetingId}`);
+      const res = await client.get(`${API_BASE_URL}/Student/Task/meeting-tasks/${meetingMinuteId}`);
       const data = res.data?.data;
       const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
-      setMeetingIssues(tasks.map(t => ({
+      const mappedTasks = tasks.map(t => ({
         id: t.id,
         name: t.name,
         description: t.description,
         deadline: t.deadline,
         isActive: t.isActive,
-        groupId: t.groupId
-      })));
+        groupId: t.groupId,
+        status: t.status
+      }));
+      return mappedTasks;
     } catch (e) {
-      setMeetingIssues([]);
+      return [];
+    }
+  };
+
+  // Fetch incomplete tasks for the group
+  const fetchIncompleteTasks = async () => {
+    try {
+      const res = await client.get(`${API_BASE_URL}/Student/Task/Incomplete`);
+      // API trả về { status: 200, message: "...", data: [...] }
+      const data = res.data?.data;
+      const tasks = Array.isArray(data) ? data : [];
+      return tasks.map(t => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        deadline: t.deadline,
+        isActive: t.isActive,
+        groupId: t.groupId,
+        status: t.status
+      }));
+    } catch (e) {
+      console.error('Error fetching incomplete tasks:', e);
+      return [];
     }
   };
 
@@ -687,23 +762,96 @@ export default function StudentMeetingManagement() {
     } catch { return dateString; }
   };
 
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'Todo': return '#6b7280';
+      case 'InProgress': return '#3b82f6';
+      case 'Done': return '#10b981';
+      case 'Review': return '#f59e0b';
+      default: return '#6b7280';
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'Todo': return 'Chưa làm';
+      case 'InProgress': return 'Đang làm';
+      case 'Done': return 'Hoàn thành';
+      case 'Review': return 'Đang review';
+      default: return status || 'N/A';
+    }
+  };
+
   const meetingIssueColumns = [
-    { key: 'name', title: 'Issue' },
+    { 
+      key: 'name', 
+      title: 'Issue',
+      render: (row) => (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span>{row.name}</span>
+          {row.isPending && (
+            <span style={{
+              fontSize: '10px',
+              padding: '2px 6px',
+              backgroundColor: '#fef3c7',
+              color: '#92400e',
+              borderRadius: '4px',
+              fontWeight: '500'
+            }}>
+              Chưa lưu
+            </span>
+          )}
+        </div>
+      )
+    },
     { key: 'deadline', title: 'Hạn', render: (row) => formatDateTime(row.deadline) },
+    { 
+      key: 'status', 
+      title: 'Trạng thái', 
+      render: (row) => (
+        <span style={{
+          padding: '4px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: '500',
+          backgroundColor: getStatusColor(row.status) + '20',
+          color: getStatusColor(row.status)
+        }}>
+          {getStatusText(row.status)}
+        </span>
+      )
+    },
     {
       key: 'actions',
       title: '',
       render: (row) => (
         <div style={{ display: 'flex', gap: 4 }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/student/task-detail/${row.groupId}?taskId=${row.id}`);
-            }}
-            style={{
-              background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
-            }}
-          >Chi tiết</button>
+          {row.isPending ? (
+            // Nếu là issue tạm, hiển thị nút xóa
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm('Bạn có chắc chắn muốn xóa issue này?')) {
+                  setPendingIssues(prev => prev.filter(issue => issue.id !== row.id));
+                  setMeetingIssues(prev => prev.filter(issue => issue.id !== row.id));
+                }
+              }}
+              style={{
+                background: '#dc2626', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
+              }}
+            >Xóa</button>
+          ) : (
+            // Nếu là issue đã tạo, hiển thị nút chi tiết
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/student/task-detail/${row.groupId}?taskId=${row.id}`);
+              }}
+              style={{
+                background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
+              }}
+            >Chi tiết</button>
+          )}
         </div>
       )
     }
@@ -714,37 +862,121 @@ export default function StudentMeetingManagement() {
     setShowIssueModal(true);
   };
 
+  // Tạo issue: nếu đã có biên bản thì tạo luôn, nếu chưa thì lưu tạm
   const createMeetingIssue = async () => {
     if (!selectedMeeting) return;
     if (!issueForm.title || !issueForm.assignee || !issueForm.deadline) {
       alert('Vui lòng nhập đủ tiêu đề, assignee và deadline');
       return;
     }
-    try {
-      const payload = {
-        groupId: userInfo?.groups?.[0],
+
+    // Validation deadline phải lớn hơn thời gian hiện tại (so sánh ở local time)
+    if (issueForm.deadline) {
+      const deadlineDate = new Date(issueForm.deadline);
+      const currentDate = new Date();
+      // Thêm 1 phút buffer để tránh lỗi do sai số thời gian và timezone
+      const bufferTime = 60 * 1000; // 1 phút
+      if (deadlineDate.getTime() <= currentDate.getTime() + bufferTime) {
+        alert('Deadline phải lớn hơn thời gian hiện tại ít nhất 1 phút');
+        return;
+      }
+    }
+
+    // Chuyển đổi datetime-local sang ISO string
+    const deadlineDate = new Date(issueForm.deadline);
+    const isoString = deadlineDate.toISOString();
+
+    // Nếu đã có biên bản họp (minuteData có id), tạo issue luôn
+    if (minuteData && minuteData.id) {
+      try {
+        const payload = {
+          groupId: userInfo?.groups?.[0],
+          name: issueForm.title,
+          description: issueForm.description || '',
+          taskType: 'meeting',
+          endAt: isoString,
+          status: 'Todo',
+          priority: issueForm.priority === 'high' ? 'High' : issueForm.priority === 'medium' ? 'Medium' : 'Low',
+          process: '0',
+          meetingId: minuteData.id, // Sử dụng meeting minute id
+          deliverableId: 0,
+          assignedUserId: parseInt(issueForm.assignee),
+          reviewerId: issueForm.reviewer ? parseInt(issueForm.reviewer) : 0
+        };
+        const res = await client.post(`${API_BASE_URL}/Student/Task/create`, payload);
+        if (res.data?.status === 200) {
+          setShowIssueModal(false);
+          setIssueForm({ title: '', description: '', assignee: '', priority: 'low', deadline: '', reviewer: '' });
+          // Refresh danh sách issues
+          const meetingTasks = await fetchMeetingIssues(minuteData.id);
+          setMeetingIssues(Array.isArray(meetingTasks) ? meetingTasks : []);
+          alert('Tạo issue thành công!');
+        } else {
+          alert(res.data?.message || 'Tạo issue thất bại');
+        }
+      } catch (e) {
+        console.error('Error creating meeting issue:', e);
+        const errorMessage = e?.response?.data?.message || e?.message || 'Tạo issue thất bại';
+        alert(errorMessage);
+      }
+    } else {
+      // Chưa có biên bản, lưu tạm vào pendingIssues và hiển thị trong bảng
+      const pendingIssue = {
+        id: `pending_${Date.now()}_${Math.random()}`, // Temporary ID
         name: issueForm.title,
         description: issueForm.description || '',
-        taskType: 'meeting',
-        endAt: new Date(issueForm.deadline).toISOString(),
+        deadline: isoString,
+        isActive: true,
+        groupId: userInfo?.groups?.[0],
         status: 'Todo',
         priority: issueForm.priority === 'high' ? 'High' : issueForm.priority === 'medium' ? 'Medium' : 'Low',
-        process: '0',
-        meetingId: selectedMeeting.id,
-        deliverableId: 0,
         assignedUserId: parseInt(issueForm.assignee),
-        reviewerId: issueForm.reviewer ? parseInt(issueForm.reviewer) : 0
+        reviewerId: issueForm.reviewer ? parseInt(issueForm.reviewer) : 0,
+        isPending: true // Đánh dấu là issue tạm
       };
-      const res = await client.post('/Student/Task/create', payload);
-      if (res.data?.status === 200) {
-        setShowIssueModal(false);
-        await fetchMeetingIssues(selectedMeeting.id);
-        alert('Tạo issue cho meeting thành công!');
-      } else {
-        alert(res.data?.message || 'Tạo issue thất bại');
+
+      setPendingIssues(prev => [...prev, pendingIssue]);
+      setMeetingIssues(prev => [...prev, pendingIssue]); // Hiển thị trong bảng
+      setShowIssueModal(false);
+      setIssueForm({ title: '', description: '', assignee: '', priority: 'low', deadline: '', reviewer: '' });
+      alert('Đã thêm issue. Issue sẽ được tạo khi bạn lưu biên bản họp.');
+    }
+  };
+
+
+  // Tạo các issue thực sự sau khi có meeting minute id
+  const createPendingIssues = async (meetingMinuteId) => {
+    if (pendingIssues.length === 0) return;
+
+    const createPromises = pendingIssues.map(async (issue) => {
+      try {
+        const payload = {
+          groupId: issue.groupId,
+          name: issue.name,
+          description: issue.description,
+          taskType: 'meeting',
+          endAt: issue.deadline,
+          status: 'Todo',
+          priority: issue.priority,
+          process: '0',
+          meetingId: meetingMinuteId, // Sử dụng meeting minute id
+          deliverableId: 0,
+          assignedUserId: issue.assignedUserId,
+          reviewerId: issue.reviewerId || 0
+        };
+        await client.post(`${API_BASE_URL}/Student/Task/create`, payload);
+      } catch (e) {
+        console.error('Error creating pending issue:', e);
+        throw e;
       }
-    } catch (e) {
-      alert(e?.message || 'Tạo issue thất bại');
+    });
+
+    try {
+      await Promise.all(createPromises);
+      setPendingIssues([]); // Xóa các issue tạm sau khi tạo thành công
+    } catch (error) {
+      console.error('Error creating pending issues:', error);
+      throw error;
     }
   };
 
@@ -1038,7 +1270,7 @@ export default function StudentMeetingManagement() {
                       textTransform: 'uppercase'
                     }}
                   >
-                    {getStatusText(status)}
+                    {getMeetingStatusText(status)}
                 </span>
                 
                 {isSecretary && (
@@ -1471,7 +1703,11 @@ export default function StudentMeetingManagement() {
                 value={issueForm.title}
                 onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })}
                 placeholder="Nhập tiêu đề issue"
+                maxLength={100}
               />
+              <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px', textAlign: 'right' }}>
+                {issueForm.title.length}/100 ký tự
+              </div>
             </div>
             <div className={styles.formGroup}>
               <label>Mô tả</label>
@@ -1530,6 +1766,17 @@ export default function StudentMeetingManagement() {
                 type="datetime-local"
                 value={issueForm.deadline}
                 onChange={(e) => setIssueForm({ ...issueForm, deadline: e.target.value })}
+                min={(() => {
+                  // Set min là thời gian hiện tại + 1 phút
+                  const now = new Date();
+                  now.setMinutes(now.getMinutes() + 1);
+                  const year = now.getFullYear();
+                  const month = String(now.getMonth() + 1).padStart(2, '0');
+                  const day = String(now.getDate()).padStart(2, '0');
+                  const hours = String(now.getHours()).padStart(2, '0');
+                  const minutes = String(now.getMinutes()).padStart(2, '0');
+                  return `${year}-${month}-${day}T${hours}:${minutes}`;
+                })()}
               />
             </div>
             <div className={styles.modalActions}>
