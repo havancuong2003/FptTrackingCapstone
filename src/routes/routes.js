@@ -54,8 +54,8 @@ const StudentGroups = React.lazy(() => import("../pages/student/Groups"));
 const StudentHome = React.lazy(() => import("../pages/student/Home"));
 
 // Supervisor pages
-const SupervisorActiveGroups = React.lazy(() => import("../pages/supervisor/Groups/ActiveGroups"));
-const SupervisorExpiredGroups = React.lazy(() => import("../pages/supervisor/Groups/ExpiredGroups"));
+const SupervisorActiveGroups = React.lazy(() => import("../pages/supervisor/Groups/ActiveGroups.js"));
+const SupervisorExpiredGroups = React.lazy(() => import("../pages/supervisor/Groups/ExpiredGroups.js"));
 const SupervisorGroupDetail = React.lazy(() => import("../pages/supervisor/Groups/GroupDetail"));
 const SupervisorMeetings = React.lazy(() => import("../pages/supervisor/Meetings"));
 const SupervisorTracking = React.lazy(() => import("../pages/supervisor/Tracking"));
