@@ -31,6 +31,7 @@ export default function StudentHome() {
   const [timeSlots, setTimeSlots] = React.useState([]); // Slots từ API
   const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
   const [meetingGroupInfo, setMeetingGroupInfo] = React.useState(null);
+  const [hasSelectedFreeTime, setHasSelectedFreeTime] = React.useState(true); // Kiểm tra xem sinh viên đã chọn lịch rảnh chưa
 
   // Load user info
   React.useEffect(() => {
@@ -215,6 +216,37 @@ export default function StudentHome() {
     loadMeetings();
     return () => { mounted = false; };
   }, [userInfo?.groups]);
+
+  // Kiểm tra xem sinh viên đã chọn lịch rảnh chưa
+  React.useEffect(() => {
+    let mounted = true;
+    async function checkFreeTime() {
+      if (!userInfo?.groups || userInfo.groups.length === 0 || !userInfo.id) return;
+      try {
+        const groupId = userInfo.groups[0];
+        const response = await client.get(`https://160.30.21.113:5000/api/v1/Student/Meeting/groups/${groupId}/schedule/free-time`);
+        if (response.data.status === 200 && response.data.data?.students) {
+          const students = response.data.data.students;
+          const currentStudent = students.find(s => s.studentId === userInfo.id);
+          if (currentStudent) {
+            // Kiểm tra xem freeTimeSlots có rỗng không
+            const hasFreeTime = currentStudent.freeTimeSlots && currentStudent.freeTimeSlots.length > 0;
+            if (!mounted) return;
+            setHasSelectedFreeTime(hasFreeTime);
+          } else {
+            if (!mounted) return;
+            setHasSelectedFreeTime(false);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking free time:', error);
+        if (!mounted) return;
+        setHasSelectedFreeTime(false);
+      }
+    }
+    checkFreeTime();
+    return () => { mounted = false; };
+  }, [userInfo?.groups, userInfo?.id]);
 
   // Set loading false when all data loaded
   React.useEffect(() => {
@@ -605,7 +637,7 @@ export default function StudentHome() {
 
   const meetingIssueColumns = [
     { key: 'name', title: 'Issue' },
-    { key: 'deadline', title: 'Hạn', render: (row) => formatDateTime(row.deadline) },
+    { key: 'deadline', title: 'Deadline', render: (row) => formatDateTime(row.deadline) },
     {
       key: 'actions',
       title: '',
@@ -619,7 +651,7 @@ export default function StudentHome() {
             style={{
               background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
             }}
-          >Chi tiết</button>
+          >Details</button>
         </div>
       )
     }
@@ -833,7 +865,7 @@ export default function StudentHome() {
           }}
           style={{ padding: '4px 12px', fontSize: 12 }}
         >
-          Chi tiết
+          Details
         </Button>
       )
     }
@@ -898,19 +930,52 @@ export default function StudentHome() {
           }}
           style={{ padding: '4px 12px', fontSize: 12 }}
         >
-          Chi tiết
+          Details
         </Button>
       )
     }
   ], []);
 
+  // Kiểm tra file có đúng định dạng được phép không
+  const isValidFileType = (fileName) => {
+    if (!fileName) return false;
+    const extension = fileName.split('.').pop().toLowerCase();
+    const allowedExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Archives
+      'zip', '7z',
+      // RAR
+      'rar'
+    ];
+    return allowedExtensions.includes(extension);
+  };
+
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
-    setSelectedFile(file);
+    if (file) {
+      // Kiểm tra định dạng file
+      if (!isValidFileType(file.name)) {
+        alert('Invalid file type. Only images, PDF, ZIP, 7ZIP, and RAR files are allowed.');
+        // Reset input
+        event.target.value = '';
+        return;
+      }
+      setSelectedFile(file);
+    }
   };
 
   const handleUpload = async (deliveryItemId) => {
     if (!selectedFile || !userInfo?.groups || userInfo.groups.length === 0) return;
+    
+    // Validate file type trước khi upload
+    if (!isValidFileType(selectedFile.name)) {
+      alert('Invalid file type. Only images, PDF, ZIP, 7ZIP, and RAR files are allowed.');
+      setSelectedFile(null);
+      return;
+    }
     
     setUploading(true);
     try {
@@ -973,14 +1038,14 @@ export default function StudentHome() {
   };
 
   const deleteAttachment = async (attachmentId) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa file này?')) {
+    if (!window.confirm('Are you sure you want to delete this file?')) {
       return;
     }
     
     try {
       const response = await client.delete(`https://160.30.21.113:5000/api/v1/upload/milestone?attachmentId=${attachmentId}`);
       if (response.data.status === 200) {
-        alert('Xóa file thành công!');
+        alert('File deleted successfully!');
         // Reload milestone details
         if (selectedMilestone) {
           const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
@@ -989,7 +1054,7 @@ export default function StudentHome() {
       }
     } catch (error) {
       console.error('Error deleting attachment:', error);
-      alert('Có lỗi xảy ra khi xóa file. Vui lòng thử lại.');
+      alert('Error deleting file. Please try again.');
     }
   };
 
@@ -1087,6 +1152,30 @@ export default function StudentHome() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Warning if student hasn't selected free time */}
+      {!hasSelectedFreeTime && (
+        <div style={{ 
+          background: '#fef3c7', 
+          border: '2px solid #f59e0b', 
+          borderRadius: 8, 
+          padding: 16,
+          marginBottom: 16,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12
+        }}>
+          <div style={{ fontSize: 24 }}>⚠️</div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
+              Free Time Schedule Not Selected
+            </div>
+            <div style={{ fontSize: 13, color: '#78350f' }}>
+              You haven't selected your free time schedule yet. Please select your available time slots to help schedule group meetings.
+            </div>
+          </div>
         </div>
       )}
 
@@ -1469,7 +1558,7 @@ export default function StudentHome() {
                   color: '#6b7280',
                   fontSize: 11
                 }}>
-                  Đang tải slots...
+                  Loading slots...
                 </td>
               </tr>
             )}
@@ -1565,13 +1654,27 @@ export default function StudentHome() {
               {milestones.filter(m => m.status === 'LATE').length}
             </div>
           </div>
+          
+          <div style={{ 
+            background: '#f3f4f6', 
+            border: '1px solid #64748b', 
+            borderRadius: 8, 
+            padding: 16 
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+              Unsubmitted
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: '#64748b' }}>
+              {milestones.filter(m => m.status === 'UNSUBMITTED' || !m.status).length}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Upcoming Tasks Table */}
       <div style={{ marginTop: 32 }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#1f2937' }}>
-          Tasks Sắp Tới
+          Upcoming Tasks
         </h3>
         <div style={{ 
           background: '#fff',
@@ -1584,7 +1687,7 @@ export default function StudentHome() {
             columns={taskTableColumns}
             data={getUpcomingTasks}
             loading={loading}
-            emptyMessage="Không có task nào"
+            emptyMessage="No tasks available"
             showIndex={true}
             indexTitle="STT"
           />
@@ -1594,7 +1697,7 @@ export default function StudentHome() {
       {/* Nearest Milestones Table */}
       <div style={{ marginTop: 32 }}>
         <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#1f2937' }}>
-          3 Milestones Gần Nhất
+          3 Nearest Milestones
         </h3>
         <div style={{ 
           background: '#fff',
@@ -1607,7 +1710,7 @@ export default function StudentHome() {
             columns={milestoneTableColumns}
             data={getNearestMilestones}
             loading={loading}
-            emptyMessage="Không có milestone nào"
+            emptyMessage="No milestones available"
             showIndex={true}
             indexTitle="STT"
           />
@@ -1641,7 +1744,7 @@ export default function StudentHome() {
                       {getStatusText(selectedMilestone.status)}
                     </span>
                   </div>
-                  <div><strong>Note:</strong> {milestoneDetails?.note || 'Chưa có ghi chú nào từ giảng viên'}</div>
+                  <div><strong>Note:</strong> {milestoneDetails?.note || 'No notes from supervisor'}</div>
                 </div>
               </div>
               
@@ -1680,6 +1783,7 @@ export default function StudentHome() {
                             type="file"
                             id={`file-${item.id}`}
                             onChange={handleFileSelect}
+                            accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.pdf,.zip,.7z,.rar"
                             style={{ display: 'none' }}
                           />
                           <label 
@@ -1711,6 +1815,9 @@ export default function StudentHome() {
                             Selected: {selectedFile.name}
                           </div>
                         )}
+                        <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontStyle: 'italic' }}>
+                          Allowed file types: Images (JPG, PNG, GIF, etc.), PDF, ZIP, 7ZIP, RAR
+                        </div>
                       </div>
 
                       {/* All Attachments */}
@@ -1773,7 +1880,7 @@ export default function StudentHome() {
                                             justifyContent: 'center',
                                             color: '#6b7280'
                                           }}
-                                          title="Xem trước"
+                                          title="Preview"
                                           onMouseEnter={(e) => {
                                             e.target.style.backgroundColor = '#f3f4f6';
                                             e.target.style.borderColor = '#9ca3af';
@@ -1856,12 +1963,12 @@ export default function StudentHome() {
           }}>
             <div style={{ marginBottom: 16 }}>
               <h2 style={{ margin: '0 0 8px 0', fontSize: 20 }}>
-                {minuteData ? 'Xem biên bản họp' : 'Thông tin cuộc họp'} - {selectedMeeting.description}
+                {minuteData ? 'View Meeting Minutes' : 'Meeting Information'} - {selectedMeeting.description}
               </h2>
               {minuteData && (
                 <div style={{ fontSize: 14, color: '#64748b' }}>
-                  <div><strong>Tạo bởi:</strong> {minuteData.createBy}</div>
-                  <div><strong>Ngày tạo:</strong> {formatDate(minuteData.createAt, 'YYYY-MM-DD HH:mm')}</div>
+                  <div><strong>Created by:</strong> {minuteData.createBy}</div>
+                  <div><strong>Created at:</strong> {formatDate(minuteData.createAt, 'YYYY-MM-DD HH:mm')}</div>
                 </div>
               )}
             </div>
@@ -1876,13 +1983,13 @@ export default function StudentHome() {
                 flex: '1 1 300px',
                 minWidth: '300px'
               }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Thông tin cuộc họp</h3>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Meeting Information</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div><strong>Mô tả:</strong> {selectedMeeting.description}</div>
-                  <div><strong>Ngày:</strong> {formatDate(selectedMeeting.meetingDate, 'YYYY-MM-DD')}</div>
-                  <div><strong>Giờ:</strong> {selectedMeeting.startAt ? `${selectedMeeting.startAt.substring(0, 5)} - ${selectedMeeting.endAt ? selectedMeeting.endAt.substring(0, 5) : ''}` : (selectedMeeting.time || 'N/A')}</div>
-                  <div><strong>Thứ:</strong> {selectedMeeting.dayOfWeek}</div>
-                  <div><strong>Trạng thái:</strong> 
+                  <div><strong>Description:</strong> {selectedMeeting.description}</div>
+                  <div><strong>Date:</strong> {formatDate(selectedMeeting.meetingDate, 'YYYY-MM-DD')}</div>
+                  <div><strong>Time:</strong> {selectedMeeting.startAt ? `${selectedMeeting.startAt.substring(0, 5)} - ${selectedMeeting.endAt ? selectedMeeting.endAt.substring(0, 5) : ''}` : (selectedMeeting.time || 'N/A')}</div>
+                  <div><strong>Day:</strong> {selectedMeeting.dayOfWeek}</div>
+                  <div><strong>Status:</strong> 
                     <span style={{ 
                       color: getMeetingStatusColor(selectedMeeting), 
                       marginLeft: '8px',
@@ -1901,7 +2008,7 @@ export default function StudentHome() {
                 flex: '1 1 300px',
                 minWidth: '300px'
               }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Link cuộc họp</h3>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Meeting Link</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Button
                     onClick={() => joinMeeting(selectedMeeting.meetingLink)}
@@ -1916,7 +2023,7 @@ export default function StudentHome() {
                       fontWeight: 500
                     }}
                   >
-                    Tham gia cuộc họp
+                    Join Meeting
                   </Button>
                 </div>
                 <div style={{ marginTop: 8, fontSize: 12, color: '#64748b' }}>
@@ -1928,7 +2035,7 @@ export default function StudentHome() {
             {/* Meeting Minute */}
             {minuteData ? (
               <div style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Biên bản họp</h3>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Meeting Minutes</h3>
                 <div style={{ 
                   background: '#f0fdf4', 
                   border: '1px solid #bbf7d0', 
@@ -1937,33 +2044,33 @@ export default function StudentHome() {
                 }}>
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 13, color: '#065f46', marginBottom: 4 }}>
-                      <strong>Tạo bởi:</strong> {minuteData.createBy}
+                      <strong>Created by:</strong> {minuteData.createBy}
                     </div>
                     <div style={{ fontSize: 13, color: '#065f46' }}>
-                      <strong>Ngày tạo:</strong> {formatDate(minuteData.createAt, 'DD/MM/YYYY HH:mm')}
+                      <strong>Created at:</strong> {formatDate(minuteData.createAt, 'DD/MM/YYYY HH:mm')}
                     </div>
                   </div>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Thời gian</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Time</h4>
                       <div style={{ fontSize: 13, color: '#374151' }}>
                         {selectedMeeting?.startAt && selectedMeeting?.endAt ? (
                           <>
-                            <div><strong>Bắt đầu:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
-                            <div><strong>Kết thúc:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                            <div><strong>Start:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('en-US')}</div>
+                            <div><strong>End:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('en-US')}</div>
                           </>
                         ) : (
                           <>
-                            <div><strong>Bắt đầu:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('vi-VN') : 'N/A'}</div>
-                            <div><strong>Kết thúc:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                            <div><strong>Start:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('en-US') : 'N/A'}</div>
+                            <div><strong>End:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('en-US') : 'N/A'}</div>
                           </>
                         )}
                       </div>
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Danh sách tham gia</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Attendance List</h4>
                       {attendanceList.length > 0 ? (
                         <div style={{
                           border: '1px solid #d1d5db',
@@ -1974,9 +2081,9 @@ export default function StudentHome() {
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Thành viên</th>
-                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Tham gia</th>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Lý do nghỉ</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Member</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Attended</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Absence Reason</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1999,7 +2106,7 @@ export default function StudentHome() {
                                       backgroundColor: item.attended ? '#d1fae5' : '#fee2e2',
                                       color: item.attended ? '#065f46' : '#991b1b'
                                     }}>
-                                      {item.attended ? 'Có' : 'Không'}
+                                      {item.attended ? 'Yes' : 'No'}
                                     </span>
                                   </td>
                                   <td style={{ padding: '6px 8px', fontSize: '12px', color: '#6b7280' }}>
@@ -2019,13 +2126,13 @@ export default function StudentHome() {
                           borderRadius: '4px',
                           border: '1px solid rgba(0,0,0,0.1)'
                         }}>
-                          {minuteData?.attendance || 'Chưa có thông tin điểm danh'}
+                          {minuteData?.attendance || 'No attendance information available'}
                         </div>
                       )}
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Nội dung cuộc họp</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Content</h4>
                       <div style={{ 
                         fontSize: 13, 
                         color: '#374151', 
@@ -2049,13 +2156,13 @@ export default function StudentHome() {
                           columns={meetingIssueColumns}
                           data={meetingIssues}
                           loading={loading}
-                          emptyMessage="Chưa có issue nào"
+                          emptyMessage="No issues available"
                         />
                       </div>
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Ghi chú khác</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Other Notes</h4>
                       <div style={{ 
                         fontSize: 13, 
                         color: '#374151', 
@@ -2082,14 +2189,14 @@ export default function StudentHome() {
                 marginBottom: 20
               }}>
                 <p style={{ margin: 0, fontSize: 14, color: '#92400e' }}>
-                  Chưa có biên bản họp cho cuộc họp này.
+                  No meeting minutes available for this meeting.
                 </p>
               </div>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
               <Button variant="ghost" onClick={closeMeetingModal}>
-                Đóng
+                Close
               </Button>
             </div>
           </div>

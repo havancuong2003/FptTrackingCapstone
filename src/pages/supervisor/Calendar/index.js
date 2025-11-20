@@ -47,6 +47,7 @@ export default function SupervisorCalendar() {
   const [meetingIssues, setMeetingIssues] = React.useState([]);
   const [timeSlots, setTimeSlots] = React.useState([]); // Slots từ API
   const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
+  const [groupsWithoutSchedule, setGroupsWithoutSchedule] = React.useState([]); // Danh sách nhóm chưa chốt lịch họp
 
   // API Base URL
   const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
@@ -241,7 +242,7 @@ export default function SupervisorCalendar() {
     return () => { mounted = false; };
   }, [userInfo?.groups]);
 
-  // Load tasks for all groups
+  // Load tasks for all groups (chỉ lấy task mà giáo viên là reviewer)
   React.useEffect(() => {
     let mounted = true;
     async function loadTasks() {
@@ -250,13 +251,15 @@ export default function SupervisorCalendar() {
         const allTasks = [];
         for (const groupId of userInfo.groups) {
           try {
-            const response = await client.get(`${API_BASE_URL}/Student/Task/get-by-group/${groupId}`);
-            if (response.data.status === 200) {
-              const tasksData = response.data.data;
+            const response = await client.get(`${API_BASE_URL}/Tasks/reviewer?groupId=${groupId}`);
+            if (Array.isArray(response.data)) {
+              const tasksData = response.data;
               if (tasksData && tasksData.length > 0) {
                 const tasksWithGroup = tasksData.map(task => ({
                   ...task,
-                  groupId: groupId
+                  title: task.name || task.title,
+                  groupId: groupId,
+                  isActive: true // Mặc định là active
                 }));
                 allTasks.push(...tasksWithGroup);
               }
@@ -275,6 +278,51 @@ export default function SupervisorCalendar() {
       }
     }
     loadTasks();
+    return () => { mounted = false; };
+  }, [userInfo?.groups]);
+
+  // Kiểm tra các nhóm chưa chốt lịch họp
+  React.useEffect(() => {
+    let mounted = true;
+    async function checkGroupsSchedule() {
+      if (!userInfo?.groups || userInfo.groups.length === 0) return;
+      try {
+        const groupsWithoutScheduleList = [];
+        for (const groupId of userInfo.groups) {
+          try {
+            const response = await client.get(`${API_BASE_URL}/Student/Meeting/schedule/finalize/getById/${groupId}`);
+            if (response.data.status === 200) {
+              const data = response.data.data;
+              // Kiểm tra nếu message là "Schedule not found." hoặc data.id === 0 hoặc không có thông tin hợp lệ
+              if (response.data.message === "Schedule not found." || 
+                  !data || 
+                  !data.id || 
+                  data.id === 0 || 
+                  !data.isActive || 
+                  !data.meetingLink || 
+                  !data.slot || 
+                  !data.dayOfWeek) {
+                // Lưu cả string và number để so sánh dễ dàng
+                groupsWithoutScheduleList.push(String(groupId));
+                groupsWithoutScheduleList.push(Number(groupId));
+              }
+            }
+          } catch (error) {
+            console.error(`Error checking schedule for group ${groupId}:`, error);
+            // Nếu lỗi, cũng coi như chưa chốt lịch
+            groupsWithoutScheduleList.push(String(groupId));
+            groupsWithoutScheduleList.push(Number(groupId));
+          }
+        }
+        if (!mounted) return;
+        setGroupsWithoutSchedule(groupsWithoutScheduleList);
+      } catch (error) {
+        console.error('Error checking groups schedule:', error);
+        if (!mounted) return;
+        setGroupsWithoutSchedule([]);
+      }
+    }
+    checkGroupsSchedule();
     return () => { mounted = false; };
   }, [userInfo?.groups]);
 
@@ -672,7 +720,7 @@ export default function SupervisorCalendar() {
 
   const meetingIssueColumns = [
     { key: 'name', title: 'Issue' },
-    { key: 'deadline', title: 'Hạn', render: (row) => formatDateTime(row.deadline) },
+    { key: 'deadline', title: 'Deadline', render: (row) => formatDateTime(row.deadline) },
     {
       key: 'actions',
       title: '',
@@ -686,7 +734,7 @@ export default function SupervisorCalendar() {
             style={{
               background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
             }}
-          >Chi tiết</button>
+          >Details</button>
         </div>
       )
     }
@@ -909,30 +957,148 @@ export default function SupervisorCalendar() {
         </div>
       )}
 
+      {/* Progress Summary by Group */}
+      {groups.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Progress Summary by Group</h3>
+          {groups.map((group) => {
+            // Lấy milestones của nhóm này
+            const groupMilestones = milestones.filter(m => {
+              const milestoneGroupId = m.groupId || m.groupdId;
+              const groupId = group.id;
+              return milestoneGroupId === groupId || 
+                     milestoneGroupId === String(groupId) || 
+                     String(milestoneGroupId) === String(groupId);
+            });
+            
+            return (
+              <div key={group.id} style={{ marginBottom: 24 }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#1f2937' }}>
+                  {group.groupCode || `GRP${group.id}`} - {group.projectName}
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+                  <div style={{ 
+                    background: '#f0f9ff', 
+                    border: '1px solid #0ea5e9', 
+                    borderRadius: 8, 
+                    padding: 16 
+                  }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0c4a6e', marginBottom: 4 }}>
+                      Total Milestones
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: '#0369a1' }}>
+                      {groupMilestones.length}
+                    </div>
+                  </div>
+                  
+                  <div style={{ 
+                    background: '#ecfdf5', 
+                    border: '1px solid #10b981', 
+                    borderRadius: 8, 
+                    padding: 16 
+                  }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#065f46', marginBottom: 4 }}>
+                      Submitted
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: '#059669' }}>
+                      {groupMilestones.filter(m => m.status === 'SUBMITTED').length}
+                    </div>
+                  </div>
+                  
+                  <div style={{ 
+                    background: '#fef3c7', 
+                    border: '1px solid #f59e0b', 
+                    borderRadius: 8, 
+                    padding: 16 
+                  }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
+                      Pending
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: '#d97706' }}>
+                      {groupMilestones.filter(m => m.status === 'Pending' || m.status === 'PENDING').length}
+                    </div>
+                  </div>
+                  
+                  <div style={{ 
+                    background: '#fee2e2', 
+                    border: '1px solid #dc2626', 
+                    borderRadius: 8, 
+                    padding: 16 
+                  }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
+                      Late
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: '#dc2626' }}>
+                      {groupMilestones.filter(m => m.status === 'LATE').length}
+                    </div>
+                  </div>
+                  
+                  <div style={{ 
+                    background: '#f3f4f6', 
+                    border: '1px solid #64748b', 
+                    borderRadius: 8, 
+                    padding: 16 
+                  }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                      Unsubmitted
+                    </div>
+                    <div style={{ fontSize: 24, fontWeight: 700, color: '#64748b' }}>
+                      {groupMilestones.filter(m => m.status === 'UNSUBMITTED' || !m.status).length}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Groups Information */}
       {groups.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Managed Groups</h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
-            {groups.map((group) => (
-              <div key={group.id} style={{
-                background: '#f9fafb',
-                border: '1px solid #e5e7eb',
-                borderRadius: 8,
-                padding: 12
-              }}>
-                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-                  {group.projectName}
+            {groups.map((group) => {
+              const groupIdStr = String(group.id);
+              const groupIdNum = Number(group.id);
+              const hasNoSchedule = groupsWithoutSchedule.includes(groupIdStr) || 
+                                   groupsWithoutSchedule.includes(groupIdNum) ||
+                                   groupsWithoutSchedule.includes(group.id);
+              return (
+                <div key={group.id} style={{
+                  background: hasNoSchedule ? '#fef3c7' : '#f9fafb',
+                  border: hasNoSchedule ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  padding: 12,
+                  position: 'relative'
+                }}>
+                  {hasNoSchedule && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      background: '#f59e0b',
+                      color: '#fff',
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 10,
+                      fontWeight: 600
+                    }}>
+                      ⚠ Meeting schedule not finalized
+                    </div>
+                  )}
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                    {group.projectName}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    <div>Group Code: {group.groupCode || 'N/A'}</div>
+                    {/* <div>ID: {group.id}</div> */}
+                    <div>Students: {group.students?.length || 0}</div>
+                    <div>Supervisors: {group.supervisors?.join(', ') || 'N/A'}</div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b' }}>
-                  <div>Group Code: {group.groupCode || 'N/A'}</div>
-                  {/* <div>ID: {group.id}</div> */}
-                  <div>Students: {group.students?.length || 0}</div>
-                  <div>Supervisors: {group.supervisors?.join(', ') || 'N/A'}</div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -1009,6 +1175,7 @@ export default function SupervisorCalendar() {
               const weekMilestones = getMilestonesForWeek();
               
               // Tạo một map để lưu các milestone không có slot phù hợp
+              // Key: `${adjustedDay}_${hour.toFixed(4)}` để đảm bảo độ chính xác cao hơn
               const milestoneRows = new Map();
               
               weekMilestones.forEach(milestone => {
@@ -1025,7 +1192,8 @@ export default function SupervisorCalendar() {
                 
                 // Nếu không có slot phù hợp, thêm vào milestoneRows
                 if (!hasMatchingSlot) {
-                  const key = `${adjustedDay}_${hour.toFixed(2)}`;
+                  // Sử dụng key chính xác hơn với 4 chữ số thập phân để tránh nhóm nhầm
+                  const key = `${adjustedDay}_${hour.toFixed(4)}`;
                   if (!milestoneRows.has(key)) {
                     milestoneRows.set(key, []);
                   }
@@ -1033,34 +1201,78 @@ export default function SupervisorCalendar() {
                 }
               });
               
-              // Tạo danh sách rows: slots + milestone rows
-              const allRows = [];
-              
-              // Thêm các slot rows
-              timeSlots.forEach(slot => {
-                allRows.push({ type: 'slot', data: slot });
-              });
-              
-              // Thêm các milestone rows (sắp xếp theo giờ)
-              Array.from(milestoneRows.entries()).sort((a, b) => {
+              // Tạo danh sách milestone rows đã sắp xếp (mỗi key tạo một row riêng)
+              const sortedMilestoneRows = Array.from(milestoneRows.entries()).sort((a, b) => {
                 const [dayA, hourA] = a[0].split('_').map(Number);
                 const [dayB, hourB] = b[0].split('_').map(Number);
                 if (dayA !== dayB) return dayA - dayB;
                 return hourA - hourB;
-              }).forEach(([key, milestones]) => {
+              }).map(([key, milestones]) => {
                 const [day, hour] = key.split('_').map(Number);
                 const milestoneHour = Math.floor(hour);
                 const milestoneMinute = Math.round((hour - milestoneHour) * 60);
                 const timeStr = `${String(milestoneHour).padStart(2, '0')}:${String(milestoneMinute).padStart(2, '0')}`;
-                allRows.push({ 
+                return { 
                   type: 'milestone', 
                   data: { 
                     milestones: milestones.map(m => m.milestone),
                     day,
                     hour,
                     label: `Milestone (${timeStr})`
-                  } 
+                  },
+                  sortHour: hour
+                };
+              });
+              
+              // Tạo danh sách tất cả rows (slots + milestones) và chèn milestone vào đúng vị trí
+              const allRows = [];
+              
+              // Tạo một mảng tất cả các items (slots + milestones) với thời gian sort
+              const allItems = [];
+              
+              // Thêm slot rows với thời gian sort là slot.start
+              timeSlots.forEach(slot => {
+                allItems.push({ 
+                  type: 'slot', 
+                  data: slot,
+                  sortHour: slot.start,
+                  sortType: 'slot'
                 });
+              });
+              
+              // Thêm milestone rows với thời gian sort là milestone.hour
+              sortedMilestoneRows.forEach(milestoneRow => {
+                allItems.push({
+                  ...milestoneRow,
+                  sortType: 'milestone'
+                });
+              });
+              
+              // Sắp xếp tất cả items theo thời gian
+              // Nếu cùng thời gian, slot sẽ được ưu tiên trước milestone
+              allItems.sort((a, b) => {
+                const hourA = a.sortHour || 0;
+                const hourB = b.sortHour || 0;
+                
+                // Nếu thời gian khác nhau đáng kể (> 0.01 giờ), sắp xếp theo thời gian
+                if (Math.abs(hourA - hourB) > 0.01) {
+                  return hourA - hourB;
+                }
+                
+                // Nếu thời gian gần bằng nhau, slot sẽ được ưu tiên trước milestone
+                if (a.sortType === 'slot' && b.sortType === 'milestone') {
+                  return -1;
+                }
+                if (a.sortType === 'milestone' && b.sortType === 'slot') {
+                  return 1;
+                }
+                
+                return 0;
+              });
+              
+              // Chuyển đổi thành allRows
+              allItems.forEach(item => {
+                allRows.push(item);
               });
               
               return allRows.map((row, rowIndex) => {
@@ -1344,7 +1556,7 @@ export default function SupervisorCalendar() {
                   color: '#6b7280',
                   fontSize: 11
                 }}>
-                  Đang tải slots...
+                  Loading slots...
                 </td>
               </tr>
             )}
@@ -1366,12 +1578,12 @@ export default function SupervisorCalendar() {
           }}>
             <div style={{ marginBottom: 16 }}>
               <h2 style={{ margin: '0 0 8px 0', fontSize: 20 }}>
-                {minuteData ? 'Xem biên bản họp' : 'Thông tin cuộc họp'} - {selectedMeeting.description}
+                {minuteData ? 'View Meeting Minutes' : 'Meeting Information'} - {selectedMeeting.description}
               </h2>
               {minuteData && (
                 <div style={{ fontSize: 14, color: '#64748b' }}>
-                  <div><strong>Tạo bởi:</strong> {minuteData.createBy}</div>
-                  <div><strong>Ngày tạo:</strong> {formatDate(minuteData.createAt, 'YYYY-MM-DD HH:mm')}</div>
+                  <div><strong>Created by:</strong> {minuteData.createBy}</div>
+                  <div><strong>Created at:</strong> {formatDate(minuteData.createAt, 'YYYY-MM-DD HH:mm')}</div>
                 </div>
               )}
             </div>
@@ -1386,13 +1598,13 @@ export default function SupervisorCalendar() {
                 flex: '1 1 300px',
                 minWidth: '300px'
               }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Thông tin cuộc họp</h3>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Meeting Information</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div><strong>Mô tả:</strong> {selectedMeeting.description}</div>
-                  <div><strong>Ngày:</strong> {formatDate(selectedMeeting.meetingDate, 'YYYY-MM-DD')}</div>
-                  <div><strong>Giờ:</strong> {selectedMeeting.startAt ? `${selectedMeeting.startAt.substring(0, 5)} - ${selectedMeeting.endAt ? selectedMeeting.endAt.substring(0, 5) : ''}` : (selectedMeeting.time || 'N/A')}</div>
-                  <div><strong>Thứ:</strong> {selectedMeeting.dayOfWeek}</div>
-                  <div><strong>Trạng thái:</strong> 
+                  <div><strong>Description:</strong> {selectedMeeting.description}</div>
+                  <div><strong>Date:</strong> {formatDate(selectedMeeting.meetingDate, 'YYYY-MM-DD')}</div>
+                  <div><strong>Time:</strong> {selectedMeeting.startAt ? `${selectedMeeting.startAt.substring(0, 5)} - ${selectedMeeting.endAt ? selectedMeeting.endAt.substring(0, 5) : ''}` : (selectedMeeting.time || 'N/A')}</div>
+                  <div><strong>Day:</strong> {selectedMeeting.dayOfWeek}</div>
+                  <div><strong>Status:</strong> 
                     <span style={{ 
                       color: getMeetingStatusColor(selectedMeeting), 
                       marginLeft: '8px',
@@ -1404,7 +1616,7 @@ export default function SupervisorCalendar() {
                       {getMeetingStatusText(selectedMeeting)}
                     </span>
                   </div>
-                  <div><strong>Nhóm:</strong> {selectedMeetingGroupInfo?.groupCode || `GRP${selectedMeeting.groupId}`} - {selectedMeetingGroupInfo?.projectName || 'N/A'}</div>
+                  <div><strong>Group:</strong> {selectedMeetingGroupInfo?.groupCode || `GRP${selectedMeeting.groupId}`} - {selectedMeetingGroupInfo?.projectName || 'N/A'}</div>
                 </div>
               </div>
               
@@ -1412,7 +1624,7 @@ export default function SupervisorCalendar() {
                 flex: '1 1 300px',
                 minWidth: '300px'
               }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Link cuộc họp</h3>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Meeting Link</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <a 
                     href={selectedMeeting.meetingLink} 
@@ -1429,7 +1641,7 @@ export default function SupervisorCalendar() {
                       border: '1px solid #3b82f6'
                     }}
                   >
-                    Tham gia cuộc họp
+                    Join Meeting
                   </a>
                 </div>
               </div>
@@ -1438,7 +1650,7 @@ export default function SupervisorCalendar() {
             {/* Meeting Minute */}
             {minuteData ? (
               <div style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Biên bản họp</h3>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Meeting Minutes</h3>
                 <div style={{ 
                   background: '#f0fdf4', 
                   border: '1px solid #bbf7d0', 
@@ -1447,33 +1659,33 @@ export default function SupervisorCalendar() {
                 }}>
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 13, color: '#065f46', marginBottom: 4 }}>
-                      <strong>Tạo bởi:</strong> {minuteData.createBy}
+                      <strong>Created by:</strong> {minuteData.createBy}
                     </div>
                     <div style={{ fontSize: 13, color: '#065f46' }}>
-                      <strong>Ngày tạo:</strong> {formatDate(minuteData.createAt, 'DD/MM/YYYY HH:mm')}
+                      <strong>Created at:</strong> {formatDate(minuteData.createAt, 'DD/MM/YYYY HH:mm')}
                     </div>
                   </div>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Thời gian</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Time</h4>
                       <div style={{ fontSize: 13, color: '#374151' }}>
                         {selectedMeeting?.startAt && selectedMeeting?.endAt ? (
                           <>
-                            <div><strong>Bắt đầu:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
-                            <div><strong>Kết thúc:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                            <div><strong>Start:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('en-US')}</div>
+                            <div><strong>End:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('en-US')}</div>
                           </>
                         ) : (
                           <>
-                            <div><strong>Bắt đầu:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('vi-VN') : 'N/A'}</div>
-                            <div><strong>Kết thúc:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                            <div><strong>Start:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('en-US') : 'N/A'}</div>
+                            <div><strong>End:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('en-US') : 'N/A'}</div>
                           </>
                         )}
                       </div>
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Danh sách tham gia</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Attendance List</h4>
                       {attendanceList.length > 0 ? (
                         <div style={{
                           border: '1px solid #d1d5db',
@@ -1484,9 +1696,9 @@ export default function SupervisorCalendar() {
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Thành viên</th>
-                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Tham gia</th>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Lý do nghỉ</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Member</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Attended</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Absence Reason</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1509,7 +1721,7 @@ export default function SupervisorCalendar() {
                                       backgroundColor: item.attended ? '#d1fae5' : '#fee2e2',
                                       color: item.attended ? '#065f46' : '#991b1b'
                                     }}>
-                                      {item.attended ? 'Có' : 'Không'}
+                                      {item.attended ? 'Yes' : 'No'}
                                     </span>
                                   </td>
                                   <td style={{ padding: '6px 8px', fontSize: '12px', color: '#6b7280' }}>
@@ -1529,13 +1741,13 @@ export default function SupervisorCalendar() {
                           borderRadius: '4px',
                           border: '1px solid rgba(0,0,0,0.1)'
                         }}>
-                          {minuteData?.attendance || 'Chưa có thông tin điểm danh'}
+                          {minuteData?.attendance || 'No attendance information available'}
                         </div>
                       )}
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Nội dung cuộc họp</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Content</h4>
                       <div style={{ 
                         fontSize: 13, 
                         color: '#374151', 
@@ -1559,13 +1771,13 @@ export default function SupervisorCalendar() {
                           columns={meetingIssueColumns}
                           data={meetingIssues}
                           loading={loading}
-                          emptyMessage="Chưa có issue nào"
+                          emptyMessage="No issues available"
                         />
                       </div>
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Ghi chú khác</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Other Notes</h4>
                       <div style={{ 
                         fontSize: 13, 
                         color: '#374151', 
@@ -1592,14 +1804,14 @@ export default function SupervisorCalendar() {
                 marginBottom: 20
               }}>
                 <p style={{ margin: 0, fontSize: 14, color: '#92400e' }}>
-                  Chưa có biên bản họp cho cuộc họp này.
+                  No meeting minutes available for this meeting.
                 </p>
               </div>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
               <Button variant="ghost" onClick={closeMeetingModal}>
-                Đóng
+                Close
               </Button>
             </div>
           </div>
@@ -1727,7 +1939,7 @@ export default function SupervisorCalendar() {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
               <Button variant="ghost" onClick={closeTaskModal}>
-                Đóng
+                Close
               </Button>
             </div>
           </div>
@@ -1761,7 +1973,7 @@ export default function SupervisorCalendar() {
                       {getStatusText(selectedMilestone.status)}
                     </span>
                   </div>
-                  <div><strong>Note:</strong> {milestoneDetails?.note || 'Chưa có ghi chú nào'}</div>
+                  <div><strong>Note:</strong> {milestoneDetails?.note || 'No notes available'}</div>
                 </div>
               </div>
               
@@ -1862,7 +2074,7 @@ export default function SupervisorCalendar() {
                                             justifyContent: 'center',
                                             color: '#6b7280'
                                           }}
-                                          title="Xem trước"
+                                          title="Preview"
                                           onMouseEnter={(e) => {
                                             e.target.style.backgroundColor = '#f3f4f6';
                                             e.target.style.borderColor = '#9ca3af';
@@ -1915,7 +2127,7 @@ export default function SupervisorCalendar() {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
               <Button variant="ghost" onClick={closeMilestoneModal}>
-                Đóng
+                Close
               </Button>
             </div>
           </div>

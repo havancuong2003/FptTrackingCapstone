@@ -95,7 +95,7 @@ export default function SupervisorMeetingManagement() {
       // Build group options cho select
       const options = groupIds.map(gid => ({
         value: String(gid),
-        label: groupsInfo[gid]?.projectName ? `${groupsInfo[gid].projectName} (Nhóm ${gid})` : `Nhóm ${gid}`
+        label: groupsInfo[gid]?.projectName ? `${groupsInfo[gid].projectName} (Group ${gid})` : `Group ${gid}`
       }));
       setGroupOptions(options);
     } catch (error) {
@@ -242,10 +242,10 @@ export default function SupervisorMeetingManagement() {
 
   const getMeetingStatusText = (status) => {
     switch (status) {
-      case 'Completed': return 'Đã họp';
-      case 'Past': return 'Chưa họp';
-      case 'Upcoming': return 'Sắp diễn ra';
-      default: return 'Không xác định';
+      case 'Completed': return 'Completed';
+      case 'Past': return 'Not Held';
+      case 'Upcoming': return 'Upcoming';
+      default: return 'Unknown';
     }
   };
 
@@ -267,20 +267,20 @@ export default function SupervisorMeetingManagement() {
 
   const getStatusText = (status) => {
     switch (status) {
-      case 'Todo': return 'Chưa làm';
-      case 'InProgress': return 'Đang làm';
-      case 'Done': return 'Hoàn thành';
-      case 'Review': return 'Đang review';
+      case 'Todo': return 'To Do';
+      case 'InProgress': return 'In Progress';
+      case 'Done': return 'Done';
+      case 'Review': return 'In Review';
       default: return status || 'N/A';
     }
   };
 
   const meetingIssueColumns = [
     { key: 'name', title: 'Issue' },
-    { key: 'deadline', title: 'Hạn', render: (row) => formatDateTime(row.deadline) },
+    { key: 'deadline', title: 'Deadline', render: (row) => formatDateTime(row.deadline) },
     { 
       key: 'status', 
-      title: 'Trạng thái', 
+      title: 'Status', 
       render: (row) => (
         <span style={{
           padding: '4px 8px',
@@ -307,7 +307,7 @@ export default function SupervisorMeetingManagement() {
             style={{
               background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
             }}
-          >Chi tiết</button>
+          >Details</button>
         </div>
       )
     }
@@ -551,19 +551,19 @@ export default function SupervisorMeetingManagement() {
     const errors = {};
     
     if (!formData.startAt) {
-      errors.startAt = 'Thời gian bắt đầu là bắt buộc';
+      errors.startAt = 'Start time is required';
     }
     
     if (!formData.endAt) {
-      errors.endAt = 'Thời gian kết thúc là bắt buộc';
+      errors.endAt = 'End time is required';
     }
     
     if (!formData.meetingContent) {
-      errors.meetingContent = 'Nội dung cuộc họp là bắt buộc';
+      errors.meetingContent = 'Meeting content is required';
     }
     
     if (formData.startAt && formData.endAt && new Date(formData.startAt) >= new Date(formData.endAt)) {
-      errors.endAt = 'Thời gian kết thúc phải sau thời gian bắt đầu';
+      errors.endAt = 'End time must be after start time';
     }
     
     setFormErrors(errors);
@@ -578,7 +578,7 @@ export default function SupervisorMeetingManagement() {
     
     try {
       if (isEditing && minuteData) {
-        // Cập nhật biên bản họp
+        // Update meeting minute
       const data = {
           id: minuteData.id,
         startAt: new Date(formData.startAt).toISOString(),
@@ -589,7 +589,7 @@ export default function SupervisorMeetingManagement() {
         other: formData.other
       };
         await updateMeetingMinute(data);
-        alert('Cập nhật biên bản họp thành công!');
+        alert('Meeting minute updated successfully!');
       } else {
         // Tạo biên bản họp mới
         const data = {
@@ -602,7 +602,7 @@ export default function SupervisorMeetingManagement() {
           other: formData.other
         };
         await createMeetingMinute(data);
-        alert('Tạo biên bản họp thành công!');
+        alert('Meeting minute created successfully!');
       }
       
       // Refresh meetings data theo nhóm đang chọn
@@ -612,20 +612,20 @@ export default function SupervisorMeetingManagement() {
       
       closeMinuteModal();
     } catch (error) {
-      alert('Có lỗi xảy ra khi lưu biên bản họp!');
+      alert('Error saving meeting minute!');
       console.error('Error saving meeting minute:', error);
     }
   };
 
   // Hàm xóa biên bản họp
   const handleDeleteMinute = async () => {
-    if (!minuteData || !window.confirm('Bạn có chắc chắn muốn xóa biên bản họp này?')) {
+    if (!minuteData || !window.confirm('Are you sure you want to delete this meeting minute?')) {
       return;
     }
     
     try {
       await deleteMeetingMinute(minuteData.id);
-      alert('Xóa biên bản họp thành công!');
+      alert('Meeting minute deleted successfully!');
       
       // Refresh meetings data theo nhóm đang chọn
       if (selectedGroupId) {
@@ -634,7 +634,7 @@ export default function SupervisorMeetingManagement() {
       
       closeMinuteModal();
     } catch (error) {
-      alert('Có lỗi xảy ra khi xóa biên bản họp!');
+      alert('Error deleting meeting minute!');
       console.error('Error deleting meeting minute:', error);
     }
   };
@@ -671,7 +671,7 @@ export default function SupervisorMeetingManagement() {
   const openEditScheduleModal = (meeting) => {
     // Không cho sửa thời gian nếu đã họp
     if (meeting.isMeeting === true) {
-      alert('Không thể sửa thời gian cuộc họp đã diễn ra!');
+      alert('Cannot edit time for a meeting that has already taken place!');
       return;
     }
     
@@ -706,12 +706,12 @@ export default function SupervisorMeetingManagement() {
     if (!editingMeeting) return;
     
     if (!scheduleForm.meetingDate || !scheduleForm.startAt || !scheduleForm.endAt || !scheduleForm.description.trim()) {
-      alert('Vui lòng nhập đầy đủ thông tin');
+      alert('Please fill in all required information');
       return;
     }
 
     if (scheduleForm.startAt >= scheduleForm.endAt) {
-      alert('Thời gian kết thúc phải sau thời gian bắt đầu');
+      alert('End time must be after start time');
       return;
     }
 
@@ -739,7 +739,7 @@ export default function SupervisorMeetingManagement() {
       );
 
       if (response.data.status === 200) {
-        alert('Cập nhật thời gian cuộc họp thành công!');
+        alert('Meeting schedule updated successfully!');
         closeEditScheduleModal();
         
         // Refresh meetings data
@@ -747,18 +747,18 @@ export default function SupervisorMeetingManagement() {
           await fetchMeetingsByGroup(selectedGroupId);
         }
       } else {
-        alert(response.data.message || 'Cập nhật thất bại');
+        alert(response.data.message || 'Update failed');
       }
     } catch (error) {
       console.error('Error updating meeting schedule:', error);
-      alert('Có lỗi xảy ra khi cập nhật thời gian cuộc họp!');
+      alert('Error updating meeting schedule!');
     }
   };
 
   if (loading) {
     return (
       <div className={styles.loading}>
-        <div>Đang tải dữ liệu...</div>
+        <div>Loading data...</div>
       </div>
     );
   }
@@ -788,7 +788,7 @@ export default function SupervisorMeetingManagement() {
           fontSize: '14px', 
           color: '#6b7280'
         }}>
-          Quản lý các buổi họp nhóm
+          Manage group meetings
         </p>
         
         {userInfo && (
@@ -798,17 +798,17 @@ export default function SupervisorMeetingManagement() {
             flexWrap: 'wrap'
           }}>
             <span style={{ fontSize: '14px', color: '#374151' }}>
-              <strong>Người dùng:</strong> {userInfo.name}
+              <strong>User:</strong> {userInfo.name}
             </span>
             <span style={{ fontSize: '14px', color: '#374151' }}>
-              <strong>Vai trò:</strong> {userInfo.roleInGroup || userInfo.role}
+              <strong>Role:</strong> {userInfo.roleInGroup || userInfo.role}
             </span>
           </div>
         )}
       </div>
       {/* Select nhóm để lọc meetings */}
       <div style={{ margin: '0 0 16px 0', display: 'flex', gap: 12, alignItems: 'center' }}>
-        <label style={{ fontSize: 14, color: '#374151' }}>Chọn nhóm:</label>
+        <label style={{ fontSize: 14, color: '#374151' }}>Select Group:</label>
         <select
           value={selectedGroupId}
           onChange={async (e) => {
@@ -819,7 +819,7 @@ export default function SupervisorMeetingManagement() {
           }}
           style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', minWidth: 260 }}
         >
-          <option value="">-- Chọn nhóm để xem meetings --</option>
+          <option value="">-- Select group to view meetings --</option>
           {groupOptions.map(opt => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
@@ -878,7 +878,7 @@ export default function SupervisorMeetingManagement() {
                       fontSize: '12px',
                       color: '#6b7280'
                     }}>
-                      Thời gian: {meeting.startAt.substring(0, 5)} - {meeting.endAt.substring(0, 5)}
+                      Time: {meeting.startAt.substring(0, 5)} - {meeting.endAt.substring(0, 5)}
                     </p>
                   )}
                   <p style={{
@@ -887,7 +887,7 @@ export default function SupervisorMeetingManagement() {
                     color: '#8b5cf6',
                     fontWeight: '500'
                   }}>
-                    Nhóm: {allGroupsInfo[meeting.groupId]?.projectName || `Nhóm ${meeting.groupId}`}
+                    Group: {allGroupsInfo[meeting.groupId]?.projectName || `Group ${meeting.groupId}`}
                 </p>
               </div>
               <div className={styles.meetingStatus} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -920,7 +920,7 @@ export default function SupervisorMeetingManagement() {
                     borderRadius: '6px',
                     border: '1px solid #e2e8f0'
                   }}>
-                    <strong style={{ fontSize: '13px', color: '#374151' }}>Link họp:</strong>
+                    <strong style={{ fontSize: '13px', color: '#374151' }}>Meeting Link:</strong>
                   <a 
                     href={meeting.meetingLink} 
                     target="_blank" 
@@ -936,7 +936,7 @@ export default function SupervisorMeetingManagement() {
                         borderRadius: '4px'
                       }}
                   >
-                    Tham gia cuộc họp
+                    Join Meeting
                   </a>
                 </div>
               </div>
@@ -954,11 +954,11 @@ export default function SupervisorMeetingManagement() {
                       fontWeight: '600',
                       color: '#065f46'
                     }}>
-                      Biên bản họp:
+                      Meeting Minutes:
                     </h4>
                     <div className={styles.minutesInfo} style={{ fontSize: '12px', color: '#047857' }}>
                       <p style={{ margin: '2px 0' }}>
-                        Đã có biên bản họp cho cuộc họp này
+                        Meeting minutes available for this meeting
                       </p>
                   </div>
                 </div>
@@ -987,7 +987,7 @@ export default function SupervisorMeetingManagement() {
                     cursor: 'pointer'
                   }}
                 >
-                  Tham gia họp
+                  Join Meeting
                 </Button>
               
                 {meeting.isMeeting !== true && (
@@ -1004,7 +1004,7 @@ export default function SupervisorMeetingManagement() {
                       cursor: 'pointer'
                     }}
                   >
-                    Sửa thời gian
+                    Edit Time
                   </Button>
                 )}
               
@@ -1023,7 +1023,7 @@ export default function SupervisorMeetingManagement() {
                       cursor: 'pointer'
                     }}
                   >
-                    Xem biên bản
+                    View Minutes
                 </Button>
                 ) : null}
               </div>
@@ -1066,10 +1066,10 @@ export default function SupervisorMeetingManagement() {
           >
             <div className={styles.modalHeader}>
               <h3>
-                Xem biên bản họp - {selectedMeeting.description}
+                View Meeting Minutes - {selectedMeeting.description}
               </h3>
               <div style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>
-                <div><strong>Nhóm:</strong> {selectedMeetingGroupInfo?.projectName || `Nhóm ${selectedMeeting.groupId}`}</div>
+                <div><strong>Group:</strong> {selectedMeetingGroupInfo?.projectName || `Group ${selectedMeeting.groupId}`}</div>
               </div>
               {/* {minuteData && (
                 // <div className={styles.minuteInfo}>
@@ -1090,33 +1090,33 @@ export default function SupervisorMeetingManagement() {
                 }}>
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 13, color: '#065f46', marginBottom: 4 }}>
-                      <strong>Tạo bởi:</strong> {minuteData?.createBy || 'N/A'}
+                      <strong>Created by:</strong> {minuteData?.createBy || 'N/A'}
                     </div>
                     <div style={{ fontSize: 13, color: '#065f46' }}>
-                      <strong>Ngày tạo:</strong> {minuteData?.createAt ? new Date(minuteData.createAt).toLocaleString('vi-VN') : 'N/A'}
+                      <strong>Created at:</strong> {minuteData?.createAt ? new Date(minuteData.createAt).toLocaleString('en-US') : 'N/A'}
                     </div>
                   </div>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Thời gian</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Time</h4>
                       <div style={{ fontSize: 13, color: '#374151' }}>
                         {selectedMeeting?.startAt && selectedMeeting?.endAt ? (
                           <>
-                            <div><strong>Bắt đầu:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
-                            <div><strong>Kết thúc:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                            <div><strong>Start:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('en-US')}</div>
+                            <div><strong>End:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('en-US')}</div>
                           </>
                         ) : (
                           <>
-                            <div><strong>Bắt đầu:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('vi-VN') : 'N/A'}</div>
-                            <div><strong>Kết thúc:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                            <div><strong>Start:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('en-US') : 'N/A'}</div>
+                            <div><strong>End:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('en-US') : 'N/A'}</div>
                           </>
                         )}
                       </div>
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Danh sách tham gia</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Attendance List</h4>
                       {attendanceList.length > 0 ? (
                         <div style={{
                           border: '1px solid #d1d5db',
@@ -1127,9 +1127,9 @@ export default function SupervisorMeetingManagement() {
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Thành viên</th>
-                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Tham gia</th>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Lý do nghỉ</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Member</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Attended</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Absence Reason</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1152,7 +1152,7 @@ export default function SupervisorMeetingManagement() {
                                       backgroundColor: item.attended ? '#d1fae5' : '#fee2e2',
                                       color: item.attended ? '#065f46' : '#991b1b'
                                     }}>
-                                      {item.attended ? 'Có' : 'Không'}
+                                      {item.attended ? 'Yes' : 'No'}
                                     </span>
                                   </td>
                                   <td style={{ padding: '6px 8px', fontSize: '12px', color: '#6b7280' }}>
@@ -1172,13 +1172,13 @@ export default function SupervisorMeetingManagement() {
                           borderRadius: '4px',
                           border: '1px solid rgba(0,0,0,0.1)'
                         }}>
-                          Chưa có thông tin điểm danh
+                          No attendance information available
                         </div>
                       )}
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Nội dung cuộc họp</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Content</h4>
                       <div style={{ 
                         fontSize: 13, 
                         color: '#374151', 
@@ -1202,14 +1202,14 @@ export default function SupervisorMeetingManagement() {
                           columns={meetingIssueColumns}
                           data={meetingIssues}
                           loading={loading}
-                          emptyMessage="Chưa có issue nào"
+                          emptyMessage="No issues available"
                           className={styles.compactTable || ''}
                         />
                       </div>
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Ghi chú khác</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Other Notes</h4>
                       <div style={{ 
                         fontSize: 13, 
                         color: '#374151', 
@@ -1235,7 +1235,7 @@ export default function SupervisorMeetingManagement() {
                   marginBottom: 20
                 }}>
                   <p style={{ margin: 0, fontSize: 14, color: '#92400e' }}>
-                    Chưa có biên bản họp cho cuộc họp này.
+                    No meeting minutes available for this meeting.
                   </p>
                 </div>
               )}
@@ -1247,7 +1247,7 @@ export default function SupervisorMeetingManagement() {
                 variant="secondary"
                 onClick={closeMinuteModal}
               >
-                Đóng
+                Close
               </Button>
             </div>
           </div>
@@ -1276,12 +1276,12 @@ export default function SupervisorMeetingManagement() {
             }}
           >
             <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: '600' }}>
-              Sửa thời gian cuộc họp
+              Edit Meeting Time
             </h3>
             
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
-                Chọn ngày trong tuần <span style={{ color: '#dc2626' }}>*</span>
+                Select Day of Week <span style={{ color: '#dc2626' }}>*</span>
               </label>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {weekDays.map((day) => (
@@ -1310,13 +1310,13 @@ export default function SupervisorMeetingManagement() {
 
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
-                Mô tả cuộc họp <span style={{ color: '#dc2626' }}>*</span>
+                Meeting Description <span style={{ color: '#dc2626' }}>*</span>
               </label>
               <Input
                 type="text"
                 value={scheduleForm.description}
                 onChange={(e) => setScheduleForm(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Nhập mô tả cuộc họp..."
+                placeholder="Enter meeting description..."
                 style={{ width: '100%' }}
               />
             </div>
@@ -1324,7 +1324,7 @@ export default function SupervisorMeetingManagement() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
-                  Thời gian bắt đầu <span style={{ color: '#dc2626' }}>*</span>
+                  Start Time <span style={{ color: '#dc2626' }}>*</span>
                 </label>
                 <Input
                   type="time"
@@ -1335,7 +1335,7 @@ export default function SupervisorMeetingManagement() {
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
-                  Thời gian kết thúc <span style={{ color: '#dc2626' }}>*</span>
+                  End Time <span style={{ color: '#dc2626' }}>*</span>
                 </label>
                 <Input
                   type="time"
@@ -1351,7 +1351,7 @@ export default function SupervisorMeetingManagement() {
                 variant="secondary"
                 onClick={closeEditScheduleModal}
               >
-                Hủy
+                Cancel
               </Button>
               <Button 
                 onClick={updateMeetingSchedule}
@@ -1360,7 +1360,7 @@ export default function SupervisorMeetingManagement() {
                   color: 'white'
                 }}
               >
-                Cập nhật
+                Update
               </Button>
             </div>
           </div>
