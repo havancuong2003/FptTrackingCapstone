@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import styles from './index.module.scss';
-import { getAllCampuses, getCampusById, upsertSlots } from '../../../api/campus';
+import { getAllCampuses, getCampusById, upsertSlots, softDeleteSlot } from '../../../api/campus';
 import Button from '../../../components/Button/Button';
 import DataTable from '../../../components/DataTable/DataTable';
 
@@ -10,12 +10,11 @@ export default function CampusSlotManagement() {
   const [selectedCampusId, setSelectedCampusId] = useState('');
   const [selectedCampus, setSelectedCampus] = useState(null);
   const [slots, setSlots] = useState([]);
-  const [originalSlots, setOriginalSlots] = useState([]); // Lưu slots gốc từ API
-  const [slotsToDelete, setSlotsToDelete] = useState([]); // Track các slot đã đánh dấu xóa
-  const [editedSlots, setEditedSlots] = useState({}); // Track các slot đã chỉnh sửa {slotId: slotData}
+  const [originalSlots, setOriginalSlots] = useState([]); // Lưu slots gốc từ API (chỉ active slots)
   const [newSlots, setNewSlots] = useState([]); // Track các slot mới thêm
-  const [editingSlotId, setEditingSlotId] = useState(null); // Track slot đang được edit (inline)
-  const [editingValues, setEditingValues] = useState({}); // Track giá trị đang edit {slotId: {startAt, endAt}}
+  const [editingSlotId, setEditingSlotId] = useState(null); // Track slot mới đang được nhập
+  const [editingValues, setEditingValues] = useState({}); // Track giá trị đang nhập {slotId: {nameSlot, startAt, endAt}}
+  const [validationErrors, setValidationErrors] = useState({}); // Track lỗi validation {slotId: {nameError, timeError}}
   const [hasChanges, setHasChanges] = useState(false); // Track xem có thay đổi chưa
 
   // Load all campuses
@@ -65,13 +64,14 @@ export default function CampusSlotManagement() {
       const response = await getCampusById(campusId);
       if (response.status === 200 && response.data) {
         setSelectedCampus(response.data);
-        const loadedSlots = response.data.slots || [];
+        const loadedSlots = (response.data.slots || []).filter(slot => slot.isActive !== false);
         setSlots(loadedSlots);
         setOriginalSlots(loadedSlots);
         // Reset các thay đổi khi load lại
-        setSlotsToDelete([]);
-        setEditedSlots({});
         setNewSlots([]);
+        setEditingSlotId(null);
+        setEditingValues({});
+        setValidationErrors({});
         setHasChanges(false);
       }
     } catch (error) {
@@ -93,14 +93,15 @@ export default function CampusSlotManagement() {
     }
   };
 
-  // Open slot modal for adding
+  // Add new slot row
   const handleAddSlot = () => {
     const tempId = `new-${Date.now()}`;
     const newSlot = {
       id: tempId,
       nameSlot: '',
       startAt: '',
-      endAt: ''
+      endAt: '',
+      isNew: true
     };
     setNewSlots(prev => [...prev, newSlot]);
     setSlots(prev => [...prev, newSlot]);
@@ -112,54 +113,139 @@ export default function CampusSlotManagement() {
         endAt: ''
       }
     });
+    setValidationErrors({
+      [tempId]: {
+        nameError: '',
+        timeError: ''
+      }
+    });
     setHasChanges(true);
   };
 
-  // Start editing slot inline
-  const handleEditSlot = (slot) => {
-    // If slot is marked for delete, don't allow editing
-    if (slotsToDelete.includes(slot.id)) {
-      alert('This slot is marked for deletion. Please undo delete before editing.');
-      return;
-    }
-    
-    setEditingSlotId(slot.id);
-    // Lấy dữ liệu từ editedSlots nếu có, không thì dùng slot hiện tại
-    const slotData = editedSlots[slot.id] || slot;
-    setEditingValues({
-      [slot.id]: {
-        nameSlot: slotData.nameSlot || '',
-        startAt: convertTimeToInputFormat(slotData.startAt || ''),
-        endAt: convertTimeToInputFormat(slotData.endAt || '')
-      }
-    });
-  };
-
-  // Cancel editing
-  const handleCancelEdit = (slotId) => {
+  // Cancel adding new slot
+  const handleCancelAdd = (slotId) => {
     setEditingSlotId(null);
     setEditingValues(prev => {
       const newValues = { ...prev };
       delete newValues[slotId];
       return newValues;
     });
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[slotId];
+      return newErrors;
+    });
     
-    // Nếu là slot mới chưa lưu, xóa luôn
+    // Xóa slot mới chưa lưu
     if (slotId && slotId.toString().startsWith('new-')) {
       setNewSlots(prev => prev.filter(s => s.id !== slotId));
       setSlots(prev => prev.filter(s => s.id !== slotId));
-      setHasChanges(false);
+      // Kiểm tra xem còn slot mới nào không
+      const remainingNewSlots = newSlots.filter(s => s.id !== slotId);
+      setHasChanges(remainingNewSlots.length > 0);
     }
   };
 
-  // Update editing values
+  // Update editing values and validate
   const handleEditValueChange = (slotId, field, value) => {
-    setEditingValues(prev => ({
-      ...prev,
+    const newValues = {
+      ...editingValues,
       [slotId]: {
-        ...prev[slotId],
+        ...editingValues[slotId],
         [field]: value
       }
+    };
+    
+    setEditingValues(newValues);
+    
+    // Validate on change
+    validateSlot(slotId, newValues[slotId]);
+  };
+
+  // Validate slot: check duplicate name and time conflict
+  const validateSlot = (slotId, slotData) => {
+    const errors = {
+      nameError: '',
+      timeError: ''
+    };
+
+    if (!slotData) {
+      setValidationErrors(prev => ({
+        ...prev,
+        [slotId]: errors
+      }));
+      return;
+    }
+
+    // Check duplicate name
+    if (slotData.nameSlot && slotData.nameSlot.trim()) {
+      const slotName = `Slot ${slotData.nameSlot.trim()}`.toLowerCase();
+      const isDuplicate = slots.some(slot => {
+        if (slot.id === slotId) return false; // Skip self
+        
+        // Get the actual name - use editingValues if slot is being edited, otherwise use saved name
+        let existingName = '';
+        if (editingSlotId === slot.id && editingValues[slot.id]?.nameSlot) {
+          // Slot is currently being edited
+          existingName = `Slot ${editingValues[slot.id].nameSlot.trim()}`.toLowerCase();
+        } else if (slot.nameSlot) {
+          // Slot has been saved (either new or existing)
+          existingName = slot.nameSlot.toLowerCase();
+        }
+        
+        return existingName && existingName === slotName;
+      });
+      
+      if (isDuplicate) {
+        errors.nameError = 'Slot name already exists';
+      }
+    }
+
+    // Check time conflict
+    if (slotData.startAt && slotData.endAt) {
+      const startMinutes = parseTimeToMinutes(slotData.startAt);
+      const endMinutes = parseTimeToMinutes(slotData.endAt);
+      
+      if (startMinutes >= endMinutes) {
+        errors.timeError = 'Start time must be before end time';
+      } else {
+        // Check conflict with other slots
+        const hasConflict = slots.some(slot => {
+          if (slot.id === slotId) return false; // Skip self
+          
+          let otherStart = null;
+          let otherEnd = null;
+          
+          // Get time from editing values if slot is being edited, otherwise from saved slot
+          if (editingSlotId === slot.id && editingValues[slot.id]) {
+            // Slot is currently being edited
+            if (editingValues[slot.id].startAt) {
+              otherStart = parseTimeToMinutes(editingValues[slot.id].startAt);
+            }
+            if (editingValues[slot.id].endAt) {
+              otherEnd = parseTimeToMinutes(editingValues[slot.id].endAt);
+            }
+          } else if (slot.startAt && slot.endAt) {
+            // Slot has been saved (either new or existing)
+            otherStart = parseTimeToMinutes(convertTimeToInputFormat(slot.startAt));
+            otherEnd = parseTimeToMinutes(convertTimeToInputFormat(slot.endAt));
+          }
+          
+          if (otherStart === null || otherEnd === null) return false;
+          
+          // Check if time ranges overlap
+          return (startMinutes < otherEnd && endMinutes > otherStart);
+        });
+        
+        if (hasConflict) {
+          errors.timeError = 'Time conflicts with another slot';
+        }
+      }
+    }
+
+    setValidationErrors(prev => ({
+      ...prev,
+      [slotId]: errors
     }));
   };
 
@@ -188,7 +274,7 @@ export default function CampusSlotManagement() {
     return `${displayHours}:${displayMinutes} ${period}`;
   };
 
-  // Save single slot changes (not saved to database yet)
+  // Save single new slot (not saved to database yet, just validate and close edit mode)
   const handleSaveSlot = (slot) => {
     const editingValue = editingValues[slot.id];
     if (!editingValue || !editingValue.nameSlot || !editingValue.startAt || !editingValue.endAt) {
@@ -196,34 +282,26 @@ export default function CampusSlotManagement() {
       return;
     }
 
-    // Validate: startAt must be before endAt
-    const startMinutes = parseTimeToMinutes(editingValue.startAt);
-    const endMinutes = parseTimeToMinutes(editingValue.endAt);
-    
-    if (startMinutes >= endMinutes) {
-      alert('Start time must be before end time');
+    // Check validation errors
+    const errors = validationErrors[slot.id] || {};
+    if (errors.nameError || errors.timeError) {
+      alert('Please fix validation errors before saving');
       return;
     }
 
+    // Format name as "Slot {name}"
+    const formattedName = `Slot ${editingValue.nameSlot.trim()}`;
+
     const slotData = {
       ...slot,
-      nameSlot: editingValue.nameSlot,
+      nameSlot: formattedName,
       startAt: editingValue.startAt,
       endAt: editingValue.endAt
     };
 
-    if (slot.id.toString().startsWith('new-')) {
-      // Slot mới - cập nhật trong newSlots
-      setNewSlots(prev => prev.map(s => s.id === slot.id ? slotData : s));
-      setSlots(prev => prev.map(s => s.id === slot.id ? slotData : s));
-    } else {
-      // Slot cũ - lưu vào editedSlots
-      setEditedSlots(prev => ({
-        ...prev,
-        [slot.id]: slotData
-      }));
-      setSlots(prev => prev.map(s => s.id === slot.id ? slotData : s));
-    }
+    // Update new slot
+    setNewSlots(prev => prev.map(s => s.id === slot.id ? slotData : s));
+    setSlots(prev => prev.map(s => s.id === slot.id ? slotData : s));
 
     setEditingSlotId(null);
     setEditingValues(prev => {
@@ -231,90 +309,111 @@ export default function CampusSlotManagement() {
       delete newValues[slot.id];
       return newValues;
     });
+    setValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[slot.id];
+      return newErrors;
+    });
     setHasChanges(true);
   };
 
 
-  // Save all changes to database
+  // Save all new slots to database
   const handleSaveAllChanges = async () => {
     if (!selectedCampusId) {
       alert('Please select a campus first');
       return;
     }
 
-    if (!hasChanges) {
-      alert('No changes to save');
+    if (!hasChanges || newSlots.length === 0) {
+      alert('No new slots to save');
+      return;
+    }
+
+    // Validate all new slots before saving
+    const invalidSlots = newSlots.filter(slot => {
+      const errors = validationErrors[slot.id] || {};
+      return errors.nameError || errors.timeError || !slot.nameSlot || !slot.startAt || !slot.endAt;
+    });
+
+    if (invalidSlots.length > 0) {
+      alert('Please fix all validation errors before saving');
       return;
     }
 
     setLoading(true);
     try {
-      // Prepare slots to send: original slots (trừ những cái bị xóa) + edited slots + new slots
-      const slotsToSend = [];
-      
-      // Thêm các slot gốc (trừ những cái bị xóa và những cái đã được sửa)
-      originalSlots.forEach(slot => {
-        if (!slotsToDelete.includes(slot.id) && !editedSlots[slot.id]) {
-          slotsToSend.push({
-            nameSlot: slot.nameSlot,
-            startAt: slot.startAt, // Giữ nguyên format từ API
-            endAt: slot.endAt // Giữ nguyên format từ API
-          });
-        }
-      });
-      
-      // Thêm các slot đã được sửa
-      Object.values(editedSlots).forEach(slot => {
-        if (!slotsToDelete.includes(slot.id)) {
-          slotsToSend.push({
-            nameSlot: slot.nameSlot,
-            startAt: formatTimeForDisplay(slot.startAt),
-            endAt: formatTimeForDisplay(slot.endAt)
-          });
-        }
-      });
-      
-      // Thêm các slot mới
-      newSlots.forEach(slot => {
-        slotsToSend.push({
-          nameSlot: slot.nameSlot,
-          startAt: formatTimeForDisplay(slot.startAt),
-          endAt: formatTimeForDisplay(slot.endAt)
-        });
-      });
+      // Chỉ gửi các slot mới
+      const slotsToSend = newSlots.map(slot => ({
+        nameSlot: slot.nameSlot,
+        startAt: formatTimeForDisplay(slot.startAt),
+        endAt: formatTimeForDisplay(slot.endAt)
+      }));
 
       const response = await upsertSlots(selectedCampusId, slotsToSend);
       
       if (response.status === 200) {
-        alert('Changes saved successfully!');
+        const message = response.data?.message || response.message || 'Slots saved successfully!';
+        alert(message);
         // Reload slots
         await loadCampusSlots(selectedCampusId);
       } else {
-        alert('Error occurred while saving: ' + response.data.message);
+        alert('Error occurred while saving: ' + (response.data?.message || response.message || 'Unknown error'));
       }
     } catch (error) {
       console.error('Error saving changes:', error);
-      alert('Error occurred while saving changes: ' + error.message);
+      alert('Error occurred while saving changes: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
   };
 
-  // Delete slot (only mark, not actually delete)
-  const handleDeleteSlot = (slotId) => {
+  // Soft delete slot
+  const handleDeleteSlot = async (slotId) => {
     if (!window.confirm('Are you sure you want to delete this slot?')) {
       return;
     }
 
-    // Mark slot for deletion
-    setSlotsToDelete(prev => [...prev, slotId]);
-    setHasChanges(true);
-  };
+    // Nếu là slot mới chưa lưu, chỉ cần xóa khỏi state
+    if (slotId.toString().startsWith('new-')) {
+      setNewSlots(prev => prev.filter(s => s.id !== slotId));
+      setSlots(prev => prev.filter(s => s.id !== slotId));
+      setEditingValues(prev => {
+        const newValues = { ...prev };
+        delete newValues[slotId];
+        return newValues;
+      });
+      setValidationErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[slotId];
+        return newErrors;
+      });
+      if (editingSlotId === slotId) {
+        setEditingSlotId(null);
+      }
+      const remainingNewSlots = newSlots.filter(s => s.id !== slotId);
+      setHasChanges(remainingNewSlots.length > 0);
+      return;
+    }
 
-  // Undo delete (hủy xóa)
-  const handleUndoDelete = (slotId) => {
-    setSlotsToDelete(prev => prev.filter(id => id !== slotId));
-    setHasChanges(true);
+    // Soft delete slot đã lưu
+    setLoading(true);
+    try {
+      const response = await softDeleteSlot(selectedCampusId, slotId);
+      
+      if (response.status === 200) {
+        alert('Slot deleted successfully!');
+        // Reload slots
+        await loadCampusSlots(selectedCampusId);
+      } else {
+        alert('Error occurred while deleting: ' + (response.data?.message || response.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error deleting slot:', error);
+      alert('Error occurred while deleting slot: ' + (error.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -355,7 +454,7 @@ export default function CampusSlotManagement() {
             <div className={styles.sectionHeader}>
               <h2>Slot Management - {selectedCampus.name}</h2>
               <div className={styles.headerActions}>
-                {hasChanges && (
+                {hasChanges && newSlots.length > 0 && (
                   <Button
                     onClick={handleSaveAllChanges}
                     className={styles.saveAllButton}
@@ -381,35 +480,36 @@ export default function CampusSlotManagement() {
                   render: (slot) => {
                     const isEditing = editingSlotId === slot.id;
                     const editingValue = editingValues[slot.id] || {};
-                    const isMarkedForDelete = slotsToDelete.includes(slot.id);
-                    const isEdited = editedSlots[slot.id];
                     const isNew = slot.id && slot.id.toString().startsWith('new-');
+                    const errors = validationErrors[slot.id] || {};
                     
                     return (
                       <div className={styles.slotNameCell}>
-                        {isEditing ? (
-                          <input
-                            type="text"
-                            value={editingValue.nameSlot || ''}
-                            onChange={(e) => handleEditValueChange(slot.id, 'nameSlot', e.target.value)}
-                            placeholder="Slot name"
-                            className={styles.nameInput}
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                        {isEditing && isNew ? (
+                          <div className={styles.slotNameInputContainer}>
+                            <div className={styles.slotNameInputGroup}>
+                              <span className={styles.slotPrefix}>Slot</span>
+                              <input
+                                type="text"
+                                value={editingValue.nameSlot || ''}
+                                onChange={(e) => handleEditValueChange(slot.id, 'nameSlot', e.target.value)}
+                                placeholder="name slot"
+                                className={`${styles.nameInput} ${errors.nameError ? styles.inputError : ''}`}
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </div>
+                            <div className={styles.errorContainer}>
+                              {errors.nameError && (
+                                <span className={styles.errorText}>{errors.nameError}</span>
+                              )}
+                            </div>
+                          </div>
                         ) : (
                           <div className={styles.slotNameContent}>
                             <span className={styles.slotName}>{slot.nameSlot}</span>
-                            <div className={styles.badges}>
-                              {isMarkedForDelete && (
-                                <span className={styles.deleteBadge}>Marked for Delete</span>
-                              )}
-                              {isEdited && !isMarkedForDelete && (
-                                <span className={styles.editedBadge}>Edited</span>
-                              )}
-                              {isNew && !isMarkedForDelete && (
-                                <span className={styles.newBadge}>New</span>
-                              )}
-                            </div>
+                            {isNew && (
+                              <span className={styles.newBadge}>New</span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -422,17 +522,24 @@ export default function CampusSlotManagement() {
                   render: (slot) => {
                     const isEditing = editingSlotId === slot.id;
                     const editingValue = editingValues[slot.id] || {};
+                    const isNew = slot.id && slot.id.toString().startsWith('new-');
+                    const errors = validationErrors[slot.id] || {};
                     
                     return (
                       <div className={styles.timeCell}>
-                        {isEditing ? (
-                          <input
-                            type="time"
-                            value={editingValue.startAt || ''}
-                            onChange={(e) => handleEditValueChange(slot.id, 'startAt', e.target.value)}
-                            className={styles.timeInput}
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                        {isEditing && isNew ? (
+                          <div className={styles.timeInputContainer}>
+                            <input
+                              type="time"
+                              value={editingValue.startAt || ''}
+                              onChange={(e) => handleEditValueChange(slot.id, 'startAt', e.target.value)}
+                              className={`${styles.timeInput} ${errors.timeError ? styles.inputError : ''}`}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <div className={styles.errorContainer}>
+                              {/* Error sẽ hiển thị ở cột End Time */}
+                            </div>
+                          </div>
                         ) : (
                           <span className={styles.timeValue}>{formatTimeForDisplay(slot.startAt)}</span>
                         )}
@@ -446,17 +553,26 @@ export default function CampusSlotManagement() {
                   render: (slot) => {
                     const isEditing = editingSlotId === slot.id;
                     const editingValue = editingValues[slot.id] || {};
+                    const isNew = slot.id && slot.id.toString().startsWith('new-');
+                    const errors = validationErrors[slot.id] || {};
                     
                     return (
                       <div className={styles.timeCell}>
-                        {isEditing ? (
-                          <input
-                            type="time"
-                            value={editingValue.endAt || ''}
-                            onChange={(e) => handleEditValueChange(slot.id, 'endAt', e.target.value)}
-                            className={styles.timeInput}
-                            onClick={(e) => e.stopPropagation()}
-                          />
+                        {isEditing && isNew ? (
+                          <div className={styles.timeInputContainer}>
+                            <input
+                              type="time"
+                              value={editingValue.endAt || ''}
+                              onChange={(e) => handleEditValueChange(slot.id, 'endAt', e.target.value)}
+                              className={`${styles.timeInput} ${errors.timeError ? styles.inputError : ''}`}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <div className={styles.errorContainer}>
+                              {errors.timeError && (
+                                <span className={styles.errorText}>{errors.timeError}</span>
+                              )}
+                            </div>
+                          </div>
                         ) : (
                           <span className={styles.timeValue}>{formatTimeForDisplay(slot.endAt)}</span>
                         )}
@@ -468,21 +584,12 @@ export default function CampusSlotManagement() {
                   key: 'actions',
                   title: 'Actions',
                   render: (slot) => {
-                    const isMarkedForDelete = slotsToDelete.includes(slot.id);
                     const isEditing = editingSlotId === slot.id;
+                    const isNew = slot.id && slot.id.toString().startsWith('new-');
                     
                     return (
                       <div className={styles.actionButtons} onClick={(e) => e.stopPropagation()}>
-                        {isMarkedForDelete ? (
-                          <button
-                            type="button"
-                            onClick={() => handleUndoDelete(slot.id)}
-                            className={styles.undoButton}
-                            title="Undo Delete"
-                          >
-                            Undo Delete
-                          </button>
-                        ) : isEditing ? (
+                        {isEditing && isNew ? (
                           <>
                             <button
                               type="button"
@@ -494,7 +601,7 @@ export default function CampusSlotManagement() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleCancelEdit(slot.id)}
+                              onClick={() => handleCancelAdd(slot.id)}
                               className={styles.cancelEditButton}
                               title="Cancel"
                             >
@@ -502,24 +609,15 @@ export default function CampusSlotManagement() {
                             </button>
                           </>
                         ) : (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleEditSlot(slot)}
-                              className={styles.editButton}
-                              title="Edit"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteSlot(slot.id)}
-                              className={styles.deleteButton}
-                              title="Delete"
-                            >
-                              Delete
-                            </button>
-                          </>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSlot(slot.id)}
+                            className={styles.deleteButton}
+                            title="Delete"
+                            disabled={loading}
+                          >
+                            Delete
+                          </button>
                         )}
                       </div>
                     );

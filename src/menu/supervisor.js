@@ -1,9 +1,12 @@
 const supervisorMenu = [
   // Quản lý nhóm - quan trọng nhất
   { 
-    path: "/supervisor/groups", 
     label: "Groups", 
-    icon: "👥"
+    icon: "👥",
+    children: [
+      { path: "/supervisor/groups/active", label: "Active" },
+      { path: "/supervisor/groups/expired", label: "Expired" }
+    ]
   },
   // Quản lý công việc
   { 

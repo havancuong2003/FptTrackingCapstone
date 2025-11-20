@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import styles from './GroupDetail.module.scss';
 import Button from '../../../components/Button/Button';
 import BackButton from '../../common/BackButton';
@@ -10,6 +10,8 @@ import { sendSecretaryAssignmentEmail, sendRoleAssignmentEmail } from '../../../
 export default function GroupDetail() {
     const { groupId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const isExpired = location.state?.isExpired || false;
     const [group, setGroup] = React.useState(null);
     const [loading, setLoading] = React.useState(true);
     const [emailData, setEmailData] = React.useState({
@@ -280,30 +282,48 @@ export default function GroupDetail() {
     }
 
     if (!group) {
+        const backPath = isExpired ? '/supervisor/groups/expired' : '/supervisor/groups/active';
         return (
             <div className={styles.error}>
                 <div>Không tìm thấy thông tin nhóm</div>
-                <Button onClick={() => navigate('/supervisor/groups')}>
+                <Button onClick={() => navigate(backPath)}>
                     Quay lại danh sách
                 </Button>
             </div>
         );
     }
+    
+    const backPath = isExpired ? '/supervisor/groups/expired' : '/supervisor/groups/active';
     console.log(" group members: ", group.members);
     return (
         <div className={styles.container}>
-            <BackButton to="/supervisor/groups">← Quay lại</BackButton>
+            <BackButton to={backPath}>← Quay lại</BackButton>
+            {isExpired && (
+                <div className={styles.expiredNotice} style={{ 
+                    padding: '12px', 
+                    backgroundColor: '#fef3c7', 
+                    border: '1px solid #f59e0b', 
+                    borderRadius: '6px', 
+                    marginBottom: '20px',
+                    color: '#92400e',
+                    fontWeight: 500
+                }}>
+                    ⚠️ Nhóm này đã hết hạn. Bạn chỉ có thể xem thông tin (view-only mode).
+                </div>
+            )}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
                     <h1>Chi tiết nhóm: {group.groupName}</h1>
                 </div>
-                <div className={styles.headerRight}>
-                    <Button 
-                        onClick={openEmailComposer}
-                    >
-                        Gửi email cho nhóm
-                    </Button>
-                </div>
+                {!isExpired && (
+                    <div className={styles.headerRight}>
+                        <Button 
+                            onClick={openEmailComposer}
+                        >
+                            Gửi email cho nhóm
+                        </Button>
+                    </div>
+                )}
             </div>
 
             <div className={styles.groupInfo}>
@@ -340,12 +360,14 @@ export default function GroupDetail() {
                                     <span className={`${styles.roleTag} ${styles[member.currentRole.toLowerCase()]}`}>
                                         {member.currentRole}
                                     </span>
-                                    <button 
-                                        className={styles.changeRoleBtn}
-                                        onClick={() => handleChangeRole(member)}
-                                    >
-                                        Đổi Role
-                                    </button>
+                                    {!isExpired && (
+                                        <button 
+                                            className={styles.changeRoleBtn}
+                                            onClick={() => handleChangeRole(member)}
+                                        >
+                                            Đổi Role
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}
