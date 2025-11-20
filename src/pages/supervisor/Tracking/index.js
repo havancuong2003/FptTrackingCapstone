@@ -135,6 +135,8 @@ export default function SupervisorTracking() {
         return '#dc2626'; // Red
       case 'Pending':
         return '#d97706'; // Orange/Yellow
+      case 'PENDING':
+        return '#d97706'; // Orange/Yellow
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
       case 'REJECTED':
@@ -151,6 +153,8 @@ export default function SupervisorTracking() {
       case 'LATE':
         return '⚠ Late';
       case 'Pending':
+        return '⏳ Pending Review';
+      case 'PENDING':
         return '⏳ Pending Review';
       case 'UNSUBMITTED':
         return '✗ Unsubmitted';
@@ -192,6 +196,16 @@ export default function SupervisorTracking() {
     }
   };
 
+  // Check if all items have at least one attachment (submitted)
+  const checkAllItemsSubmitted = () => {
+    if (!milestoneDetails?.deliveryItems) return false;
+    
+    return milestoneDetails.deliveryItems.every(item => {
+      // Item must have at least one attachment to be considered submitted
+      return item.attachments && item.attachments.length > 0;
+    });
+  };
+
   const checkAllAttachmentsDownloaded = () => {
     if (!milestoneDetails?.deliveryItems) return false;
     
@@ -207,8 +221,19 @@ export default function SupervisorTracking() {
     });
   };
 
+  // Combined check: all items submitted AND all attachments downloaded
+  const checkCanConfirm = () => {
+    return checkAllItemsSubmitted() && checkAllAttachmentsDownloaded();
+  };
+
   const handleConfirm = async () => {
     if (!selectedGroup?.id || !selectedMilestone) return;
+    
+    // Check if all items are submitted
+    if (!checkAllItemsSubmitted()) {
+      alert('Cannot confirm: Some items have not been submitted yet. Please wait for all items to be submitted.');
+      return;
+    }
     
     // Check if all attachments are downloaded
     if (!checkAllAttachmentsDownloaded()) {
@@ -319,6 +344,50 @@ export default function SupervisorTracking() {
   const getLatestAttachment = (attachments) => {
     if (!attachments || attachments.length === 0) return null;
     return attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
+  };
+
+  // Kiểm tra file có thể xem được không (ảnh, PDF, docs)
+  const canPreviewFile = (filePath) => {
+    if (!filePath) return false;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    
+    // Các định dạng có thể xem được
+    const previewableExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Documents (có thể xem qua Google Docs Viewer hoặc Office Online)
+      'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+      // Text files
+      'txt', 'csv'
+    ];
+    
+    return previewableExtensions.includes(extension);
+  };
+
+  // Mở preview file trong tab mới
+  const openFilePreview = (attachment) => {
+    if (!canPreviewFile(attachment.path)) {
+      alert('File này không thể xem trước. Vui lòng tải xuống để xem.');
+      return;
+    }
+    
+    const filePath = attachment.path;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    
+    let previewUrl = baseUrl;
+    
+    // Office documents - sử dụng Google Docs Viewer
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(extension)) {
+      previewUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(baseUrl)}&embedded=true`;
+    }
+    
+    // Mở trong tab mới
+    window.open(previewUrl, '_blank');
   };
 
   if (loading) {
@@ -729,13 +798,55 @@ export default function SupervisorTracking() {
                                         Uploaded by {attachment.userName} on {formatDate(attachment.createAt, 'DD/MM/YYYY HH:mm')}
                                       </div>
                                     </div>
-                                    <Button
-                                      onClick={() => downloadFile(attachment)}
-                                      variant="ghost"
-                                      style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
-                                    >
-                                      Download
-                                    </Button>
+                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center' }}>
+                                      {canPreviewFile(attachment.path) && (
+                                        <button
+                                          onClick={() => openFilePreview(attachment)}
+                                          style={{ 
+                                            padding: '4px 6px',
+                                            background: 'transparent',
+                                            border: '1px solid #d1d5db',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#6b7280'
+                                          }}
+                                          title="Xem trước"
+                                          onMouseEnter={(e) => {
+                                            e.target.style.backgroundColor = '#f3f4f6';
+                                            e.target.style.borderColor = '#9ca3af';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.target.style.backgroundColor = 'transparent';
+                                            e.target.style.borderColor = '#d1d5db';
+                                          }}
+                                        >
+                                          <svg 
+                                            width="16" 
+                                            height="16" 
+                                            viewBox="0 0 24 24" 
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            strokeWidth="2" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round"
+                                            style={{ color: '#6b7280' }}
+                                          >
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                          </svg>
+                                        </button>
+                                      )}
+                                      <Button
+                                        onClick={() => downloadFile(attachment)}
+                                        variant="ghost"
+                                        style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
+                                      >
+                                        Download
+                                      </Button>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -749,7 +860,7 @@ export default function SupervisorTracking() {
             )}
 
             {/* Note Input and Actions */}
-            {selectedMilestone.status === 'Pending' && (
+            {(selectedMilestone.status === 'Pending' || selectedMilestone.status === 'PENDING') && (
               <div style={{ marginTop: 24, padding: 16, background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#374151' }}>
                   Review Note (Required for rejection)
@@ -790,12 +901,24 @@ export default function SupervisorTracking() {
                     fontSize: isMobile ? '11px' : '12px', 
                     color: '#64748b',
                     wordBreak: 'break-word',
-                    flex: isMobile || isTablet ? 'none' : '1'
+                    flex: isMobile || isTablet ? 'none' : '1',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
                   }}>
-                    {checkAllAttachmentsDownloaded() ? 
-                      '✓ Latest attachments downloaded' : 
-                      '⚠ Please download the latest attachments before confirming'
-                    }
+                    {!checkAllItemsSubmitted() ? (
+                      <div style={{ color: '#dc2626', fontWeight: 600 }}>
+                        ⚠ Cannot confirm: Some items have not been submitted yet
+                      </div>
+                    ) : checkAllAttachmentsDownloaded() ? (
+                      <div style={{ color: '#059669', fontWeight: 600 }}>
+                        ✓ All items submitted and latest attachments downloaded
+                      </div>
+                    ) : (
+                      <div style={{ color: '#d97706', fontWeight: 600 }}>
+                        ⚠ Please download the latest attachments before confirming
+                      </div>
+                    )}
                   </div>
                   
                   <div style={{ 
@@ -819,13 +942,15 @@ export default function SupervisorTracking() {
                     </Button>
                     <Button
                       onClick={handleConfirm}
-                      disabled={confirming || !checkAllAttachmentsDownloaded()}
+                      disabled={confirming || !checkCanConfirm()}
                       style={{ 
                         background: '#059669', 
                         color: 'white',
                         fontSize: isMobile ? '11px' : '12px',
                         padding: isMobile ? '6px 10px' : '6px 12px',
-                        width: isMobile || isTablet ? '100%' : 'auto'
+                        width: isMobile || isTablet ? '100%' : 'auto',
+                        opacity: !checkCanConfirm() ? 0.5 : 1,
+                        cursor: !checkCanConfirm() ? 'not-allowed' : 'pointer'
                       }}
                     >
                       {confirming ? 'Confirming...' : 'Confirm'}
