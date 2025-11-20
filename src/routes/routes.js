@@ -54,7 +54,8 @@ const StudentGroups = React.lazy(() => import("../pages/student/Groups"));
 const StudentHome = React.lazy(() => import("../pages/student/Home"));
 
 // Supervisor pages
-const SupervisorGroups = React.lazy(() => import("../pages/supervisor/Groups"));
+const SupervisorActiveGroups = React.lazy(() => import("../pages/supervisor/Groups/ActiveGroups"));
+const SupervisorExpiredGroups = React.lazy(() => import("../pages/supervisor/Groups/ExpiredGroups"));
 const SupervisorGroupDetail = React.lazy(() => import("../pages/supervisor/Groups/GroupDetail"));
 const SupervisorMeetings = React.lazy(() => import("../pages/supervisor/Meetings"));
 const SupervisorTracking = React.lazy(() => import("../pages/supervisor/Tracking"));
@@ -349,10 +350,19 @@ export const routes = [
   },
   // Supervisor routes
   {
-    path: "/supervisor/groups",
-    element: SupervisorGroups,
+    path: "/supervisor/groups/active",
+    element: SupervisorActiveGroups,
     meta: {
-      title: "Groups",
+      title: "Groups (Active)",
+      protected: true,
+      roles: ["SUPERVISOR"],
+    },
+  },
+  {
+    path: "/supervisor/groups/expired",
+    element: SupervisorExpiredGroups,
+    meta: {
+      title: "Groups (Expired)",
       protected: true,
       roles: ["SUPERVISOR"],
     },
