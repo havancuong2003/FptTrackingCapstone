@@ -28,11 +28,15 @@ export default function SupervisorTasks() {
   };
   
   const currentUser = getCurrentUser();
+  
   const [tasks, setTasks] = React.useState([]);
   const [milestones, setMilestones] = React.useState([]);
   const [meetings, setMeetings] = React.useState([]);
   const [groups, setGroups] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  
+  // Set default groupExpireFilter, sẽ được update khi load group info
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active');
 
   // Status search-on-click
   const [isSearched, setIsSearched] = React.useState(false);
@@ -80,6 +84,33 @@ export default function SupervisorTasks() {
     }
   };
 
+  // API: lấy thông tin group để biết active hay expired
+  const fetchGroupInfo = async (gid) => {
+    if (!gid) return null;
+    try {
+      const response = await axiosClient.get(`/Staff/capstone-groups/${gid}`);
+      
+      if (response.data.status === 200) {
+        const groupData = response.data.data;
+        // Kiểm tra isExpired từ API hoặc từ status
+        const isExpired = groupData.isExpired !== undefined 
+          ? groupData.isExpired 
+          : (groupData.status === 'inactive');
+        
+        return {
+          id: groupData.id,
+          name: groupData.name,
+          groupCode: groupData.groupCode,
+          isExpired: isExpired
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching group info:', error);
+      return null;
+    }
+  };
+
   // API: lấy students theo group
   const fetchStudentsByGroup = async (gid) => {
     if (!gid) return [];
@@ -108,20 +139,31 @@ export default function SupervisorTasks() {
     }
   };
 
-  // API: lấy tất cả groups mà supervisor hướng dẫn
-  const fetchSupervisorGroups = async () => {
+  // API: lấy tất cả groups mà supervisor hướng dẫn (còn hạn hoặc hết hạn)
+  const fetchSupervisorGroups = async (expireFilter = 'active') => {
     try {
-      const response = await axiosClient.get('/Mentor/getGroups');
+      // Gọi API tương ứng: active groups hoặc expired groups
+      const apiEndpoint = expireFilter === 'expired' ? '/Mentor/expired-groups' : '/Mentor/getGroups';
+      const response = await axiosClient.get(apiEndpoint);
       
       if (response.data.status === 200) {
         const apiData = response.data.data;
         const groupsData = Array.isArray(apiData) ? apiData : [];
         
-        return groupsData.map(group => ({
-          id: group.id,
-          name: group.name,
-          description: group.description || ''
-        }));
+        return groupsData.map(group => {
+          // Nếu API có isExpired thì dùng, không thì fallback về check status
+          const isExpired = group.isExpired !== undefined 
+            ? group.isExpired 
+            : (group.status === 'inactive');
+          
+          return {
+            id: group.id,
+            name: group.name,
+            groupCode: group.groupCode || '',
+            description: group.description || '',
+            isExpired: isExpired
+          };
+        });
       } else {
         console.error('Error fetching groups:', response.data.message);
         alert(`Error lấy danh sách groups: ${response.data.message}`);
@@ -181,25 +223,71 @@ export default function SupervisorTasks() {
     }
   };
 
+  // Khi có groupId từ URL, load thông tin group để set filter
+  React.useEffect(() => {
+    const loadGroupInfoAndSetFilter = async () => {
+      if (groupId) {
+        const groupInfo = await fetchGroupInfo(groupId);
+        if (groupInfo) {
+          // Set filter dựa trên isExpired của group
+          const filter = groupInfo.isExpired ? 'expired' : 'active';
+          setGroupExpireFilter(filter);
+        }
+      }
+    };
+    
+    loadGroupInfoAndSetFilter();
+  }, [groupId]);
+
   React.useEffect(() => {
     const bootstrapData = async () => {
       try {
         setLoading(true);
         
-        // Load groups trước
-        const groupsData = await fetchSupervisorGroups();
+        // Load groups trước - dựa vào groupExpireFilter
+        const groupsData = await fetchSupervisorGroups(groupExpireFilter);
         setGroups(groupsData);
         
-        // Nếu có groupId, load milestones, students và meetings
+        // Nếu có groupId, kiểm tra xem group còn trong danh sách không
         if (groupId) {
-          const [milestoneRes, studentRes, meetingRes] = await Promise.all([
-            fetchMilestonesByGroup(groupId),
-            fetchStudentsByGroup(groupId),
-            fetchCompletedMeetings(groupId),
-          ]);
-          setMilestones(milestoneRes);
-          setMeetings(meetingRes);
-          setAssigneeSource(studentRes);
+          const selectedGroup = groupsData.find(g => g.id.toString() === groupId);
+          if (selectedGroup) {
+            // Group còn trong danh sách, load milestones, students và meetings
+            const [milestoneRes, studentRes, meetingRes] = await Promise.all([
+              fetchMilestonesByGroup(groupId),
+              fetchStudentsByGroup(groupId),
+              fetchCompletedMeetings(groupId),
+            ]);
+            setMilestones(milestoneRes);
+            setMeetings(meetingRes);
+            setAssigneeSource(studentRes);
+          } else {
+            // Group không còn trong danh sách, có thể do filter sai
+            // Thử load lại với filter ngược lại
+            const oppositeFilter = groupExpireFilter === 'active' ? 'expired' : 'active';
+            const oppositeGroupsData = await fetchSupervisorGroups(oppositeFilter);
+            const foundGroup = oppositeGroupsData.find(g => g.id.toString() === groupId);
+            
+            if (foundGroup) {
+              // Group có trong filter ngược lại, update filter và groups
+              setGroupExpireFilter(oppositeFilter);
+              setGroups(oppositeGroupsData);
+              // Load data cho group
+              const [milestoneRes, studentRes, meetingRes] = await Promise.all([
+                fetchMilestonesByGroup(groupId),
+                fetchStudentsByGroup(groupId),
+                fetchCompletedMeetings(groupId),
+              ]);
+              setMilestones(milestoneRes);
+              setMeetings(meetingRes);
+              setAssigneeSource(studentRes);
+            } else {
+              // Group không tìm thấy ở cả 2 filter, reset
+              setMilestones([]);
+              setMeetings([]);
+              setAssigneeSource([]);
+            }
+          }
         } else {
           setMilestones([]);
           setMeetings([]);
@@ -215,7 +303,7 @@ export default function SupervisorTasks() {
     };
 
     bootstrapData();
-  }, [groupId]);
+  }, [groupId, groupExpireFilter]);
 
   // Nguồn assignee lấy từ API theo group
   const [assigneeSource, setAssigneeSource] = React.useState([]);
@@ -584,6 +672,47 @@ export default function SupervisorTasks() {
       {/* Group Selection - ở đầu dòng */}
       <div className={styles.groupSection}>
         <div className={styles.groupControls}>
+          {/* Radio buttons để chọn loại group */}
+          <div className={styles.controlGroup}>
+            <label>Loại Group:</label>
+            <div className={styles.radioGroup}>
+              <label className={styles.radioLabel}>
+                <input
+                  type="radio"
+                  name="groupExpireFilter"
+                  value="active"
+                  checked={groupExpireFilter === 'active'}
+                  onChange={(e) => {
+                    const newFilter = e.target.value;
+                    setGroupExpireFilter(newFilter);
+                    // Nếu có groupId trong URL, xóa nó và navigate về /supervisor/tasks
+                    if (groupId) {
+                      navigate('/supervisor/tasks', { replace: true });
+                    }
+                  }}
+                />
+                <span>Còn hạn</span>
+              </label>
+              <label className={styles.radioLabel}>
+                <input
+                  type="radio"
+                  name="groupExpireFilter"
+                  value="expired"
+                  checked={groupExpireFilter === 'expired'}
+                  onChange={(e) => {
+                    const newFilter = e.target.value;
+                    setGroupExpireFilter(newFilter);
+                    // Nếu có groupId trong URL, xóa nó và navigate về /supervisor/tasks
+                    if (groupId) {
+                      navigate('/supervisor/tasks', { replace: true });
+                    }
+                  }}
+                />
+                <span>Hết hạn</span>
+              </label>
+            </div>
+          </div>
+          
           <div className={styles.controlGroup}>
             <label>Group:</label>
           <select
@@ -594,7 +723,7 @@ export default function SupervisorTasks() {
             <option value="">Chọn group</option>
             {groups.map(group => (
               <option key={group.id} value={group.id}>
-                {group.name}
+                {group.name} {group.groupCode ? `(${group.groupCode})` : ''}
               </option>
             ))}
           </select>

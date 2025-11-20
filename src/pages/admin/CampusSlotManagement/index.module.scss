@@ -146,8 +146,32 @@
 
 .slotNameCell {
   display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 60px; // Đảm bảo có khoảng cho error message
+  padding-top: 8px; // Căn chỉnh với các cell khác
+}
+
+.slotNameInputContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 60px; // Đảm bảo có khoảng cho error message
+}
+
+.slotNameInputGroup {
+  display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.slotPrefix {
+  font-weight: 600;
+  color: #374151;
+  font-size: 15px;
+  padding: 8px 0;
+  user-select: none;
 }
 
 .slotNameContent {
@@ -170,8 +194,10 @@
 
 .timeCell {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-start;
+  min-height: 60px; // Đảm bảo có khoảng cho error message
+  padding-top: 8px; // Căn chỉnh input với các cell khác
 }
 
 .deleteBadge,
@@ -202,6 +228,14 @@
   background: #d1fae5;
   color: #065f46;
   border: 1px solid #a7f3d0;
+}
+
+.errorText {
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 500;
+  display: block;
+  line-height: 1.4;
 }
 
 .actionButtons {
@@ -329,6 +363,15 @@
     color: #9ca3af;
     font-weight: 400;
   }
+
+  &.inputError {
+    border-color: #ef4444;
+    
+    &:focus {
+      border-color: #ef4444;
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+    }
+  }
 }
 
 .timeInput {
@@ -352,6 +395,15 @@
   &:hover {
     border-color: #9ca3af;
   }
+
+  &.inputError {
+    border-color: #ef4444;
+    
+    &:focus {
+      border-color: #ef4444;
+      box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+    }
+  }
   
   // Style cho time picker
   &::-webkit-calendar-picker-indicator {
@@ -362,6 +414,20 @@
       opacity: 1;
     }
   }
+}
+
+.timeInputContainer {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 60px; // Đảm bảo có khoảng cho error message
+}
+
+.errorContainer {
+  min-height: 20px; // Khoảng cố định cho error message
+  margin-top: 4px;
+  display: flex;
+  align-items: flex-start;
 }
 
 .saveButton {
