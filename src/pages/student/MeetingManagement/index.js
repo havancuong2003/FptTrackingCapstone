@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import Input from '../../../components/Input/Input';
 import Textarea from '../../../components/Textarea/Textarea';

@@ -19,6 +19,12 @@
   gap: 8px;
 }
 
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .filterLabel {
   font-weight: 600;
   font-size: 14px;
@@ -79,10 +85,41 @@
 }
 
 // Responsive
+@media (max-width: 1024px) {
+  .filterContainer {
+    padding: 14px;
+  }
+
+  .filterRow {
+    gap: 16px;
+  }
+
+  .groupSelect {
+    min-width: 180px;
+  }
+}
+
 @media (max-width: 768px) {
+  .filterContainer {
+    padding: 12px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+  }
+
   .filterRow {
     flex-direction: column;
     align-items: stretch;
+    gap: 12px;
+  }
+
+  .controlGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .controlGroup label {
+    font-size: 13px;
   }
 
   .filterItem {
@@ -91,9 +128,47 @@
     gap: 6px;
   }
 
+  .radioGroup {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .radioLabel {
+    font-size: 13px;
+  }
+
   .groupSelect {
     width: 100%;
     min-width: auto;
+    padding: 10px 12px;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .filterContainer {
+    padding: 10px;
+  }
+
+  .filterRow {
+    gap: 10px;
+  }
+
+  .controlGroup label {
+    font-size: 12px;
+  }
+
+  .radioGroup {
+    gap: 10px;
+  }
+
+  .radioLabel {
+    font-size: 12px;
+  }
+
+  .groupSelect {
+    padding: 8px 10px;
+    font-size: 13px;
   }
 }
 

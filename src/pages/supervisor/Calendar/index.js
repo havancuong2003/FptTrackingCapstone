@@ -1,5 +1,6 @@
 import React from 'react';
 // import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Input from '../../../components/Input/Input';
@@ -883,13 +884,11 @@ export default function SupervisorCalendar() {
   }
 
   return (
-    <div style={{ padding: 16, maxWidth: '100%' }}>
+    <div className={sharedLayout.container}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Supervisor Calendar</h1>
-        <div style={{ fontSize: 14, color: '#64748b', marginTop: 4 }}>
-          Managing {groups.length} group{groups.length > 1 ? 's' : ''}
-        </div>
+      <div className={sharedLayout.header}>
+        <h1>Supervisor Calendar</h1>
+        <p>Managing {groups.length} group{groups.length > 1 ? 's' : ''}</p>
       </div>
 
       {/* Semester + Group Filter */}
@@ -928,7 +927,8 @@ export default function SupervisorCalendar() {
       )}
 
       {/* Week Selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+      <div className={sharedLayout.contentSection} style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontWeight: 600, fontSize: 14 }}>Week:</span>
         <select 
           value={selectedWeek} 
@@ -958,14 +958,12 @@ export default function SupervisorCalendar() {
             </option>
           ))}
         </select>
+        </div>
       </div>
 
       {/* Calendar Table */}
-      <div style={{ 
-        border: '1px solid #e5e7eb', 
-        borderRadius: 8, 
-        overflow: 'hidden',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
+      <div className={sharedLayout.contentSection} style={{ 
+        overflow: 'hidden'
       }}>
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead style={{ background: '#f9fafb' }}>

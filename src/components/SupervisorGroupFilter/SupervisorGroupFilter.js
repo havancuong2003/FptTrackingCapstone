@@ -22,7 +22,7 @@ export default function SupervisorGroupFilter({
     <div className={styles.filterContainer}>
       <div className={styles.filterRow}>
         {semesters.length > 0 && (
-          <div className={styles.filterItem}>
+          <div className={styles.controlGroup}>
             <label className={styles.filterLabel}>Semester:</label>
             <Select
               value={selectedSemesterId?.toString() || ''}
@@ -32,7 +32,7 @@ export default function SupervisorGroupFilter({
             />
           </div>
         )}
-        <div className={styles.filterItem}>
+        <div className={styles.controlGroup}>
           <label className={styles.filterLabel}>Group Status:</label>
           <div className={styles.radioGroup}>
             <label className={styles.radioLabel}>
@@ -57,7 +57,7 @@ export default function SupervisorGroupFilter({
             </label>
           </div>
         </div>
-        <div className={styles.filterItem}>
+        <div className={styles.controlGroup}>
           <label className={styles.filterLabel}>Group:</label>
           <select
             value={selectedGroupId || ''}

@@ -1,8 +1,10 @@
 import React from 'react';
 import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
+import DataTable from '../../../components/DataTable/DataTable';
 import { formatDate } from '../../../utils/date';
 import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
@@ -461,11 +463,10 @@ export default function SupervisorTracking() {
   const isDesktop = windowWidth > 1024;
 
   return (
-    <div style={{ padding: isMobile ? '12px' : isTablet ? '14px' : '16px', maxWidth: '100%', overflowX: 'auto' }}>
-      {/* Header - Responsive */}
+    <div className={sharedLayout.container}>
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: isMobile ? '18px' : isTablet ? '22px' : '24px' }}>Milestones Tracking</h1>
+      <div className={sharedLayout.header}>
+        <h1>Milestones Tracking</h1>
       </div>
 
       {/* Semester + Group Filter */}
@@ -605,97 +606,98 @@ export default function SupervisorTracking() {
         )}
       </div>
       
-      {/* Milestones Summary Table - Responsive */}
-      <div style={{ flex: 1, marginTop: isMobile ? 16 : 24, width: '100%' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: isMobile ? '15px' : '16px', color: '#333' }}>Milestones Summary</h3>
-        <div style={{ 
-          border: '1px solid #e5e7eb', 
-          borderRadius: 8, 
-          overflow: 'auto',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-          background: '#fff',
-          width: '100%'
-        }}>
-          <table style={{ 
-            width: '100%', 
-            borderCollapse: 'separate', 
-            borderSpacing: 0,
-            minWidth: isMobile ? '600px' : 'auto'
-          }}>
-            <thead style={{ background: '#f8f9fa' }}>
-              <tr>
-                <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '35px' }}>#</th>
-                <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px' }}>Milestone</th>
-                <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '130px' }}>Deadline</th>
-                <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '130px' }}>Status</th>
-                <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '100px' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {milestones.map((milestone, index) => (
-                <tr key={milestone.id} style={{ borderBottom: '1px solid #f1f5f9', background: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                    <div style={{ fontWeight: 600, fontSize: isMobile ? '12px' : '13px', color: '#6c757d' }}>{index + 1}</div>
-                  </td>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                    <div style={{ fontWeight: 600, fontSize: isMobile ? '13px' : '14px', marginBottom: 4, color: '#333', wordBreak: 'break-word' }}>{milestone.name}</div>
-                    {milestone.description && (
-                      <div style={{ fontSize: isMobile ? '11px' : '12px', color: '#64748b', wordBreak: 'break-word' }}>{milestone.description}</div>
-                    )}
-                  </td>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                    <div style={{ color: '#059669', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', whiteSpace: 'nowrap' }}>
-                       {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
+      {/* Milestones Summary Table - Using DataTable */}
+      <div className={sharedLayout.contentSection} style={{ marginTop: isMobile ? 16 : 24 }}>
+        <h2>Milestones Summary</h2>
+        <DataTable
+          columns={[
+            {
+              key: 'index',
+              title: '#',
+              render: (milestone, index) => (
+                <div style={{ fontWeight: 600, fontSize: '13px', color: '#6c757d', textAlign: 'center' }}>
+                  {index + 1}
+                </div>
+              )
+            },
+            {
+              key: 'name',
+              title: 'Milestone',
+              render: (milestone) => (
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: 4, color: '#333', wordBreak: 'break-word' }}>
+                    {milestone.name}
+                  </div>
+                  {milestone.description && (
+                    <div style={{ fontSize: '12px', color: '#64748b', wordBreak: 'break-word' }}>
+                      {milestone.description}
                     </div>
-                  </td>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                    <span style={{ 
-                      color: getStatusColor(milestone.status), 
-                      background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
-                                 getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
-                                 getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                      padding: isMobile ? '3px 6px' : '4px 8px',
-                      borderRadius: 6,
-                      fontSize: isMobile ? '11px' : '12px',
-                      fontWeight: 600,
-                      border: `1px solid ${getStatusColor(milestone.status)}`,
-                      display: 'inline-block',
+                  )}
+                </div>
+              )
+            },
+            {
+              key: 'deadline',
+              title: 'Deadline',
+              render: (milestone) => (
+                <div style={{ color: '#059669', fontWeight: 600, fontSize: '13px' }}>
+                  {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
+                </div>
+              )
+            },
+            {
+              key: 'status',
+              title: 'Status',
+              render: (milestone) => (
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ 
+                    color: getStatusColor(milestone.status), 
+                    background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
+                               getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
+                               getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    border: `1px solid ${getStatusColor(milestone.status)}`,
+                    display: 'inline-block',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {getStatusText(milestone.status)}
+                  </span>
+                </div>
+              )
+            },
+            {
+              key: 'actions',
+              title: 'Actions',
+              render: (milestone) => (
+                <div style={{ textAlign: 'center' }}>
+                  <Button
+                    onClick={() => openDetailModal(milestone)}
+                    variant="ghost"
+                    style={{ 
+                      fontSize: '12px', 
+                      padding: '6px 10px',
+                      background: '#007bff',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontWeight: 500,
                       whiteSpace: 'nowrap'
-                    }}>
-                      {getStatusText(milestone.status)}
-                    </span>
-                  </td>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                    <Button
-                      onClick={() => openDetailModal(milestone)}
-                      variant="ghost"
-                      style={{ 
-                        fontSize: isMobile ? '10px' : isTablet ? '11px' : '12px', 
-                        padding: isMobile ? '4px 6px' : isTablet ? '5px 8px' : '6px 10px',
-                        background: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        fontWeight: 500,
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      View Details
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {milestones.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
-                    No milestones found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                    }}
+                  >
+                    View Details
+                  </Button>
+                </div>
+              )
+            }
+          ]}
+          data={milestones}
+          loading={loading}
+          emptyMessage="No milestones found"
+        />
       </div>
 
       <Modal open={detailModal} onClose={() => setDetailModal(false)}>

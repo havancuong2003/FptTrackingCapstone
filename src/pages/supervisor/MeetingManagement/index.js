@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import DataTable from '../../../components/DataTable/DataTable';
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +11,7 @@ import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurre
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
 import { getMeetingScheduleDatesByGroup, getMeetingMinutesByMeetingDateId, createMeetingMinutes, updateMeetingMinutes, deleteMeetingMinutes } from '../../../api/meetings';
 import { getMeetingTasksByMinuteId } from '../../../api/tasks';
-import Select from '../../../components/Select/Select';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 
 export default function SupervisorMeetingManagement() {
   const navigate = useNavigate();
@@ -761,9 +762,9 @@ export default function SupervisorMeetingManagement() {
         description: scheduleForm.description.trim()
       };
 
-      // Note: This API endpoint may need to be added to meetings API
-      // For now, keeping direct call but should be moved to api/meetings
-      const response = await client.put(
+      // Call API to update meeting schedule
+      const axiosClient = (await import('../../../utils/axiosClient')).default;
+      const response = await axiosClient.put(
         `/Student/Meeting/schedule/${editingMeeting.id}`,
         payload
       );
@@ -787,117 +788,52 @@ export default function SupervisorMeetingManagement() {
 
   if (loading) {
     return (
-      <div className={styles.loading}>
-        <div>Loading data...</div>
+      <div className={sharedLayout.container}>
+        <div className={sharedLayout.header}>
+          <h1>Meeting Management - Supervisor</h1>
+        </div>
+        <div className={sharedLayout.loading}>Loading data...</div>
       </div>
     );
   }
 
-  // Remove default no meeting display state; will show based on selected group
-
   return (
-    <div className={styles.container}>
-      <div className={styles.header} style={{
-        background: 'white',
-        padding: '24px',
-        borderRadius: '8px',
-        marginBottom: '20px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        border: '1px solid #e5e7eb'
-      }}>
-        <h1 style={{ 
-          margin: '0 0 8px 0', 
-          fontSize: '24px', 
-          fontWeight: '600',
-          color: '#1f2937'
-        }}>
-          Meeting Management - Supervisor
-        </h1>
-        <p style={{ 
-          margin: '0 0 16px 0', 
-          fontSize: '14px', 
-          color: '#6b7280'
-        }}>
-          Manage group meetings
-        </p>
-        
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          {userInfo && (
-            <div className={styles.userInfo} style={{
-              display: 'flex',
-              gap: '16px',
-              flexWrap: 'wrap'
-            }}>
-              <span style={{ fontSize: '14px', color: '#374151' }}>
-                <strong>User:</strong> {userInfo.name}
-              </span>
-              <span style={{ fontSize: '14px', color: '#374151' }}>
-                <strong>Role:</strong> {userInfo.roleInGroup || userInfo.role}
-              </span>
-            </div>
-          )}
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-            {semesters.length > 0 && (
-              <div style={{ minWidth: 200 }}>
-                <Select
-                  value={selectedSemesterId?.toString() || ''}
-                  onChange={(e) => setSelectedSemesterId(parseInt(e.target.value))}
-                  options={semesters.map(s => ({ value: s.id.toString(), label: s.name }))}
-                  placeholder="Select Semester"
-                />
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ fontSize: 14, fontWeight: 500 }}>Group Status:</label>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="groupExpireFilter"
-                    value="active"
-                    checked={groupExpireFilter === 'active'}
-                    onChange={(e) => setGroupExpireFilter(e.target.value)}
-                  />
-                  <span>Active</span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="groupExpireFilter"
-                    value="expired"
-                    checked={groupExpireFilter === 'expired'}
-                    onChange={(e) => setGroupExpireFilter(e.target.value)}
-                  />
-                  <span>Expired</span>
-                </label>
-              </div>
-            </div>
+    <div className={sharedLayout.container}>
+      <div className={sharedLayout.header}>
+        <h1>Meeting Management - Supervisor</h1>
+        <p>Manage group meetings</p>
+        {userInfo && (
+          <div style={{ marginTop: 12, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '14px', color: '#374151' }}>
+              <strong>User:</strong> {userInfo.name}
+            </span>
+            <span style={{ fontSize: '14px', color: '#374151' }}>
+              <strong>Role:</strong> {userInfo.roleInGroup || userInfo.role}
+            </span>
           </div>
-        </div>
+        )}
       </div>
-      {/* Select group to filter meetings */}
-      <div style={{ margin: '0 0 16px 0', display: 'flex', gap: 12, alignItems: 'center' }}>
-        <label style={{ fontSize: 14, color: '#374151' }}>Select group:</label>
-        <select
-          value={selectedGroupId}
-          onChange={async (e) => {
-            const gid = e.target.value;
-            setSelectedGroupId(gid);
-            setMeetings([]);
-            if (gid) await fetchMeetingsByGroup(gid);
-          }}
-          style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', minWidth: 260 }}
-        >
-          <option value="">-- Chọn nhóm để xem meetings --</option>
-          {groupOptions.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-      </div>
+
+      <SupervisorGroupFilter
+        semesters={semesters}
+        selectedSemesterId={selectedSemesterId}
+        onSemesterChange={setSelectedSemesterId}
+        groupExpireFilter={groupExpireFilter}
+        onGroupExpireFilterChange={setGroupExpireFilter}
+        groups={groupOptions.map(opt => ({ id: opt.value, name: opt.label }))}
+        selectedGroupId={selectedGroupId || ''}
+        onGroupChange={async (gid) => {
+          setSelectedGroupId(gid);
+          setMeetings([]);
+          if (gid) await fetchMeetingsByGroup(gid);
+        }}
+        groupSelectPlaceholder="-- Select group to view meetings --"
+        loading={loading}
+      />
 
       {/* Chỉ hiển thị danh sách khi đã chọn nhóm */}
       {selectedGroupId && (
-      <div className={styles.meetingsList}>
+      <div className={sharedLayout.contentSection}>
         {meetings.map((meeting) => {
           const meetingDate = new Date(meeting.meetingDate);
           const formattedDate = meetingDate.toLocaleDateString('vi-VN', {

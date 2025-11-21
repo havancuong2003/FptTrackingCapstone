@@ -10,6 +10,7 @@ import { getCapstoneGroupDetail } from "../../../api/staff/groups";
 import { getGeneralPenaltyCardsByMentor, createPenaltyCard, updatePenaltyCard } from "../../../api/evaluation";
 import SupervisorGroupFilter from "../../../components/SupervisorGroupFilter/SupervisorGroupFilter";
 import styles from "./index.module.scss";
+import sharedLayout from "../sharedLayout.module.scss";
 
 export default function PenaltyManagement() {
   const [penalties, setPenalties] = React.useState([]);
@@ -702,10 +703,10 @@ export default function PenaltyManagement() {
 
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div className={sharedLayout.container}>
+      <div className={sharedLayout.header}>
         <h1>Penalty Management</h1>
-        <div className={styles.headerActions}>
+        <div className={sharedLayout.headerControls}>
           <Button
             onClick={() => openPenaltyModal()}
           >
@@ -741,7 +742,7 @@ export default function PenaltyManagement() {
 
       {/* ------------------ Penalty Statistics Section ------------------ */}
       {selectedGroup && (
-        <div className={styles.penaltyStatsSection}>
+        <div className={sharedLayout.contentSection}>
           <div className={styles.statsHeader}>
             <h2>Thống kê Thẻ phạt theo Sinh viên</h2>
           </div>

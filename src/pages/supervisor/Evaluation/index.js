@@ -1,5 +1,6 @@
 import React from "react";
 import styles from "./index.module.scss";
+import sharedLayout from "../sharedLayout.module.scss";
 import Button from "../../../components/Button/Button";
 import Modal from "../../../components/Modal/Modal";
 import DataTable from "../../../components/DataTable/DataTable";
@@ -842,18 +843,18 @@ export default function SupervisorEvaluation() {
   };
 
   if (loading) {
-    return <div className={styles.loading}>Loading data...</div>;
+    return <div className={sharedLayout.loading}>Loading data...</div>;
   }
 
   if (groups.length === 0) {
-    return <div className={styles.loading}>No groups found.</div>;
+    return <div className={sharedLayout.loading}>No groups found.</div>;
   }
 
   // Hiển thị thông báo khi chưa chọn nhóm
   if (!selectedGroup) {
     return (
-      <div className={styles.container}>
-        <div className={styles.header}>
+      <div className={sharedLayout.container}>
+        <div className={sharedLayout.header}>
           <h1>Student Evaluation</h1>
         </div>
         <div className={styles.controls}>
@@ -870,7 +871,7 @@ export default function SupervisorEvaluation() {
             loading={loading}
           />
         </div>
-        <div className={styles.noSelection}>
+        <div className={sharedLayout.noSelection}>
           <p>Please select a group to view student list and evaluations.</p>
         </div>
       </div>
@@ -879,8 +880,8 @@ export default function SupervisorEvaluation() {
 
   return (
     <>
-      <div className={styles.container}>
-        <div className={styles.header}>
+      <div className={sharedLayout.container}>
+        <div className={sharedLayout.header}>
           <h1>Student Evaluation</h1>
         </div>
 
@@ -916,10 +917,8 @@ export default function SupervisorEvaluation() {
           </div>
         </div>
 
-        <div className={styles.tableSection}>
-          <div className={styles.tableHeader}>
-            <h2>Student evaluation table</h2>
-          </div>
+        <div className={sharedLayout.contentSection}>
+          <h2>Student evaluation table</h2>
           <div className={styles.tableContainer}>
             <DataTable
               key={`evaluation-table-${refreshTrigger}`}

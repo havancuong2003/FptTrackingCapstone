@@ -1,5 +1,6 @@
 import React from 'react';
 import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import DataTable from '../../../components/DataTable/DataTable';
 import { sendDocumentUploadEmail } from '../../../email/documents';
 import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
@@ -329,10 +330,10 @@ export default function SupervisorDocuments() {
   ];
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <h1 style={{ margin: 0 }}>Documents Shared with Group</h1>
-        <div style={{ opacity: 0.7, marginTop: 4 }}>Supervisor can share documents with their groups</div>
+    <div className={sharedLayout.container}>
+      <div className={sharedLayout.header}>
+        <h1>Documents Shared with Group</h1>
+        <p>Supervisor can share documents with their groups</p>
       </div>
 
       <SupervisorGroupFilter
@@ -377,14 +378,14 @@ export default function SupervisorDocuments() {
       )}
 
       {!selectedGroupId && (
-        <div className={styles.emptyState}>
+        <div className={sharedLayout.emptyState}>
           <div style={{ fontSize: 20, marginBottom: 8 }}>Please select a group</div>
           <div style={{ opacity: 0.7 }}>You will see group information and document list after selection.</div>
         </div>
       )}
       
       {selectedGroupId && groupInfo && (
-        <div className={styles.groupInfo}>
+        <div className={sharedLayout.contentSection}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <h2 style={{ margin: 0 }}>{groupInfo.groupCode} — {groupInfo.projectName}</h2>
             <button

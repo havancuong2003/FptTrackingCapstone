@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
@@ -659,8 +660,8 @@ export default function SupervisorTasks() {
   const doneTasks = filteredTasks.filter(task => task.status === 'done');
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div className={sharedLayout.container}>
+      <div className={sharedLayout.header}>
         <h1>Tasks Management - Supervisor View</h1>
       </div>
 

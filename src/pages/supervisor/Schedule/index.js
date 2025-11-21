@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import DataTable from '../../../components/DataTable/DataTable';
 import { 
@@ -447,8 +448,8 @@ export default function SupervisorSchedule() {
   // Không cần return sớm nữa, luôn hiển thị group selector
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div className={sharedLayout.container}>
+      <div className={sharedLayout.header}>
         <h1>Group Meeting Schedule</h1>
         <div className={styles.headerControls}>
           <div className={styles.supervisorBadge}>
