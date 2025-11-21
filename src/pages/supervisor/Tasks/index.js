@@ -233,6 +233,9 @@ export default function SupervisorTasks() {
           const filter = groupInfo.isExpired ? 'expired' : 'active';
           setGroupExpireFilter(filter);
         }
+      } else {
+        // Nếu không có groupId, reset về default
+        setGroupExpireFilter('active');
       }
     };
     
@@ -252,7 +255,7 @@ export default function SupervisorTasks() {
         if (groupId) {
           const selectedGroup = groupsData.find(g => g.id.toString() === groupId);
           if (selectedGroup) {
-            // Group còn trong danh sách, load milestones, students và meetings
+            // Group còn trong danh sách, load milestones, students, meetings và tasks
             const [milestoneRes, studentRes, meetingRes] = await Promise.all([
               fetchMilestonesByGroup(groupId),
               fetchStudentsByGroup(groupId),
@@ -261,6 +264,14 @@ export default function SupervisorTasks() {
             setMilestones(milestoneRes);
             setMeetings(meetingRes);
             setAssigneeSource(studentRes);
+            
+            // Load tasks cho group - skip loading vì đã set ở trên
+            try {
+              await fetchTasksForGroup(groupId, true);
+            } catch (taskError) {
+              console.error('Error fetching tasks:', taskError);
+              // Không throw để không ảnh hưởng đến các data khác
+            }
           } else {
             // Group không còn trong danh sách, có thể do filter sai
             // Thử load lại với filter ngược lại
@@ -281,20 +292,31 @@ export default function SupervisorTasks() {
               setMilestones(milestoneRes);
               setMeetings(meetingRes);
               setAssigneeSource(studentRes);
+              
+              // Load tasks cho group - skip loading vì đã set ở trên
+              try {
+                await fetchTasksForGroup(groupId, true);
+              } catch (taskError) {
+                console.error('Error fetching tasks:', taskError);
+              }
             } else {
               // Group không tìm thấy ở cả 2 filter, reset
               setMilestones([]);
               setMeetings([]);
               setAssigneeSource([]);
+              setTasks([]);
+              setAllTasks([]);
+              setIsSearched(false);
             }
           }
         } else {
           setMilestones([]);
           setMeetings([]);
           setAssigneeSource([]);
+          setTasks([]);
+          setAllTasks([]);
+          setIsSearched(false);
         }
-        
-        setTasks([]);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -540,12 +562,24 @@ export default function SupervisorTasks() {
   };
 
   // Fetch issues for specific group
-  const fetchTasksForGroup = async (gid) => {
+  const fetchTasksForGroup = async (gid, skipLoading = false) => {
+    if (!gid) {
+      console.warn('fetchTasksForGroup: groupId is required');
+      return;
+    }
+    
     try {
-      setLoading(true);
+      // Chỉ set loading nếu không skip (khi gọi từ bootstrapData thì skip)
+      if (!skipLoading) {
+        setLoading(true);
+      }
+      
+      console.log('Fetching tasks for group:', gid);
       
       // Gọi API lấy tất cả issues theo group
       const response = await axiosClient.get(`/Student/Task/get-by-group/${gid}`);
+      
+      console.log('Tasks API response:', response.data);
       
       if (response.data.status === 200) {
         const apiData = response.data.data;
@@ -581,6 +615,7 @@ export default function SupervisorTasks() {
           };
         });
 
+        console.log('Mapped tasks:', mappedTasks);
         setAllTasks(mappedTasks);
         setIsSearched(true);
         
@@ -594,11 +629,15 @@ export default function SupervisorTasks() {
         setAllTasks([]);
       }
     } catch (error) {
-      console.error('Error fetching issues:', error);
-      alert(`Error kết nối: ${error.message}`);
+      console.error('Error fetching tasks:', error);
+      alert(`Error kết nối lấy tasks: ${error.message}`);
       setAllTasks([]);
+      setIsSearched(false);
     } finally {
-      setLoading(false);
+      // Chỉ set loading false nếu không skip (khi gọi từ bootstrapData thì skip)
+      if (!skipLoading) {
+        setLoading(false);
+      }
     }
   };
 

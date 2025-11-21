@@ -20,15 +20,17 @@ export default function Schedule() {
       if (studentGroupId) {
         return studentGroupId;
       }
-      // Fallback nếu không có trong localStorage
-      return '1';
+      return null;
     } catch (error) {
       console.error('Error getting groupId from localStorage:', error);
-      return '1';
+      return null;
     }
   };
   
   const groupId = getGroupId();
+  
+  // Kiểm tra groupId ngay từ đầu
+  const hasValidGroupId = groupId !== null && groupId !== undefined && groupId !== '';
   
   // Lấy thông tin user từ localStorage
   const getCurrentUser = () => {
@@ -37,20 +39,10 @@ export default function Schedule() {
       if (authUser) {
         return JSON.parse(authUser);
       }
-      // Mock user nếu không có trong localStorage
-      return {
-        id: 1,
-        name: 'Nguyễn Văn A',
-        role: 'student'
-      };
+      return null;
     } catch (error) {
       console.error('Error parsing auth_user:', error);
-      // Mock user fallback
-      return {
-        id: 1,
-        name: 'Nguyễn Văn A',
-        role: 'student'
-      };
+      return null;
     }
   };
   
@@ -82,10 +74,15 @@ export default function Schedule() {
   ];
 
   useEffect(() => {
+    // Nếu không có groupId hợp lệ, không gọi API
+    if (!hasValidGroupId) {
+      setLoading(false);
+      return;
+    }
     if (groupId) {
       loadGroupData();
     }
-  }, [groupId]);
+  }, [groupId, hasValidGroupId]);
 
   // Load slots từ campus
   useEffect(() => {
@@ -445,6 +442,18 @@ export default function Schedule() {
     }
   };
 
+
+  // Nếu không có groupId hợp lệ, hiển thị thông báo
+  if (!hasValidGroupId) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.emptyState || styles.error}>
+          <div className={styles.emptyTitle || styles.errorTitle}>You are not in any group</div>
+          <div className={styles.emptyMessage || styles.errorMessage}>Please contact the supervisor to be added to a group.</div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && !group) {
     return <div className={styles.loading}>Loading...</div>;

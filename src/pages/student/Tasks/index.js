@@ -33,6 +33,9 @@ export default function StudentTasks() {
   const [meetings, setMeetings] = React.useState([]);
   const [reviewers, setReviewers] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  
+  // Kiểm tra groupId ngay từ đầu
+  const hasValidGroupId = groupId !== null && groupId !== undefined && groupId !== '';
   const [taskModal, setTaskModal] = React.useState(false);
   const [newTask, setNewTask] = React.useState({
     title: '',
@@ -263,6 +266,12 @@ export default function StudentTasks() {
   };
 
   React.useEffect(() => {
+    // Nếu không có groupId hợp lệ, không gọi API
+    if (!hasValidGroupId) {
+      setLoading(false);
+      return;
+    }
+
     const bootstrapFilters = async () => {
       try {
         setLoading(true);
@@ -292,7 +301,7 @@ export default function StudentTasks() {
     };
 
     bootstrapFilters();
-  }, [groupId]);
+  }, [groupId, hasValidGroupId]);
 
   // Nguồn assignee lấy từ API theo group
   const [assigneeSource, setAssigneeSource] = React.useState([]);
@@ -832,6 +841,18 @@ export default function StudentTasks() {
       alert(`Error upload attachment: ${error.message}`);
     }
   };
+
+  // Nếu không có groupId hợp lệ, hiển thị thông báo
+  if (!hasValidGroupId) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.emptyState}>
+          <div className={styles.emptyTitle}>You are not in any group</div>
+          <div className={styles.emptyMessage}>Please contact the supervisor to be added to a group.</div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

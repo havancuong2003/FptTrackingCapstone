@@ -132,8 +132,16 @@ export default function StudentMilestones() {
 
   // Set loading false when all data loaded
   React.useEffect(() => {
-    if (userInfo && groupInfo && semesterInfo) {
-      setLoading(false);
+    if (userInfo) {
+      // Nếu không có groups, set loading false ngay
+      if (!userInfo.groups || userInfo.groups.length === 0) {
+        setLoading(false);
+        return;
+      }
+      // Nếu có groupInfo và semesterInfo thì set loading false
+      if (groupInfo && semesterInfo) {
+        setLoading(false);
+      }
     }
   }, [userInfo, groupInfo, semesterInfo]);
 
@@ -353,6 +361,20 @@ export default function StudentMilestones() {
   const isMobile = currentWidth <= 576;
   const isTablet = currentWidth > 576 && currentWidth <= 1024;
   const isDesktop = currentWidth > 1024;
+
+  // Nếu không có group, hiển thị thông báo
+  if (!loading && (!userInfo?.groups || userInfo.groups.length === 0)) {
+    return (
+      <div style={{ padding: 32, textAlign: 'center' }}>
+        <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
+          You are not in any group
+        </div>
+        <div style={{ color: '#6b7280' }}>
+          Please contact the supervisor to be added to a group.
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

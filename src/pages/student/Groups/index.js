@@ -29,9 +29,11 @@ export default function StudentGroups() {
                 const userResponse = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
                 const userInfo = userResponse?.data?.data;
                 
+                // Kiểm tra sớm: nếu không có groups, không gọi API tiếp
                 if (!userInfo?.groups || userInfo.groups.length === 0) {
                     console.error('No groups found for student');
                     setGroups([]);
+                    setLoading(false);
                     return;
                 }
                 
@@ -286,9 +288,10 @@ export default function StudentGroups() {
                 })}
             </div>
             
-            {groups.length === 0 && (
+            {groups.length === 0 && !loading && (
                 <div className={styles.emptyState}>
-                    <p>You have not been assigned to any group yet.</p>
+                    <div className={styles.emptyTitle}>You are not in any group</div>
+                    <div className={styles.emptyMessage}>Please contact the supervisor to be added to a group.</div>
                 </div>
             )}
 

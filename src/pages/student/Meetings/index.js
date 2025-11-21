@@ -1,71 +1,106 @@
 import React from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
+import client from '../../../utils/axiosClient';
 
 export default function StudentMeetings() {
   const [meetings, setMeetings] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState('all');
+  const [hasGroup, setHasGroup] = React.useState(false);
+
+  // Kiểm tra groupId trước
+  React.useEffect(() => {
+    const checkGroup = async () => {
+      try {
+        // Kiểm tra từ localStorage trước
+        const studentGroupId = localStorage.getItem('student_group_id');
+        if (studentGroupId) {
+          setHasGroup(true);
+          return;
+        }
+        
+        // Nếu không có trong localStorage, kiểm tra từ API
+        const userResponse = await client.get("/auth/user-info");
+        const userInfo = userResponse?.data?.data;
+        
+        if (userInfo?.groups && userInfo.groups.length > 0) {
+          setHasGroup(true);
+        } else {
+          setHasGroup(false);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error checking group:', error);
+        setHasGroup(false);
+        setLoading(false);
+      }
+    };
+    
+    checkGroup();
+  }, []);
 
   React.useEffect(() => {
+    // Chỉ fetch meetings nếu có group
+    if (!hasGroup) return;
+    
     const fetchMeetings = async () => {
       try {
         setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        const mockData = {
-          "status": 200,
-          "message": "Fetched successfully",
-          "data": [
-            {
-              "id": 1,
-              "topic": "Project Kickoff Meeting",
-              "datetime": "2025-10-15T14:00:00Z",
-              "duration": 60,
-              "linkMeet": "https://meet.google.com/abc-defg-hij",
-              "participants": ["SE00001", "SE00002", "SE00003", "SUPERVISOR001"],
-              "status": "completed",
-              "objective": "Discuss project requirements and initial planning",
-              "minutes": {
-                "id": 1,
-                "content": "Discussed project scope and timeline",
-                "issues": ["Need to clarify database requirements"],
-                "actions": ["Research database options", "Setup development environment"]
-              }
-            },
-            {
-              "id": 2,
-              "topic": "Weekly Progress Review",
-              "datetime": "2025-10-22T14:00:00Z",
-              "duration": 45,
-              "linkMeet": "https://meet.google.com/xyz-uvw-rst",
-              "participants": ["SE00001", "SE00002", "SE00003", "SUPERVISOR001"],
-              "status": "upcoming",
-              "objective": "Review progress on milestone 1 and plan for milestone 2"
-            },
-            {
-              "id": 3,
-              "topic": "Technical Review Session",
-              "datetime": "2025-10-29T15:00:00Z",
-              "duration": 90,
-              "linkMeet": "https://meet.google.com/def-ghij-klm",
-              "participants": ["SE00001", "SE00002", "SE00003", "SUPERVISOR001"],
-              "status": "scheduled",
-              "objective": "Review system design and technical implementation"
-            }
-          ]
-        };
+        // Lấy groupId từ localStorage hoặc API
+        let groupId = localStorage.getItem('student_group_id');
+        if (!groupId) {
+          const userResponse = await client.get("/auth/user-info");
+          const userInfo = userResponse?.data?.data;
+          if (userInfo?.groups && userInfo.groups.length > 0) {
+            groupId = userInfo.groups[0];
+          } else {
+            setMeetings([]);
+            setLoading(false);
+            return;
+          }
+        }
         
-        setMeetings(mockData.data);
+        // Gọi API thật để lấy meetings
+        const response = await client.get(`/Student/Meeting/group/${groupId}/schedule-dates`);
+        
+        if (response.data.status === 200) {
+          const apiData = response.data.data;
+          const meetingsData = Array.isArray(apiData) ? apiData : [];
+          
+          // Map data từ API sang format frontend
+          const mappedMeetings = meetingsData
+            .filter(meeting => meeting.isMeeting === true)
+            .map(meeting => ({
+              id: meeting.id,
+              topic: meeting.description || 'Meeting',
+              datetime: meeting.meetingDate ? `${meeting.meetingDate}T${meeting.time || '00:00:00'}` : new Date().toISOString(),
+              duration: 60, // Default duration nếu không có
+              linkMeet: meeting.meetingLink || '',
+              participants: [], // Có thể lấy từ group members nếu cần
+              status: new Date(meeting.meetingDate) < new Date() ? 'completed' : 'upcoming',
+              objective: meeting.description || '',
+              meetingDate: meeting.meetingDate,
+              time: meeting.time,
+              dayOfWeek: meeting.dayOfWeek
+            }));
+          
+          setMeetings(mappedMeetings);
+        } else {
+          console.error('Error fetching meetings:', response.data.message);
+          setMeetings([]);
+        }
       } catch (error) {
         console.error('Error fetching meetings:', error);
+        setMeetings([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchMeetings();
-  }, []);
+  }, [hasGroup]);
 
   const getStatusInfo = (status) => {
     switch (status) {
@@ -106,6 +141,18 @@ export default function StudentMeetings() {
   const joinMeeting = (link) => {
     window.open(link, '_blank');
   };
+
+  // Nếu không có group, hiển thị thông báo
+  if (!hasGroup && !loading) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.emptyState}>
+          <div className={styles.emptyTitle}>You are not in any group</div>
+          <div className={styles.emptyMessage}>Please contact the supervisor to be added to a group.</div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

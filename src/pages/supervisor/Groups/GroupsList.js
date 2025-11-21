@@ -11,13 +11,21 @@ export default function GroupsList({ isExpired = false }) {
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
+        let isMounted = true;
+        let abortController = new AbortController();
+        
         const fetchGroups = async () => {
             try {
                 setLoading(true);
                 
                 // Call API based on isExpired flag
                 const apiEndpoint = isExpired ? '/Mentor/expired-groups' : '/Mentor/getGroups';
-                const groupsResponse = await axiosClient.get(apiEndpoint);
+                const groupsResponse = await axiosClient.get(apiEndpoint, {
+                    signal: abortController.signal
+                });
+                
+                // Chỉ update state nếu component vẫn còn mounted
+                if (!isMounted) return;
                 
                 if (groupsResponse.data.status === 200) {
                     const groupList = groupsResponse.data.data || [];
@@ -47,20 +55,38 @@ export default function GroupsList({ isExpired = false }) {
                         };
                     });
                     
-                    setGroups(formattedGroups);
+                    if (isMounted) {
+                        setGroups(formattedGroups);
+                    }
                 } else {
                     console.error('Error fetching groups:', groupsResponse.data.message);
-                    setGroups([]);
+                    if (isMounted) {
+                        setGroups([]);
+                    }
                 }
             } catch (error) {
+                // Ignore abort errors
+                if (error.name === 'AbortError' || error.name === 'CanceledError') {
+                    return;
+                }
                 console.error('Error fetching groups:', error);
-                setGroups([]);
+                if (isMounted) {
+                    setGroups([]);
+                }
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
 
         fetchGroups();
+        
+        // Cleanup function
+        return () => {
+            isMounted = false;
+            abortController.abort();
+        };
     }, [isExpired]);
 
     const handleViewDetail = (groupId, groupIsExpired) => {
@@ -113,36 +139,33 @@ export default function GroupsList({ isExpired = false }) {
             title: 'Actions',
             render: (group) => (
                 <div className={styles.actionButtons}>
-                    <Button 
-                        size="sm"
-                        variant="secondary"
+                    <button 
+                        className={styles.actionBtn}
                         onClick={(e) => {
                             e.stopPropagation();
                             handleViewDetail(group.id, group.isExpired);
                         }}
                     >
                         Detail
-                    </Button>
-                    <Button 
-                        size="sm"
-                        variant="secondary"
+                    </button>
+                    <button 
+                        className={styles.actionBtn}
                         onClick={(e) => {
                             e.stopPropagation();
                             handleViewTasks(group.id, group.isExpired);
                         }}
                     >
                         Tasks
-                    </Button>
-                    <Button 
-                        size="sm"
-                        variant="secondary"
+                    </button>
+                    <button 
+                        className={styles.actionBtn}
                         onClick={(e) => {
                             e.stopPropagation();
                             handleViewMilestones(group.id, group.isExpired);
                         }}
                     >
                         Milestone
-                    </Button>
+                    </button>
                 </div>
             )
         }

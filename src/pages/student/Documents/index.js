@@ -15,6 +15,9 @@ export default function StudentDocuments() {
     loadUserAndGroups();
   }, []);
 
+  // Kiểm tra nếu không có group
+  const hasNoGroup = !loading && groupOptions.length === 0;
+
   const loadUserAndGroups = async () => {
     setLoading(true);
     setMessage('');
@@ -186,6 +189,22 @@ export default function StudentDocuments() {
       )
   }
   ];
+
+  // Nếu không có group, hiển thị thông báo
+  if (hasNoGroup) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.emptyState || styles.message}>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
+            You are not in any group
+          </div>
+          <div style={{ color: '#6b7280' }}>
+            Please contact the supervisor to be added to a group.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>

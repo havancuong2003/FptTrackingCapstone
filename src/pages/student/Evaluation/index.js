@@ -45,15 +45,8 @@ export default function StudentEvaluation() {
         console.error('Error details:', err.response?.data);
         console.error('Error status:', err.response?.status);
         
-        // Sử dụng mock data khi API lỗi
-        const mockMilestones = [
-          { id: "1", name: "Milestone 1: Project Introduction" },
-          { id: "2", name: "Milestone 2: Project Planning" },
-          { id: "3", name: "Milestone 3: Requirement Analysis" },
-          { id: "4", name: "Milestone 4: System Design" },
-          { id: "5", name: "Milestone 5: Implementation" }
-        ];
-        setMilestones(mockMilestones);
+        // Không sử dụng mock data, trả về mảng rỗng
+        setMilestones([]);
       } finally {
         setLoading(false);
       }
@@ -238,6 +231,26 @@ export default function StudentEvaluation() {
   };
 
   const stats = getSummaryStats();
+
+  // Kiểm tra nếu không có group
+  const groupId = getGroupId() || localStorage.getItem('student_group_id');
+  const hasNoGroup = !loading && !groupId;
+
+  // Nếu không có group, hiển thị thông báo
+  if (hasNoGroup) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.emptyState || styles.loading}>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
+            You are not in any group
+          </div>
+          <div style={{ color: '#6b7280' }}>
+            Please contact the supervisor to be added to a group.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && evaluations.length === 0) {
     return <div className={styles.loading}>Loading data...</div>;
