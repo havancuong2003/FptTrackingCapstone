@@ -3,6 +3,7 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 
 export default function SupervisorMeetings() {
   const [meetings, setMeetings] = React.useState([]);

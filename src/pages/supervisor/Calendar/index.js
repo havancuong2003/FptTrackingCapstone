@@ -6,9 +6,16 @@ import Input from '../../../components/Input/Input';
 import Textarea from '../../../components/Textarea/Textarea';
 import DataTable from '../../../components/DataTable/DataTable';
 import { useNavigate } from 'react-router-dom';
-import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
-import { getUserInfo } from '../../../auth/auth';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getSlotsByCampusId } from '../../../api/slots';
+import { getDeliverablesByGroup, getDeliverableDetail } from '../../../api/deliverables';
+import { getTasksByGroup } from '../../../api/tasks';
+import { getMeetingScheduleDatesByGroup, getMeetingMinutesByMeetingDateId } from '../../../api/meetings';
+import { getMeetingTasksByMinuteId } from '../../../api/tasks';
+import { getSemesterDetail } from '../../../api/semester';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -46,40 +53,30 @@ export default function SupervisorCalendar() {
   const [milestoneDetails, setMilestoneDetails] = React.useState(null);
   const [selectedMeetingGroupInfo, setSelectedMeetingGroupInfo] = React.useState(null);
   const [meetingIssues, setMeetingIssues] = React.useState([]);
-  const [timeSlots, setTimeSlots] = React.useState([]); // Slots từ API
+  const [timeSlots, setTimeSlots] = React.useState([]); // Slots from API
   const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
-  const [groupsWithoutSchedule, setGroupsWithoutSchedule] = React.useState([]); // Danh sách nhóm chưa chốt lịch họp
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
 
-  // API Base URL
-  const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
-
-  // Load user info từ localStorage, không gọi API
+  // Load user info from localStorage, don't call API
   React.useEffect(() => {
     let mounted = true;
-    async function loadUserInfo() {
+    function loadUserInfo() {
       try {
         const user = getUserInfo();
         if (!mounted) return;
         setUserInfo(user);
         
-        // Load groups that this supervisor is supervising
-        if (user && user.groups && user.groups.length > 0) {
-          // Fetch all groups that this supervisor manages
-          const allGroups = [];
-          for (const groupId of user.groups) {
-            try {
-              const groupsRes = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${groupId}`);
-              const groupData = groupsRes?.data?.data;
-              if (groupData) {
-                allGroups.push(groupData);
-              }
-            } catch (error) {
-              console.error(`Error loading group ${groupId}:`, error);
-            }
-          }
-          if (mounted) {
-            setGroups(allGroups);
-          }
+        // Get semesters and set default
+        const uniqueSemesters = getUniqueSemesters();
+        setSemesters(uniqueSemesters);
+        
+        const currentSemesterId = getCurrentSemesterId();
+        if (currentSemesterId) {
+          setSelectedSemesterId(currentSemesterId);
+        } else if (uniqueSemesters.length > 0) {
+          setSelectedSemesterId(uniqueSemesters[0].id);
         }
       } catch (error) {
         if (!mounted) return;
@@ -92,18 +89,47 @@ export default function SupervisorCalendar() {
     return () => { mounted = false; };
   }, []);
 
-  // Load slots từ API dựa trên campusId
+  // Load groups from localStorage when filter changes (no API call)
+  React.useEffect(() => {
+    if (selectedSemesterId === null || !userInfo) {
+      setGroups([]);
+      return;
+    }
+    
+    // Get groups from localStorage based on semester and expired status
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    
+    // Only store basic info from localStorage, don't fetch details yet
+    const groupsBasicInfo = groupsFromStorage.map(groupInfo => ({
+      id: groupInfo.id,
+      name: groupInfo.name || '',
+      groupCode: groupInfo.code || groupInfo.groupCode || '',
+      semesterId: groupInfo.semesterId,
+      isExpired: groupInfo.isExpired || false
+    }));
+    
+    setGroups(groupsBasicInfo);
+    setLoading(false); // Set loading false after groups are loaded from localStorage
+    
+    // Clear data when filter changes
+    setMilestones([]);
+    setMeetings([]);
+    setTasks([]);
+  }, [selectedSemesterId, groupExpireFilter, userInfo]); 
+
+  // Load slots from API based on campusId
   React.useEffect(() => {
     let mounted = true;
     async function loadSlots() {
       if (!userInfo?.campusId) return;
       try {
-        const res = await client.get(`${API_BASE_URL}/slot/ById/${userInfo.campusId}`);
-        if (res.data.status === 200 && res.data.data?.slots) {
-          const slots = res.data.data.slots;
-          // Chuyển đổi slots từ API thành format phù hợp
+        const res = await getSlotsByCampusId(userInfo.campusId);
+        if (res.status === 200 && res.data?.slots) {
+          const slots = res.data.slots;
+          // Convert slots from API to appropriate format
           const formattedSlots = slots.map(slot => {
-            // Parse thời gian từ "7:30 AM" hoặc "1:00 PM" format
+            // Parse time from "7:30 AM" or "1:00 PM" format
             const parseTime = (timeStr) => {
               const time = timeStr.trim();
               const isPM = time.toUpperCase().includes('PM');
@@ -132,7 +158,7 @@ export default function SupervisorCalendar() {
       } catch (error) {
         console.error('Error loading slots:', error);
         if (!mounted) return;
-        // Fallback về TIME_SLOTS mặc định nếu lỗi
+        // Fallback to default TIME_SLOTS if error
         setTimeSlots([
           { label: '00:00-04:00', start: 0, end: 4 },
           { label: '04:00-08:00', start: 4, end: 8 },
@@ -153,8 +179,8 @@ export default function SupervisorCalendar() {
     async function loadSemesterInfo() {
       if (!groups.length || !groups[0]?.semesterId) return;
       try {
-        const res = await client.get(`${API_BASE_URL}/Staff/semester/getSemesterBy/${groups[0].semesterId}`);
-        const semester = res?.data?.data || null;
+        const res = await getSemesterDetail(groups[0].semesterId);
+        const semester = res?.data || null;
         if (!mounted) return;
         setSemesterInfo(semester);
         setWeeks(semester?.weeks || []);
@@ -172,166 +198,93 @@ export default function SupervisorCalendar() {
   }, [groups]);
 
 
-  // Load milestones for all groups
+  // Selected group state for Calendar
+  const [selectedGroupId, setSelectedGroupId] = React.useState(null);
+
+  // Load data only when a group is selected
   React.useEffect(() => {
+    if (!selectedGroupId) {
+      setMilestones([]);
+      setMeetings([]);
+      setTasks([]);
+      return;
+    }
+
+    // Check if selected group exists in current filtered groups
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    const selectedGroupExists = groupsFromStorage.some(g => g.id === Number(selectedGroupId));
+    
+    if (!selectedGroupExists) {
+      setMilestones([]);
+      setMeetings([]);
+      setTasks([]);
+      return;
+    }
+
     let mounted = true;
-    async function loadMilestones() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
+    async function loadGroupData() {
       try {
-        const allMilestones = [];
-        for (const groupId of userInfo.groups) {
-          try {
-            const res = await client.get(`${API_BASE_URL}/deliverables/group/${groupId}`);
-            const list = Array.isArray(res?.data) ? res.data : [];
-            if (list.length > 0) {
-              const milestonesWithGroup = list.map(milestone => ({
-                ...milestone,
-                groupId: groupId
-              }));
-              allMilestones.push(...milestonesWithGroup);
-            }
-          } catch (error) {
-            console.error(`Error loading milestones for group ${groupId}:`, error);
-          }
-        }
+        // Load milestones, meetings, tasks for selected group
+        const [milestonesRes, meetingsRes, tasksRes] = await Promise.allSettled([
+          getDeliverablesByGroup(selectedGroupId),
+          getMeetingScheduleDatesByGroup(selectedGroupId),
+          getTasksByGroup(selectedGroupId)
+        ]);
+
         if (!mounted) return;
-        setMilestones(allMilestones);
-      } catch {
+
+        // Process milestones
+        if (milestonesRes.status === 'fulfilled') {
+          const list = Array.isArray(milestonesRes.value?.data) ? milestonesRes.value.data : [];
+          const milestonesWithGroup = list.map(milestone => ({
+            ...milestone,
+            groupId: selectedGroupId
+          }));
+          setMilestones(milestonesWithGroup);
+        } else {
+          setMilestones([]);
+        }
+
+        // Process meetings
+        if (meetingsRes.status === 'fulfilled' && meetingsRes.value?.status === 200) {
+          const meetingsData = meetingsRes.value.data || [];
+          const meetingsWithGroup = meetingsData.map(meeting => ({
+            ...meeting,
+            groupId: selectedGroupId
+          }));
+          meetingsWithGroup.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
+          setMeetings(meetingsWithGroup);
+        } else {
+          setMeetings([]);
+        }
+
+        // Process tasks
+        if (tasksRes.status === 'fulfilled' && tasksRes.value?.status === 200) {
+          const tasksData = tasksRes.value.data || [];
+          const tasksWithGroup = tasksData.map(task => ({
+            ...task,
+            groupId: selectedGroupId
+          }));
+          setTasks(tasksWithGroup);
+        } else {
+          setTasks([]);
+        }
+      } catch (error) {
+        console.error('Error loading group data:', error);
         if (!mounted) return;
         setMilestones([]);
-      }
-    }
-    loadMilestones();
-    return () => { mounted = false; };
-  }, [userInfo?.groups]);
-
-  // Load meetings for all groups
-  React.useEffect(() => {
-    let mounted = true;
-    async function loadMeetings() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
-      try {
-        const allMeetings = [];
-        for (const groupId of userInfo.groups) {
-          try {
-            const response = await client.get(`${API_BASE_URL}/Student/Meeting/group/${groupId}/schedule-dates`);
-            if (response.data.status === 200) {
-              const meetingsData = response.data.data;
-              if (meetingsData && meetingsData.length > 0) {
-                const meetingsWithGroup = meetingsData.map(meeting => ({
-                  ...meeting,
-                  groupId: groupId
-                }));
-                allMeetings.push(...meetingsWithGroup);
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching meetings for group ${groupId}:`, error);
-          }
-        }
-        
-        // Sort by meeting date
-        allMeetings.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
-        
-        if (!mounted) return;
-        setMeetings(allMeetings);
-      } catch (error) {
-        console.error('Error loading meetings:', error);
-        if (!mounted) return;
         setMeetings([]);
-      }
-    }
-    loadMeetings();
-    return () => { mounted = false; };
-  }, [userInfo?.groups]);
-
-  // Load tasks for all groups (chỉ lấy task mà giáo viên là reviewer)
-  React.useEffect(() => {
-    let mounted = true;
-    async function loadTasks() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
-      try {
-        const allTasks = [];
-        for (const groupId of userInfo.groups) {
-          try {
-            const response = await client.get(`${API_BASE_URL}/Tasks/reviewer?groupId=${groupId}`);
-            if (Array.isArray(response.data)) {
-              const tasksData = response.data;
-              if (tasksData && tasksData.length > 0) {
-                const tasksWithGroup = tasksData.map(task => ({
-                  ...task,
-                  title: task.name || task.title,
-                  groupId: groupId,
-                  isActive: true // Mặc định là active
-                }));
-                allTasks.push(...tasksWithGroup);
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching tasks for group ${groupId}:`, error);
-          }
-        }
-        
-        if (!mounted) return;
-        setTasks(allTasks);
-      } catch (error) {
-        console.error('Error loading tasks:', error);
-        if (!mounted) return;
         setTasks([]);
       }
     }
-    loadTasks();
+    loadGroupData();
     return () => { mounted = false; };
-  }, [userInfo?.groups]);
+  }, [selectedGroupId, selectedSemesterId, groupExpireFilter]);
 
-  // Kiểm tra các nhóm chưa chốt lịch họp
+  // Set loading false when groups are loaded (no need to wait for data)
   React.useEffect(() => {
-    let mounted = true;
-    async function checkGroupsSchedule() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
-      try {
-        const groupsWithoutScheduleList = [];
-        for (const groupId of userInfo.groups) {
-          try {
-            const response = await client.get(`${API_BASE_URL}/Student/Meeting/schedule/finalize/getById/${groupId}`);
-            if (response.data.status === 200) {
-              const data = response.data.data;
-              // Kiểm tra nếu message là "Schedule not found." hoặc data.id === 0 hoặc không có thông tin hợp lệ
-              if (response.data.message === "Schedule not found." || 
-                  !data || 
-                  !data.id || 
-                  data.id === 0 || 
-                  !data.isActive || 
-                  !data.meetingLink || 
-                  !data.slot || 
-                  !data.dayOfWeek) {
-                // Lưu cả string và number để so sánh dễ dàng
-                groupsWithoutScheduleList.push(String(groupId));
-                groupsWithoutScheduleList.push(Number(groupId));
-              }
-            }
-          } catch (error) {
-            console.error(`Error checking schedule for group ${groupId}:`, error);
-            // Nếu lỗi, cũng coi như chưa chốt lịch
-            groupsWithoutScheduleList.push(String(groupId));
-            groupsWithoutScheduleList.push(Number(groupId));
-          }
-        }
-        if (!mounted) return;
-        setGroupsWithoutSchedule(groupsWithoutScheduleList);
-      } catch (error) {
-        console.error('Error checking groups schedule:', error);
-        if (!mounted) return;
-        setGroupsWithoutSchedule([]);
-      }
-    }
-    checkGroupsSchedule();
-    return () => { mounted = false; };
-  }, [userInfo?.groups]);
-
-  // Set loading false when all data loaded
-  React.useEffect(() => {
-    if (userInfo && groups.length > 0 && semesterInfo && weeks.length > 0) {
+    if (userInfo && groups.length >= 0 && semesterInfo && weeks.length > 0) {
       setLoading(false);
     }
   }, [userInfo, groups, semesterInfo, weeks]);
@@ -618,10 +571,10 @@ export default function SupervisorCalendar() {
   // Fetch group info for meeting
   const fetchMeetingGroupInfo = async (groupId) => {
     try {
-      const response = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${groupId}`);
-      if (response.data.status === 200) {
-        setSelectedMeetingGroupInfo(response.data.data);
-        return response.data.data;
+      const response = await getCapstoneGroupDetail(groupId);
+      if (response.status === 200) {
+        setSelectedMeetingGroupInfo(response.data);
+        return response.data;
       }
       return null;
     } catch (error) {
@@ -631,7 +584,7 @@ export default function SupervisorCalendar() {
     }
   };
 
-  // Hàm parse attendance text thành danh sách
+  // Function to parse attendance text into list
   const parseAttendance = (attendanceText, students) => {
     if (!students || students.length === 0) {
       return [];
@@ -656,12 +609,12 @@ export default function SupervisorCalendar() {
       if (match) {
         const [, name, rollNumber, status] = match;
         const statusLower = status.toLowerCase();
-        const isAbsent = statusLower.includes('nghỉ') || statusLower.includes('vắng');
+        const isAbsent = statusLower.includes('absent') || statusLower.includes('nghỉ') || statusLower.includes('vắng');
         let reason = '';
         
         if (isAbsent) {
-          const reasonMatch = status.match(/(?:nghỉ|vắng)\s*-\s*(.+)/i);
-          reason = reasonMatch ? reasonMatch[1].trim() : status.replace(/^(nghỉ|vắng)\s*-?\s*/i, '').trim();
+          const reasonMatch = status.match(/(?:absent|nghỉ|vắng)\s*-\s*(.+)/i);
+          reason = reasonMatch ? reasonMatch[1].trim() : status.replace(/^(absent|nghỉ|vắng)\s*-?\s*/i, '').trim();
         }
         
         parsed.set(rollNumber.trim(), {
@@ -699,8 +652,8 @@ export default function SupervisorCalendar() {
   // Fetch meeting issues (tasks) by meeting minute id
   const fetchMeetingIssues = async (meetingMinuteId) => {
     try {
-      const res = await client.get(`${API_BASE_URL}/Student/Task/meeting-tasks/${meetingMinuteId}`);
-      const data = res.data?.data;
+      const res = await getMeetingTasksByMinuteId(meetingMinuteId);
+      const data = res?.data;
       const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
       return tasks.map(t => ({
         id: t.id,
@@ -723,7 +676,7 @@ export default function SupervisorCalendar() {
 
   const meetingIssueColumns = [
     { key: 'name', title: 'Issue' },
-    { key: 'deadline', title: 'Deadline', render: (row) => formatDateTime(row.deadline) },
+    { key: 'deadline', title: 'Hạn', render: (row) => formatDateTime(row.deadline) },
     {
       key: 'actions',
       title: '',
@@ -737,7 +690,7 @@ export default function SupervisorCalendar() {
             style={{
               background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
             }}
-          >Details</button>
+          >Detail</button>
         </div>
       )
     }
@@ -759,33 +712,33 @@ export default function SupervisorCalendar() {
         currentGroupInfo = await fetchMeetingGroupInfo(meeting.groupId);
       }
 
-      // Chỉ fetch meeting minute nếu isMinute === true
+      // Only fetch meeting minute if isMinute === true
       if (meeting.isMinute === true) {
         try {
-          const response = await client.get(`${API_BASE_URL}/MeetingMinute?meetingDateId=${meeting.id}`);
-          if (response.data.status === 200 && response.data.data) {
-            setMinuteData(response.data.data);
+          const response = await getMeetingMinutesByMeetingDateId(meeting.id);
+          if (response.status === 200 && response.data) {
+            setMinuteData(response.data);
             
-            // Parse attendance từ text
+            // Parse attendance from text
             if (currentGroupInfo && currentGroupInfo.students) {
               const students = Array.isArray(currentGroupInfo.students) ? currentGroupInfo.students : [];
-              const parsedAttendance = parseAttendance(response.data.data.attendance, students);
+              const parsedAttendance = parseAttendance(response.data.attendance, students);
               setAttendanceList(parsedAttendance);
             }
             
             setFormData({
-              startAt: response.data.data.startAt ? response.data.data.startAt.split('T')[0] + 'T' + response.data.data.startAt.split('T')[1].substring(0, 5) : '',
-              endAt: response.data.data.endAt ? response.data.data.endAt.split('T')[0] + 'T' + response.data.data.endAt.split('T')[1].substring(0, 5) : '',
-              attendance: response.data.data.attendance || '',
-              issue: response.data.data.issue || '',
-              meetingContent: response.data.data.meetingContent || '',
-              other: response.data.data.other || ''
+              startAt: response.data.startAt ? response.data.startAt.split('T')[0] + 'T' + response.data.startAt.split('T')[1].substring(0, 5) : '',
+              endAt: response.data.endAt ? response.data.endAt.split('T')[0] + 'T' + response.data.endAt.split('T')[1].substring(0, 5) : '',
+              attendance: response.data.attendance || '',
+              issue: response.data.issue || '',
+              meetingContent: response.data.meetingContent || '',
+              other: response.data.other || ''
             });
             setIsEditing(true);
             
-            // Load meeting issues bằng meeting minute id
-            if (response.data.data.id) {
-              const meetingTasks = await fetchMeetingIssues(response.data.data.id);
+            // Load meeting issues by meeting minute id
+            if (response.data.id) {
+              const meetingTasks = await fetchMeetingIssues(response.data.id);
               setMeetingIssues(Array.isArray(meetingTasks) ? meetingTasks : []);
             }
           } else {
@@ -804,7 +757,7 @@ export default function SupervisorCalendar() {
     } catch (error) {
       console.error('Error loading meeting data:', error);
     } finally {
-      // Chỉ hiện modal sau khi đã load xong tất cả dữ liệu
+      // Only show modal after all data is loaded
       setMeetingModal(true);
     }
   };
@@ -827,7 +780,7 @@ export default function SupervisorCalendar() {
     
     // Load milestone details
     try {
-      const res = await client.get(`${API_BASE_URL}/deliverables/group/detail?groupdId=${milestone.groupId}&deliverableId=${milestone.id}`);
+      const res = await getDeliverableDetail(milestone.groupId, milestone.id);
       setMilestoneDetails(res?.data || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
@@ -930,19 +883,34 @@ export default function SupervisorCalendar() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+    <div style={{ padding: 16, maxWidth: '100%' }}>
+      {/* Header */}
+      <div style={{ marginBottom: 24 }}>
         <h1 style={{ margin: 0, fontSize: 24 }}>Supervisor Calendar</h1>
-        <div style={{ fontSize: 14, color: '#64748b' }}>
+        <div style={{ fontSize: 14, color: '#64748b', marginTop: 4 }}>
           Managing {groups.length} group{groups.length > 1 ? 's' : ''}
         </div>
       </div>
+
+      {/* Semester + Group Filter */}
+      <div style={{ marginBottom: 24 }}>
+        <SupervisorGroupFilter
+          semesters={semesters}
+          selectedSemesterId={selectedSemesterId}
+          onSemesterChange={setSelectedSemesterId}
+          groupExpireFilter={groupExpireFilter}
+          onGroupExpireFilterChange={setGroupExpireFilter}
+          groups={groups}
+          selectedGroupId={selectedGroupId ? selectedGroupId.toString() : ''}
+          onGroupChange={(value) => setSelectedGroupId(value ? Number(value) : null)}
+          groupSelectPlaceholder="-- Select group to view calendar --"
+          loading={loading}
+        />
+      </div>
       
+      {/* Semester Info */}
       {semesterInfo && (
         <div style={{ 
-        //   display: 'flex', 
-          alignItems: 'center', 
-          gap: 16, 
           marginBottom: 16 
         }}>
           <div style={{ 
@@ -950,158 +918,11 @@ export default function SupervisorCalendar() {
             border: '1px solid #0ea5e9', 
             borderRadius: 8, 
             padding: 8, 
-            flex: 1,
-            width: '500px'
+            maxWidth: '100%'
           }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#0c4a6e' }}>
               Semester: {semesterInfo.name} ({formatDate(semesterInfo.startAt, 'DD/MM/YYYY')} - {formatDate(semesterInfo.endAt, 'DD/MM/YYYY')})
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Progress Summary by Group */}
-      {groups.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Progress Summary by Group</h3>
-          {groups.map((group) => {
-            // Lấy milestones của nhóm này
-            const groupMilestones = milestones.filter(m => {
-              const milestoneGroupId = m.groupId || m.groupdId;
-              const groupId = group.id;
-              return milestoneGroupId === groupId || 
-                     milestoneGroupId === String(groupId) || 
-                     String(milestoneGroupId) === String(groupId);
-            });
-            
-            return (
-              <div key={group.id} style={{ marginBottom: 24 }}>
-                <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#1f2937' }}>
-                  {group.groupCode || `GRP${group.id}`} - {group.projectName}
-                </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-                  <div style={{ 
-                    background: '#f0f9ff', 
-                    border: '1px solid #0ea5e9', 
-                    borderRadius: 8, 
-                    padding: 16 
-                  }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#0c4a6e', marginBottom: 4 }}>
-                      Total Milestones
-                    </div>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: '#0369a1' }}>
-                      {groupMilestones.length}
-                    </div>
-                  </div>
-                  
-                  <div style={{ 
-                    background: '#ecfdf5', 
-                    border: '1px solid #10b981', 
-                    borderRadius: 8, 
-                    padding: 16 
-                  }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#065f46', marginBottom: 4 }}>
-                      Submitted
-                    </div>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: '#059669' }}>
-                      {groupMilestones.filter(m => m.status === 'SUBMITTED').length}
-                    </div>
-                  </div>
-                  
-                  <div style={{ 
-                    background: '#fef3c7', 
-                    border: '1px solid #f59e0b', 
-                    borderRadius: 8, 
-                    padding: 16 
-                  }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
-                      Pending
-                    </div>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: '#d97706' }}>
-                      {groupMilestones.filter(m => m.status === 'Pending' || m.status === 'PENDING').length}
-                    </div>
-                  </div>
-                  
-                  <div style={{ 
-                    background: '#fee2e2', 
-                    border: '1px solid #dc2626', 
-                    borderRadius: 8, 
-                    padding: 16 
-                  }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
-                      Late
-                    </div>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: '#dc2626' }}>
-                      {groupMilestones.filter(m => m.status === 'LATE').length}
-                    </div>
-                  </div>
-                  
-                  <div style={{ 
-                    background: '#f3f4f6', 
-                    border: '1px solid #64748b', 
-                    borderRadius: 8, 
-                    padding: 16 
-                  }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                      Unsubmitted
-                    </div>
-                    <div style={{ fontSize: 24, fontWeight: 700, color: '#64748b' }}>
-                      {groupMilestones.filter(m => m.status === 'UNSUBMITTED' || !m.status).length}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Groups Information */}
-      {groups.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Managed Groups</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
-            {groups.map((group) => {
-              const groupIdStr = String(group.id);
-              const groupIdNum = Number(group.id);
-              const hasNoSchedule = groupsWithoutSchedule.includes(groupIdStr) || 
-                                   groupsWithoutSchedule.includes(groupIdNum) ||
-                                   groupsWithoutSchedule.includes(group.id);
-              return (
-                <div key={group.id} style={{
-                  background: hasNoSchedule ? '#fef3c7' : '#f9fafb',
-                  border: hasNoSchedule ? '2px solid #f59e0b' : '1px solid #e5e7eb',
-                  borderRadius: 8,
-                  padding: 12,
-                  position: 'relative'
-                }}>
-                  {hasNoSchedule && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      background: '#f59e0b',
-                      color: '#fff',
-                      padding: '4px 8px',
-                      borderRadius: 4,
-                      fontSize: 10,
-                      fontWeight: 600
-                    }}>
-                      ⚠ Meeting schedule not finalized
-                    </div>
-                  )}
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-                    {group.projectName}
-                  </div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>
-                    <div>Group Code: {group.groupCode || 'N/A'}</div>
-                    {/* <div>ID: {group.id}</div> */}
-                    <div>Students: {group.students?.length || 0}</div>
-                    <div>Supervisors: {group.supervisors?.join(', ') || 'N/A'}</div>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}
@@ -1178,7 +999,6 @@ export default function SupervisorCalendar() {
               const weekMilestones = getMilestonesForWeek();
               
               // Tạo một map để lưu các milestone không có slot phù hợp
-              // Key: `${adjustedDay}_${hour.toFixed(4)}` để đảm bảo độ chính xác cao hơn
               const milestoneRows = new Map();
               
               weekMilestones.forEach(milestone => {
@@ -1195,8 +1015,7 @@ export default function SupervisorCalendar() {
                 
                 // Nếu không có slot phù hợp, thêm vào milestoneRows
                 if (!hasMatchingSlot) {
-                  // Sử dụng key chính xác hơn với 4 chữ số thập phân để tránh nhóm nhầm
-                  const key = `${adjustedDay}_${hour.toFixed(4)}`;
+                  const key = `${adjustedDay}_${hour.toFixed(2)}`;
                   if (!milestoneRows.has(key)) {
                     milestoneRows.set(key, []);
                   }
@@ -1204,78 +1023,34 @@ export default function SupervisorCalendar() {
                 }
               });
               
-              // Tạo danh sách milestone rows đã sắp xếp (mỗi key tạo một row riêng)
-              const sortedMilestoneRows = Array.from(milestoneRows.entries()).sort((a, b) => {
+              // Tạo danh sách rows: slots + milestone rows
+              const allRows = [];
+              
+              // Thêm các slot rows
+              timeSlots.forEach(slot => {
+                allRows.push({ type: 'slot', data: slot });
+              });
+              
+              // Thêm các milestone rows (sắp xếp theo giờ)
+              Array.from(milestoneRows.entries()).sort((a, b) => {
                 const [dayA, hourA] = a[0].split('_').map(Number);
                 const [dayB, hourB] = b[0].split('_').map(Number);
                 if (dayA !== dayB) return dayA - dayB;
                 return hourA - hourB;
-              }).map(([key, milestones]) => {
+              }).forEach(([key, milestones]) => {
                 const [day, hour] = key.split('_').map(Number);
                 const milestoneHour = Math.floor(hour);
                 const milestoneMinute = Math.round((hour - milestoneHour) * 60);
                 const timeStr = `${String(milestoneHour).padStart(2, '0')}:${String(milestoneMinute).padStart(2, '0')}`;
-                return { 
+                allRows.push({ 
                   type: 'milestone', 
                   data: { 
                     milestones: milestones.map(m => m.milestone),
                     day,
                     hour,
                     label: `Milestone (${timeStr})`
-                  },
-                  sortHour: hour
-                };
-              });
-              
-              // Tạo danh sách tất cả rows (slots + milestones) và chèn milestone vào đúng vị trí
-              const allRows = [];
-              
-              // Tạo một mảng tất cả các items (slots + milestones) với thời gian sort
-              const allItems = [];
-              
-              // Thêm slot rows với thời gian sort là slot.start
-              timeSlots.forEach(slot => {
-                allItems.push({ 
-                  type: 'slot', 
-                  data: slot,
-                  sortHour: slot.start,
-                  sortType: 'slot'
+                  } 
                 });
-              });
-              
-              // Thêm milestone rows với thời gian sort là milestone.hour
-              sortedMilestoneRows.forEach(milestoneRow => {
-                allItems.push({
-                  ...milestoneRow,
-                  sortType: 'milestone'
-                });
-              });
-              
-              // Sắp xếp tất cả items theo thời gian
-              // Nếu cùng thời gian, slot sẽ được ưu tiên trước milestone
-              allItems.sort((a, b) => {
-                const hourA = a.sortHour || 0;
-                const hourB = b.sortHour || 0;
-                
-                // Nếu thời gian khác nhau đáng kể (> 0.01 giờ), sắp xếp theo thời gian
-                if (Math.abs(hourA - hourB) > 0.01) {
-                  return hourA - hourB;
-                }
-                
-                // Nếu thời gian gần bằng nhau, slot sẽ được ưu tiên trước milestone
-                if (a.sortType === 'slot' && b.sortType === 'milestone') {
-                  return -1;
-                }
-                if (a.sortType === 'milestone' && b.sortType === 'slot') {
-                  return 1;
-                }
-                
-                return 0;
-              });
-              
-              // Chuyển đổi thành allRows
-              allItems.forEach(item => {
-                allRows.push(item);
               });
               
               return allRows.map((row, rowIndex) => {
@@ -1559,7 +1334,7 @@ export default function SupervisorCalendar() {
                   color: '#6b7280',
                   fontSize: 11
                 }}>
-                  Loading slots...
+                  Đang tải slots...
                 </td>
               </tr>
             )}
@@ -1581,12 +1356,12 @@ export default function SupervisorCalendar() {
           }}>
             <div style={{ marginBottom: 16 }}>
               <h2 style={{ margin: '0 0 8px 0', fontSize: 20 }}>
-                {minuteData ? 'View Meeting Minutes' : 'Meeting Information'} - {selectedMeeting.description}
+                {minuteData ? 'Xem biên bản họp' : 'Thông tin cuộc họp'} - {selectedMeeting.description}
               </h2>
               {minuteData && (
                 <div style={{ fontSize: 14, color: '#64748b' }}>
-                  <div><strong>Created by:</strong> {minuteData.createBy}</div>
-                  <div><strong>Created at:</strong> {formatDate(minuteData.createAt, 'YYYY-MM-DD HH:mm')}</div>
+                  <div><strong>Tạo bởi:</strong> {minuteData.createBy}</div>
+                  <div><strong>Ngày tạo:</strong> {formatDate(minuteData.createAt, 'YYYY-MM-DD HH:mm')}</div>
                 </div>
               )}
             </div>
@@ -1601,13 +1376,13 @@ export default function SupervisorCalendar() {
                 flex: '1 1 300px',
                 minWidth: '300px'
               }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Meeting Information</h3>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Thông tin cuộc họp</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div><strong>Description:</strong> {selectedMeeting.description}</div>
-                  <div><strong>Date:</strong> {formatDate(selectedMeeting.meetingDate, 'YYYY-MM-DD')}</div>
-                  <div><strong>Time:</strong> {selectedMeeting.startAt ? `${selectedMeeting.startAt.substring(0, 5)} - ${selectedMeeting.endAt ? selectedMeeting.endAt.substring(0, 5) : ''}` : (selectedMeeting.time || 'N/A')}</div>
-                  <div><strong>Day:</strong> {selectedMeeting.dayOfWeek}</div>
-                  <div><strong>Status:</strong> 
+                  <div><strong>Mô tả:</strong> {selectedMeeting.description}</div>
+                  <div><strong>Ngày:</strong> {formatDate(selectedMeeting.meetingDate, 'YYYY-MM-DD')}</div>
+                  <div><strong>Giờ:</strong> {selectedMeeting.startAt ? `${selectedMeeting.startAt.substring(0, 5)} - ${selectedMeeting.endAt ? selectedMeeting.endAt.substring(0, 5) : ''}` : (selectedMeeting.time || 'N/A')}</div>
+                  <div><strong>Thứ:</strong> {selectedMeeting.dayOfWeek}</div>
+                  <div><strong>Trạng thái:</strong> 
                     <span style={{ 
                       color: getMeetingStatusColor(selectedMeeting), 
                       marginLeft: '8px',
@@ -1619,7 +1394,7 @@ export default function SupervisorCalendar() {
                       {getMeetingStatusText(selectedMeeting)}
                     </span>
                   </div>
-                  <div><strong>Group:</strong> {selectedMeetingGroupInfo?.groupCode || `GRP${selectedMeeting.groupId}`} - {selectedMeetingGroupInfo?.projectName || 'N/A'}</div>
+                  <div><strong>Nhóm:</strong> {selectedMeetingGroupInfo?.groupCode || `GRP${selectedMeeting.groupId}`} - {selectedMeetingGroupInfo?.projectName || 'N/A'}</div>
                 </div>
               </div>
               
@@ -1627,7 +1402,7 @@ export default function SupervisorCalendar() {
                 flex: '1 1 300px',
                 minWidth: '300px'
               }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Meeting Link</h3>
+                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Link cuộc họp</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <a 
                     href={selectedMeeting.meetingLink} 
@@ -1644,7 +1419,7 @@ export default function SupervisorCalendar() {
                       border: '1px solid #3b82f6'
                     }}
                   >
-                    Join Meeting
+                    Tham gia cuộc họp
                   </a>
                 </div>
               </div>
@@ -1653,7 +1428,7 @@ export default function SupervisorCalendar() {
             {/* Meeting Minute */}
             {minuteData ? (
               <div style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Meeting Minutes</h3>
+                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Biên bản họp</h3>
                 <div style={{ 
                   background: '#f0fdf4', 
                   border: '1px solid #bbf7d0', 
@@ -1662,33 +1437,33 @@ export default function SupervisorCalendar() {
                 }}>
                   <div style={{ marginBottom: 16 }}>
                     <div style={{ fontSize: 13, color: '#065f46', marginBottom: 4 }}>
-                      <strong>Created by:</strong> {minuteData.createBy}
+                      <strong>Tạo bởi:</strong> {minuteData.createBy}
                     </div>
                     <div style={{ fontSize: 13, color: '#065f46' }}>
-                      <strong>Created at:</strong> {formatDate(minuteData.createAt, 'DD/MM/YYYY HH:mm')}
+                      <strong>Ngày tạo:</strong> {formatDate(minuteData.createAt, 'DD/MM/YYYY HH:mm')}
                     </div>
                   </div>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Time</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Thời gian</h4>
                       <div style={{ fontSize: 13, color: '#374151' }}>
                         {selectedMeeting?.startAt && selectedMeeting?.endAt ? (
                           <>
-                            <div><strong>Start:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('en-US')}</div>
-                            <div><strong>End:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('en-US')}</div>
+                            <div><strong>Bắt đầu:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                            <div><strong>Kết thúc:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
                           </>
                         ) : (
                           <>
-                            <div><strong>Start:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('en-US') : 'N/A'}</div>
-                            <div><strong>End:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('en-US') : 'N/A'}</div>
+                            <div><strong>Bắt đầu:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                            <div><strong>Kết thúc:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('vi-VN') : 'N/A'}</div>
                           </>
                         )}
                       </div>
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Attendance List</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Danh sách tham gia</h4>
                       {attendanceList.length > 0 ? (
                         <div style={{
                           border: '1px solid #d1d5db',
@@ -1699,9 +1474,9 @@ export default function SupervisorCalendar() {
                           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Member</th>
-                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Attended</th>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Absence Reason</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Thành viên</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Tham gia</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Lý do nghỉ</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1724,7 +1499,7 @@ export default function SupervisorCalendar() {
                                       backgroundColor: item.attended ? '#d1fae5' : '#fee2e2',
                                       color: item.attended ? '#065f46' : '#991b1b'
                                     }}>
-                                      {item.attended ? 'Yes' : 'No'}
+                                      {item.attended ? 'Có' : 'Không'}
                                     </span>
                                   </td>
                                   <td style={{ padding: '6px 8px', fontSize: '12px', color: '#6b7280' }}>
@@ -1744,13 +1519,13 @@ export default function SupervisorCalendar() {
                           borderRadius: '4px',
                           border: '1px solid rgba(0,0,0,0.1)'
                         }}>
-                          {minuteData?.attendance || 'No attendance information available'}
+                          {minuteData?.attendance || 'Chưa có thông tin điểm danh'}
                         </div>
                       )}
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Content</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Nội dung cuộc họp</h4>
                       <div style={{ 
                         fontSize: 13, 
                         color: '#374151', 
@@ -1774,13 +1549,13 @@ export default function SupervisorCalendar() {
                           columns={meetingIssueColumns}
                           data={meetingIssues}
                           loading={loading}
-                          emptyMessage="No issues available"
+                          emptyMessage="Chưa có issue nào"
                         />
                       </div>
                     </div>
                     
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Other Notes</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Ghi chú khác</h4>
                       <div style={{ 
                         fontSize: 13, 
                         color: '#374151', 
@@ -1807,14 +1582,14 @@ export default function SupervisorCalendar() {
                 marginBottom: 20
               }}>
                 <p style={{ margin: 0, fontSize: 14, color: '#92400e' }}>
-                  No meeting minutes available for this meeting.
+                  Chưa có biên bản họp cho cuộc họp này.
                 </p>
               </div>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
               <Button variant="ghost" onClick={closeMeetingModal}>
-                Close
+                Đóng
               </Button>
             </div>
           </div>
@@ -1942,7 +1717,7 @@ export default function SupervisorCalendar() {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
               <Button variant="ghost" onClick={closeTaskModal}>
-                Close
+                Đóng
               </Button>
             </div>
           </div>
@@ -1976,7 +1751,7 @@ export default function SupervisorCalendar() {
                       {getStatusText(selectedMilestone.status)}
                     </span>
                   </div>
-                  <div><strong>Note:</strong> {milestoneDetails?.note || 'No notes available'}</div>
+                  <div><strong>Note:</strong> {milestoneDetails?.note || 'Chưa có ghi chú nào'}</div>
                 </div>
               </div>
               
@@ -2077,7 +1852,7 @@ export default function SupervisorCalendar() {
                                             justifyContent: 'center',
                                             color: '#6b7280'
                                           }}
-                                          title="Preview"
+                                          title="Xem trước"
                                           onMouseEnter={(e) => {
                                             e.target.style.backgroundColor = '#f3f4f6';
                                             e.target.style.borderColor = '#9ca3af';
@@ -2130,7 +1905,7 @@ export default function SupervisorCalendar() {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
               <Button variant="ghost" onClick={closeMilestoneModal}>
-                Close
+                Đóng
               </Button>
             </div>
           </div>

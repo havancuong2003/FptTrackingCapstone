@@ -1,8 +1,9 @@
 import React from 'react';
 import styles from './index.module.scss';
 import DataTable from '../../../components/DataTable/DataTable';
-import client from '../../../utils/axiosClient';
 import { getUserInfo, getGroupId } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getFilesByGroup, uploadGroupDocument, deleteGroupDocument } from '../../../api/upload';
 
 export default function StudentDocuments() {
   const [loading, setLoading] = React.useState(false);
@@ -16,14 +17,14 @@ export default function StudentDocuments() {
     loadUserAndGroups();
   }, []);
 
-  // Kiểm tra nếu không có group
+  // Check if no group
   const hasNoGroup = !loading && groupOptions.length === 0;
 
   const loadUserAndGroups = async () => {
     setLoading(true);
     setMessage('');
     try {
-      // Lấy thông tin từ localStorage, không gọi API
+      // Get info from localStorage, don't call API
       const userInfo = getUserInfo();
       if (!userInfo) {
         setGroupOptions([]);
@@ -42,16 +43,16 @@ export default function StudentDocuments() {
         return;
       }
         const fetchInfos = await Promise.allSettled(
-          groups.map((gid) => client.get(`/Staff/capstone-groups/${gid}`))
+          groups.map((gid) => getCapstoneGroupDetail(gid))
         );
         const options = fetchInfos.map((r, idx) => {
           const gid = String(groups[idx]);
-          if (r.status === 'fulfilled' && r.value?.data?.status === 200) {
-            const gi = r.value.data.data || {};
-            const label = gi.groupCode ? `${gi.groupCode} - ${gi.projectName || ''}`.trim() : `Nhóm #${gid}`;
+          if (r.status === 'fulfilled' && r.value?.status === 200) {
+            const gi = r.value.data || {};
+            const label = gi.groupCode ? `${gi.groupCode} - ${gi.projectName || ''}`.trim() : `Group #${gid}`;
             return { value: gid, label };
           }
-          return { value: gid, label: `Nhóm #${gid}` };
+          return { value: gid, label: `Group #${gid}` };
         });
         setGroupOptions(options);
         const firstId = String(groups[0]);
@@ -59,7 +60,7 @@ export default function StudentDocuments() {
         await Promise.all([loadGroupInfo(firstId), loadFiles(firstId)]);
     } catch (e) {
       console.error('Error loading user info:', e);
-      setMessage('Không lấy được thông tin người dùng');
+      setMessage('Could not get user information');
     } finally {
       setLoading(false);
     }
@@ -76,14 +77,14 @@ export default function StudentDocuments() {
   const loadGroupInfo = async (groupId) => {
     try {
       setLoading(true);
-      const res = await client.get(`/Staff/capstone-groups/${groupId}`);
-      if (res?.data?.status === 200) {
-        setGroupInfo(res.data.data);
+      const res = await getCapstoneGroupDetail(groupId);
+      if (res?.status === 200) {
+        setGroupInfo(res.data);
       } else {
-        setMessage(res?.data?.message || 'Không lấy được thông tin nhóm');
+        setMessage(res?.message || 'Could not get group information');
       }
     } catch (e) {
-      setMessage(e?.message || 'Không lấy được thông tin nhóm');
+      setMessage(e?.message || 'Could not get group information');
     } finally {
       setLoading(false);
     }
@@ -92,12 +93,12 @@ export default function StudentDocuments() {
   const loadFiles = async (groupId) => {
     try {
       setLoading(true);
-      const res = await client.get(`/upload/files`, { params: { groupId } });
-      if (res?.data?.status === 200) {
-        setFiles(res.data.data || []);
+      const res = await getFilesByGroup(groupId);
+      if (res?.status === 200) {
+        setFiles(res.data || []);
       } else {
         setFiles([]);
-        setMessage(res?.data?.message || 'Không lấy được danh sách tài liệu');
+        setMessage(res?.message || 'Could not get documents list');
       }
     } catch (e) {
       setFiles([]);
@@ -159,7 +160,7 @@ export default function StudentDocuments() {
   const columns = [
     {
       key: 'fileName',
-      title: 'Tên tài liệu',
+      title: 'Document Name',
       render: (row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{row.fileName || '—'}</div>
@@ -169,17 +170,17 @@ export default function StudentDocuments() {
     },
     {
       key: 'userName',
-      title: 'Người upload',
+      title: 'Uploaded By',
       render: (row) => row.userName || '—'
     },
     {
       key: 'createAt',
-      title: 'Thời gian',
+      title: 'Time',
       render: (row) => formatDate(row.createAt)
     },
     {
       key: 'actions',
-      title: 'Thao tác',
+      title: 'Actions',
       render: (row) => (
         <div style={{ display: 'flex', gap: 8 }}>
           <button
@@ -198,7 +199,7 @@ export default function StudentDocuments() {
   }
   ];
 
-  // Nếu không có group, hiển thị thông báo
+  // If no group, show message
   if (hasNoGroup) {
     return (
       <div className={styles.container}>
@@ -219,8 +220,8 @@ export default function StudentDocuments() {
       <div className={styles.header}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
           <div>
-            <h1 style={{ margin: 0 }}>Tài liệu từ Supervisor</h1>
-            <div style={{ opacity: 0.7, marginTop: 4 }}>Sinh viên có thể tải các tài liệu được supervisor chia sẻ</div>
+            <h1 style={{ margin: 0 }}>Documents from Supervisor</h1>
+            <div style={{ opacity: 0.7, marginTop: 4 }}>Students can download documents shared by supervisor</div>
       </div>
           {groupOptions.length > 1 && (
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 260 }}>
@@ -256,11 +257,10 @@ export default function StudentDocuments() {
                 borderRadius: 6,
                 cursor: 'pointer'
               }}
-            >Làm mới</button>
+            >Refresh</button>
           </div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
-            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Semester: <b>{groupInfo.semesterId}</b></div>
-            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Số SV: <b>{Array.isArray(groupInfo.students) ? groupInfo.students.length : 0}</b></div>
+            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Students: <b>{Array.isArray(groupInfo.students) ? groupInfo.students.length : 0}</b></div>
             <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Supervisors: <b>{(groupInfo.supervisors || []).join(', ')}</b></div>
               </div>
             </div>
@@ -269,14 +269,14 @@ export default function StudentDocuments() {
       {selectedGroupId && (
         <div className={styles.semesterList}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontWeight: 600 }}>Danh sách tài liệu</div>
-            <div style={{ opacity: 0.7 }}>{files.length} tài liệu</div>
+            <div style={{ fontWeight: 600 }}>Documents List</div>
+            <div style={{ opacity: 0.7 }}>{files.length} documents</div>
           </div>
           <DataTable
             columns={columns}
             data={files}
             loading={loading}
-            emptyMessage="Chưa có tài liệu nào"
+            emptyMessage="No documents yet"
           />
         </div>
       )}

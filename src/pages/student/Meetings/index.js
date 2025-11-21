@@ -1,8 +1,8 @@
 import React from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
-import client from '../../../utils/axiosClient';
 import { getUserInfo, getGroupId } from '../../../auth/auth';
+import { getMeetingScheduleDatesByGroup } from '../../../api/meetings';
 
 export default function StudentMeetings() {
   const [meetings, setMeetings] = React.useState([]);
@@ -10,9 +10,9 @@ export default function StudentMeetings() {
   const [filter, setFilter] = React.useState('all');
   const [hasGroup, setHasGroup] = React.useState(false);
 
-  // Kiểm tra groupId trước
+  // Check groupId first
   React.useEffect(() => {
-    // Lấy thông tin từ localStorage, không gọi API
+    // Get info from localStorage, don't call API
     const userInfo = getUserInfo();
     const groupId = getGroupId() || localStorage.getItem('student_group_id');
     
@@ -25,14 +25,14 @@ export default function StudentMeetings() {
   }, []);
 
   React.useEffect(() => {
-    // Chỉ fetch meetings nếu có group
+    // Only fetch meetings if has group
     if (!hasGroup) return;
     
     const fetchMeetings = async () => {
       try {
         setLoading(true);
         
-        // Lấy groupId từ localStorage, không gọi API
+        // Get groupId from localStorage, don't call API
         const userInfo = getUserInfo();
         const groupId = getGroupId() || localStorage.getItem('student_group_id');
         
@@ -42,23 +42,23 @@ export default function StudentMeetings() {
           return;
         }
         
-        // Gọi API thật để lấy meetings
-        const response = await client.get(`/Student/Meeting/group/${groupId}/schedule-dates`);
+        // Call real API to get meetings
+        const response = await getMeetingScheduleDatesByGroup(groupId);
         
-        if (response.data.status === 200) {
-          const apiData = response.data.data;
+        if (response.status === 200) {
+          const apiData = response.data;
           const meetingsData = Array.isArray(apiData) ? apiData : [];
           
-          // Map data từ API sang format frontend
+          // Map data from API to frontend format
           const mappedMeetings = meetingsData
             .filter(meeting => meeting.isMeeting === true)
             .map(meeting => ({
               id: meeting.id,
               topic: meeting.description || 'Meeting',
               datetime: meeting.meetingDate ? `${meeting.meetingDate}T${meeting.time || '00:00:00'}` : new Date().toISOString(),
-              duration: 60, // Default duration nếu không có
+              duration: 60, // Default duration if not available
               linkMeet: meeting.meetingLink || '',
-              participants: [], // Có thể lấy từ group members nếu cần
+              participants: [], // Can get from group members if needed
               status: new Date(meeting.meetingDate) < new Date() ? 'completed' : 'upcoming',
               objective: meeting.description || '',
               meetingDate: meeting.meetingDate,
@@ -68,7 +68,7 @@ export default function StudentMeetings() {
           
           setMeetings(mappedMeetings);
         } else {
-          console.error('Error fetching meetings:', response.data.message);
+          console.error('Error fetching meetings:', response.message);
           setMeetings([]);
         }
       } catch (error) {

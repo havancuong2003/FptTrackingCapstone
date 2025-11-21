@@ -3,7 +3,8 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import { getRoleInGroup, getUserInfo, getGroupId } from '../../../auth/auth';
-import client from '../../../utils/axiosClient';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { updateStudentRoleInGroup } from '../../../api/staff';
 
 export default function StudentGroups() {
     const [groups, setGroups] = React.useState([]);
@@ -25,10 +26,10 @@ export default function StudentGroups() {
             try {
                 setLoading(true);
                 
-                // Lấy user info từ localStorage, không gọi API
+                // Get user info from localStorage, don't call API
                 const userInfo = getUserInfo();
                 
-                // Kiểm tra sớm: nếu không có groups, không gọi API tiếp
+                // Early check: if no groups, don't call API further
                 if (!userInfo?.groups || userInfo.groups.length === 0) {
                     console.error('No groups found for student');
                     setGroups([]);
@@ -38,11 +39,11 @@ export default function StudentGroups() {
                 
                 // Get group details for the first group
                 const groupId = getGroupId() || userInfo.groups[0];
-                const response = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
+                const response = await getCapstoneGroupDetail(groupId);
                 
-                if (response.data.status === 200) {
+                if (response.status === 200) {
                     // Convert API data format to required format
-                    const group = response.data.data;
+                    const group = response.data;
                     const formattedGroup = {
                         id: group.id,
                         groupCode: group.groupCode,
@@ -138,17 +139,9 @@ export default function StudentGroups() {
             }
             
             // Call API to change role
-            const response = await client.put(`https://160.30.21.113:5000/api/v1/Staff/update-role?groupId=${targetGroup.id}&studentId=${memberToChangeRole.studentId}`, 
-                `"${selectedRole}"`,
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+            const response = await updateStudentRoleInGroup(targetGroup.id, memberToChangeRole.studentId, selectedRole);
             
-            
-            if (response.data.status === 200) {
+            if (response.status === 200) {
                 // Update local state after successful API call
                 const updatedGroups = groups.map(group => {
                     if (group.id === targetGroup.id) {

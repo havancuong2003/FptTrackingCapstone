@@ -3,91 +3,56 @@ import { useNavigate } from 'react-router-dom';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import DataTable from '../../../components/DataTable/DataTable';
-import axiosClient from '../../../utils/axiosClient';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
+import Select from '../../../components/Select/Select';
 
 export default function GroupsList({ isExpired = false }) {
     const navigate = useNavigate();
     const [groups, setGroups] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
+    const [semesters, setSemesters] = React.useState([]);
+    const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
 
     React.useEffect(() => {
-        let isMounted = true;
-        let abortController = new AbortController();
+        // Get semesters and set default to current semester
+        const uniqueSemesters = getUniqueSemesters();
+        setSemesters(uniqueSemesters);
         
-        const fetchGroups = async () => {
-            try {
-                setLoading(true);
-                
-                // Call API based on isExpired flag
-                const apiEndpoint = isExpired ? '/Mentor/expired-groups' : '/Mentor/getGroups';
-                const groupsResponse = await axiosClient.get(apiEndpoint, {
-                    signal: abortController.signal
-                });
-                
-                // Chỉ update state nếu component vẫn còn mounted
-                if (!isMounted) return;
-                
-                if (groupsResponse.data.status === 200) {
-                    const groupList = groupsResponse.data.data || [];
-                    
-                    // Format groups data - API returns: {id, groupCode, status, name, isExpired, students: [...]}
-                    // API đã trả về isExpired trong data, chỉ cần filter và format
-                    const filteredGroups = groupList.filter(group => {
-                        // Nếu API có isExpired thì dùng, không thì fallback về check status
-                        const groupIsExpired = group.isExpired !== undefined 
-                            ? group.isExpired 
-                            : (group.status === 'inactive');
-                        return isExpired === groupIsExpired;
-                    });
-                    
-                    const formattedGroups = filteredGroups.map(group => {
-                        // Nếu API có isExpired thì dùng, không thì fallback về check status
-                        const groupIsExpired = group.isExpired !== undefined 
-                            ? group.isExpired 
-                            : (group.status === 'inactive');
-                        
-                        return {
-                            id: group.id,
-                            groupCode: group.groupCode || '',
-                            projectName: group.name || '',
-                            isExpired: groupIsExpired,
-                            students: group.students || []
-                        };
-                    });
-                    
-                    if (isMounted) {
-                        setGroups(formattedGroups);
-                    }
-                } else {
-                    console.error('Error fetching groups:', groupsResponse.data.message);
-                    if (isMounted) {
-                        setGroups([]);
-                    }
-                }
-            } catch (error) {
-                // Ignore abort errors
-                if (error.name === 'AbortError' || error.name === 'CanceledError') {
-                    return;
-                }
-                console.error('Error fetching groups:', error);
-                if (isMounted) {
-                    setGroups([]);
-                }
-            } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
-            }
-        };
+        const currentSemesterId = getCurrentSemesterId();
+        if (currentSemesterId) {
+            setSelectedSemesterId(currentSemesterId);
+        } else if (uniqueSemesters.length > 0) {
+            // Fallback to first semester if no current semester
+            setSelectedSemesterId(uniqueSemesters[0].id);
+        }
+    }, []);
 
-        fetchGroups();
+    React.useEffect(() => {
+        if (selectedSemesterId === null) return;
         
-        // Cleanup function
-        return () => {
-            isMounted = false;
-            abortController.abort();
-        };
-    }, [isExpired]);
+        setLoading(true);
+        try {
+            // Get groups from localStorage based on semester and expired status
+            const filteredGroups = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+            
+            // Format groups data
+            const formattedGroups = filteredGroups.map(group => ({
+                id: group.id,
+                groupCode: group.code || group.groupCode || '',
+                projectName: group.name || '',
+                isExpired: group.isExpired || false,
+                semesterId: group.semesterId,
+                semesterName: group.sesesterName || group.semesterName || ''
+            }));
+            
+            setGroups(formattedGroups);
+        } catch (error) {
+            console.error('Error loading groups:', error);
+            setGroups([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedSemesterId, isExpired]);
 
     const handleViewDetail = (groupId, groupIsExpired) => {
         navigate(`/supervisor/groups/${groupId}`, { state: { isExpired: groupIsExpired } });
@@ -102,11 +67,11 @@ export default function GroupsList({ isExpired = false }) {
     };
 
     const getExpireStatus = (groupIsExpired) => {
-        // isExpired: false = còn hạn, true = hết hạn
+        // isExpired: false = active, true = expired
         if (!groupIsExpired) {
-            return { text: 'Còn hạn', color: '#059669' };
+            return { text: 'Active', color: '#059669' };
         }
-        return { text: 'Hết hạn', color: '#dc2626' };
+        return { text: 'Expired', color: '#dc2626' };
     };
 
     const columns = [
@@ -124,7 +89,7 @@ export default function GroupsList({ isExpired = false }) {
         },
         {
             key: 'expire',
-            title: 'Expire',
+            title: 'Status',
             render: (group) => {
                 const expireInfo = getExpireStatus(group.isExpired);
                 return (
@@ -171,7 +136,7 @@ export default function GroupsList({ isExpired = false }) {
         }
     ];
 
-    if (loading) {
+    if (loading && groups.length === 0) {
         return (
             <div className={styles.loading}>
                 <div>Loading groups...</div>
@@ -181,13 +146,27 @@ export default function GroupsList({ isExpired = false }) {
 
     return (
         <div className={styles.container}>
-            <h1>{isExpired ? 'Groups (Expired)' : 'Groups (Active)'}</h1>
-            <p className={styles.subtitle}>
-                {isExpired 
-                    ? 'View expired groups (read-only mode).'
-                    : 'Manage and track the active groups you are supervising.'
-                }
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                    <h1>{isExpired ? 'Groups (Expired)' : 'Groups (Active)'}</h1>
+                    <p className={styles.subtitle}>
+                        {isExpired 
+                            ? 'View expired groups (read-only mode).'
+                            : 'Manage and track the active groups you are supervising.'
+                        }
+                    </p>
+                </div>
+                {semesters.length > 0 && (
+                    <div style={{ minWidth: 200 }}>
+                        <Select
+                            value={selectedSemesterId?.toString() || ''}
+                            onChange={(e) => setSelectedSemesterId(parseInt(e.target.value))}
+                            options={semesters.map(s => ({ value: s.id.toString(), label: s.name }))}
+                            placeholder="Select Semester"
+                        />
+                    </div>
+                )}
+            </div>
             
             <div className={styles.groupsList}>
                 <DataTable
@@ -206,4 +185,3 @@ export default function GroupsList({ isExpired = false }) {
         </div>
     );
 }
-

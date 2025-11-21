@@ -3,9 +3,12 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
-import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
 import { getUserInfo, getGroupId } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getSemesterDetail } from '../../../api/semester';
+import { getDeliverablesByGroup, getDeliverableDetail } from '../../../api/deliverables';
+import { uploadMilestoneFile, deleteMilestoneAttachment } from '../../../api/upload';
 
 
 export default function StudentMilestones() {
@@ -52,7 +55,7 @@ export default function StudentMilestones() {
     };
   }, []);
 
-  // Load user info từ localStorage, không gọi API
+  // Load user info from localStorage, don't call API
   React.useEffect(() => {
     const user = getUserInfo();
     setUserInfo(user);
@@ -64,10 +67,10 @@ export default function StudentMilestones() {
     async function loadGroupInfo() {
       if (!userInfo?.groups || userInfo.groups.length === 0) return;
       try {
-        // Lấy group đầu tiên từ danh sách groups
+        // Get first group from groups list
         const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
-        const group = res?.data?.data || null;
+        const res = await getCapstoneGroupDetail(groupId);
+        const group = res?.data || null;
         if (!mounted) return;
         setGroupInfo(group);
       } catch {
@@ -85,8 +88,8 @@ export default function StudentMilestones() {
     async function loadSemesterInfo() {
       if (!groupInfo?.semesterId) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/semester/getSemesterBy/${groupInfo.semesterId}`);
-        const semester = res?.data?.data || null;
+        const res = await getSemesterDetail(groupInfo.semesterId);
+        const semester = res?.data || null;
         if (!mounted) return;
         setSemesterInfo(semester);
       } catch {
@@ -104,9 +107,9 @@ export default function StudentMilestones() {
     async function loadMilestones() {
       if (!userInfo?.groups || userInfo.groups.length === 0) return;
       try {
-        // Lấy group đầu tiên từ danh sách groups
+        // Get first group from groups list
         const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${groupId}`);
+        const res = await getDeliverablesByGroup(groupId);
         const list = Array.isArray(res?.data) ? res.data : [];
         if (!mounted) return;
         setMilestones(list);
@@ -122,12 +125,12 @@ export default function StudentMilestones() {
   // Set loading false when all data loaded
   React.useEffect(() => {
     if (userInfo) {
-      // Nếu không có groups, set loading false ngay
+      // If no groups, set loading false immediately
       if (!userInfo.groups || userInfo.groups.length === 0) {
         setLoading(false);
         return;
       }
-      // Nếu có groupInfo và semesterInfo thì set loading false
+      // If have groupInfo and semesterInfo then set loading false
       if (groupInfo && semesterInfo) {
         setLoading(false);
       }
@@ -147,7 +150,7 @@ export default function StudentMilestones() {
     
     // Load milestone details
     try {
-      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${milestone.id}`);
+      const res = await getDeliverableDetail(userInfo.groups[0], milestone.id);
       setMilestoneDetails(res?.data || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
@@ -155,33 +158,9 @@ export default function StudentMilestones() {
     }
   };
 
-  // Kiểm tra file có đúng định dạng được phép không
-  const isValidFileType = (fileName) => {
-    if (!fileName) return false;
-    const extension = fileName.split('.').pop().toLowerCase();
-    const allowedExtensions = [
-      // Images
-      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
-      // PDF
-      'pdf',
-      // Archives
-      'zip', '7z',
-      // Java
-      'rar'
-    ];
-    return allowedExtensions.includes(extension);
-  };
-
   const handleFileSelect = (event, itemId) => {
     const file = event.target.files[0];
     if (file) {
-      // Kiểm tra định dạng file
-      if (!isValidFileType(file.name)) {
-        alert('Invalid file type. Only images, PDF, ZIP, 7ZIP, and RAR files are allowed.');
-        // Reset input
-        event.target.value = '';
-        return;
-      }
       setSelectedFiles(prev => ({ ...prev, [itemId]: file }));
     }
   };
@@ -190,35 +169,15 @@ export default function StudentMilestones() {
     const fileToUpload = selectedFiles[deliveryItemId];
     if (!fileToUpload || !userInfo?.groups[0]) return;
     
-    // Validate file type trước khi upload
-    if (!isValidFileType(fileToUpload.name)) {
-      alert('Invalid file type. Only images, PDF, ZIP, 7ZIP, and RAR files are allowed.');
-      // Clear invalid file
-      setSelectedFiles(prev => {
-        const newFiles = { ...prev };
-        delete newFiles[deliveryItemId];
-        return newFiles;
-      });
-      return;
-    }
-    
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append('file', fileToUpload);
       
-      const res = await client.post(
-        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
+      await uploadMilestoneFile(userInfo.groups[0], deliveryItemId, fileToUpload);
       
       // Reload milestones after successful upload
-      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groups[0]}`);
+      const milestonesRes = await getDeliverablesByGroup(userInfo.groups[0]);
       const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
       setMilestones(list);
       
@@ -230,7 +189,7 @@ export default function StudentMilestones() {
       
       // Reload milestone details after successful upload
       if (selectedMilestone) {
-        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
+        const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
         setMilestoneDetails(detailRes?.data || null);
       }
       
@@ -273,18 +232,18 @@ export default function StudentMilestones() {
     }
     
     try {
-      const response = await client.delete(`https://160.30.21.113:5000/api/v1/upload/milestone?attachmentId=${attachmentId}`);
-      if (response.data.status === 200) {
-        alert('Xóa file thành công!');
+      const response = await deleteMilestoneAttachment(attachmentId);
+      if (response.status === 200) {
+        alert('File deleted successfully!');
         // Reload milestone details
         if (selectedMilestone) {
-          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
+          const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
           setMilestoneDetails(detailRes?.data || null);
         }
       }
     } catch (error) {
       console.error('Error deleting attachment:', error);
-      alert('Có lỗi xảy ra khi xóa file. Vui lòng thử lại.');
+      alert('Error deleting file. Please try again.');
     }
   };
 
@@ -293,13 +252,13 @@ export default function StudentMilestones() {
     return attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
   };
 
-  // Kiểm tra file có thể xem được không (ảnh, PDF, docs)
+  // Check if file can be previewed (images, PDF, docs)
   const canPreviewFile = (filePath) => {
     if (!filePath) return false;
     const fileName = filePath.split('/').pop().toLowerCase();
     const extension = fileName.split('.').pop();
     
-    // Các định dạng có thể xem được
+    // Previewable formats
     const previewableExtensions = [
       // Images
       'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
@@ -725,7 +684,6 @@ export default function StudentMilestones() {
                             type="file"
                             id={`file-${item.id}`}
                             onChange={(e) => handleFileSelect(e, item.id)}
-                            accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.pdf,.zip,.7z,.rar"
                             style={{ display: 'none' }}
                           />
                           <label 
@@ -757,9 +715,6 @@ export default function StudentMilestones() {
                             Selected: {selectedFiles[item.id].name}
                           </div>
                         )}
-                        <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontStyle: 'italic' }}>
-                          Allowed file types: Images (JPG, PNG, GIF, etc.), PDF, ZIP, 7ZIP, RAR
-                        </div>
                       </div>
 
                       {/* All Attachments */}

@@ -97,3 +97,23 @@ export async function getSupervisorGroups() {
   }
 }
 
+// Get meeting tasks by meeting minute ID
+export async function getMeetingTasksByMinuteId(meetingMinuteId) {
+  try {
+    const response = await client.get(`/Student/Task/meeting-tasks/${meetingMinuteId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Get incomplete tasks by group ID
+export async function getIncompleteTasksByGroup(groupId) {
+  try {
+    const response = await client.get(`/Student/Task/Incomplete/${groupId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+

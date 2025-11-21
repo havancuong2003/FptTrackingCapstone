@@ -2,8 +2,8 @@ import React from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
-import client from '../../../utils/axiosClient';
 import { getUserInfo, getGroupId, getRoleInGroup } from '../../../auth/auth';
+import { getMeetingScheduleDatesByGroup } from '../../../api/meetings';
 
 export default function StudentMinutes() {
   const [minutes, setMinutes] = React.useState([]);
@@ -20,15 +20,15 @@ export default function StudentMinutes() {
     attachments: []
   });
 
-  // Kiểm tra groupId trước
+  // Check groupId first
   React.useEffect(() => {
-    // Lấy thông tin từ localStorage, không gọi API
+    // Get info from localStorage, don't call API
     const userInfo = getUserInfo();
     const groupId = getGroupId() || localStorage.getItem('student_group_id');
     
     if (groupId || (userInfo?.groups && userInfo.groups.length > 0)) {
       setHasGroup(true);
-      // Lấy role từ localStorage
+      // Get role from localStorage
       const roleInGroup = getRoleInGroup();
       if (roleInGroup) {
         setUserRole(roleInGroup === "Student" ? 'Member' : (roleInGroup || 'Member'));
@@ -66,10 +66,10 @@ export default function StudentMinutes() {
           }
         }
         
-        // Gọi API thật để lấy meetings
-        const meetingsResponse = await client.get(`/Student/Meeting/group/${groupId}/schedule-dates`);
-        if (meetingsResponse.data.status === 200) {
-          const apiData = meetingsResponse.data.data;
+        // Call real API to get meetings
+        const meetingsResponse = await getMeetingScheduleDatesByGroup(groupId);
+        if (meetingsResponse.status === 200) {
+          const apiData = meetingsResponse.data;
           const meetingsData = Array.isArray(apiData) ? apiData : [];
           
           // Map meetings từ API

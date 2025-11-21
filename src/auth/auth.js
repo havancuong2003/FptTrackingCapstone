@@ -49,7 +49,7 @@ export async function login({ username, password }) {
       const roleInGroup = me.roleInGroup || me.role_in_group || me.groupRole || null;
 
       localStorage.setItem(USER_ROLE_KEY, role);
-      // Lưu đầy đủ thông tin user theo format API response
+      // Save full user info according to API response format
       const userData = {
         id: me.id || me.userId || 'u_1',
         semesterId: me.semesterId || null,
@@ -58,7 +58,8 @@ export async function login({ username, password }) {
         roleInGroup,
         campusId: me.campusId || null,
         expireDate: me.expireDate || null,
-        groups: me.groups || []
+        groups: me.groups || [],
+        groupsInfo: me.groupsInfo || [] // Save groupsInfo for supervisor
       };
       localStorage.setItem(USER_INFO_KEY, JSON.stringify(userData));
 
@@ -135,7 +136,7 @@ export function getUserInfo() {
     const userInfo = localStorage.getItem(USER_INFO_KEY);
     if (!userInfo) return null;
     const parsed = JSON.parse(userInfo);
-    // Đảm bảo format giống với API response
+    // Ensure format matches API response
     return {
       id: parsed.id,
       semesterId: parsed.semesterId,
@@ -144,8 +145,61 @@ export function getUserInfo() {
       roleInGroup: parsed.roleInGroup || parsed.role_in_group || parsed.groupRole,
       campusId: parsed.campusId,
       expireDate: parsed.expireDate,
-      groups: parsed.groups || []
+      groups: parsed.groups || [],
+      groupsInfo: parsed.groupsInfo || [] // Include groupsInfo for supervisor
     };
+  } catch {
+    return null;
+  }
+}
+
+// Helper function to get unique semesters from groupsInfo
+export function getUniqueSemesters() {
+  try {
+    const userInfo = getUserInfo();
+    if (!userInfo || !userInfo.groupsInfo || !Array.isArray(userInfo.groupsInfo)) {
+      return [];
+    }
+    
+    const semestersMap = new Map();
+    userInfo.groupsInfo.forEach(group => {
+      if (group.semesterId) {
+        semestersMap.set(group.semesterId, {
+          id: group.semesterId,
+          name: group.sesesterName || group.semesterName || `Semester ${group.semesterId}`
+        });
+      }
+    });
+    
+    return Array.from(semestersMap.values());
+  } catch {
+    return [];
+  }
+}
+
+// Helper function to get groups by semester and expired status
+export function getGroupsBySemesterAndStatus(semesterId, isExpired = false) {
+  try {
+    const userInfo = getUserInfo();
+    if (!userInfo || !userInfo.groupsInfo || !Array.isArray(userInfo.groupsInfo)) {
+      return [];
+    }
+    
+    return userInfo.groupsInfo.filter(group => {
+      const matchesSemester = !semesterId || group.semesterId === semesterId;
+      const matchesExpired = group.isExpired === isExpired;
+      return matchesSemester && matchesExpired;
+    });
+  } catch {
+    return [];
+  }
+}
+
+// Helper function to get current semester ID (from userInfo.semesterId)
+export function getCurrentSemesterId() {
+  try {
+    const userInfo = getUserInfo();
+    return userInfo?.semesterId || null;
   } catch {
     return null;
   }

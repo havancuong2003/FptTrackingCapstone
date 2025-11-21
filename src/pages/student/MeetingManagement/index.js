@@ -3,10 +3,12 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Input from '../../../components/Input/Input';
 import Textarea from '../../../components/Textarea/Textarea';
-import client from '../../../utils/axiosClient';
 import DataTable from '../../../components/DataTable/DataTable';
 import { useNavigate } from 'react-router-dom';
 import { getUserInfo } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getMeetingScheduleDatesByGroup, getMeetingMinutesByMeetingDateId, createMeetingMinutes, updateMeetingMinutes, deleteMeetingMinutes } from '../../../api/meetings';
+import { getMeetingTasksByMinuteId, getIncompleteTasksByGroup, createTask } from '../../../api/tasks';
 
 export default function StudentMeetingManagement() {
   const navigate = useNavigate();
@@ -45,7 +47,6 @@ export default function StudentMeetingManagement() {
   const [groupInfo, setGroupInfo] = React.useState(null);
   const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
   const [loadingMinuteModal, setLoadingMinuteModal] = React.useState(false);
-  const [previousMinuteData, setPreviousMinuteData] = React.useState(null); // Biên bản họp trước đó
   const [showEditScheduleModal, setShowEditScheduleModal] = React.useState(false);
   const [editingMeeting, setEditingMeeting] = React.useState(null);
   const [scheduleForm, setScheduleForm] = React.useState({
@@ -56,24 +57,21 @@ export default function StudentMeetingManagement() {
   });
   const [weekDays, setWeekDays] = React.useState([]);
 
-  // API Base URL
-  const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
-
   React.useEffect(() => {
-    // Lấy thông tin user và meetings
+    // Get user info and meetings
     fetchUserInfo();
   }, []);
 
   const fetchUserInfo = async () => {
     try {
-      // Lấy thông tin từ localStorage, không gọi API
+      // Get info from localStorage, don't call API
       const userData = getUserInfo();
         
       if (userData) {
         setUserInfo(userData);
         setUserRole(userData.roleInGroup || userData.role);
         
-        // Lấy danh sách meetings sau khi có thông tin user
+        // Get meetings list after having user info
         if (userData.groups && userData.groups.length > 0) {
           await Promise.all([
             fetchMeetings(userData.groups[0]),
@@ -93,23 +91,23 @@ export default function StudentMeetingManagement() {
     }
   };
 
-  // Lấy danh sách assignee từ group (sinh viên trong nhóm)
+  // Get assignee list from group (students in group)
   const fetchAssigneesByGroup = async (groupId) => {
     try {
-      const res = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${groupId}`);
-      if (res.data.status === 200) {
-        const students = Array.isArray(res.data.data?.students) ? res.data.data.students : [];
+      const res = await getCapstoneGroupDetail(groupId);
+      if (res.status === 200 && res.data) {
+        const students = Array.isArray(res.data?.students) ? res.data.students : [];
         setAssigneeOptions(students.map(s => ({ value: String(s.id), label: s.name })));
       }
     } catch {}
   };
 
-  // Lấy reviewer (supervisors + students) theo group để chọn reviewer cho issue
+  // Get reviewers (supervisors + students) by group to select reviewer for issue
   const fetchReviewersByGroup = async (groupId) => {
     try {
-      const res = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${groupId}`);
-      if (res.data.status === 200) {
-        const groupData = res.data.data;
+      const res = await getCapstoneGroupDetail(groupId);
+      if (res.status === 200 && res.data) {
+        const groupData = res.data;
         const reviewers = [];
         if (Array.isArray(groupData.supervisorsInfor)) {
           groupData.supervisorsInfor.forEach(sp => reviewers.push({ value: String(sp.id), label: `${sp.name} (Supervisor)` }));
@@ -122,16 +120,16 @@ export default function StudentMeetingManagement() {
     } catch {}
   };
 
-  // Lấy danh sách meetings
+  // Get meetings list
   const fetchMeetings = async (groupId) => {
     try {
-      const response = await client.get(`${API_BASE_URL}/Student/Meeting/group/${groupId}/schedule-dates`);
+      const response = await getMeetingScheduleDatesByGroup(groupId);
       
-      if (response.data.status === 200) {
-        const meetingsData = response.data.data;
+      if (response.status === 200) {
+        const meetingsData = response.data;
         
         if (meetingsData && meetingsData.length > 0) {
-          // API đã trả về isMinute, không cần gọi API để check nữa
+          // API already returns isMinute, no need to call API to check anymore
           setMeetings(meetingsData);
         } else {
           setMeetings([]);
@@ -212,12 +210,12 @@ export default function StudentMeetingManagement() {
     link.click();
   };
 
-  // Hàm lấy biên bản họp
+  // Function to get meeting minutes
   const fetchMeetingMinute = async (meetingDateId) => {
     try {
-      const response = await client.get(`${API_BASE_URL}/MeetingMinute?meetingDateId=${meetingDateId}`);
-      if (response.data.status === 200) {
-        return response.data.data; // Có thể là null nếu chưa có biên bản
+      const response = await getMeetingMinutesByMeetingDateId(meetingDateId);
+      if (response.status === 200) {
+        return response.data; // Can be null if no minutes yet
       }
       return null;
     } catch (error) {
@@ -226,11 +224,11 @@ export default function StudentMeetingManagement() {
     }
   };
 
-  // Hàm tạo biên bản họp
+  // Function to create meeting minutes
   const createMeetingMinute = async (data) => {
     try {
-      const response = await client.post(`${API_BASE_URL}/MeetingMinute`, data);
-      return response.data;
+      const response = await createMeetingMinutes(data);
+      return response;
     } catch (error) {
       console.error('Error creating meeting minute:', error);
       console.error('Error details:', error.response?.data || error.message);
@@ -238,34 +236,34 @@ export default function StudentMeetingManagement() {
     }
   };
 
-  // Hàm cập nhật biên bản họp
+  // Function to update meeting minutes
   const updateMeetingMinute = async (data) => {
     try {
-      const response = await client.put(`${API_BASE_URL}/MeetingMinute`, data);
-      return response.data;
+      const response = await updateMeetingMinutes(data);
+      return response;
     } catch (error) {
       console.error('Error updating meeting minute:', error);
       throw error;
     }
   };
 
-  // Hàm xóa biên bản họp
+  // Function to delete meeting minutes
   const deleteMeetingMinute = async (minuteId) => {
     try {
-      const response = await client.delete(`${API_BASE_URL}/MeetingMinute/${minuteId}`);
-      return response.data;
+      const response = await deleteMeetingMinutes(minuteId);
+      return response;
     } catch (error) {
       console.error('Error deleting meeting minute:', error);
       throw error;
     }
   };
 
-  // Hàm lấy thông tin nhóm
+  // Function to get group info
   const fetchGroupInfo = async (groupId) => {
     try {
-      const response = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${groupId}`);
-      if (response.data.status === 200) {
-        return response.data.data;
+      const response = await getCapstoneGroupDetail(groupId);
+      if (response.status === 200) {
+        return response.data;
       }
       return null;
     } catch (error) {
@@ -449,7 +447,6 @@ export default function StudentMeetingManagement() {
     setIsEditing(false);
     setGroupInfo(null);
     setAttendanceList([]);
-    setPreviousMinuteData(null); // Reset biên bản trước đó
     setFormData({
       startAt: '',
       endAt: '',
@@ -518,29 +515,6 @@ export default function StudentMeetingManagement() {
               other: ''
             });
             setIsEditing(false);
-            
-            // Tìm và load biên bản họp trước đó (nếu có)
-            if (meetings && meetings.length > 0) {
-              // Sắp xếp meetings theo ngày, tìm meeting trước meeting hiện tại có biên bản
-              const sortedMeetings = [...meetings].sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
-              const currentMeetingIndex = sortedMeetings.findIndex(m => m.id === meeting.id);
-              
-              // Tìm meeting trước đó có isMinute === true
-              for (let i = currentMeetingIndex - 1; i >= 0; i--) {
-                const prevMeeting = sortedMeetings[i];
-                if (prevMeeting.isMinute === true) {
-                  try {
-                    const prevMinute = await fetchMeetingMinute(prevMeeting.id);
-                    if (prevMinute) {
-                      setPreviousMinuteData(prevMinute);
-                      break;
-                    }
-                  } catch (error) {
-                    console.error('Error fetching previous meeting minute:', error);
-                  }
-                }
-              }
-            }
           }
         }
       }
@@ -589,7 +563,6 @@ export default function StudentMeetingManagement() {
     setAttendanceList([]);
     setLoadingMinuteModal(false);
     setPendingIssues([]); // Reset pending issues khi đóng modal
-    setPreviousMinuteData(null); // Reset biên bản trước đó
     setFormData({
       startAt: '',
       endAt: '',
@@ -744,8 +717,8 @@ export default function StudentMeetingManagement() {
   // Fetch meeting issues (tasks) by meeting minute id
   const fetchMeetingIssues = async (meetingMinuteId) => {
     try {
-      const res = await client.get(`${API_BASE_URL}/Student/Task/meeting-tasks/${meetingMinuteId}`);
-      const data = res.data?.data;
+      const res = await getMeetingTasksByMinuteId(meetingMinuteId);
+      const data = res?.data;
       const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
       const mappedTasks = tasks.map(t => ({
         id: t.id,
@@ -769,9 +742,9 @@ export default function StudentMeetingManagement() {
       return [];
     }
     try {
-      const res = await client.get(`${API_BASE_URL}/Student/Task/Incomplete/${groupId}`);
-      // API trả về { status: 200, message: "...", data: [...] }
-      const data = res.data?.data;
+      const res = await getIncompleteTasksByGroup(groupId);
+      // API returns { status: 200, message: "...", data: [...] }
+      const data = res?.data;
       const tasks = Array.isArray(data) ? data : [];
       return tasks.map(t => ({
         id: t.id,
@@ -944,8 +917,8 @@ export default function StudentMeetingManagement() {
           assignedUserId: parseInt(issueForm.assignee),
           reviewerId: issueForm.reviewer ? parseInt(issueForm.reviewer) : 0
         };
-        const res = await client.post(`${API_BASE_URL}/Student/Task/create`, payload);
-        if (res.data?.status === 200) {
+        const res = await createTask(payload);
+        if (res.status === 200) {
           setShowIssueModal(false);
           setIssueForm({ title: '', description: '', assignee: '', priority: 'low', deadline: '', reviewer: '' });
           // Refresh danh sách issues
@@ -1005,7 +978,7 @@ export default function StudentMeetingManagement() {
           assignedUserId: issue.assignedUserId,
           reviewerId: issue.reviewerId || 0
         };
-        await client.post(`${API_BASE_URL}/Student/Task/create`, payload);
+        await createTask(payload);
       } catch (e) {
         console.error('Error creating pending issue:', e);
         throw e;
@@ -1564,48 +1537,6 @@ export default function StudentMeetingManagement() {
               </div>
             ) : (
             <div className={styles.modalBody}>
-              {/* Hiển thị biên bản họp trước đó (chỉ khi tạo mới) */}
-              {!isEditing && previousMinuteData && (
-                <div style={{
-                  background: '#f0f9ff',
-                  border: '1px solid #0ea5e9',
-                  borderRadius: 8,
-                  padding: 16,
-                  marginBottom: 20
-                }}>
-                  <h4 style={{ 
-                    margin: '0 0 12px 0', 
-                    fontSize: 14, 
-                    fontWeight: 600, 
-                    color: '#0c4a6e' 
-                  }}>
-                    Previous Meeting Minutes (Read-only)
-                  </h4>
-                  <div style={{ 
-                    fontSize: 12, 
-                    color: '#64748b', 
-                    marginBottom: 12 
-                  }}>
-                    <div><strong>Created by:</strong> {previousMinuteData.createBy || 'N/A'}</div>
-                    <div><strong>Created at:</strong> {previousMinuteData.createAt ? new Date(previousMinuteData.createAt).toLocaleString('en-US') : 'N/A'}</div>
-                  </div>
-                  <div style={{
-                    background: 'white',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 6,
-                    padding: 12,
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    fontSize: 13,
-                    color: '#374151',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word'
-                  }}>
-                    {previousMinuteData.meetingContent || 'No content available'}
-                  </div>
-                </div>
-              )}
-              
               <div className={styles.formRow}>
                 <div className={styles.formGroup}>
                   <label>Thời gian bắt đầu *</label>

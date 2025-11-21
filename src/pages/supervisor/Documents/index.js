@@ -1,9 +1,11 @@
 import React from 'react';
 import styles from './index.module.scss';
 import DataTable from '../../../components/DataTable/DataTable';
-import client from '../../../utils/axiosClient';
 import { sendDocumentUploadEmail } from '../../../email/documents';
-import { getUserInfo } from '../../../auth/auth';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getFilesByGroup, uploadGroupDocument, deleteGroupDocument } from '../../../api/upload';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 
 export default function SupervisorDocuments() {
   const [loading, setLoading] = React.useState(false);
@@ -14,16 +16,37 @@ export default function SupervisorDocuments() {
   const [files, setFiles] = React.useState([]);
   const [message, setMessage] = React.useState('');
   const fileInputRef = React.useRef(null);
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
 
   React.useEffect(() => {
     loadUserInfo();
   }, []);
 
-  const loadUserInfo = async () => {
+  React.useEffect(() => {
+    if (selectedSemesterId !== null) {
+      loadGroupsBySemester();
+      
+      // Check if selected group is still in filtered list
+      const isExpired = groupExpireFilter === 'expired';
+      const filteredGroups = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+      const selectedGroupExists = selectedGroupId && filteredGroups.some(g => g.id === Number(selectedGroupId));
+      
+      if (selectedGroupId && !selectedGroupExists) {
+        // Selected group is not in filtered list, clear selection and data
+        setSelectedGroupId('');
+        setGroupInfo(null);
+        setFiles([]);
+      }
+    }
+  }, [selectedSemesterId, groupExpireFilter]);
+
+  const loadUserInfo = () => {
     setLoading(true);
     setMessage('');
     try {
-      // Lấy thông tin từ localStorage, không gọi API
+      // Get info from localStorage, don't call API
       const userInfo = getUserInfo();
       if (!userInfo) {
         setGroupOptions([]);
@@ -31,31 +54,51 @@ export default function SupervisorDocuments() {
         setLoading(false);
         return;
       }
-      const groups = Array.isArray(userInfo.groups) ? userInfo.groups : [];
-        setUserGroups(groups);
-        // Tải thông tin tên nhóm để hiển thị label đẹp (groupCode - projectName)
-        if (groups.length > 0) {
-          const fetchInfos = await Promise.allSettled(
-            groups.map((gid) => client.get(`/Staff/capstone-groups/${gid}`))
-          );
-          const options = fetchInfos.map((r, idx) => {
-            const gid = String(groups[idx]);
-            if (r.status === 'fulfilled' && r.value?.data?.status === 200) {
-              const gi = r.value.data.data || {};
-              const label = gi.groupCode ? `${gi.groupCode} - ${gi.projectName || ''}`.trim() : `Nhóm #${gid}`;
-              return { value: gid, label };
-            }
-            return { value: gid, label: `Nhóm #${gid}` };
-          });
-          setGroupOptions(options);
-        } else {
-          setGroupOptions([]);
-        }
+      
+      // Get semesters and set default
+      const uniqueSemesters = getUniqueSemesters();
+      setSemesters(uniqueSemesters);
+      
+      const currentSemesterId = getCurrentSemesterId();
+      if (currentSemesterId) {
+        setSelectedSemesterId(currentSemesterId);
+      } else if (uniqueSemesters.length > 0) {
+        setSelectedSemesterId(uniqueSemesters[0].id);
+      }
     } catch (e) {
       console.error('Error loading user info:', e);
-      setMessage('Không lấy được thông tin người dùng');
+      setMessage('Could not get user information');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadGroupsBySemester = () => {
+    if (selectedSemesterId === null) return;
+    
+    try {
+      // Get groups from localStorage based on semester and expired status (no API call)
+      const isExpired = groupExpireFilter === 'expired';
+      const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+      
+      if (groupsFromStorage.length === 0) {
+        setGroupOptions([]);
+        setUserGroups([]);
+        return;
+      }
+      
+      // Build options from localStorage only (no API call)
+      const options = groupsFromStorage.map((groupInfo) => {
+        const gid = String(groupInfo.id);
+        const label = groupInfo.name || groupInfo.code || `Group #${gid}`;
+        return { value: gid, label };
+      });
+      
+      setGroupOptions(options);
+      setUserGroups(groupsFromStorage.map(g => g.id));
+    } catch (e) {
+      console.error('Error loading groups from localStorage:', e);
+      setMessage('Could not get group information');
     }
   };
 
@@ -64,54 +107,57 @@ export default function SupervisorDocuments() {
     setGroupInfo(null);
     setFiles([]);
     if (!groupId) return;
+    
+    // Only call API when group is selected
     await Promise.all([loadGroupInfo(groupId), loadFiles(groupId)]);
   };
 
   const loadGroupInfo = async (groupId) => {
     try {
       setLoading(true);
-      const res = await client.get(`/Staff/capstone-groups/${groupId}`);
-      if (res?.data?.status === 200) {
-        setGroupInfo(res.data.data);
-        // Cập nhật nhãn select nếu cần groupCode
+      const res = await getCapstoneGroupDetail(groupId);
+      if (res?.status === 200) {
+        setGroupInfo(res.data);
+        // Update select label if needed for groupCode
         setGroupOptions((prev) => {
           const exists = prev.some((o) => o.value === String(groupId) && o.label.includes('SEP') );
           if (exists) return prev;
-          return prev.map((o) => (o.value === String(groupId) && res.data.data?.groupCode
-            ? { value: o.value, label: `${res.data.data.groupCode} - ${res.data.data.projectName || ''}`.trim() }
+          return prev.map((o) => (o.value === String(groupId) && res.data?.groupCode
+            ? { value: o.value, label: `${res.data.groupCode} - ${res.data.projectName || ''}`.trim() }
             : o));
         });
       } else {
-        setMessage(res?.data?.message || 'Không lấy được thông tin nhóm');
+        setMessage(res?.message || 'Could not get group information');
       }
     } catch (e) {
-      setMessage(e?.message || 'Không lấy được thông tin nhóm');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-  const loadFiles = async (groupId) => {
-    try {
-      setLoading(true);
-      const res = await client.get(`/upload/files`, { params: { groupId } });
-      if (res?.data?.status === 200) {
-        setFiles(res.data.data || []);
-      } else {
-        setFiles([]);
-        setMessage(res?.data?.message || 'Không lấy được danh sách tài liệu');
-      }
-    } catch (e) {
-      setFiles([]);
-      setMessage(e?.message || 'Không lấy được danh sách tài liệu');
+      setMessage(e?.message || 'Could not get group information');
     } finally {
       setLoading(false);
     }
   };
 
-  const getUploadsBaseOrigin = () => {
+  const loadFiles = async (groupId) => {
     try {
-      const base = client.defaults.baseURL || '';
+      setLoading(true);
+      const res = await getFilesByGroup(groupId);
+      if (res?.status === 200) {
+        setFiles(res.data || []);
+      } else {
+        setFiles([]);
+        setMessage(res?.message || 'Could not get document list');
+      }
+    } catch (e) {
+      setFiles([]);
+      setMessage(e?.message || 'Could not get document list');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getUploadsBaseOrigin = async () => {
+    try {
+      const axiosClient = (await import('../../../utils/axiosClient')).default;
+      const base = axiosClient.defaults.baseURL || '';
       const u = new URL(base, window.location.origin);
       return u.origin; // https://host:port
     } catch {
@@ -120,11 +166,11 @@ export default function SupervisorDocuments() {
   };
 
   const handleDownload = async (row) => {
-    const origin = getUploadsBaseOrigin();
+    const origin = await getUploadsBaseOrigin();
     const url = `${origin}${row.path}`;
     try {
       const resp = await fetch(url, { credentials: 'include' });
-      if (!resp.ok) throw new Error('Không thể tải file');
+      if (!resp.ok) throw new Error('Could not download file');
       const blob = await resp.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -147,17 +193,17 @@ export default function SupervisorDocuments() {
   };
 
   const handleDelete = async (row) => {
-    if (!window.confirm('Xóa tài liệu này?')) return;
+    if (!window.confirm('Delete this document?')) return;
     try {
       setLoading(true);
-      const res = await client.delete(`/upload/group`, { params: { attachmentId: row.id } });
-      if (res?.data?.status === 200) {
+      const res = await deleteGroupDocument(row.id);
+      if (res?.status === 200) {
         setFiles((prev) => prev.filter((f) => f.id !== row.id));
       } else {
-        setMessage(res?.data?.message || 'Xóa thất bại');
+        setMessage(res?.message || 'Delete failed');
       }
     } catch (e) {
-      setMessage(e?.message || 'Xóa thất bại');
+      setMessage(e?.message || 'Delete failed');
     } finally {
       setLoading(false);
     }
@@ -170,17 +216,12 @@ export default function SupervisorDocuments() {
     if (!file || !selectedGroupId) return;
     try {
       setLoading(true);
-      const form = new FormData();
-      form.append('file', file);
-      const res = await client.post(`/upload/group`, form, {
-        params: { groupId: selectedGroupId },
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      if (res?.data?.status === 200) {
-        const uploadedFile = res.data.data; // File info từ response
+      const res = await uploadGroupDocument(selectedGroupId, file);
+      if (res?.status === 200) {
+        const uploadedFile = res.data; // File info from response
         await loadFiles(selectedGroupId);
         
-        // Gửi email thông báo cho sinh viên trong nhóm
+        // Send email notification to students in group
         try {
           const currentUser = getUserInfo();
           if (groupInfo && groupInfo.students && Array.isArray(groupInfo.students)) {
@@ -190,7 +231,7 @@ export default function SupervisorDocuments() {
             
             if (studentEmails.length > 0) {
               // Build file download URL
-              const origin = getUploadsBaseOrigin();
+              const origin = await getUploadsBaseOrigin();
               const fileUrl = uploadedFile?.path ? `${origin}${uploadedFile.path}` : null;
               
               // Build system URL to documents page (student sẽ xem ở đâu?)
@@ -200,8 +241,8 @@ export default function SupervisorDocuments() {
               await sendDocumentUploadEmail({
                 recipientEmails: studentEmails,
                 fileName: file.name,
-                supervisorName: currentUser?.name || 'Giảng viên hướng dẫn',
-                groupName: groupInfo.groupCode || `Nhóm ${selectedGroupId}`,
+                supervisorName: currentUser?.name || 'Supervisor',
+                groupName: groupInfo.groupCode || `Group ${selectedGroupId}`,
                 message: '',
                 fileUrl: fileUrl,
                 systemUrl: systemUrl
@@ -210,13 +251,13 @@ export default function SupervisorDocuments() {
           }
         } catch (emailError) {
           console.error('Error sending document upload email:', emailError);
-          // Không block flow nếu email lỗi
+          // Don't block flow if email error
         }
       } else {
-        setMessage(res?.data?.message || 'Upload thất bại');
+        setMessage(res?.message || 'Upload failed');
       }
     } catch (e1) {
-      setMessage(e1?.message || 'Upload thất bại');
+      setMessage(e1?.message || 'Upload failed');
     } finally {
       setLoading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -237,7 +278,7 @@ export default function SupervisorDocuments() {
   const columns = [
     {
       key: 'fileName',
-      title: 'Tên tài liệu',
+      title: 'Document Name',
       render: (row) => (
         <div>
           <div style={{ fontWeight: 600 }}>{row.fileName || '—'}</div>
@@ -247,17 +288,17 @@ export default function SupervisorDocuments() {
     },
     {
       key: 'userName',
-      title: 'Người tải lên',
+      title: 'Uploaded By',
       render: (row) => row.userName || '—'
     },
     {
       key: 'createAt',
-      title: 'Thời gian',
+      title: 'Time',
       render: (row) => formatDate(row.createAt)
     },
     {
       key: 'actions',
-      title: 'Thao tác',
+      title: 'Actions',
       render: (row) => (
         <div style={{ display: 'flex', gap: 8 }}>
           <button
@@ -270,7 +311,7 @@ export default function SupervisorDocuments() {
               borderRadius: 6,
               cursor: 'pointer'
             }}
-          >Tải xuống</button>
+          >Download</button>
           <button
             onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
             style={{
@@ -281,7 +322,7 @@ export default function SupervisorDocuments() {
               borderRadius: 6,
               cursor: 'pointer'
             }}
-          >Xóa</button>
+          >Delete</button>
       </div>
       )
   }
@@ -290,45 +331,45 @@ export default function SupervisorDocuments() {
   return (
     <div className={styles.container}>
       <div className={styles.header}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-          <div>
-            <h1 style={{ margin: 0 }}>Tài liệu chia sẻ cho nhóm</h1>
-            <div style={{ opacity: 0.7, marginTop: 4 }}>Mentor có thể chia sẻ tài liệu hướng dẫn cho nhóm của mình</div>
-          </div>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 260 }}>
-            <select
-              value={selectedGroupId}
-              onChange={(e) => onSelectGroup(e.target.value)}
-              className={styles.select}
-            >
-              <option value="">-- Chọn nhóm --</option>
-              {groupOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <input ref={fileInputRef} type="file" onChange={handleUploadChange} style={{ display: 'none' }} />
-            <button
-              disabled={!selectedGroupId}
-              onClick={handleUploadClick}
-              style={{
-                background: selectedGroupId ? '#10B981' : '#9CA3AF',
-                color: '#fff',
-                border: 'none',
-                padding: '10px 16px',
-                borderRadius: 8,
-                cursor: selectedGroupId ? 'pointer' : 'not-allowed',
-                minWidth: 140,
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                whiteSpace: 'nowrap'
-              }}
-              title={selectedGroupId ? 'Tải tài liệu lên nhóm đã chọn' : 'Chọn nhóm trước khi upload'}
-            >
-              Tải lên
-            </button>
-          </div>
-        </div>
+        <h1 style={{ margin: 0 }}>Documents Shared with Group</h1>
+        <div style={{ opacity: 0.7, marginTop: 4 }}>Supervisor can share documents with their groups</div>
+      </div>
+
+      <SupervisorGroupFilter
+        semesters={semesters}
+        selectedSemesterId={selectedSemesterId}
+        onSemesterChange={setSelectedSemesterId}
+        groupExpireFilter={groupExpireFilter}
+        onGroupExpireFilterChange={setGroupExpireFilter}
+        groups={groupOptions.map(opt => ({ id: opt.value, name: opt.label }))}
+        selectedGroupId={selectedGroupId || ''}
+        onGroupChange={onSelectGroup}
+        groupSelectPlaceholder="-- Select group --"
+        loading={loading}
+      />
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <input ref={fileInputRef} type="file" onChange={handleUploadChange} style={{ display: 'none' }} />
+        <button
+          disabled={!selectedGroupId}
+          onClick={handleUploadClick}
+          style={{
+            background: selectedGroupId ? '#10B981' : '#9CA3AF',
+            color: '#fff',
+            border: 'none',
+            padding: '10px 16px',
+            borderRadius: 8,
+            cursor: selectedGroupId ? 'pointer' : 'not-allowed',
+            minWidth: 140,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            whiteSpace: 'nowrap'
+          }}
+          title={selectedGroupId ? 'Upload document to selected group' : 'Select group before uploading'}
+        >
+          Upload
+        </button>
       </div>
       
       {message && (
@@ -337,8 +378,8 @@ export default function SupervisorDocuments() {
 
       {!selectedGroupId && (
         <div className={styles.emptyState}>
-          <div style={{ fontSize: 20, marginBottom: 8 }}>Hãy chọn một nhóm</div>
-          <div style={{ opacity: 0.7 }}>Bạn sẽ thấy thông tin nhóm và danh sách tài liệu sau khi chọn.</div>
+          <div style={{ fontSize: 20, marginBottom: 8 }}>Please select a group</div>
+          <div style={{ opacity: 0.7 }}>You will see group information and document list after selection.</div>
         </div>
       )}
       

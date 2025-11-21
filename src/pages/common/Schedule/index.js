@@ -13,7 +13,7 @@ import { getCampusId } from '../../../auth/auth';
 import Checkbox from '../../../components/Checkbox/Checkbox';
 
 export default function Schedule() {
-  // Lấy groupId từ localStorage (như trong auth.js)
+  // Get groupId from localStorage (as in auth.js)
   const getGroupId = () => {
     try {
       const studentGroupId = localStorage.getItem('student_group_id');
@@ -29,10 +29,10 @@ export default function Schedule() {
   
   const groupId = getGroupId();
   
-  // Kiểm tra groupId ngay từ đầu
+  // Check groupId from the start
   const hasValidGroupId = groupId !== null && groupId !== undefined && groupId !== '';
   
-  // Lấy thông tin user từ localStorage
+  // Get user info from localStorage
   const getCurrentUser = () => {
     try {
       const authUser = localStorage.getItem('auth_user');
@@ -49,9 +49,9 @@ export default function Schedule() {
   const currentUser = getCurrentUser();
   const [loading, setLoading] = useState(false);
   const [group, setGroup] = useState(null);
-  const [freeTimeSlots, setFreeTimeSlots] = useState({}); // Object với key là day value, value là array các slot đã chọn
-  const [activeTab, setActiveTab] = useState('monday'); // Tab đang active
-  const [availableSlots, setAvailableSlots] = useState([]); // Tất cả slots từ campus
+  const [freeTimeSlots, setFreeTimeSlots] = useState({}); // Object with key as day value, value as array of selected slots
+  const [activeTab, setActiveTab] = useState('monday'); // Currently active tab
+  const [availableSlots, setAvailableSlots] = useState([]); // All slots from campus
   const [isFinalized, setIsFinalized] = useState(false);
   const [meetingSchedule, setMeetingSchedule] = useState(null);
   const [finalMeeting, setFinalMeeting] = useState(null);
@@ -59,8 +59,8 @@ export default function Schedule() {
   const [memberSchedules, setMemberSchedules] = useState({});
   const [mergedSchedule, setMergedSchedule] = useState({});
   const [isSupervisor, setIsSupervisor] = useState(false);
-  const [isSelectingMode, setIsSelectingMode] = useState(false); // Mode để chọn thời gian rảnh
-  const [initialFreeTimeSlots, setInitialFreeTimeSlots] = useState({}); // Lưu trạng thái ban đầu khi vào selecting mode
+  const [isSelectingMode, setIsSelectingMode] = useState(false); // Mode to select free time
+  const [initialFreeTimeSlots, setInitialFreeTimeSlots] = useState({}); // Save initial state when entering selecting mode
 
   // Days of the week
   const daysOfWeek = [
@@ -74,7 +74,7 @@ export default function Schedule() {
   ];
 
   useEffect(() => {
-    // Nếu không có groupId hợp lệ, không gọi API
+    // If no valid groupId, don't call API
     if (!hasValidGroupId) {
       setLoading(false);
       return;
@@ -94,7 +94,7 @@ export default function Schedule() {
     try {
       const campusId = getCampusId();
       if (!campusId) {
-        console.error('Không tìm thấy campusId trong localStorage');
+        console.error('CampusId not found in localStorage');
         return;
       }
       
@@ -107,7 +107,7 @@ export default function Schedule() {
     }
   };
 
-  // Kiểm tra role của user
+  // Check user role
   useEffect(() => {
     if (currentUser) {
       setIsSupervisor(currentUser.role === 'supervisor' || currentUser.role === 'Supervisor');

@@ -11,8 +11,9 @@ import {
 } from '../../../api/schedule';
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
 import { sendMeetingScheduleConfirmationEmail } from '../../../email/schedule';
-import { getCampusId } from '../../../auth/auth';
+import { getCampusId, getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
 import { getCampusById } from '../../../api/campus';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 
 export default function SupervisorSchedule() {
   const { groupId: urlGroupId } = useParams();
@@ -45,6 +46,9 @@ export default function SupervisorSchedule() {
   const [meetingSchedule, setMeetingSchedule] = React.useState(null);
   const [isSupervisor, setIsSupervisor] = React.useState(true);
   const [campusSlots, setCampusSlots] = React.useState([]);
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
   
   // Meeting form data
   const [meetingData, setMeetingData] = React.useState({
@@ -65,33 +69,45 @@ export default function SupervisorSchedule() {
   ];
 
 
-  // Fetch available groups for supervisor
-  const fetchAvailableGroups = async () => {
-    try {
-      setLoading(true);
-      const response = await getSupervisorGroups();
+  // Load semesters and groups from localStorage
+  React.useEffect(() => {
+    function loadSemesters() {
+      const uniqueSemesters = getUniqueSemesters();
+      setSemesters(uniqueSemesters);
       
-      if (response.status === 200) {
-        const groupsData = response.data || [];
-        const mappedGroups = groupsData.map(group => ({
-          id: group.id,
-          name: group.name || `Group ${group.id}`,
-          description: group.description || '',
-          memberCount: group.students?.length || 0,
-          status: group.status || 'active'
-        }));
-        setAvailableGroups(mappedGroups);
-      } else {
-        console.error('Error fetching groups:', response.data.message);
-        setAvailableGroups([]);
+      const currentSemesterId = getCurrentSemesterId();
+      if (currentSemesterId) {
+        setSelectedSemesterId(currentSemesterId);
+      } else if (uniqueSemesters.length > 0) {
+        setSelectedSemesterId(uniqueSemesters[0].id);
       }
-    } catch (error) {
-      console.error('Error fetching groups:', error);
-      setAvailableGroups([]);
-    } finally {
-      setLoading(false);
     }
-  };
+    loadSemesters();
+  }, []);
+
+  // Load groups from localStorage when filter changes (no API call)
+  React.useEffect(() => {
+    if (selectedSemesterId === null) {
+      setAvailableGroups([]);
+      return;
+    }
+    
+    // Get groups from localStorage based on semester and expired status
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    
+    // Build groups list from localStorage only
+    const mappedGroups = groupsFromStorage.map(groupInfo => ({
+      id: groupInfo.id,
+      name: groupInfo.name || `Group ${groupInfo.id}`,
+      description: groupInfo.description || '',
+      memberCount: 0, // Will be loaded when group is selected
+      status: groupInfo.isExpired ? 'expired' : 'active'
+    }));
+    
+    setAvailableGroups(mappedGroups);
+    setLoading(false); // Set loading false after groups are loaded from localStorage
+  }, [selectedSemesterId, groupExpireFilter]);
 
   // Load campus slots
   const loadCampusSlots = async () => {
@@ -423,10 +439,6 @@ export default function SupervisorSchedule() {
     }
   };
 
-  // Load available groups when component mounts
-  React.useEffect(() => {
-    fetchAvailableGroups();
-  }, []);
 
   if (loading && !group) {
     return <div className={styles.loading}>Loading...</div>;
@@ -445,25 +457,18 @@ export default function SupervisorSchedule() {
         </div>
       </div>
 
-      {/* Group Selection - Luôn hiển thị */}
-      <div className={styles.section}>
-        <h2>Select Group</h2>
-        <div className={styles.groupSelector}>
-          <select
-            value={selectedGroup}
-            onChange={(e) => handleGroupSelect(e.target.value)}
-            className={styles.groupSelect}
-            disabled={loading}
-          >
-            <option value="">Select Group</option>
-            {availableGroups.map(group => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <SupervisorGroupFilter
+        semesters={semesters}
+        selectedSemesterId={selectedSemesterId}
+        onSemesterChange={setSelectedSemesterId}
+        groupExpireFilter={groupExpireFilter}
+        onGroupExpireFilterChange={setGroupExpireFilter}
+        groups={availableGroups}
+        selectedGroupId={selectedGroup || ''}
+        onGroupChange={handleGroupSelect}
+        groupSelectPlaceholder="Select Group"
+        loading={loading}
+      />
 
       {/* Chỉ hiển thị nội dung khi có group được chọn */}
       {selectedGroup && group && (
