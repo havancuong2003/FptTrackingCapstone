@@ -37,7 +37,6 @@ export default function GroupDetail() {
             
             if (response.data.status === 200) {
                 const groupData = response.data.data;
-                console.log(" group data:  ", groupData);
                 const formattedGroup = {
                     id: groupData.id,
                     groupCode: groupData.groupCode,
@@ -142,9 +141,7 @@ export default function GroupDetail() {
                 
                 // Send email notification based on who is assigning the role
                 try {
-                    console.log(" isSupervisor: ", isSupervisor);
-                    console.log(" newRole: ", newRole);
-                    console.log(" isSecretary: ", isSecretary);
+
                     const systemUrl = `${window.location.origin}`;
                     const groupDetailUrl = `${window.location.origin}/supervisor/groups/${groupId}`;
                     
@@ -294,7 +291,6 @@ export default function GroupDetail() {
     }
     
     const backPath = isExpired ? '/supervisor/groups/expired' : '/supervisor/groups/active';
-    console.log(" group members: ", group.members);
     return (
         <div className={styles.container}>
             <BackButton to={backPath}>← Quay lại</BackButton>
@@ -308,7 +304,7 @@ export default function GroupDetail() {
                     color: '#92400e',
                     fontWeight: 500
                 }}>
-                    ⚠️ Nhóm này đã hết hạn. Bạn chỉ có thể xem thông tin (view-only mode).
+                    Nhóm này đã hết hạn. Bạn chỉ có thể xem thông tin (view-only mode).
                 </div>
             )}
             <div className={styles.header}>

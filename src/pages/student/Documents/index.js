@@ -2,6 +2,7 @@ import React from 'react';
 import styles from './index.module.scss';
 import DataTable from '../../../components/DataTable/DataTable';
 import client from '../../../utils/axiosClient';
+import { getUserInfo, getGroupId } from '../../../auth/auth';
 
 export default function StudentDocuments() {
   const [loading, setLoading] = React.useState(false);
@@ -10,7 +11,7 @@ export default function StudentDocuments() {
   const [selectedGroupId, setSelectedGroupId] = React.useState('');
   const [groupInfo, setGroupInfo] = React.useState(null);
   const [files, setFiles] = React.useState([]);
-
+  
   React.useEffect(() => {
     loadUserAndGroups();
   }, []);
@@ -22,15 +23,24 @@ export default function StudentDocuments() {
     setLoading(true);
     setMessage('');
     try {
-      const res = await client.get('/auth/user-info');
-      if (res?.data?.status === 200) {
-        const groups = Array.isArray(res.data.data?.groups) ? res.data.data.groups : [];
-        if (groups.length === 0) {
-          setGroupOptions([]);
-          setSelectedGroupId('');
-          setFiles([]);
-          return;
-        }
+      // Lấy thông tin từ localStorage, không gọi API
+      const userInfo = getUserInfo();
+      if (!userInfo) {
+        setGroupOptions([]);
+        setSelectedGroupId('');
+        setFiles([]);
+        setLoading(false);
+        return;
+      }
+      
+      const groups = Array.isArray(userInfo.groups) ? userInfo.groups : [];
+      if (groups.length === 0) {
+        setGroupOptions([]);
+        setSelectedGroupId('');
+        setFiles([]);
+        setLoading(false);
+        return;
+      }
         const fetchInfos = await Promise.allSettled(
           groups.map((gid) => client.get(`/Staff/capstone-groups/${gid}`))
         );
@@ -47,15 +57,13 @@ export default function StudentDocuments() {
         const firstId = String(groups[0]);
         setSelectedGroupId(firstId);
         await Promise.all([loadGroupInfo(firstId), loadFiles(firstId)]);
-      } else {
-        setMessage(res?.data?.message || 'Không lấy được thông tin người dùng');
-      }
     } catch (e) {
-      setMessage(e?.message || 'Không lấy được thông tin người dùng');
-      } finally {
-        setLoading(false);
-      }
-    };
+      console.error('Error loading user info:', e);
+      setMessage('Không lấy được thông tin người dùng');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const onSelectGroup = async (groupId) => {
     setSelectedGroupId(groupId);

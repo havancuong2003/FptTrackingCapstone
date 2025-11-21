@@ -2,7 +2,7 @@ import React from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
-import { getRoleInGroup, getUserInfo } from '../../../auth/auth';
+import { getRoleInGroup, getUserInfo, getGroupId } from '../../../auth/auth';
 import client from '../../../utils/axiosClient';
 
 export default function StudentGroups() {
@@ -25,9 +25,8 @@ export default function StudentGroups() {
             try {
                 setLoading(true);
                 
-                // Get user info first to get groups
-                const userResponse = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
-                const userInfo = userResponse?.data?.data;
+                // Lấy user info từ localStorage, không gọi API
+                const userInfo = getUserInfo();
                 
                 // Kiểm tra sớm: nếu không có groups, không gọi API tiếp
                 if (!userInfo?.groups || userInfo.groups.length === 0) {
@@ -38,7 +37,7 @@ export default function StudentGroups() {
                 }
                 
                 // Get group details for the first group
-                const groupId = userInfo.groups[0];
+                const groupId = getGroupId() || userInfo.groups[0];
                 const response = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
                 
                 if (response.data.status === 200) {
@@ -258,7 +257,6 @@ export default function StudentGroups() {
                                     <h4>Members ({group.members.length})</h4>
                                     <div className={styles.membersList}>
                                         {group.members.map((member) => {
-                                            console.log(" member role: ", member);
                                             const canChange = canChangeRole(member);
                                             return (
                                                 <div key={member.id} className={styles.memberItem}>

@@ -2,6 +2,7 @@ import React from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import client from '../../../utils/axiosClient';
+import { getUserInfo, getGroupId } from '../../../auth/auth';
 
 export default function StudentMeetings() {
   const [meetings, setMeetings] = React.useState([]);
@@ -11,33 +12,16 @@ export default function StudentMeetings() {
 
   // Kiểm tra groupId trước
   React.useEffect(() => {
-    const checkGroup = async () => {
-      try {
-        // Kiểm tra từ localStorage trước
-        const studentGroupId = localStorage.getItem('student_group_id');
-        if (studentGroupId) {
-          setHasGroup(true);
-          return;
-        }
-        
-        // Nếu không có trong localStorage, kiểm tra từ API
-        const userResponse = await client.get("/auth/user-info");
-        const userInfo = userResponse?.data?.data;
-        
-        if (userInfo?.groups && userInfo.groups.length > 0) {
-          setHasGroup(true);
-        } else {
-          setHasGroup(false);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error checking group:', error);
-        setHasGroup(false);
-        setLoading(false);
-      }
-    };
+    // Lấy thông tin từ localStorage, không gọi API
+    const userInfo = getUserInfo();
+    const groupId = getGroupId() || localStorage.getItem('student_group_id');
     
-    checkGroup();
+    if (groupId || (userInfo?.groups && userInfo.groups.length > 0)) {
+      setHasGroup(true);
+    } else {
+      setHasGroup(false);
+      setLoading(false);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -48,18 +32,14 @@ export default function StudentMeetings() {
       try {
         setLoading(true);
         
-        // Lấy groupId từ localStorage hoặc API
-        let groupId = localStorage.getItem('student_group_id');
+        // Lấy groupId từ localStorage, không gọi API
+        const userInfo = getUserInfo();
+        const groupId = getGroupId() || localStorage.getItem('student_group_id');
+        
         if (!groupId) {
-          const userResponse = await client.get("/auth/user-info");
-          const userInfo = userResponse?.data?.data;
-          if (userInfo?.groups && userInfo.groups.length > 0) {
-            groupId = userInfo.groups[0];
-          } else {
-            setMeetings([]);
-            setLoading(false);
-            return;
-          }
+          setMeetings([]);
+          setLoading(false);
+          return;
         }
         
         // Gọi API thật để lấy meetings

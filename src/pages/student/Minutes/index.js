@@ -3,6 +3,7 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import client from '../../../utils/axiosClient';
+import { getUserInfo, getGroupId, getRoleInGroup } from '../../../auth/auth';
 
 export default function StudentMinutes() {
   const [minutes, setMinutes] = React.useState([]);
@@ -21,33 +22,21 @@ export default function StudentMinutes() {
 
   // Kiểm tra groupId trước
   React.useEffect(() => {
-    const checkGroup = async () => {
-      try {
-        // Kiểm tra từ localStorage trước
-        const studentGroupId = localStorage.getItem('student_group_id');
-        if (studentGroupId) {
-          setHasGroup(true);
-          return;
-        }
-        
-        // Nếu không có trong localStorage, kiểm tra từ API
-        const userResponse = await client.get("/auth/user-info");
-        const userInfo = userResponse?.data?.data;
-        
-        if (userInfo?.groups && userInfo.groups.length > 0) {
-          setHasGroup(true);
-        } else {
-          setHasGroup(false);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error checking group:', error);
-        setHasGroup(false);
-        setLoading(false);
-      }
-    };
+    // Lấy thông tin từ localStorage, không gọi API
+    const userInfo = getUserInfo();
+    const groupId = getGroupId() || localStorage.getItem('student_group_id');
     
-    checkGroup();
+    if (groupId || (userInfo?.groups && userInfo.groups.length > 0)) {
+      setHasGroup(true);
+      // Lấy role từ localStorage
+      const roleInGroup = getRoleInGroup();
+      if (roleInGroup) {
+        setUserRole(roleInGroup === "Student" ? 'Member' : (roleInGroup || 'Member'));
+      }
+    } else {
+      setHasGroup(false);
+      setLoading(false);
+    }
   }, []);
 
   React.useEffect(() => {
@@ -58,34 +47,23 @@ export default function StudentMinutes() {
       try {
         setLoading(true);
         
-        // Lấy groupId và user role
-        let groupId = localStorage.getItem('student_group_id');
+        // Lấy groupId từ localStorage, không gọi API
+        const userInfo = getUserInfo();
+        const groupId = getGroupId() || localStorage.getItem('student_group_id');
+        
         if (!groupId) {
-          const userResponse = await client.get("/auth/user-info");
-          const userInfo = userResponse?.data?.data;
-          if (userInfo?.groups && userInfo.groups.length > 0) {
-            groupId = userInfo.groups[0];
-          } else {
-            setMeetings([]);
-            setMinutes([]);
-            setLoading(false);
-            return;
-          }
+          setMeetings([]);
+          setMinutes([]);
+          setLoading(false);
+          return;
         }
         
-        // Lấy role của user trong group
-        try {
-          const groupResponse = await client.get(`/Staff/capstone-groups/${groupId}`);
-          if (groupResponse.data.status === 200) {
-            const groupData = groupResponse.data.data;
-            const currentUser = JSON.parse(localStorage.getItem('auth_user') || '{}');
-            const student = groupData.students?.find(s => s.id === currentUser.id);
-            if (student) {
-              setUserRole(student.role === "Student" ? 'Member' : (student.role || 'Member'));
-            }
+        // Lấy role từ localStorage nếu chưa có
+        if (!userRole) {
+          const roleInGroup = getRoleInGroup();
+          if (roleInGroup) {
+            setUserRole(roleInGroup === "Student" ? 'Member' : (roleInGroup || 'Member'));
           }
-        } catch (error) {
-          console.error('Error fetching user role:', error);
         }
         
         // Gọi API thật để lấy meetings
@@ -123,8 +101,7 @@ export default function StudentMinutes() {
             setMinutes([]);
           }
         } catch (error) {
-          // Nếu API chưa có, để mảng rỗng
-          console.log('Minutes API not available yet');
+
           setMinutes([]);
         }
       } catch (error) {

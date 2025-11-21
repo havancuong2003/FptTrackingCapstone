@@ -6,6 +6,7 @@ import Textarea from '../../../components/Textarea/Textarea';
 import client from '../../../utils/axiosClient';
 import DataTable from '../../../components/DataTable/DataTable';
 import { useNavigate } from 'react-router-dom';
+import { getUserInfo } from '../../../auth/auth';
 
 export default function StudentMeetingManagement() {
   const navigate = useNavigate();
@@ -64,10 +65,10 @@ export default function StudentMeetingManagement() {
 
   const fetchUserInfo = async () => {
     try {
-      const response = await client.get(`${API_BASE_URL}/auth/user-info`);
+      // Lấy thông tin từ localStorage, không gọi API
+      const userData = getUserInfo();
         
-      if (response.data.status === 200) {
-        const userData = response.data.data;
+      if (userData) {
         setUserInfo(userData);
         setUserRole(userData.roleInGroup || userData.role);
         

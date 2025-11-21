@@ -574,12 +574,10 @@ export default function SupervisorTasks() {
         setLoading(true);
       }
       
-      console.log('Fetching tasks for group:', gid);
       
       // Gọi API lấy tất cả issues theo group
       const response = await axiosClient.get(`/Student/Task/get-by-group/${gid}`);
       
-      console.log('Tasks API response:', response.data);
       
       if (response.data.status === 200) {
         const apiData = response.data.data;
@@ -615,7 +613,6 @@ export default function SupervisorTasks() {
           };
         });
 
-        console.log('Mapped tasks:', mappedTasks);
         setAllTasks(mappedTasks);
         setIsSearched(true);
         

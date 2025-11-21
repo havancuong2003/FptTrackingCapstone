@@ -49,17 +49,18 @@ export async function login({ username, password }) {
       const roleInGroup = me.roleInGroup || me.role_in_group || me.groupRole || null;
 
       localStorage.setItem(USER_ROLE_KEY, role);
-      localStorage.setItem(
-        USER_INFO_KEY,
-        JSON.stringify({ 
-          id: me.id || me.userId || 'u_1', 
-          name: me.name || me.fullName || 'User', 
-          role,
-          roleInGroup,
-          campusId: me.campusId || null,
-          groups: me.groups || []
-        })
-      );
+      // Lưu đầy đủ thông tin user theo format API response
+      const userData = {
+        id: me.id || me.userId || 'u_1',
+        semesterId: me.semesterId || null,
+        name: me.name || me.fullName || 'User',
+        role,
+        roleInGroup,
+        campusId: me.campusId || null,
+        expireDate: me.expireDate || null,
+        groups: me.groups || []
+      };
+      localStorage.setItem(USER_INFO_KEY, JSON.stringify(userData));
 
       // Lưu groupId cho student để dùng cho điều hướng tasks
       try {
@@ -132,7 +133,19 @@ export function getRoleInGroup() {
 export function getUserInfo() {
   try {
     const userInfo = localStorage.getItem(USER_INFO_KEY);
-    return userInfo ? JSON.parse(userInfo) : null;
+    if (!userInfo) return null;
+    const parsed = JSON.parse(userInfo);
+    // Đảm bảo format giống với API response
+    return {
+      id: parsed.id,
+      semesterId: parsed.semesterId,
+      name: parsed.name,
+      role: parsed.role,
+      roleInGroup: parsed.roleInGroup || parsed.role_in_group || parsed.groupRole,
+      campusId: parsed.campusId,
+      expireDate: parsed.expireDate,
+      groups: parsed.groups || []
+    };
   } catch {
     return null;
   }

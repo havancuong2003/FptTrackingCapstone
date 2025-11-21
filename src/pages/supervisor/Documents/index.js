@@ -23,9 +23,15 @@ export default function SupervisorDocuments() {
     setLoading(true);
     setMessage('');
     try {
-      const res = await client.get('/auth/user-info');
-      if (res?.data?.status === 200) {
-        const groups = Array.isArray(res.data.data?.groups) ? res.data.data.groups : [];
+      // Lấy thông tin từ localStorage, không gọi API
+      const userInfo = getUserInfo();
+      if (!userInfo) {
+        setGroupOptions([]);
+        setUserGroups([]);
+        setLoading(false);
+        return;
+      }
+      const groups = Array.isArray(userInfo.groups) ? userInfo.groups : [];
         setUserGroups(groups);
         // Tải thông tin tên nhóm để hiển thị label đẹp (groupCode - projectName)
         if (groups.length > 0) {
@@ -45,11 +51,9 @@ export default function SupervisorDocuments() {
         } else {
           setGroupOptions([]);
         }
-      } else {
-        setMessage(res?.data?.message || 'Không lấy được thông tin người dùng');
-      }
     } catch (e) {
-      setMessage(e?.message || 'Không lấy được thông tin người dùng');
+      console.error('Error loading user info:', e);
+      setMessage('Không lấy được thông tin người dùng');
     } finally {
       setLoading(false);
     }

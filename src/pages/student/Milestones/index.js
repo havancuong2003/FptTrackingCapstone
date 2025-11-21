@@ -5,6 +5,7 @@ import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
 import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
+import { getUserInfo, getGroupId } from '../../../auth/auth';
 
 
 export default function StudentMilestones() {
@@ -51,22 +52,10 @@ export default function StudentMilestones() {
     };
   }, []);
 
-  // Load user info
+  // Load user info từ localStorage, không gọi API
   React.useEffect(() => {
-    let mounted = true;
-    async function loadUserInfo() {
-      try {
-        const res = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
-        const user = res?.data?.data || null;
-        if (!mounted) return;
-        setUserInfo(user);
-      } catch {
-        if (!mounted) return;
-        setUserInfo(null);
-      }
-    }
-    loadUserInfo();
-    return () => { mounted = false; };
+    const user = getUserInfo();
+    setUserInfo(user);
   }, []);
 
   // Load group info

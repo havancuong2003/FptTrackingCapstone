@@ -7,6 +7,7 @@ import useLocalStorage from '../../../hooks/useLocalStorage';
 import Input from '../../../components/Input/Input';
 import Textarea from '../../../components/Textarea/Textarea';
 import client from '../../../utils/axiosClient';
+import { getUserInfo } from '../../../auth/auth';
 
 export default function SupervisorMeetingManagement() {
   const navigate = useNavigate();
@@ -52,10 +53,10 @@ export default function SupervisorMeetingManagement() {
 
   const fetchUserInfo = async () => {
     try {
-      const response = await client.get(`${API_BASE_URL}/auth/user-info`);
+      // Lấy thông tin từ localStorage, không gọi API
+      const userData = getUserInfo();
       
-      if (response.data.status === 200) {
-        const userData = response.data.data;
+      if (userData) {
         setUserInfo(userData);
         
         // Chỉ load thông tin nhóm để chọn; chưa load meetings

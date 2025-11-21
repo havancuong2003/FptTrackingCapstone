@@ -5,6 +5,7 @@ import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
 import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
+import { getUserInfo } from '../../../auth/auth';
 
 export default function SupervisorTracking() {
   const [userInfo, setUserInfo] = React.useState(null);
@@ -40,18 +41,17 @@ export default function SupervisorTracking() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load user info
+  // Load user info từ localStorage, không gọi API
   React.useEffect(() => {
     let mounted = true;
     async function loadUserInfo() {
       try {
-        const res = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
-        const user = res?.data?.data || null;
+        const user = getUserInfo();
         if (!mounted) return;
         setUserInfo(user);
         
         // Load groups that this supervisor is supervising
-        if (user?.groups && user.groups.length > 0) {
+        if (user && user.groups && user.groups.length > 0) {
           // Fetch all groups that this supervisor manages
           const allGroups = [];
           for (const groupId of user.groups) {
@@ -65,13 +65,16 @@ export default function SupervisorTracking() {
               console.error(`Error loading group ${groupId}:`, error);
             }
           }
-          setGroups(allGroups);
-          if (allGroups.length > 0) {
-            setSelectedGroup(allGroups[0]);
+          if (mounted) {
+            setGroups(allGroups);
+            if (allGroups.length > 0) {
+              setSelectedGroup(allGroups[0]);
+            }
           }
         }
-      } catch {
+      } catch (error) {
         if (!mounted) return;
+        console.error('Error loading user info:', error);
         setUserInfo(null);
         setGroups([]);
       }

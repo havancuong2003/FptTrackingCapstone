@@ -8,6 +8,7 @@ import DataTable from '../../../components/DataTable/DataTable';
 import { useNavigate } from 'react-router-dom';
 import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
+import { getUserInfo } from '../../../auth/auth';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -51,18 +52,17 @@ export default function SupervisorCalendar() {
   // API Base URL
   const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
 
-  // Load user info
+  // Load user info từ localStorage, không gọi API
   React.useEffect(() => {
     let mounted = true;
     async function loadUserInfo() {
       try {
-        const res = await client.get(`${API_BASE_URL}/auth/user-info`);
-        const user = res?.data?.data || null;
+        const user = getUserInfo();
         if (!mounted) return;
         setUserInfo(user);
         
         // Load groups that this supervisor is supervising
-        if (user?.groups && user.groups.length > 0) {
+        if (user && user.groups && user.groups.length > 0) {
           // Fetch all groups that this supervisor manages
           const allGroups = [];
           for (const groupId of user.groups) {
@@ -76,10 +76,13 @@ export default function SupervisorCalendar() {
               console.error(`Error loading group ${groupId}:`, error);
             }
           }
-          setGroups(allGroups);
+          if (mounted) {
+            setGroups(allGroups);
+          }
         }
-      } catch {
+      } catch (error) {
         if (!mounted) return;
+        console.error('Error loading user info:', error);
         setUserInfo(null);
         setGroups([]);
       }
