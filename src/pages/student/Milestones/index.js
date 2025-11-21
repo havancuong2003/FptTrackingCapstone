@@ -155,9 +155,33 @@ export default function StudentMilestones() {
     }
   };
 
+  // Kiểm tra file có đúng định dạng được phép không
+  const isValidFileType = (fileName) => {
+    if (!fileName) return false;
+    const extension = fileName.split('.').pop().toLowerCase();
+    const allowedExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Archives
+      'zip', '7z',
+      // Java
+      'rar'
+    ];
+    return allowedExtensions.includes(extension);
+  };
+
   const handleFileSelect = (event, itemId) => {
     const file = event.target.files[0];
     if (file) {
+      // Kiểm tra định dạng file
+      if (!isValidFileType(file.name)) {
+        alert('Invalid file type. Only images, PDF, ZIP, 7ZIP, and RAR files are allowed.');
+        // Reset input
+        event.target.value = '';
+        return;
+      }
       setSelectedFiles(prev => ({ ...prev, [itemId]: file }));
     }
   };
@@ -165,6 +189,18 @@ export default function StudentMilestones() {
   const handleUpload = async (deliveryItemId) => {
     const fileToUpload = selectedFiles[deliveryItemId];
     if (!fileToUpload || !userInfo?.groups[0]) return;
+    
+    // Validate file type trước khi upload
+    if (!isValidFileType(fileToUpload.name)) {
+      alert('Invalid file type. Only images, PDF, ZIP, 7ZIP, and RAR files are allowed.');
+      // Clear invalid file
+      setSelectedFiles(prev => {
+        const newFiles = { ...prev };
+        delete newFiles[deliveryItemId];
+        return newFiles;
+      });
+      return;
+    }
     
     setUploading(true);
     try {
@@ -689,6 +725,7 @@ export default function StudentMilestones() {
                             type="file"
                             id={`file-${item.id}`}
                             onChange={(e) => handleFileSelect(e, item.id)}
+                            accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.pdf,.zip,.7z,.rar"
                             style={{ display: 'none' }}
                           />
                           <label 
@@ -720,6 +757,9 @@ export default function StudentMilestones() {
                             Selected: {selectedFiles[item.id].name}
                           </div>
                         )}
+                        <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontStyle: 'italic' }}>
+                          Allowed file types: Images (JPG, PNG, GIF, etc.), PDF, ZIP, 7ZIP, RAR
+                        </div>
                       </div>
 
                       {/* All Attachments */}

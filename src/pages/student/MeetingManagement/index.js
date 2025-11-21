@@ -45,6 +45,7 @@ export default function StudentMeetingManagement() {
   const [groupInfo, setGroupInfo] = React.useState(null);
   const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
   const [loadingMinuteModal, setLoadingMinuteModal] = React.useState(false);
+  const [previousMinuteData, setPreviousMinuteData] = React.useState(null); // Biên bản họp trước đó
   const [showEditScheduleModal, setShowEditScheduleModal] = React.useState(false);
   const [editingMeeting, setEditingMeeting] = React.useState(null);
   const [scheduleForm, setScheduleForm] = React.useState({
@@ -448,6 +449,7 @@ export default function StudentMeetingManagement() {
     setIsEditing(false);
     setGroupInfo(null);
     setAttendanceList([]);
+    setPreviousMinuteData(null); // Reset biên bản trước đó
     setFormData({
       startAt: '',
       endAt: '',
@@ -516,6 +518,29 @@ export default function StudentMeetingManagement() {
               other: ''
             });
             setIsEditing(false);
+            
+            // Tìm và load biên bản họp trước đó (nếu có)
+            if (meetings && meetings.length > 0) {
+              // Sắp xếp meetings theo ngày, tìm meeting trước meeting hiện tại có biên bản
+              const sortedMeetings = [...meetings].sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
+              const currentMeetingIndex = sortedMeetings.findIndex(m => m.id === meeting.id);
+              
+              // Tìm meeting trước đó có isMinute === true
+              for (let i = currentMeetingIndex - 1; i >= 0; i--) {
+                const prevMeeting = sortedMeetings[i];
+                if (prevMeeting.isMinute === true) {
+                  try {
+                    const prevMinute = await fetchMeetingMinute(prevMeeting.id);
+                    if (prevMinute) {
+                      setPreviousMinuteData(prevMinute);
+                      break;
+                    }
+                  } catch (error) {
+                    console.error('Error fetching previous meeting minute:', error);
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -564,6 +589,7 @@ export default function StudentMeetingManagement() {
     setAttendanceList([]);
     setLoadingMinuteModal(false);
     setPendingIssues([]); // Reset pending issues khi đóng modal
+    setPreviousMinuteData(null); // Reset biên bản trước đó
     setFormData({
       startAt: '',
       endAt: '',
@@ -1538,6 +1564,48 @@ export default function StudentMeetingManagement() {
               </div>
             ) : (
             <div className={styles.modalBody}>
+              {/* Hiển thị biên bản họp trước đó (chỉ khi tạo mới) */}
+              {!isEditing && previousMinuteData && (
+                <div style={{
+                  background: '#f0f9ff',
+                  border: '1px solid #0ea5e9',
+                  borderRadius: 8,
+                  padding: 16,
+                  marginBottom: 20
+                }}>
+                  <h4 style={{ 
+                    margin: '0 0 12px 0', 
+                    fontSize: 14, 
+                    fontWeight: 600, 
+                    color: '#0c4a6e' 
+                  }}>
+                    Previous Meeting Minutes (Read-only)
+                  </h4>
+                  <div style={{ 
+                    fontSize: 12, 
+                    color: '#64748b', 
+                    marginBottom: 12 
+                  }}>
+                    <div><strong>Created by:</strong> {previousMinuteData.createBy || 'N/A'}</div>
+                    <div><strong>Created at:</strong> {previousMinuteData.createAt ? new Date(previousMinuteData.createAt).toLocaleString('en-US') : 'N/A'}</div>
+                  </div>
+                  <div style={{
+                    background: 'white',
+                    border: '1px solid #d1d5db',
+                    borderRadius: 6,
+                    padding: 12,
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    fontSize: 13,
+                    color: '#374151',
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word'
+                  }}>
+                    {previousMinuteData.meetingContent || 'No content available'}
+                  </div>
+                </div>
+              )}
+              
               <div className={styles.formRow}>
                 <div className={styles.formGroup}>
                   <label>Thời gian bắt đầu *</label>
