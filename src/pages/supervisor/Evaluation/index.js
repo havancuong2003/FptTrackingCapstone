@@ -1,10 +1,14 @@
 import React from "react";
 import styles from "./index.module.scss";
+import sharedLayout from "../sharedLayout.module.scss";
 import Button from "../../../components/Button/Button";
 import Modal from "../../../components/Modal/Modal";
 import DataTable from "../../../components/DataTable/DataTable";
-import axiosClient from "../../../utils/axiosClient";
-// import { sendEvaluationNotification } from "../../../api/evaluation"; // Tạm thời tắt gửi mail
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from "../../../auth/auth";
+import { getCapstoneGroupDetail } from "../../../api/staff/groups";
+import { getDeliverablesByGroup } from "../../../api/deliverables";
+import { getEvaluationsByMentorDeliverable, getPenaltyCardsByMilestone, createEvaluation, updateEvaluation } from "../../../api/evaluation";
+import SupervisorGroupFilter from "../../../components/SupervisorGroupFilter/SupervisorGroupFilter";
 
 // API endpoints - using axiosClient
 
@@ -72,6 +76,9 @@ export default function SupervisorEvaluation() {
   const [refreshTrigger, setRefreshTrigger] = React.useState(0);
   const [studentStatistics, setStudentStatistics] = React.useState(null);
   const [loadingStatistics, setLoadingStatistics] = React.useState(false);
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
 
   // ------------------ Fetch Evaluations ------------------
   const fetchEvaluations = async () => {
@@ -90,16 +97,16 @@ export default function SupervisorEvaluation() {
         params.deliverableId = selectedMilestone;
       }
       
-      const response = await axiosClient.get('/Common/Evaluation/getEvaluationByMentorDeliverable', {
-        params
-      });
+      const response = await getEvaluationsByMentorDeliverable(selectedGroup, selectedMilestone !== "all" ? selectedMilestone : null);
       
       // Check if response.data is array directly
-      if (Array.isArray(response.data)) {
-        setEvaluations(response.data);
-      } else if (response.data.status === 200) {
-        const evaluationsData = response.data.data || [];
+      if (Array.isArray(response)) {
+        setEvaluations(response);
+      } else if (response.status === 200) {
+        const evaluationsData = response.data || [];
         setEvaluations(evaluationsData);
+      } else if (Array.isArray(response.data)) {
+        setEvaluations(response.data);
       } else {
         setEvaluations([]);
       }
@@ -125,31 +132,56 @@ export default function SupervisorEvaluation() {
   }, [selectedGroup, selectedMilestone]);
   
 
-  // ------------------ Fetch Group List ------------------
+  // ------------------ Load Semesters and Groups ------------------
   React.useEffect(() => {
-    const fetchGroups = async () => {
-      setLoading(true);
-      try {
-        const response = await axiosClient.get('/Mentor/getGroups');
-        
-        if (response.data.status === 200) {
-          const groupsData =
-            response.data.data?.map((g) => ({
-              groupId: g.id.toString(),
-              groupName: g.name,
-              milestones: [],
-            })) || [];
-          setGroups(groupsData);
-          // Không tự động chọn nhóm đầu tiên, để user tự chọn
-        } else {
-        }
-      } catch (err) {
-      } finally {
-        setLoading(false);
+    function loadSemesters() {
+      const uniqueSemesters = getUniqueSemesters();
+      setSemesters(uniqueSemesters);
+      
+      const currentSemesterId = getCurrentSemesterId();
+      if (currentSemesterId) {
+        setSelectedSemesterId(currentSemesterId);
+      } else if (uniqueSemesters.length > 0) {
+        setSelectedSemesterId(uniqueSemesters[0].id);
       }
-    };
-    fetchGroups();
+      // Set loading false after semesters are loaded
+      setLoading(false);
+    }
+    loadSemesters();
   }, []);
+
+  React.useEffect(() => {
+    if (selectedSemesterId === null) {
+      setGroups([]);
+      setLoading(false);
+      return;
+    }
+    
+    // Get groups from localStorage only (no API call)
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    
+    // Build groups list from localStorage only
+    const groupsData = groupsFromStorage.map(groupInfo => ({
+      groupId: groupInfo.id.toString(),
+      groupName: groupInfo.name || `Group ${groupInfo.id}`,
+      milestones: [],
+    }));
+    
+    setGroups(groupsData);
+    setLoading(false); // Set loading false after groups are loaded from localStorage
+    
+    // Check if selected group is still in filtered list
+    const selectedGroupExists = selectedGroup && groupsFromStorage.some(g => g.id.toString() === selectedGroup);
+    
+    if (selectedGroup && !selectedGroupExists) {
+      // Selected group is not in filtered list, clear selection and data
+      setSelectedGroup(null);
+      setSelectedMilestone('all');
+      setEvaluations([]);
+      setPenaltyCards([]);
+    }
+  }, [selectedSemesterId, groupExpireFilter]);
 
 
 
@@ -160,33 +192,33 @@ export default function SupervisorEvaluation() {
       setLoading(true);
       try {
         const [milestoneResult, studentResult] = await Promise.allSettled([
-          axiosClient.get(`/deliverables/group/${selectedGroup}`),
-          axiosClient.get(`/Staff/capstone-groups/${selectedGroup}`)
+          getDeliverablesByGroup(selectedGroup),
+          getCapstoneGroupDetail(selectedGroup)
         ]); 
 
         const milestoneRes = milestoneResult.status === 'fulfilled' ? milestoneResult.value : null;
         const studentRes = studentResult.status === 'fulfilled' ? studentResult.value : null;
 
 
-        // Xử lý cả trường hợp API trả về format khác
+        // Handle different API response formats
         let studentData;
-        if (studentRes) {
-          if (studentRes.data?.status === 200) {
-            studentData = studentRes.data.data;
-          } else if (studentRes.data && studentRes.data.data) {
-            // Fallback: nếu không có status nhưng có data
-            studentData = studentRes.data.data;
+        if (studentRes && studentRes.status === 'fulfilled') {
+          if (studentRes.value?.status === 200) {
+            studentData = studentRes.value.data;
+          } else if (studentRes.value?.data) {
+            // Fallback: if no status but has data
+            studentData = studentRes.value.data;
           } else {
-            // Fallback: sử dụng toàn bộ response
-            studentData = studentRes.data;
+            // Fallback: use entire response
+            studentData = studentRes.value;
           }
         }
 
         if (studentData) {
-          const milestoneData = milestoneRes?.data || []; // Có thể rỗng nếu API lỗi
+          const milestoneData = milestoneRes?.status === 'fulfilled' ? (milestoneRes.value?.data || []) : []; // Can be empty if API error
 
 
-          // Kiểm tra cấu trúc dữ liệu
+          // Check data structure
           if (!studentData) {
             return;
           }
@@ -198,11 +230,11 @@ export default function SupervisorEvaluation() {
           const students =
             studentData.students.map((s) => {
               return {
-                id: s.rollNumber, // Sử dụng rollNumber làm student code
-                studentId: s.id.toString(), // Giữ lại studentId để gọi API
+                id: s.rollNumber, // Use rollNumber as student code
+                studentId: s.id.toString(), // Keep studentId to call API
                 name: s.name,
                 role: s.role,
-                email: s.email, // Lấy email từ database, không tạo fallback
+                email: s.email, // Get email from database, no fallback
                 penaltyCards: [],
                 evaluations: [],
               };
@@ -217,7 +249,7 @@ export default function SupervisorEvaluation() {
               students,
             }));
           } else {
-            // Không tạo dữ liệu giả khi API lỗi
+            // Don't create fake data when API errors
             milestones = [];
           }
 
@@ -233,7 +265,7 @@ export default function SupervisorEvaluation() {
             )
           );
 
-          // Không tự động chọn milestone đầu tiên, để user tự chọn
+          // Don't automatically select first milestone, let user choose
         } else {
           alert('Unable to fetch group information. Please try again.');
         }
@@ -252,7 +284,7 @@ export default function SupervisorEvaluation() {
     (m) => m.id === selectedMilestone
   );
   
-  // Nếu không chọn milestone hoặc chọn "all", lấy tất cả students từ tất cả milestones
+  // If no milestone selected or "all" selected, get all students from all milestones
   let studentsToEvaluate = [];
   if (!selectedMilestone || selectedMilestone === "all") {
     if (selectedGroupData?.milestones) {
@@ -261,7 +293,7 @@ export default function SupervisorEvaluation() {
       selectedGroupData.milestones.forEach(milestone => {
         if (milestone.students) {
           milestone.students.forEach(student => {
-            // Sử dụng studentId làm key để tránh duplicate
+            // Use studentId as key to avoid duplicates
             if (!allStudents.has(student.studentId)) {
               allStudents.set(student.studentId, student);
             }
@@ -278,7 +310,7 @@ export default function SupervisorEvaluation() {
 
 
   // ------------------ DataTable Columns ------------------
-  // Helper: kiểm tra evaluation thuộc milestone đang chọn
+  // Helper: check if evaluation belongs to selected milestone
   const isEvaluationInSelectedMilestone = (evaluation) => {
     if (!selectedMilestone || selectedMilestone === "all") return true;
     const selectedId = parseInt(selectedMilestone);
@@ -441,17 +473,18 @@ export default function SupervisorEvaluation() {
     
     setLoadingPenaltyCards(true);
     try {
-      // Edit URL - bỏ /api/v1/ vì axiosClient đã có base URL
-      const response = await axiosClient.get('/Common/Evaluation/card-milestonse', {
-        params: {
-          groupId: selectedGroup
-        }
-      });
+      const response = await getPenaltyCardsByMilestone(selectedGroup);
       
-      if (response.data.status === 200) {
-        const penaltiesData = response.data.data || [];
-        // Chỉ lấy name từ API
+      if (response.status === 200) {
+        const penaltiesData = response.data || [];
+        // Only get name from API
         const formattedPenalties = penaltiesData.map(penalty => ({
+          id: penalty.id,
+          name: penalty.name
+        }));
+        setPenaltyCards(formattedPenalties);
+      } else if (Array.isArray(response)) {
+        const formattedPenalties = response.map(penalty => ({
           id: penalty.id,
           name: penalty.name
         }));
@@ -807,9 +840,10 @@ export default function SupervisorEvaluation() {
       } else if (newEvaluation.milestoneId === "all") {
         // Khi chọn "all", thử lấy milestone đầu tiên từ API thật
         try {
-          const milestoneRes = await axiosClient.get(`/deliverables/group/${selectedGroup}`);
-          if (milestoneRes.data && Array.isArray(milestoneRes.data) && milestoneRes.data.length > 0) {
-            deliverableId = milestoneRes.data[0].id;
+          const milestoneRes = await getDeliverablesByGroup(selectedGroup);
+          const milestoneData = milestoneRes?.data || milestoneRes;
+          if (Array.isArray(milestoneData) && milestoneData.length > 0) {
+            deliverableId = milestoneData[0].id;
           }
         } catch (err) {
         }
@@ -853,28 +887,28 @@ export default function SupervisorEvaluation() {
         return;
       }
 
-      const response = await axiosClient.post('/Common/Evaluation/create', payload);
+      const response = await createEvaluation(payload);
 
 
-      // Kiểm tra nếu response thành công (status 200 hoặc không có lỗi)
-      if (response.data.status === 200 || response.status === 200 || !response.data.error) {
-        // Thêm evaluation mới vào state để giao diện cập nhật ngay lập tức
-        if (response.data.data) {
+      // Check if response is successful (status 200 or no error)
+      if (response.status === 200 || !response.error) {
+        // Add new evaluation to state for immediate UI update
+        if (response.data) {
           const newEvaluationData = {
-            ...response.data.data,
-            id: response.data.data.id, // Lưu evaluationId thật từ server
-            evaluationId: response.data.data.id, // Sử dụng evaluationId mới từ API
-            receiverId: response.data.data.receiverId || response.data.data.id,
+            ...response.data,
+            id: response.data.id, // Save real evaluationId from server
+            evaluationId: response.data.id, // Use new evaluationId from API
+            receiverId: response.data.receiverId || response.data.id,
             studentName: selectedStudent?.name || 'Unknown',
             evaluatorName: 'Instructor',
-            // Đảm bảo có đầy đủ thông tin cần thiết
+            // Ensure all necessary information is available
             deliverableName: selectedMilestoneData?.name || 'Unknown Milestone',
-            createAt: response.data.data.createAt || new Date().toISOString(),
-            penaltyCards: response.data.data.penaltyCards || [],
-            // Giữ nguyên dữ liệu server để hiển thị đúng ở các cột
-            type: response.data.data.type,
-            feedback: response.data.data.feedback || '',
-            notes: response.data.data.feedback || ''
+            createAt: response.data.createAt || new Date().toISOString(),
+            penaltyCards: response.data.penaltyCards || [],
+            // Keep server data to display correctly in columns
+            type: response.data.type,
+            feedback: response.data.feedback || '',
+            notes: response.data.feedback || ''
           };
           
           // Thêm vào đầu danh sách để hiển thị ngay lập tức
@@ -968,19 +1002,19 @@ export default function SupervisorEvaluation() {
 
 
       
-      // Sử dụng API endpoint mới để update evaluation
-      const response = await axiosClient.put(`/Common/Evaluation/update/evaluation/${evaluationIdForUpdate}`, payload);
+      // Use new API endpoint to update evaluation
+      const response = await updateEvaluation(evaluationIdForUpdate, payload);
 
-      // Kiểm tra nếu response thành công
-      if (response.data.status === 200 || response.status === 200 || !response.data.error) {
-        // Đóng modal trước
+      // Check if response is successful
+      if (response.status === 200 || !response.error) {
+        // Close modal first
         setEditModal(false);
         
-        // Hiển thị thông báo thành công với message từ server
-        alert(response.data.message || "Evaluation updated successfully!");
+        // Show success message from server
+        alert(response.message || "Evaluation updated successfully!");
         
-        // Cập nhật trực tiếp vào state để giao diện refresh ngay lập tức
-        const updatedData = response.data.data;
+        // Update directly to state for immediate UI refresh
+        const updatedData = response.data;
         
         // Tìm và cập nhật evaluation trong state
         setEvaluations(prevEvaluations => {
@@ -1055,40 +1089,35 @@ export default function SupervisorEvaluation() {
   };
 
   if (loading) {
-    return <div className={styles.loading}>Loading data...</div>;
+    return <div className={sharedLayout.loading}>Loading data...</div>;
   }
 
   if (groups.length === 0) {
-    return <div className={styles.loading}>No groups found.</div>;
+    return <div className={sharedLayout.loading}>No groups found.</div>;
   }
 
   // Hiển thị thông báo khi chưa chọn nhóm
   if (!selectedGroup) {
     return (
-      <div className={styles.container}>
-        <div className={styles.header}>
+      <div className={sharedLayout.container}>
+        <div className={sharedLayout.header}>
           <h1>Student Evaluation</h1>
         </div>
         <div className={styles.controls}>
-          <div className={styles.controlGroup}>
-            <label>Group:</label>
-            <select
-              value={selectedGroup || ""}
-              onChange={(e) => {
-                setSelectedGroup(e.target.value);
-              }}
-              className={styles.select}
-            >
-              <option value="">Select group</option>
-              {groups.map((g) => (
-                <option key={g.groupId} value={g.groupId}>
-                  {g.groupName}
-                </option>
-              ))}
-            </select>
-          </div>
+          <SupervisorGroupFilter
+            semesters={semesters}
+            selectedSemesterId={selectedSemesterId}
+            onSemesterChange={setSelectedSemesterId}
+            groupExpireFilter={groupExpireFilter}
+            onGroupExpireFilterChange={setGroupExpireFilter}
+            groups={groups.map(g => ({ id: g.groupId, name: g.groupName }))}
+            selectedGroupId={selectedGroup || ''}
+            onGroupChange={setSelectedGroup}
+            groupSelectPlaceholder="Select group"
+            loading={loading}
+          />
         </div>
-        <div className={styles.noSelection}>
+        <div className={sharedLayout.noSelection}>
           <p>Please select a group to view student list and evaluations.</p>
         </div>
       </div>
@@ -1097,30 +1126,25 @@ export default function SupervisorEvaluation() {
 
   return (
     <>
-      <div className={styles.container}>
-        <div className={styles.header}>
+      <div className={sharedLayout.container}>
+        <div className={sharedLayout.header}>
           <h1>Student Evaluation</h1>
         </div>
 
         <div className={styles.controls}>
-          <div className={styles.controlGroup}>
-            <label>Group:</label>
-            <select
-              value={selectedGroup || ""}
-              onChange={(e) => {
-                setSelectedGroup(e.target.value);
-              }}
-              className={styles.select}
-            >
-              <option value="">Select group</option>
-              {groups.map((g) => (
-                <option key={g.groupId} value={g.groupId}>
-                  {g.groupName}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className={styles.controlGroup}>
+          <SupervisorGroupFilter
+            semesters={semesters}
+            selectedSemesterId={selectedSemesterId}
+            onSemesterChange={setSelectedSemesterId}
+            groupExpireFilter={groupExpireFilter}
+            onGroupExpireFilterChange={setGroupExpireFilter}
+            groups={groups.map(g => ({ id: g.groupId, name: g.groupName }))}
+            selectedGroupId={selectedGroup || ''}
+            onGroupChange={setSelectedGroup}
+            groupSelectPlaceholder="Select group"
+            loading={loading}
+          />
+          <div className={styles.controlGroup} style={{ marginTop: 16 }}>
             <label>Deliverables:</label>
             <select
               value={selectedMilestone || ""}
@@ -1140,10 +1164,8 @@ export default function SupervisorEvaluation() {
           </div>
         </div>
 
-        <div className={styles.tableSection}>
-          <div className={styles.tableHeader}>
-            <h2>Student evaluation table</h2>
-          </div>
+        <div className={sharedLayout.contentSection}>
+          <h2>Student evaluation table</h2>
           <div className={styles.tableContainer}>
             <DataTable
               key={`evaluation-table-${refreshTrigger}`}

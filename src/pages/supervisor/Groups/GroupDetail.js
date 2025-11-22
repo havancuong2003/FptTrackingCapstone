@@ -1,13 +1,17 @@
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import styles from './GroupDetail.module.scss';
 import Button from '../../../components/Button/Button';
 import BackButton from '../../common/BackButton';
 import axiosClient from '../../../utils/axiosClient';
+import { getRoleInGroup, getUserInfo } from '../../../auth/auth';
+import { sendSecretaryAssignmentEmail, sendRoleAssignmentEmail } from '../../../email/groups';
 
 export default function GroupDetail() {
     const { groupId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const isExpired = location.state?.isExpired || false;
     const [group, setGroup] = React.useState(null);
     const [loading, setLoading] = React.useState(true);
     const [emailData, setEmailData] = React.useState({
@@ -33,7 +37,6 @@ export default function GroupDetail() {
             
             if (response.data.status === 200) {
                 const groupData = response.data.data;
-                console.log(" group data:  ", groupData);
                 const formattedGroup = {
                     id: groupData.id,
                     groupCode: groupData.groupCode,
@@ -130,7 +133,51 @@ export default function GroupDetail() {
                     )
                 }));
                 
-                alert(`Đã thay đổi role thành ${newRole} cho ${selectedMember.name}!`);
+                // Get current user info to determine if they are Supervisor or Secretary
+                const currentUser = getUserInfo();
+                const userRoleInGroup = getRoleInGroup();
+                const isSecretary = userRoleInGroup === 'Secretary' || userRoleInGroup === 'SECRETARY';
+                const isSupervisor = currentUser?.role === 'SUPERVISOR' || currentUser?.role === 'MENTOR';
+                
+                // Send email notification based on who is assigning the role
+                try {
+
+                    const systemUrl = `${window.location.origin}`;
+                    const groupDetailUrl = `${window.location.origin}/supervisor/groups/${groupId}`;
+                    
+                    if (isSupervisor && newRole === 'Secretary') {
+                        // Supervisor assigning Secretary role
+                        await sendSecretaryAssignmentEmail({
+                            memberEmail: selectedMember.email,
+                            memberName: selectedMember.name,
+                            groupName: group.groupName,
+                            projectName: group.projectName,
+                            supervisorName: currentUser?.name || 'Giảng viên hướng dẫn',
+                            detailUrl: groupDetailUrl,
+                            systemUrl: systemUrl,
+                            cc: group.supervisorsInfor?.map(s => s.email).filter(Boolean) || []
+                        });
+                    } else if (isSecretary && newRole !== 'Secretary') {
+                        // Secretary assigning role to other members
+                        await sendRoleAssignmentEmail({
+                            memberEmail: selectedMember.email,
+                            memberName: selectedMember.name,
+                            newRole: newRole,
+                            groupName: group.groupName,
+                            projectName: group.projectName,
+                            secretaryName: currentUser?.name || 'Thư ký nhóm',
+                            detailUrl: groupDetailUrl,
+                            systemUrl: systemUrl,
+                            cc: group.supervisorsInfor?.map(s => s.email).filter(Boolean) || []
+                        });
+                    }
+                } catch (emailError) {
+                    console.error('Error sending role assignment email:', emailError);
+                    // Don't block the role change if email fails, just log it
+                    console.warn('Role changed successfully but email notification failed');
+                }
+                
+                alert(`Đã thay đổi role thành ${newRole} cho ${selectedMember.name}!${isSupervisor && newRole === 'Secretary' ? ' Email thông báo đã được gửi.' : isSecretary ? ' Email thông báo đã được gửi.' : ''}`);
                 setShowRoleModal(false);
                 setSelectedMember(null);
                 setNewRole('');
@@ -232,30 +279,47 @@ export default function GroupDetail() {
     }
 
     if (!group) {
+        const backPath = isExpired ? '/supervisor/groups/expired' : '/supervisor/groups/active';
         return (
             <div className={styles.error}>
                 <div>Không tìm thấy thông tin nhóm</div>
-                <Button onClick={() => navigate('/supervisor/groups')}>
+                <Button onClick={() => navigate(backPath)}>
                     Quay lại danh sách
                 </Button>
             </div>
         );
     }
-    console.log(" group members: ", group.members);
+    
+    const backPath = isExpired ? '/supervisor/groups/expired' : '/supervisor/groups/active';
     return (
         <div className={styles.container}>
-            <BackButton to="/supervisor/groups">← Quay lại</BackButton>
+            <BackButton to={backPath}>← Quay lại</BackButton>
+            {isExpired && (
+                <div className={styles.expiredNotice} style={{ 
+                    padding: '12px', 
+                    backgroundColor: '#fef3c7', 
+                    border: '1px solid #f59e0b', 
+                    borderRadius: '6px', 
+                    marginBottom: '20px',
+                    color: '#92400e',
+                    fontWeight: 500
+                }}>
+                    Nhóm này đã hết hạn. Bạn chỉ có thể xem thông tin (view-only mode).
+                </div>
+            )}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
                     <h1>Chi tiết nhóm: {group.groupName}</h1>
                 </div>
-                <div className={styles.headerRight}>
-                    <Button 
-                        onClick={openEmailComposer}
-                    >
-                        Gửi email cho nhóm
-                    </Button>
-                </div>
+                {!isExpired && (
+                    <div className={styles.headerRight}>
+                        <Button 
+                            onClick={openEmailComposer}
+                        >
+                            Gửi email cho nhóm
+                        </Button>
+                    </div>
+                )}
             </div>
 
             <div className={styles.groupInfo}>
@@ -292,12 +356,14 @@ export default function GroupDetail() {
                                     <span className={`${styles.roleTag} ${styles[member.currentRole.toLowerCase()]}`}>
                                         {member.currentRole}
                                     </span>
-                                    <button 
-                                        className={styles.changeRoleBtn}
-                                        onClick={() => handleChangeRole(member)}
-                                    >
-                                        Đổi Role
-                                    </button>
+                                    {!isExpired && (
+                                        <button 
+                                            className={styles.changeRoleBtn}
+                                            onClick={() => handleChangeRole(member)}
+                                        >
+                                            Đổi Role
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         ))}

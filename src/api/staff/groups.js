@@ -10,13 +10,13 @@ export async function getMajors() {
       return {
         data: payload.data || [],
         status: payload.status,
-        message: payload.message || 'Lấy danh sách ngành thành công',
+        message: payload.message || 'Successfully fetched majors list',
       };
     }
-    return { data: [], status: payload.status, message: payload.message || 'Lỗi' };
+    return { data: [], status: payload.status, message: payload.message || 'Error' };
   } catch (error) {
     console.error('Error fetching majors:', error);
-    return { data: [], status: 500, message: 'Lỗi khi lấy danh sách ngành' };
+    return { data: [], status: 500, message: 'Error fetching majors list' };
   }
 }
 
@@ -28,13 +28,13 @@ export async function getSemesters() {
       return {
         data: payload.data || [],
         status: payload.status,
-        message: payload.message || 'Lấy danh sách kỳ học thành công',
+        message: payload.message || 'Successfully fetched semesters list',
       };
     }
-    return { data: [], status: payload.status, message: payload.message || 'Lỗi' };
+    return { data: [], status: payload.status, message: payload.message || 'Error' };
   } catch (error) {
     console.error('Error fetching semesters:', error);
-    return { data: [], status: 500, message: 'Lỗi khi lấy danh sách kỳ học' };
+    return { data: [], status: 500, message: 'Error fetching semesters list' };
   }
 }
 
@@ -48,13 +48,13 @@ export async function getCourseCodes() {
       return {
         data: activeCourses,
         status: payload.status,
-        message: payload.message || 'Lấy danh sách môn học thành công',
+        message: payload.message || 'Successfully fetched course codes list',
       };
     }
-    return { data: [], status: payload.status, message: payload.message || 'Lỗi' };
+    return { data: [], status: payload.status, message: payload.message || 'Error' };
   } catch (error) {
     console.error('Error fetching course codes:', error);
-    return { data: [], status: 500, message: 'Lỗi khi lấy danh sách môn học' };
+    return { data: [], status: 500, message: 'Error fetching course codes list' };
   }
 }
 
@@ -80,7 +80,7 @@ export async function listCapstoneGroups({ page = 1, pageSize = 100 } = {}) {
       options: payload.data?.options || { majors: [], terms: [], courseCodes: [] },
     },
     status: payload.status ?? res.status,
-    message: payload.message || 'Lấy thành công',
+    message: payload.message || 'Success',
   };
 }
 
@@ -96,10 +96,10 @@ export async function getCapstoneGroupDetail(groupId) {
         ? raw.supervisors
         : (raw.supervisor ? [raw.supervisor] : []),
     } : raw;
-    return { data: normalized, status: payload?.status ?? res.status, message: payload?.message || 'Lấy thành công' };
+    return { data: normalized, status: payload?.status ?? res.status, message: payload?.message || 'Success' };
   } catch (error) {
     console.error('Error fetching capstone group detail:', error);
-    return { data: null, status: 500, message: error.response?.data?.message || 'Lỗi khi lấy thông tin nhóm' };
+    return { data: null, status: 500, message: error.response?.data?.message || 'Error fetching group information' };
   }
 }
 
@@ -112,7 +112,7 @@ export async function sendEmailToGroup(groupId, content) {
   return {
     data: payload.data,
     status: payload.status ?? res.status,
-    message: payload.message || 'Email đã được gửi thành công',
+      message: payload.message || 'Email sent successfully',
   };
 }
 
@@ -125,13 +125,13 @@ export async function getMockDataGroups() {
       return {
         data: payload.data || [],
         status: payload.status,
-        message: payload.message || 'Lấy dữ liệu thành công',
+        message: payload.message || 'Data fetched successfully',
       };
     }
-    return { data: [], status: payload.status, message: payload.message || 'Lỗi' };
+    return { data: [], status: payload.status, message: payload.message || 'Error' };
   } catch (error) {
     console.error('Error fetching mock data groups:', error);
-    return { data: [], status: 500, message: 'Lỗi khi lấy dữ liệu từ Call4Project' };
+    return { data: [], status: 500, message: 'Error fetching data from Call4Project' };
   }
 }
 
@@ -142,14 +142,14 @@ export async function syncMockDataGroups(groupsData) {
     return {
       data: payload.data,
       status: payload.status ?? res.status,
-      message: payload.message || 'Đồng bộ dữ liệu thành công',
+      message: payload.message || 'Data synced successfully',
     };
   } catch (error) {
     console.error('Error syncing mock data groups:', error);
     return {
       data: null,
       status: 500,
-      message: error.response?.data?.message || 'Lỗi khi đồng bộ dữ liệu',
+      message: error.response?.data?.message || 'Error syncing data',
     };
   }
 }

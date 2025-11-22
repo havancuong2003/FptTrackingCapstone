@@ -10,16 +10,20 @@ export default function SyncGroup() {
   const [loading, setLoading] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
   const [groupsData, setGroupsData] = React.useState([]);
+  const [groupsByStatus, setGroupsByStatus] = React.useState({ alreadyExist: [], notExistYet: [] });
   const [majorCategories, setMajorCategories] = React.useState({ alreadyExist: [], notExistYet: [] });
   const [message, setMessage] = React.useState('');
   const [syncProgress, setSyncProgress] = React.useState(0);
   const [syncStatus, setSyncStatus] = React.useState(''); // 'idle', 'syncing', 'completed', 'error'
-  const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState(null);
   const [detailModalOpen, setDetailModalOpen] = React.useState(false);
-  const [page, setPage] = React.useState(1);
+  const [pageOld, setPageOld] = React.useState(1);
+  const [pageNew, setPageNew] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(20);
-  const [jumpToPage, setJumpToPage] = React.useState('');
+  const [jumpToPageOld, setJumpToPageOld] = React.useState('');
+  const [jumpToPageNew, setJumpToPageNew] = React.useState('');
+  const [searchQueryOld, setSearchQueryOld] = React.useState('');
+  const [searchQueryNew, setSearchQueryNew] = React.useState('');
 
   const handleLoadData = async () => {
     setLoading(true);
@@ -29,23 +33,33 @@ export default function SyncGroup() {
     try {
       const res = await getMockDataGroups();
       if (res.status === 200) {
-        // Parse data từ format mới: data.result.groups và data.result.majorCategories
-        const result = res.data?.result || res.data || {};
-        const groups = result.groups || [];
-        const majorCats = result.majorCategories || { alreadyExist: [], notExistYet: [] };
+        // Parse data từ format mới: data.groups.alreadyExist, data.groups.notExistYet và data.majorCategories
+        const data = res.data || {};
+        const groupsObj = data.groups || {};
+        const alreadyExistGroups = Array.isArray(groupsObj.alreadyExist) ? groupsObj.alreadyExist : [];
+        const notExistYetGroups = Array.isArray(groupsObj.notExistYet) ? groupsObj.notExistYet : [];
         
-        setGroupsData(groups);
+        const majorCats = data.majorCategories || { alreadyExist: [], notExistYet: [] };
+        
+        setGroupsData([]);
+        setGroupsByStatus({ alreadyExist: alreadyExistGroups, notExistYet: notExistYetGroups });
         setMajorCategories(majorCats);
-        setMessage(`Loaded ${groups.length} groups from FAP System`);
+        setMessage(`Loaded ${alreadyExistGroups.length + notExistYetGroups.length} groups from FAP System (${alreadyExistGroups.length} existing, ${notExistYetGroups.length} new)`);
+        setPageOld(1);
+        setPageNew(1);
+        setSearchQueryOld('');
+        setSearchQueryNew('');
       } else {
         setMessage(res.message || 'Error loading data');
         setGroupsData([]);
+        setGroupsByStatus({ alreadyExist: [], notExistYet: [] });
         setMajorCategories({ alreadyExist: [], notExistYet: [] });
       }
     } catch (error) {
       console.error('Error loading data:', error);
       setMessage('Error loading data. Please try again.');
       setGroupsData([]);
+      setGroupsByStatus({ alreadyExist: [], notExistYet: [] });
       setMajorCategories({ alreadyExist: [], notExistYet: [] });
     } finally {
       setLoading(false);
@@ -53,12 +67,16 @@ export default function SyncGroup() {
   };
 
   const handleSync = async () => {
-    if (!groupsData || groupsData.length === 0) {
+    const alreadyExistCount = groupsByStatus.alreadyExist.length;
+    const notExistYetCount = groupsByStatus.notExistYet.length;
+    const totalGroups = alreadyExistCount + notExistYetCount;
+
+    if (totalGroups === 0) {
       alert('Please load data before syncing!');
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to sync ${groupsData.length} groups from FAP System?`)) {
+    if (!window.confirm(`Are you sure you want to sync ${totalGroups} groups from FAP System?\n- ${alreadyExistCount} existing groups\n- ${notExistYetCount} new groups`)) {
       return;
     }
 
@@ -79,7 +97,16 @@ export default function SyncGroup() {
     }, 200);
 
     try {
-      const res = await syncMockDataGroups(groupsData);
+      // Gửi dữ liệu với cấu trúc đúng: groups có alreadyExist và notExistYet
+      const syncData = {
+        groups: {
+          alreadyExist: groupsByStatus.alreadyExist,
+          notExistYet: groupsByStatus.notExistYet
+        },
+        majorCategories: majorCategories
+      };
+      
+      const res = await syncMockDataGroups(syncData);
       clearInterval(progressInterval);
       setSyncProgress(100);
       
@@ -106,66 +133,78 @@ export default function SyncGroup() {
     }
   };
 
-  // Filter groups based on search query
-  const filteredGroupsData = React.useMemo(() => {
-    if (!searchQuery.trim()) {
-      return groupsData;
+  // Filter existing groups
+  const filteredExistingGroups = React.useMemo(() => {
+    if (!searchQueryOld.trim()) {
+      return groupsByStatus.alreadyExist;
     }
     
-    const query = searchQuery.toLowerCase().trim();
-    return groupsData.filter(group => {
-      // Search in Group Code
+    const query = searchQueryOld.toLowerCase().trim();
+    return groupsByStatus.alreadyExist.filter(group => {
       if ((group.groupCode || '').toLowerCase().includes(query)) return true;
-      
-      // Search in Group Name
       if ((group.groupName || '').toLowerCase().includes(query)) return true;
-      
-      // Search in Vietnamese Title
-      if ((group.vietnameseTitle || '').toLowerCase().includes(query)) return true;
-      
-      // Search in Major ID
-      if (String(group.majorId || '').toLowerCase().includes(query)) return true;
-      
-      // Search in Profession
       if ((group.profession || '').toLowerCase().includes(query)) return true;
-      
-      // Search in Description
       if ((group.description || '').toLowerCase().includes(query)) return true;
-      
-      // Search in Members (name, rollNumber, email)
-      if (group.members && group.members.length > 0) {
-        const memberMatch = group.members.some(member => 
-          (member.fullname || '').toLowerCase().includes(query) ||
-          (member.rollNumber || '').toLowerCase().includes(query) ||
-          (member.email || '').toLowerCase().includes(query)
-        );
-        if (memberMatch) return true;
-      }
-      
       return false;
     });
-  }, [groupsData, searchQuery]);
+  }, [groupsByStatus.alreadyExist, searchQueryOld]);
 
-  // Paginate filtered data
-  const paginatedGroupsData = React.useMemo(() => {
-    const startIndex = (page - 1) * pageSize;
+  // Filter new groups
+  const filteredNewGroups = React.useMemo(() => {
+    if (!searchQueryNew.trim()) {
+      return groupsByStatus.notExistYet;
+    }
+    
+    const query = searchQueryNew.toLowerCase().trim();
+    return groupsByStatus.notExistYet.filter(group => {
+      if ((group.groupCode || '').toLowerCase().includes(query)) return true;
+      if ((group.groupName || '').toLowerCase().includes(query)) return true;
+      if ((group.profession || '').toLowerCase().includes(query)) return true;
+      if ((group.description || '').toLowerCase().includes(query)) return true;
+      return false;
+    });
+  }, [groupsByStatus.notExistYet, searchQueryNew]);
+
+  // Paginate existing groups
+  const paginatedExistingGroups = React.useMemo(() => {
+    const startIndex = (pageOld - 1) * pageSize;
     const endIndex = startIndex + pageSize;
-    return filteredGroupsData.slice(startIndex, endIndex);
-  }, [filteredGroupsData, page, pageSize]);
+    return filteredExistingGroups.slice(startIndex, endIndex);
+  }, [filteredExistingGroups, pageOld, pageSize]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredGroupsData.length / pageSize));
+  // Paginate new groups
+  const paginatedNewGroups = React.useMemo(() => {
+    const startIndex = (pageNew - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredNewGroups.slice(startIndex, endIndex);
+  }, [filteredNewGroups, pageNew, pageSize]);
+
+  const totalPagesOld = Math.max(1, Math.ceil(filteredExistingGroups.length / pageSize));
+  const totalPagesNew = Math.max(1, Math.ceil(filteredNewGroups.length / pageSize));
 
   // Reset to page 1 when search query changes
   React.useEffect(() => {
-    setPage(1);
-  }, [searchQuery]);
+    setPageOld(1);
+  }, [searchQueryOld]);
+
+  React.useEffect(() => {
+    setPageNew(1);
+  }, [searchQueryNew]);
 
   // Handle jump to page
-  const handleJumpToPage = () => {
-    const pageNum = parseInt(jumpToPage);
-    if (pageNum >= 1 && pageNum <= totalPages) {
-      setPage(pageNum);
-      setJumpToPage('');
+  const handleJumpToPageOld = () => {
+    const pageNum = parseInt(jumpToPageOld);
+    if (pageNum >= 1 && pageNum <= totalPagesOld) {
+      setPageOld(pageNum);
+      setJumpToPageOld('');
+    }
+  };
+
+  const handleJumpToPageNew = () => {
+    const pageNum = parseInt(jumpToPageNew);
+    if (pageNum >= 1 && pageNum <= totalPagesNew) {
+      setPageNew(pageNum);
+      setJumpToPageNew('');
     }
   };
 
@@ -206,32 +245,6 @@ export default function SyncGroup() {
       )
     },
     {
-      key: 'vietnameseTitle',
-      title: 'Vietnamese Title',
-      render: (row) => (
-        <div style={{
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
-        }} title={row.vietnameseTitle || '-'}>
-          {row.vietnameseTitle || '-'}
-        </div>
-      )
-    },
-    {
-      key: 'majorId',
-      title: 'Major ID',
-      render: (row) => (
-        <div style={{
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
-        }} title={String(row.majorId || '-')}>
-          {row.majorId || '-'}
-        </div>
-      )
-    },
-    {
       key: 'profession',
       title: 'Profession',
       render: (row) => (
@@ -264,25 +277,6 @@ export default function SyncGroup() {
         }} title={row.status || '-'}>
           {row.status || '-'}
         </span>
-      )
-    },
-    {
-      key: 'members',
-      title: 'Members',
-      render: (row) => (
-        <div style={{
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
-        }}>
-          {row.members && row.members.length > 0 ? (
-            <span style={{ color: '#3b82f6', fontWeight: 500 }}>
-              {row.members.length} member{row.members.length !== 1 ? 's' : ''}
-            </span>
-          ) : (
-            '0 members'
-          )}
-        </div>
       )
     },
     {
@@ -340,7 +334,7 @@ export default function SyncGroup() {
         
         <Button
           onClick={handleSync}
-          disabled={syncing || groupsData.length === 0}
+          disabled={syncing || (groupsByStatus.alreadyExist.length === 0 && groupsByStatus.notExistYet.length === 0)}
           variant="primary"
         >
           {syncing ? 'Syncing...' : 'Sync'}
@@ -405,16 +399,17 @@ export default function SyncGroup() {
         </div>
       )}
 
-      {groupsData.length > 0 && (
+      {/* Existing Groups Section */}
+      {groupsByStatus.alreadyExist.length > 0 && (
         <div className={styles.previewSection}>
           <div className={styles.sectionHeader}>
-            <h2>Group Data ({filteredGroupsData.length} of {groupsData.length} groups)</h2>
+            <h2>Existing Groups ({filteredExistingGroups.length} / {groupsByStatus.alreadyExist.length} groups)</h2>
             <div className={styles.pageSizeSelector}>
               <label>Rows per page:</label>
               <select 
                 value={pageSize} 
                 onChange={e => {
-                  setPage(1);
+                  setPageOld(1);
                   setPageSize(Number(e.target.value));
                 }}
                 className={styles.pageSizeSelect}
@@ -429,35 +424,35 @@ export default function SyncGroup() {
           <div className={styles.searchBox}>
             <Input
               placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchQueryOld}
+              onChange={(e) => setSearchQueryOld(e.target.value)}
             />
           </div>
           <div className={styles.summaryInfo}>
             <span className={styles.totalCount}>
-              Showing {paginatedGroupsData.length > 0 ? (page - 1) * pageSize + 1 : 0} - {Math.min(page * pageSize, filteredGroupsData.length)} of {filteredGroupsData.length.toLocaleString()} groups
+              Showing {paginatedExistingGroups.length > 0 ? (pageOld - 1) * pageSize + 1 : 0} - {Math.min(pageOld * pageSize, filteredExistingGroups.length)} of {filteredExistingGroups.length.toLocaleString()} groups
             </span>
           </div>
           <div className={styles.tableWrapper}>
             <DataTable
               columns={columns}
-              data={paginatedGroupsData}
+              data={paginatedExistingGroups}
               loading={loading}
               emptyMessage="No data found"
               showIndex={true}
-              indexTitle="STT"
+              indexTitle="#"
             />
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
+          {totalPagesOld > 1 && (
             <div className={styles.pagination}>
               <div className={styles.paginationInfo}>
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  disabled={page === 1} 
-                  onClick={() => setPage(1)}
+                  disabled={pageOld === 1} 
+                  onClick={() => setPageOld(1)}
                   title="First page"
                 >
                   ««
@@ -465,8 +460,8 @@ export default function SyncGroup() {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  disabled={page === 1} 
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={pageOld === 1} 
+                  onClick={() => setPageOld(p => Math.max(1, p - 1))}
                 >
                   Previous
                 </Button>
@@ -474,24 +469,24 @@ export default function SyncGroup() {
               
               <div className={styles.paginationCenter}>
                 <span className={styles.pageInfo}>
-                  Page <strong>{page}</strong> of <strong>{totalPages}</strong>
+                  Page <strong>{pageOld}</strong> of <strong>{totalPagesOld}</strong>
                 </span>
                 <div className={styles.jumpToPage}>
                   <input
                     type="number"
                     min="1"
-                    max={totalPages}
+                    max={totalPagesOld}
                     placeholder="Go to"
-                    value={jumpToPage}
-                    onChange={e => setJumpToPage(e.target.value)}
-                    onKeyPress={e => e.key === 'Enter' && handleJumpToPage()}
+                    value={jumpToPageOld}
+                    onChange={e => setJumpToPageOld(e.target.value)}
+                    onKeyPress={e => e.key === 'Enter' && handleJumpToPageOld()}
                     className={styles.jumpInput}
                   />
                   <Button 
                     variant="ghost" 
                     size="sm"
-                    onClick={handleJumpToPage}
-                    disabled={!jumpToPage || parseInt(jumpToPage) < 1 || parseInt(jumpToPage) > totalPages}
+                    onClick={handleJumpToPageOld}
+                    disabled={!jumpToPageOld || parseInt(jumpToPageOld) < 1 || parseInt(jumpToPageOld) > totalPagesOld}
                   >
                     Go
                   </Button>
@@ -502,16 +497,134 @@ export default function SyncGroup() {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  disabled={page >= totalPages} 
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={pageOld >= totalPagesOld} 
+                  onClick={() => setPageOld(p => Math.min(totalPagesOld, p + 1))}
                 >
                   Next
                 </Button>
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  disabled={page >= totalPages} 
-                  onClick={() => setPage(totalPages)}
+                  disabled={pageOld >= totalPagesOld} 
+                  onClick={() => setPageOld(totalPagesOld)}
+                  title="Last page"
+                >
+                  »»
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* New Groups Section */}
+      {groupsByStatus.notExistYet.length > 0 && (
+        <div className={styles.previewSection}>
+          <div className={styles.sectionHeader}>
+            <h2>New Groups ({filteredNewGroups.length} / {groupsByStatus.notExistYet.length} groups)</h2>
+            <div className={styles.pageSizeSelector}>
+              <label>Rows per page:</label>
+              <select 
+                value={pageSize} 
+                onChange={e => {
+                  setPageNew(1);
+                  setPageSize(Number(e.target.value));
+                }}
+                className={styles.pageSizeSelect}
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+          </div>
+          <div className={styles.searchBox}>
+            <Input
+              placeholder="Search..."
+              value={searchQueryNew}
+              onChange={(e) => setSearchQueryNew(e.target.value)}
+            />
+          </div>
+          <div className={styles.summaryInfo}>
+            <span className={styles.totalCount}>
+              Showing {paginatedNewGroups.length > 0 ? (pageNew - 1) * pageSize + 1 : 0} - {Math.min(pageNew * pageSize, filteredNewGroups.length)} of {filteredNewGroups.length.toLocaleString()} groups
+            </span>
+          </div>
+          <div className={styles.tableWrapper}>
+            <DataTable
+              columns={columns}
+              data={paginatedNewGroups}
+              loading={loading}
+              emptyMessage="No data found"
+              showIndex={true}
+              indexTitle="#"
+            />
+          </div>
+
+          {/* Pagination */}
+          {totalPagesNew > 1 && (
+            <div className={styles.pagination}>
+              <div className={styles.paginationInfo}>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  disabled={pageNew === 1} 
+                  onClick={() => setPageNew(1)}
+                  title="First page"
+                >
+                  ««
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  disabled={pageNew === 1} 
+                  onClick={() => setPageNew(p => Math.max(1, p - 1))}
+                >
+                  Previous
+                </Button>
+              </div>
+              
+              <div className={styles.paginationCenter}>
+                <span className={styles.pageInfo}>
+                  Page <strong>{pageNew}</strong> of <strong>{totalPagesNew}</strong>
+                </span>
+                <div className={styles.jumpToPage}>
+                  <input
+                    type="number"
+                    min="1"
+                    max={totalPagesNew}
+                    placeholder="Go to"
+                    value={jumpToPageNew}
+                    onChange={e => setJumpToPageNew(e.target.value)}
+                    onKeyPress={e => e.key === 'Enter' && handleJumpToPageNew()}
+                    className={styles.jumpInput}
+                  />
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={handleJumpToPageNew}
+                    disabled={!jumpToPageNew || parseInt(jumpToPageNew) < 1 || parseInt(jumpToPageNew) > totalPagesNew}
+                  >
+                    Go
+                  </Button>
+                </div>
+              </div>
+
+              <div className={styles.paginationInfo}>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  disabled={pageNew >= totalPagesNew} 
+                  onClick={() => setPageNew(p => Math.min(totalPagesNew, p + 1))}
+                >
+                  Next
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  disabled={pageNew >= totalPagesNew} 
+                  onClick={() => setPageNew(totalPagesNew)}
                   title="Last page"
                 >
                   »»
@@ -538,14 +651,6 @@ export default function SyncGroup() {
                 <div className={styles.infoItem}>
                   <strong>Group Name:</strong>
                   <span>{selectedGroup.groupName || '-'}</span>
-                </div>
-                <div className={styles.infoItem}>
-                  <strong>Vietnamese Title:</strong>
-                  <span>{selectedGroup.vietnameseTitle || '-'}</span>
-                </div>
-                <div className={styles.infoItem}>
-                  <strong>Major ID:</strong>
-                  <span>{selectedGroup.majorId || '-'}</span>
                 </div>
                 <div className={styles.infoItem}>
                   <strong>Profession:</strong>
@@ -592,7 +697,7 @@ export default function SyncGroup() {
                               member.roleInGroup === 'Supervisor' ? styles.badgeSupervisor :
                               styles.badgeStudent
                             }>
-                              {member.roleInGroup === 'Student' ? 'Member' : (member.roleInGroup || 'Member')}
+                              {member.roleInGroup || 'Member'}
                             </span>
                           </td>
                           <td>
@@ -613,7 +718,7 @@ export default function SyncGroup() {
         )}
       </Modal>
 
-      {!loading && groupsData.length === 0 && !message && (
+      {!loading && groupsByStatus.alreadyExist.length === 0 && groupsByStatus.notExistYet.length === 0 && !message && (
         <div className={styles.emptyState}>
           <p>Click "Load Data from FAP System" to load data from FAP System</p>
         </div>

@@ -1,8 +1,11 @@
 import React from 'react';
 import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
 
 export default function SupervisorMeetings() {
   const [meetings, setMeetings] = React.useState([]);
@@ -16,6 +19,9 @@ export default function SupervisorMeetings() {
   const [minutesModal, setMinutesModal] = React.useState(false);
   const [selectedGroup, setSelectedGroup] = React.useState('');
   const [filter, setFilter] = React.useState('all');
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
   const [newMeeting, setNewMeeting] = React.useState({
     topic: '',
     datetime: '',
@@ -29,114 +35,53 @@ export default function SupervisorMeetings() {
     file: null
   });
 
+  // Load Semesters and Groups
   React.useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Mock data for groups
-        const groupsData = [
-          {
-            groupId: 'GR01',
-            groupName: 'Team Alpha',
-            students: ['SE00001', 'SE00002', 'SE00003'],
-            supervisor: 'SUPERVISOR001'
-          },
-          {
-            groupId: 'GR02', 
-            groupName: 'Team Beta',
-            students: ['SE00004', 'SE00005'],
-            supervisor: 'SUPERVISOR001'
-          }
-        ];
-
-        // Mock data for meetings
-        const meetingsData = [
-          {
-            id: 1,
-            topic: "Project Kickoff Meeting",
-            datetime: "2025-10-15T14:00:00Z",
-            duration: 60,
-            linkMeet: "https://meet.google.com/abc-defg-hij",
-            participants: ["SE00001", "SE00002", "SE00003", "SUPERVISOR001"],
-            status: "completed",
-            objective: "Discuss project requirements and initial planning",
-            groupId: "GR01",
-            groupName: "Team Alpha"
-          },
-          {
-            id: 2,
-            topic: "Weekly Progress Review",
-            datetime: "2025-10-22T14:00:00Z",
-            duration: 45,
-            linkMeet: "https://meet.google.com/xyz-uvw-rst",
-            participants: ["SE00001", "SE00002", "SE00003", "SUPERVISOR001"],
-            status: "upcoming",
-            objective: "Review progress on milestone 1 and plan for milestone 2",
-            groupId: "GR01",
-            groupName: "Team Alpha"
-          },
-          {
-            id: 3,
-            topic: "Technical Review Session",
-            datetime: "2025-10-29T15:00:00Z",
-            duration: 90,
-            linkMeet: "https://meet.google.com/def-ghij-klm",
-            participants: ["SE00004", "SE00005", "SUPERVISOR001"],
-            status: "scheduled",
-            objective: "Review system design and technical implementation",
-            groupId: "GR02",
-            groupName: "Team Beta"
-          }
-        ];
-
-        // Mock data for meeting minutes
-        const minutesData = [
-          {
-            id: 1,
-            meetingId: 1,
-            meetingTopic: "Project Kickoff Meeting",
-            linkMeet: "https://meet.google.com/abc-defg-hij",
-            uploadedBy: "SE00001",
-            uploadedByName: "Nguyen Van A",
-            file: "kickoff_meeting_minutes.docx",
-            status: "Reviewed",
-            uploadTime: "2025-10-15T16:30:00Z",
-            content: "Discussed project scope and timeline",
-            issues: ["Need to clarify database requirements"],
-            actions: ["Research database options", "Setup development environment"],
-            supervisorComment: "Good meeting minutes. Please follow up on database research."
-          },
-          {
-            id: 2,
-            meetingId: 2,
-            meetingTopic: "Weekly Progress Review",
-            linkMeet: "https://meet.google.com/xyz-uvw-rst",
-            uploadedBy: "SE00002",
-            uploadedByName: "Tran Thi B",
-            file: "progress_review_minutes.docx",
-            status: "Draft",
-            uploadTime: "2025-10-22T15:45:00Z",
-            content: "Reviewed milestone 1 progress and planned milestone 2",
-            issues: ["Some tasks are behind schedule"],
-            actions: ["Accelerate development", "Increase team coordination"],
-            supervisorComment: null
-          }
-        ];
-        
-        setGroups(groupsData);
-        setMeetings(meetingsData);
-        setMeetingMinutes(minutesData);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
+    function loadSemesters() {
+      const uniqueSemesters = getUniqueSemesters();
+      setSemesters(uniqueSemesters);
+      
+      const currentSemesterId = getCurrentSemesterId();
+      if (currentSemesterId) {
+        setSelectedSemesterId(currentSemesterId);
+      } else if (uniqueSemesters.length > 0) {
+        setSelectedSemesterId(uniqueSemesters[0].id);
       }
-    };
-
-    fetchData();
+      setLoading(false);
+    }
+    loadSemesters();
   }, []);
+
+  React.useEffect(() => {
+    if (selectedSemesterId === null) {
+      setGroups([]);
+      setLoading(false);
+      return;
+    }
+    
+    // Get groups from localStorage only (no API call)
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    
+    // Build groups list from localStorage
+    const groupsData = groupsFromStorage.map(groupInfo => ({
+      groupId: groupInfo.id.toString(),
+      groupName: groupInfo.name || `Group ${groupInfo.id}`,
+    }));
+    
+    setGroups(groupsData);
+    setLoading(false);
+    
+    // Check if selected group is still in filtered list
+    const selectedGroupExists = selectedGroup && groupsFromStorage.some(g => g.id.toString() === selectedGroup);
+    
+    if (selectedGroup && !selectedGroupExists) {
+      // Selected group is not in filtered list, clear selection
+      setSelectedGroup('');
+      setMeetings([]);
+      setMeetingMinutes([]);
+    }
+  }, [selectedSemesterId, groupExpireFilter]);
 
   const getStatusInfo = (status) => {
     switch (status) {
@@ -245,24 +190,44 @@ export default function SupervisorMeetings() {
     return groupMatch && statusMatch;
   });
 
-  const groupOptions = groups.map(group => ({ 
-    value: group.groupId, 
-    label: `${group.groupName} (${group.groupId})` 
-  }));
+  if (loading) {
+    return <div className={sharedLayout.loading}>Loading data...</div>;
+  }
+
+  if (groups.length === 0) {
+    return (
+      <div className={sharedLayout.container}>
+        <div className={sharedLayout.header}>
+          <h1>Meeting Management - Supervisor View</h1>
+        </div>
+        <div className={sharedLayout.emptyState}>
+          <p>No groups found.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <h1>📅 Meeting Management - Supervisor View</h1>
+    <div className={sharedLayout.container}>
+      <div className={sharedLayout.header}>
+        <h1>Meeting Management - Supervisor View</h1>
+      </div>
+
+      <SupervisorGroupFilter
+        semesters={semesters}
+        selectedSemesterId={selectedSemesterId}
+        onSemesterChange={setSelectedSemesterId}
+        groupExpireFilter={groupExpireFilter}
+        onGroupExpireFilterChange={setGroupExpireFilter}
+        groups={groups.map(g => ({ id: g.groupId, name: g.groupName }))}
+        selectedGroupId={selectedGroup || ''}
+        onGroupChange={setSelectedGroup}
+        groupSelectPlaceholder="All Groups"
+        loading={loading}
+      />
+
+      <div className={sharedLayout.contentSection}>
         <div className={styles.controls}>
-          <div className={styles.controlGroup}>
-            <label>Group:</label>
-            <Select
-              value={selectedGroup}
-              onChange={setSelectedGroup}
-              options={[{ value: '', label: 'All Groups' }, ...groupOptions]}
-            />
-          </div>
           <div className={styles.controlGroup}>
             <label>Filter:</label>
             <Select
@@ -279,9 +244,8 @@ export default function SupervisorMeetings() {
             />
           </div>
         </div>
-      </div>
 
-      <div className={styles.tabs}>
+        <div className={styles.tabs}>
         <button 
           className={`${styles.tab} ${filter === 'all' || filter === 'completed' || filter === 'upcoming' || filter === 'scheduled' ? styles.active : ''}`}
           onClick={() => setFilter('all')}
@@ -294,11 +258,12 @@ export default function SupervisorMeetings() {
         >
           📝 Meeting Minutes
         </button>
+        </div>
       </div>
       
       {/* Meetings Section */}
       {(filter === 'all' || filter === 'completed' || filter === 'upcoming' || filter === 'scheduled') && (
-        <div className={styles.section}>
+        <div className={sharedLayout.contentSection}>
           <div className={styles.sectionHeader}>
             <h2>📅 Scheduled Meetings</h2>
             <div className={styles.sectionActions}>
@@ -392,7 +357,7 @@ export default function SupervisorMeetings() {
 
       {/* Meeting Minutes Section */}
       {(filter === 'Draft' || filter === 'Reviewed') && (
-        <div className={styles.section}>
+        <div className={sharedLayout.contentSection}>
           <div className={styles.sectionHeader}>
             <h2>📝 Meeting Minutes Tracking</h2>
             <div className={styles.sectionActions}>
@@ -522,8 +487,11 @@ export default function SupervisorMeetings() {
               className={styles.select}
             >
               <option value="">Select a group</option>
-              <option value="GR01">Team Alpha (GR01)</option>
-              <option value="GR02">Team Beta (GR02)</option>
+              {groups.map(group => (
+                <option key={group.groupId} value={group.groupId}>
+                  {group.groupName} ({group.groupId})
+                </option>
+              ))}
             </select>
           </div>
           

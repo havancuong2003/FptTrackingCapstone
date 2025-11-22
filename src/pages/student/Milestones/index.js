@@ -3,8 +3,12 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
-import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
+import { getUserInfo, getGroupId } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getSemesterDetail } from '../../../api/semester';
+import { getDeliverablesByGroup, getDeliverableDetail } from '../../../api/deliverables';
+import { uploadMilestoneFile, deleteMilestoneAttachment } from '../../../api/upload';
 
 
 export default function StudentMilestones() {
@@ -51,22 +55,10 @@ export default function StudentMilestones() {
     };
   }, []);
 
-  // Load user info
+  // Load user info from localStorage, don't call API
   React.useEffect(() => {
-    let mounted = true;
-    async function loadUserInfo() {
-      try {
-        const res = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
-        const user = res?.data?.data || null;
-        if (!mounted) return;
-        setUserInfo(user);
-      } catch {
-        if (!mounted) return;
-        setUserInfo(null);
-      }
-    }
-    loadUserInfo();
-    return () => { mounted = false; };
+    const user = getUserInfo();
+    setUserInfo(user);
   }, []);
 
   // Load group info
@@ -75,10 +67,10 @@ export default function StudentMilestones() {
     async function loadGroupInfo() {
       if (!userInfo?.groups || userInfo.groups.length === 0) return;
       try {
-        // Lấy group đầu tiên từ danh sách groups
+        // Get first group from groups list
         const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
-        const group = res?.data?.data || null;
+        const res = await getCapstoneGroupDetail(groupId);
+        const group = res?.data || null;
         if (!mounted) return;
         setGroupInfo(group);
       } catch {
@@ -96,8 +88,8 @@ export default function StudentMilestones() {
     async function loadSemesterInfo() {
       if (!groupInfo?.semesterId) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/semester/getSemesterBy/${groupInfo.semesterId}`);
-        const semester = res?.data?.data || null;
+        const res = await getSemesterDetail(groupInfo.semesterId);
+        const semester = res?.data || null;
         if (!mounted) return;
         setSemesterInfo(semester);
       } catch {
@@ -115,9 +107,9 @@ export default function StudentMilestones() {
     async function loadMilestones() {
       if (!userInfo?.groups || userInfo.groups.length === 0) return;
       try {
-        // Lấy group đầu tiên từ danh sách groups
+        // Get first group from groups list
         const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${groupId}`);
+        const res = await getDeliverablesByGroup(groupId);
         const list = Array.isArray(res?.data) ? res.data : [];
         if (!mounted) return;
         setMilestones(list);
@@ -132,8 +124,16 @@ export default function StudentMilestones() {
 
   // Set loading false when all data loaded
   React.useEffect(() => {
-    if (userInfo && groupInfo && semesterInfo) {
-      setLoading(false);
+    if (userInfo) {
+      // If no groups, set loading false immediately
+      if (!userInfo.groups || userInfo.groups.length === 0) {
+        setLoading(false);
+        return;
+      }
+      // If have groupInfo and semesterInfo then set loading false
+      if (groupInfo && semesterInfo) {
+        setLoading(false);
+      }
     }
   }, [userInfo, groupInfo, semesterInfo]);
 
@@ -150,7 +150,7 @@ export default function StudentMilestones() {
     
     // Load milestone details
     try {
-      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${milestone.id}`);
+      const res = await getDeliverableDetail(userInfo.groups[0], milestone.id);
       setMilestoneDetails(res?.data || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
@@ -174,18 +174,10 @@ export default function StudentMilestones() {
       const formData = new FormData();
       formData.append('file', fileToUpload);
       
-      const res = await client.post(
-        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      );
+      await uploadMilestoneFile(userInfo.groups[0], deliveryItemId, fileToUpload);
       
       // Reload milestones after successful upload
-      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groups[0]}`);
+      const milestonesRes = await getDeliverablesByGroup(userInfo.groups[0]);
       const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
       setMilestones(list);
       
@@ -197,7 +189,7 @@ export default function StudentMilestones() {
       
       // Reload milestone details after successful upload
       if (selectedMilestone) {
-        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
+        const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
         setMilestoneDetails(detailRes?.data || null);
       }
       
@@ -240,24 +232,68 @@ export default function StudentMilestones() {
     }
     
     try {
-      const response = await client.delete(`https://160.30.21.113:5000/api/v1/upload/milestone?attachmentId=${attachmentId}`);
-      if (response.data.status === 200) {
-        alert('Xóa file thành công!');
+      const response = await deleteMilestoneAttachment(attachmentId);
+      if (response.status === 200) {
+        alert('File deleted successfully!');
         // Reload milestone details
         if (selectedMilestone) {
-          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
+          const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
           setMilestoneDetails(detailRes?.data || null);
         }
       }
     } catch (error) {
       console.error('Error deleting attachment:', error);
-      alert('Có lỗi xảy ra khi xóa file. Vui lòng thử lại.');
+      alert('Error deleting file. Please try again.');
     }
   };
 
   const getLatestAttachment = (attachments) => {
     if (!attachments || attachments.length === 0) return null;
     return attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
+  };
+
+  // Check if file can be previewed (images, PDF, docs)
+  const canPreviewFile = (filePath) => {
+    if (!filePath) return false;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    
+    // Previewable formats
+    const previewableExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Documents (có thể xem qua Google Docs Viewer hoặc Office Online)
+      'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+      // Text files
+      'txt', 'csv'
+    ];
+    
+    return previewableExtensions.includes(extension);
+  };
+
+  // Mở preview file trong tab mới
+  const openFilePreview = (attachment) => {
+    if (!canPreviewFile(attachment.path)) {
+      alert('File này không thể xem trước. Vui lòng tải xuống để xem.');
+      return;
+    }
+    
+    const filePath = attachment.path;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    
+    let previewUrl = baseUrl;
+    
+    // Office documents - sử dụng Google Docs Viewer
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(extension)) {
+      previewUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(baseUrl)}&embedded=true`;
+    }
+    
+    // Mở trong tab mới
+    window.open(previewUrl, '_blank');
   };
 
   const getStatusColor = (status) => {
@@ -267,6 +303,8 @@ export default function StudentMilestones() {
       case 'LATE':
         return '#dc2626'; // Red
       case 'Pending':
+        return '#d97706'; // Orange/Yellow
+      case 'PENDING':
         return '#d97706'; // Orange/Yellow
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
@@ -291,6 +329,8 @@ export default function StudentMilestones() {
         return '❌ Rejected';
       default:
         return '❓ Unknown';
+      case 'PENDING':
+        return '⏳ Pending Review';
     }
   };
 
@@ -305,6 +345,20 @@ export default function StudentMilestones() {
   const isMobile = currentWidth <= 576;
   const isTablet = currentWidth > 576 && currentWidth <= 1024;
   const isDesktop = currentWidth > 1024;
+
+  // Nếu không có group, hiển thị thông báo
+  if (!loading && (!userInfo?.groups || userInfo.groups.length === 0)) {
+    return (
+      <div style={{ padding: 32, textAlign: 'center' }}>
+        <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
+          You are not in any group
+        </div>
+        <div style={{ color: '#6b7280' }}>
+          Please contact the supervisor to be added to a group.
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -715,8 +769,50 @@ export default function StudentMilestones() {
                                       gap: '4px', 
                                       flexShrink: 0,
                                       marginTop: isMobile ? '8px' : '0',
-                                      width: isMobile ? '100%' : 'auto'
+                                      width: isMobile ? '100%' : 'auto',
+                                      alignItems: 'center'
                                     }}>
+                                      {canPreviewFile(attachment.path) && (
+                                        <button
+                                          onClick={() => openFilePreview(attachment)}
+                                          style={{ 
+                                            padding: '4px 6px',
+                                            background: 'transparent',
+                                            border: '1px solid #d1d5db',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#6b7280',
+                                            width: isMobile ? '100%' : 'auto'
+                                          }}
+                                          title="Xem trước"
+                                          onMouseEnter={(e) => {
+                                            e.target.style.backgroundColor = '#f3f4f6';
+                                            e.target.style.borderColor = '#9ca3af';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.target.style.backgroundColor = 'transparent';
+                                            e.target.style.borderColor = '#d1d5db';
+                                          }}
+                                        >
+                                          <svg 
+                                            width="16" 
+                                            height="16" 
+                                            viewBox="0 0 24 24" 
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            strokeWidth="2" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round"
+                                            style={{ color: '#6b7280' }}
+                                          >
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                          </svg>
+                                        </button>
+                                      )}
                                       <Button
                                         onClick={() => downloadFile(attachment)}
                                         variant="ghost"
@@ -823,19 +919,69 @@ export default function StudentMilestones() {
                           Uploaded by {attachment.userName} on {formatDate(attachment.createAt, 'DD/MM/YYYY HH:mm')}
                         </div>
                       </div>
-                      <Button
-                        onClick={() => downloadFile(attachment)}
-                        variant="ghost"
-                        style={{ 
-                          fontSize: isMobile ? '11px' : '12px', 
-                          padding: isMobile ? '6px 10px' : '6px 12px', 
-                          flexShrink: 0,
-                          marginTop: isMobile ? '8px' : '0',
-                          width: isMobile ? '100%' : 'auto'
-                        }}
-                      >
-                        Download
-                      </Button>
+                      <div style={{ 
+                        display: 'flex', 
+                        gap: '4px', 
+                        flexShrink: 0,
+                        marginTop: isMobile ? '8px' : '0',
+                        alignItems: 'center',
+                        flexDirection: isMobile ? 'column' : 'row',
+                        width: isMobile ? '100%' : 'auto'
+                      }}>
+                        {canPreviewFile(attachment.path) && (
+                          <button
+                            onClick={() => openFilePreview(attachment)}
+                            style={{ 
+                              padding: isMobile ? '6px 10px' : '4px 6px',
+                              background: 'transparent',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#6b7280',
+                              width: isMobile ? '100%' : 'auto'
+                            }}
+                            title="Xem trước"
+                            onMouseEnter={(e) => {
+                              e.target.style.backgroundColor = '#f3f4f6';
+                              e.target.style.borderColor = '#9ca3af';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.backgroundColor = 'transparent';
+                              e.target.style.borderColor = '#d1d5db';
+                            }}
+                          >
+                            <svg 
+                              width="16" 
+                              height="16" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="2" 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round"
+                              style={{ color: '#6b7280' }}
+                            >
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                              <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                          </button>
+                        )}
+                        <Button
+                          onClick={() => downloadFile(attachment)}
+                          variant="ghost"
+                          style={{ 
+                            fontSize: isMobile ? '11px' : '12px', 
+                            padding: isMobile ? '6px 10px' : '6px 12px', 
+                            flexShrink: 0,
+                            width: isMobile ? '100%' : 'auto'
+                          }}
+                        >
+                          Download
+                        </Button>
+                      </div>
                     </div>
                   ))}
               </div>

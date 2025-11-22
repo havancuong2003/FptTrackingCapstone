@@ -1,23 +1,24 @@
 import React from 'react';
 // import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Input from '../../../components/Input/Input';
 import Textarea from '../../../components/Textarea/Textarea';
 import DataTable from '../../../components/DataTable/DataTable';
 import { useNavigate } from 'react-router-dom';
-import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getSlotsByCampusId } from '../../../api/slots';
+import { getDeliverablesByGroup, getDeliverableDetail } from '../../../api/deliverables';
+import { getTasksByGroup } from '../../../api/tasks';
+import { getMeetingScheduleDatesByGroup, getMeetingMinutesByMeetingDateId } from '../../../api/meetings';
+import { getMeetingTasksByMinuteId } from '../../../api/tasks';
+import { getSemesterDetail } from '../../../api/semester';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const TIME_SLOTS = [
-  { label: '00:00-04:00', start: 0, end: 4 },
-  { label: '04:00-08:00', start: 4, end: 8 },
-  { label: '08:00-12:00', start: 8, end: 12 },
-  { label: '12:00-16:00', start: 12, end: 16 },
-  { label: '16:00-20:00', start: 16, end: 20 },
-  { label: '20:00-24:00', start: 20, end: 24 }
-];
 
 export default function SupervisorCalendar() {
   const navigate = useNavigate();
@@ -53,39 +54,34 @@ export default function SupervisorCalendar() {
   const [milestoneDetails, setMilestoneDetails] = React.useState(null);
   const [selectedMeetingGroupInfo, setSelectedMeetingGroupInfo] = React.useState(null);
   const [meetingIssues, setMeetingIssues] = React.useState([]);
+  const [timeSlots, setTimeSlots] = React.useState([]); // Slots from API
+  const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
 
-  // API Base URL
-  const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
-
-  // Load user info
+  // Load user info from localStorage, don't call API
   React.useEffect(() => {
     let mounted = true;
-    async function loadUserInfo() {
+    function loadUserInfo() {
       try {
-        const res = await client.get(`${API_BASE_URL}/auth/user-info`);
-        const user = res?.data?.data || null;
+        const user = getUserInfo();
         if (!mounted) return;
         setUserInfo(user);
         
-        // Load groups that this supervisor is supervising
-        if (user?.groups && user.groups.length > 0) {
-          // Fetch all groups that this supervisor manages
-          const allGroups = [];
-          for (const groupId of user.groups) {
-            try {
-              const groupsRes = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${groupId}`);
-              const groupData = groupsRes?.data?.data;
-              if (groupData) {
-                allGroups.push(groupData);
-              }
-            } catch (error) {
-              console.error(`Error loading group ${groupId}:`, error);
-            }
-          }
-          setGroups(allGroups);
+        // Get semesters and set default
+        const uniqueSemesters = getUniqueSemesters();
+        setSemesters(uniqueSemesters);
+        
+        const currentSemesterId = getCurrentSemesterId();
+        if (currentSemesterId) {
+          setSelectedSemesterId(currentSemesterId);
+        } else if (uniqueSemesters.length > 0) {
+          setSelectedSemesterId(uniqueSemesters[0].id);
         }
-      } catch {
+      } catch (error) {
         if (!mounted) return;
+        console.error('Error loading user info:', error);
         setUserInfo(null);
         setGroups([]);
       }
@@ -94,14 +90,98 @@ export default function SupervisorCalendar() {
     return () => { mounted = false; };
   }, []);
 
+  // Load groups from localStorage when filter changes (no API call)
+  React.useEffect(() => {
+    if (selectedSemesterId === null || !userInfo) {
+      setGroups([]);
+      return;
+    }
+    
+    // Get groups from localStorage based on semester and expired status
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    
+    // Only store basic info from localStorage, don't fetch details yet
+    const groupsBasicInfo = groupsFromStorage.map(groupInfo => ({
+      id: groupInfo.id,
+      name: groupInfo.name || '',
+      groupCode: groupInfo.code || groupInfo.groupCode || '',
+      semesterId: groupInfo.semesterId,
+      isExpired: groupInfo.isExpired || false
+    }));
+    
+    setGroups(groupsBasicInfo);
+    setLoading(false); // Set loading false after groups are loaded from localStorage
+    
+    // Clear data when filter changes
+    setMilestones([]);
+    setMeetings([]);
+    setTasks([]);
+  }, [selectedSemesterId, groupExpireFilter, userInfo]); 
+
+  // Load slots from API based on campusId
+  React.useEffect(() => {
+    let mounted = true;
+    async function loadSlots() {
+      if (!userInfo?.campusId) return;
+      try {
+        const res = await getSlotsByCampusId(userInfo.campusId);
+        if (res.status === 200 && res.data?.slots) {
+          const slots = res.data.slots;
+          // Convert slots from API to appropriate format
+          const formattedSlots = slots.map(slot => {
+            // Parse time from "7:30 AM" or "1:00 PM" format
+            const parseTime = (timeStr) => {
+              const time = timeStr.trim();
+              const isPM = time.toUpperCase().includes('PM');
+              const timePart = time.replace(/[AP]M/gi, '').trim();
+              const [hours, minutes] = timePart.split(':').map(Number);
+              let hour24 = hours;
+              if (isPM && hours !== 12) hour24 = hours + 12;
+              if (!isPM && hours === 12) hour24 = 0;
+              return hour24 + (minutes || 0) / 60;
+            };
+            
+            return {
+              id: slot.id,
+              label: `${slot.startAt} - ${slot.endAt}`,
+              nameSlot: slot.nameSlot,
+              start: parseTime(slot.startAt),
+              end: parseTime(slot.endAt),
+              startAt: slot.startAt,
+              endAt: slot.endAt
+            };
+          });
+          
+          if (!mounted) return;
+          setTimeSlots(formattedSlots);
+        }
+      } catch (error) {
+        console.error('Error loading slots:', error);
+        if (!mounted) return;
+        // Fallback to default TIME_SLOTS if error
+        setTimeSlots([
+          { label: '00:00-04:00', start: 0, end: 4 },
+          { label: '04:00-08:00', start: 4, end: 8 },
+          { label: '08:00-12:00', start: 8, end: 12 },
+          { label: '12:00-16:00', start: 12, end: 16 },
+          { label: '16:00-20:00', start: 16, end: 20 },
+          { label: '20:00-24:00', start: 20, end: 24 }
+        ]);
+      }
+    }
+    loadSlots();
+    return () => { mounted = false; };
+  }, [userInfo?.campusId]);
+
   // Load semester info and weeks from first group
   React.useEffect(() => {
     let mounted = true;
     async function loadSemesterInfo() {
       if (!groups.length || !groups[0]?.semesterId) return;
       try {
-        const res = await client.get(`${API_BASE_URL}/Staff/semester/getSemesterBy/${groups[0].semesterId}`);
-        const semester = res?.data?.data || null;
+        const res = await getSemesterDetail(groups[0].semesterId);
+        const semester = res?.data || null;
         if (!mounted) return;
         setSemesterInfo(semester);
         setWeeks(semester?.weeks || []);
@@ -119,119 +199,93 @@ export default function SupervisorCalendar() {
   }, [groups]);
 
 
-  // Load milestones for all groups
+  // Selected group state for Calendar
+  const [selectedGroupId, setSelectedGroupId] = React.useState(null);
+
+  // Load data only when a group is selected
   React.useEffect(() => {
+    if (!selectedGroupId) {
+      setMilestones([]);
+      setMeetings([]);
+      setTasks([]);
+      return;
+    }
+
+    // Check if selected group exists in current filtered groups
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    const selectedGroupExists = groupsFromStorage.some(g => g.id === Number(selectedGroupId));
+    
+    if (!selectedGroupExists) {
+      setMilestones([]);
+      setMeetings([]);
+      setTasks([]);
+      return;
+    }
+
     let mounted = true;
-    async function loadMilestones() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
+    async function loadGroupData() {
       try {
-        const allMilestones = [];
-        for (const groupId of userInfo.groups) {
-          try {
-            const res = await client.get(`${API_BASE_URL}/deliverables/group/${groupId}`);
-            const list = Array.isArray(res?.data) ? res.data : [];
-            if (list.length > 0) {
-              const milestonesWithGroup = list.map(milestone => ({
-                ...milestone,
-                groupId: groupId
-              }));
-              allMilestones.push(...milestonesWithGroup);
-            }
-          } catch (error) {
-            console.error(`Error loading milestones for group ${groupId}:`, error);
-          }
-        }
+        // Load milestones, meetings, tasks for selected group
+        const [milestonesRes, meetingsRes, tasksRes] = await Promise.allSettled([
+          getDeliverablesByGroup(selectedGroupId),
+          getMeetingScheduleDatesByGroup(selectedGroupId),
+          getTasksByGroup(selectedGroupId)
+        ]);
+
         if (!mounted) return;
-        setMilestones(allMilestones);
-      } catch {
+
+        // Process milestones
+        if (milestonesRes.status === 'fulfilled') {
+          const list = Array.isArray(milestonesRes.value?.data) ? milestonesRes.value.data : [];
+          const milestonesWithGroup = list.map(milestone => ({
+            ...milestone,
+            groupId: selectedGroupId
+          }));
+          setMilestones(milestonesWithGroup);
+        } else {
+          setMilestones([]);
+        }
+
+        // Process meetings
+        if (meetingsRes.status === 'fulfilled' && meetingsRes.value?.status === 200) {
+          const meetingsData = meetingsRes.value.data || [];
+          const meetingsWithGroup = meetingsData.map(meeting => ({
+            ...meeting,
+            groupId: selectedGroupId
+          }));
+          meetingsWithGroup.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
+          setMeetings(meetingsWithGroup);
+        } else {
+          setMeetings([]);
+        }
+
+        // Process tasks
+        if (tasksRes.status === 'fulfilled' && tasksRes.value?.status === 200) {
+          const tasksData = tasksRes.value.data || [];
+          const tasksWithGroup = tasksData.map(task => ({
+            ...task,
+            groupId: selectedGroupId
+          }));
+          setTasks(tasksWithGroup);
+        } else {
+          setTasks([]);
+        }
+      } catch (error) {
+        console.error('Error loading group data:', error);
         if (!mounted) return;
         setMilestones([]);
-      }
-    }
-    loadMilestones();
-    return () => { mounted = false; };
-  }, [userInfo?.groups]);
-
-  // Load meetings for all groups
-  React.useEffect(() => {
-    let mounted = true;
-    async function loadMeetings() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
-      try {
-        const allMeetings = [];
-        for (const groupId of userInfo.groups) {
-          try {
-            const response = await client.get(`${API_BASE_URL}/Student/Meeting/group/${groupId}/schedule-dates`);
-            if (response.data.status === 200) {
-              const meetingsData = response.data.data;
-              if (meetingsData && meetingsData.length > 0) {
-                const meetingsWithGroup = meetingsData.map(meeting => ({
-                  ...meeting,
-                  groupId: groupId
-                }));
-                allMeetings.push(...meetingsWithGroup);
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching meetings for group ${groupId}:`, error);
-          }
-        }
-        
-        // Sort by meeting date
-        allMeetings.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
-        
-        if (!mounted) return;
-        setMeetings(allMeetings);
-      } catch (error) {
-        console.error('Error loading meetings:', error);
-        if (!mounted) return;
         setMeetings([]);
-      }
-    }
-    loadMeetings();
-    return () => { mounted = false; };
-  }, [userInfo?.groups]);
-
-  // Load tasks for all groups
-  React.useEffect(() => {
-    let mounted = true;
-    async function loadTasks() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
-      try {
-        const allTasks = [];
-        for (const groupId of userInfo.groups) {
-          try {
-            const response = await client.get(`${API_BASE_URL}/Student/Task/get-by-group/${groupId}`);
-            if (response.data.status === 200) {
-              const tasksData = response.data.data;
-              if (tasksData && tasksData.length > 0) {
-                const tasksWithGroup = tasksData.map(task => ({
-                  ...task,
-                  groupId: groupId
-                }));
-                allTasks.push(...tasksWithGroup);
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching tasks for group ${groupId}:`, error);
-          }
-        }
-        
-        if (!mounted) return;
-        setTasks(allTasks);
-      } catch (error) {
-        console.error('Error loading tasks:', error);
-        if (!mounted) return;
         setTasks([]);
       }
     }
-    loadTasks();
+    loadGroupData();
     return () => { mounted = false; };
-  }, [userInfo?.groups]);
+  }, [selectedGroupId, selectedSemesterId, groupExpireFilter]);
 
-  // Set loading false when all data loaded
+  // Set loading false when groups are loaded (no need to wait for data)
   React.useEffect(() => {
-    if (userInfo && groups.length > 0 && semesterInfo && weeks.length > 0) {
+    if (userInfo && groups.length >= 0 && semesterInfo && weeks.length > 0) {
       setLoading(false);
     }
   }, [userInfo, groups, semesterInfo, weeks]);
@@ -275,7 +329,7 @@ export default function SupervisorCalendar() {
     });
   };
 
-  // Get tasks for selected week
+  // Get tasks for selected week (only active tasks)
   const getTasksForWeek = () => {
     if (!selectedWeek || !tasks.length) return [];
     
@@ -289,6 +343,8 @@ export default function SupervisorCalendar() {
     weekEnd.setHours(23, 59, 59, 999);
     
     return tasks.filter(task => {
+      // Chỉ lấy task có isActive === true
+      if (task.isActive !== true) return false;
       if (!task.deadline) return false;
       const deadline = new Date(task.deadline);
       return deadline >= weekStart && deadline <= weekEnd;
@@ -328,12 +384,45 @@ export default function SupervisorCalendar() {
     for (const meeting of weekMeetings) {
       const meetingDate = new Date(meeting.meetingDate);
       const dayOfWeek = meetingDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      const hour = parseInt(meeting.time.split(':')[0]);
       
       // Convert Sunday=0 to Monday=0 format
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       
-      if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
+      if (adjustedDay !== day) continue;
+      
+      // Lấy giờ từ meeting.startAt hoặc meeting.time
+      let meetingHour = 0;
+      if (meeting.startAt) {
+        // Nếu có startAt (format "HH:mm:ss" hoặc "HH:mm" hoặc "YYYY-MM-DDTHH:mm:ss")
+        let timeStr = meeting.startAt;
+        // Nếu có format datetime, lấy phần thời gian
+        if (timeStr.includes('T')) {
+          timeStr = timeStr.split('T')[1];
+        }
+        if (timeStr.includes(' ')) {
+          timeStr = timeStr.split(' ')[0];
+        }
+        const parts = timeStr.split(':');
+        if (parts.length >= 2) {
+          meetingHour = parseInt(parts[0]) + (parseInt(parts[1]) || 0) / 60;
+        } else {
+          continue; // Không parse được, bỏ qua
+        }
+      } else if (meeting.time) {
+        // Nếu có time (format "HH:mm")
+        const parts = meeting.time.split(':');
+        if (parts.length >= 2) {
+          meetingHour = parseInt(parts[0]) + (parseInt(parts[1]) || 0) / 60;
+        } else {
+          continue; // Không parse được, bỏ qua
+        }
+      } else {
+        // Không có thời gian, bỏ qua meeting này
+        continue;
+      }
+      
+      // Kiểm tra xem meeting có nằm trong slot không
+      if (meetingHour >= timeSlot.start && meetingHour < timeSlot.end) {
         matchedMeetings.push(meeting);
       }
     }
@@ -372,6 +461,8 @@ export default function SupervisorCalendar() {
         return '#dc2626'; // Red
       case 'Pending':
         return '#d97706'; // Orange/Yellow
+      case 'PENDING':
+          return '#d97706'; 
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
       case 'REJECTED':
@@ -389,6 +480,8 @@ export default function SupervisorCalendar() {
         return '⚠ Late';
       case 'Pending':
         return '⏳ Pending Review';
+      case 'PENDING':
+        return '⏳ Pending Review';
       case 'UNSUBMITTED':
         return '✗ Unsubmitted';
       case 'REJECTED':
@@ -402,7 +495,11 @@ export default function SupervisorCalendar() {
     switch (status) {
       case 'ToDo':
         return '#64748b'; // Gray
+      case 'Todo':
+          return '#64748b'; // Gray
       case 'InProgress':
+        return '#d97706'; // Orange
+      case 'Inprogress':
         return '#d97706'; // Orange
       case 'Done':
         return '#059669'; // Green
@@ -417,7 +514,11 @@ export default function SupervisorCalendar() {
     switch (status) {
       case 'ToDo':
         return '📋 To Do';
+      case 'Todo':
+        return '📋 To Do';
       case 'InProgress':
+        return '🔄 In Progress';
+      case 'Inprogress':
         return '🔄 In Progress';
       case 'Done':
         return '✅ Done';
@@ -425,6 +526,30 @@ export default function SupervisorCalendar() {
         return '👀 In Review';
       default:
         return '❓ Unknown';
+    }
+  };
+
+  // Hàm lấy màu dựa trên taskType
+  const getTaskTypeColor = (taskType) => {
+    switch (taskType) {
+      case 'Meeting':
+        return '#8b5cf6'; // Màu tím cho Meeting issues
+      case 'Throughout':
+        return '#3b82f6'; // Màu xanh dương cho Throughout tasks
+      default:
+        return null; // Không có màu đặc biệt
+    }
+  };
+
+  // Hàm lấy text cho taskType
+  const getTaskTypeText = (taskType) => {
+    switch (taskType) {
+      case 'Meeting':
+        return 'Meeting';
+      case 'Throughout':
+        return 'Throughout';
+      default:
+        return '';
     }
   };
 
@@ -447,32 +572,100 @@ export default function SupervisorCalendar() {
   // Fetch group info for meeting
   const fetchMeetingGroupInfo = async (groupId) => {
     try {
-      const response = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${groupId}`);
-      if (response.data.status === 200) {
-        setSelectedMeetingGroupInfo(response.data.data);
+      const response = await getCapstoneGroupDetail(groupId);
+      if (response.status === 200) {
+        setSelectedMeetingGroupInfo(response.data);
+        return response.data;
       }
+      return null;
     } catch (error) {
       console.error('Error fetching group info:', error);
       setSelectedMeetingGroupInfo(null);
+      return null;
     }
   };
 
-  // Fetch meeting issues (tasks) by meetingId
-  const fetchMeetingIssues = async (meetingId) => {
+  // Function to parse attendance text into list
+  const parseAttendance = (attendanceText, students) => {
+    if (!students || students.length === 0) {
+      return [];
+    }
+
+    if (!attendanceText || !attendanceText.trim()) {
+      return students.map(student => ({
+        studentId: student.id,
+        name: student.name,
+        rollNumber: student.rollNumber,
+        role: student.role || '',
+        attended: false,
+        reason: ''
+      }));
+    }
+
+    const lines = attendanceText.split('\n').filter(line => line.trim());
+    const parsed = new Map();
+
+    lines.forEach(line => {
+      const match = line.match(/^(.+?)\s*\(([^)]+)\):\s*(.+)$/);
+      if (match) {
+        const [, name, rollNumber, status] = match;
+        const statusLower = status.toLowerCase();
+        const isAbsent = statusLower.includes('absent') || statusLower.includes('nghỉ') || statusLower.includes('vắng');
+        let reason = '';
+        
+        if (isAbsent) {
+          const reasonMatch = status.match(/(?:absent|nghỉ|vắng)\s*-\s*(.+)/i);
+          reason = reasonMatch ? reasonMatch[1].trim() : status.replace(/^(absent|nghỉ|vắng)\s*-?\s*/i, '').trim();
+        }
+        
+        parsed.set(rollNumber.trim(), {
+          name: name.trim(),
+          rollNumber: rollNumber.trim(),
+          attended: !isAbsent,
+          reason: reason
+        });
+      }
+    });
+
+    return students.map(student => {
+      const existing = parsed.get(student.rollNumber);
+      if (existing) {
+        return {
+          studentId: student.id,
+          name: student.name,
+          rollNumber: student.rollNumber,
+          role: student.role || '',
+          attended: existing.attended,
+          reason: existing.reason
+        };
+      }
+      return {
+        studentId: student.id,
+        name: student.name,
+        rollNumber: student.rollNumber,
+        role: student.role || '',
+        attended: false,
+        reason: ''
+      };
+    });
+  };
+
+  // Fetch meeting issues (tasks) by meeting minute id
+  const fetchMeetingIssues = async (meetingMinuteId) => {
     try {
-      const res = await client.get(`${API_BASE_URL}/Student/Task/meeting-tasks/${meetingId}`);
-      const data = res.data?.data;
+      const res = await getMeetingTasksByMinuteId(meetingMinuteId);
+      const data = res?.data;
       const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
-      setMeetingIssues(tasks.map(t => ({
+      return tasks.map(t => ({
         id: t.id,
         name: t.name,
         description: t.description,
         deadline: t.deadline,
         isActive: t.isActive,
         groupId: t.groupId
-      })));
+      }));
     } catch (e) {
-      setMeetingIssues([]);
+      return [];
     }
   };
 
@@ -498,7 +691,7 @@ export default function SupervisorCalendar() {
             style={{
               background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
             }}
-          >Chi tiết</button>
+          >Detail</button>
         </div>
       )
     }
@@ -507,48 +700,78 @@ export default function SupervisorCalendar() {
   // Open meeting modal
   const openMeetingModal = async (meeting) => {
     setSelectedMeeting(meeting);
-    setMeetingModal(true);
+    setMinuteData(null);
+    setMeetingIssues([]);
+    setAttendanceList([]);
+    setSelectedMeetingGroupInfo(null);
+    // Không hiện modal ngay, đợi load xong dữ liệu
     
-    // Fetch group info for this meeting
-    await fetchMeetingGroupInfo(meeting.groupId);
-    
-    // Chỉ fetch meeting minute nếu isMinute === true
-    if (meeting.isMinute === true) {
-      try {
-        const response = await client.get(`${API_BASE_URL}/MeetingMinute?meetingDateId=${meeting.id}`);
-        if (response.data.status === 200 && response.data.data) {
-          setMinuteData(response.data.data);
-          setFormData({
-            startAt: response.data.data.startAt ? response.data.data.startAt.split('T')[0] + 'T' + response.data.data.startAt.split('T')[1].substring(0, 5) : '',
-            endAt: response.data.data.endAt ? response.data.data.endAt.split('T')[0] + 'T' + response.data.data.endAt.split('T')[1].substring(0, 5) : '',
-            attendance: response.data.data.attendance || '',
-            issue: response.data.data.issue || '',
-            meetingContent: response.data.data.meetingContent || '',
-            other: response.data.data.other || ''
-          });
-          setIsEditing(true);
-        } else {
+    try {
+      // Fetch group info để parse attendance
+      let currentGroupInfo = null;
+      if (meeting.groupId) {
+        currentGroupInfo = await fetchMeetingGroupInfo(meeting.groupId);
+      }
+
+      // Only fetch meeting minute if isMinute === true
+      if (meeting.isMinute === true) {
+        try {
+          const response = await getMeetingMinutesByMeetingDateId(meeting.id);
+          if (response.status === 200 && response.data) {
+            setMinuteData(response.data);
+            
+            // Parse attendance from text
+            if (currentGroupInfo && currentGroupInfo.students) {
+              const students = Array.isArray(currentGroupInfo.students) ? currentGroupInfo.students : [];
+              const parsedAttendance = parseAttendance(response.data.attendance, students);
+              setAttendanceList(parsedAttendance);
+            }
+            
+            setFormData({
+              startAt: response.data.startAt ? response.data.startAt.split('T')[0] + 'T' + response.data.startAt.split('T')[1].substring(0, 5) : '',
+              endAt: response.data.endAt ? response.data.endAt.split('T')[0] + 'T' + response.data.endAt.split('T')[1].substring(0, 5) : '',
+              attendance: response.data.attendance || '',
+              issue: response.data.issue || '',
+              meetingContent: response.data.meetingContent || '',
+              other: response.data.other || ''
+            });
+            setIsEditing(true);
+            
+            // Load meeting issues by meeting minute id
+            if (response.data.id) {
+              const meetingTasks = await fetchMeetingIssues(response.data.id);
+              setMeetingIssues(Array.isArray(meetingTasks) ? meetingTasks : []);
+            }
+          } else {
+            setMinuteData(null);
+            setIsEditing(false);
+          }
+        } catch (error) {
+          console.error('Error fetching meeting minute:', error);
           setMinuteData(null);
           setIsEditing(false);
         }
-      } catch (error) {
-        console.error('Error fetching meeting minute:', error);
+      } else {
         setMinuteData(null);
         setIsEditing(false);
       }
-    } else {
-      setMinuteData(null);
-      setIsEditing(false);
+    } catch (error) {
+      console.error('Error loading meeting data:', error);
+    } finally {
+      // Only show modal after all data is loaded
+      setMeetingModal(true);
     }
-
-    // Load meeting issues
-    await fetchMeetingIssues(meeting.id);
   };
 
-  // Open task modal
+  // Navigate to task detail page
   const openTaskModal = (task) => {
-    setSelectedTask(task);
-    setTaskModal(true);
+    const groupId = task.groupId;
+    const taskId = task.id;
+    if (groupId && taskId) {
+      navigate(`/supervisor/task/group/${groupId}?taskId=${taskId}`);
+    } else {
+      console.error('Task missing groupId or id:', task);
+    }
   };
 
   // Open milestone modal
@@ -558,7 +781,7 @@ export default function SupervisorCalendar() {
     
     // Load milestone details
     try {
-      const res = await client.get(`${API_BASE_URL}/deliverables/group/detail?groupdId=${milestone.groupId}&deliverableId=${milestone.id}`);
+      const res = await getDeliverableDetail(milestone.groupId, milestone.id);
       setMilestoneDetails(res?.data || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
@@ -574,6 +797,7 @@ export default function SupervisorCalendar() {
     setMinuteData(null);
     setIsEditing(false);
     setMeetingIssues([]);
+    setAttendanceList([]);
     setFormData({
       startAt: '',
       endAt: '',
@@ -607,6 +831,50 @@ export default function SupervisorCalendar() {
     window.open(meetingLink, '_blank');
   };
 
+  // Kiểm tra file có thể xem được không (ảnh, PDF, docs)
+  const canPreviewFile = (filePath) => {
+    if (!filePath) return false;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    
+    // Các định dạng có thể xem được
+    const previewableExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Documents (có thể xem qua Google Docs Viewer hoặc Office Online)
+      'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+      // Text files
+      'txt', 'csv'
+    ];
+    
+    return previewableExtensions.includes(extension);
+  };
+
+  // Mở preview file trong tab mới
+  const openFilePreview = (attachment) => {
+    if (!canPreviewFile(attachment.path)) {
+      alert('File này không thể xem trước. Vui lòng tải xuống để xem.');
+      return;
+    }
+    
+    const filePath = attachment.path;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    
+    let previewUrl = baseUrl;
+    
+    // Office documents - sử dụng Google Docs Viewer
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(extension)) {
+      previewUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(baseUrl)}&embedded=true`;
+    }
+    
+    // Mở trong tab mới
+    window.open(previewUrl, '_blank');
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 32, textAlign: 'center' }}>
@@ -616,19 +884,32 @@ export default function SupervisorCalendar() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Supervisor Calendar</h1>
-        <div style={{ fontSize: 14, color: '#64748b' }}>
-          Managing {groups.length} group{groups.length > 1 ? 's' : ''}
-        </div>
+    <div className={sharedLayout.container}>
+      {/* Header */}
+      <div className={sharedLayout.header}>
+        <h1>Supervisor Calendar</h1>
+        <p>Managing {groups.length} group{groups.length > 1 ? 's' : ''}</p>
+      </div>
+
+      {/* Semester + Group Filter */}
+      <div style={{ marginBottom: 24 }}>
+        <SupervisorGroupFilter
+          semesters={semesters}
+          selectedSemesterId={selectedSemesterId}
+          onSemesterChange={setSelectedSemesterId}
+          groupExpireFilter={groupExpireFilter}
+          onGroupExpireFilterChange={setGroupExpireFilter}
+          groups={groups}
+          selectedGroupId={selectedGroupId ? selectedGroupId.toString() : ''}
+          onGroupChange={(value) => setSelectedGroupId(value ? Number(value) : null)}
+          groupSelectPlaceholder="-- Select group to view calendar --"
+          loading={loading}
+        />
       </div>
       
+      {/* Semester Info */}
       {semesterInfo && (
         <div style={{ 
-        //   display: 'flex', 
-          alignItems: 'center', 
-          gap: 16, 
           marginBottom: 16 
         }}>
           <div style={{ 
@@ -636,8 +917,7 @@ export default function SupervisorCalendar() {
             border: '1px solid #0ea5e9', 
             borderRadius: 8, 
             padding: 8, 
-            flex: 1,
-            width: '500px'
+            maxWidth: '100%'
           }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#0c4a6e' }}>
               Semester: {semesterInfo.name} ({formatDate(semesterInfo.startAt, 'DD/MM/YYYY')} - {formatDate(semesterInfo.endAt, 'DD/MM/YYYY')})
@@ -646,36 +926,9 @@ export default function SupervisorCalendar() {
         </div>
       )}
 
-
-      {/* Groups Information */}
-      {groups.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Managed Groups</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
-            {groups.map((group) => (
-              <div key={group.id} style={{
-                background: '#f9fafb',
-                border: '1px solid #e5e7eb',
-                borderRadius: 8,
-                padding: 12
-              }}>
-                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-                  {group.projectName}
-                </div>
-                <div style={{ fontSize: 12, color: '#64748b' }}>
-                  <div>Group Code: {group.groupCode || 'N/A'}</div>
-                  {/* <div>ID: {group.id}</div> */}
-                  <div>Students: {group.students?.length || 0}</div>
-                  <div>Supervisors: {group.supervisors?.join(', ') || 'N/A'}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Week Selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+      <div className={sharedLayout.contentSection} style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontWeight: 600, fontSize: 14 }}>Week:</span>
         <select 
           value={selectedWeek} 
@@ -705,14 +958,12 @@ export default function SupervisorCalendar() {
             </option>
           ))}
         </select>
+        </div>
       </div>
 
       {/* Calendar Table */}
-      <div style={{ 
-        border: '1px solid #e5e7eb', 
-        borderRadius: 8, 
-        overflow: 'hidden',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
+      <div className={sharedLayout.contentSection} style={{ 
+        overflow: 'hidden'
       }}>
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead style={{ background: '#f9fafb' }}>
@@ -722,7 +973,8 @@ export default function SupervisorCalendar() {
                 borderBottom: '1px solid #e5e7eb', 
                 fontWeight: 600, 
                 fontSize: 12,
-                width: '80px'
+                width: '180px',
+                whiteSpace: 'nowrap'
               }}>
                 Time
               </th>
@@ -740,129 +992,350 @@ export default function SupervisorCalendar() {
             </tr>
           </thead>
           <tbody>
-            {TIME_SLOTS.map((timeSlot, slotIndex) => (
-              <tr key={timeSlot.label}>
-                <td style={{ 
-                  padding: '8px', 
-                  borderBottom: '1px solid #f1f5f9', 
-                  fontSize: 11, 
-                  fontWeight: 600,
-                  background: '#f8fafc',
-                  textAlign: 'center'
-                }}>
-                  {timeSlot.label}
-                </td>
-                {DAYS.map((day, dayIndex) => {
-                  const milestones = getMilestonesForSlot(dayIndex, timeSlot);
-                  const meetings = getMeetingsForSlot(dayIndex, timeSlot);
-                  const tasks = getTasksForSlot(dayIndex, timeSlot);
-                  
+            {timeSlots.length > 0 ? (() => {
+              // Lấy tất cả milestones của tuần
+              const weekMilestones = getMilestonesForWeek();
+              
+              // Tạo một map để lưu các milestone không có slot phù hợp
+              const milestoneRows = new Map();
+              
+              weekMilestones.forEach(milestone => {
+                if (!milestone.endAt) return;
+                const deadline = new Date(milestone.endAt);
+                const dayOfWeek = deadline.getDay();
+                const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+                const hour = deadline.getHours() + (deadline.getMinutes() || 0) / 60;
+                
+                // Kiểm tra xem có slot nào phù hợp không
+                const hasMatchingSlot = timeSlots.some(slot => {
+                  return hour >= slot.start && hour < slot.end;
+                });
+                
+                // Nếu không có slot phù hợp, thêm vào milestoneRows
+                if (!hasMatchingSlot) {
+                  const key = `${adjustedDay}_${hour.toFixed(2)}`;
+                  if (!milestoneRows.has(key)) {
+                    milestoneRows.set(key, []);
+                  }
+                  milestoneRows.get(key).push({ milestone, day: adjustedDay, hour });
+                }
+              });
+              
+              // Tạo danh sách rows: slots + milestone rows
+              const allRows = [];
+              
+              // Thêm các slot rows
+              timeSlots.forEach(slot => {
+                allRows.push({ type: 'slot', data: slot });
+              });
+              
+              // Thêm các milestone rows (sắp xếp theo giờ)
+              Array.from(milestoneRows.entries()).sort((a, b) => {
+                const [dayA, hourA] = a[0].split('_').map(Number);
+                const [dayB, hourB] = b[0].split('_').map(Number);
+                if (dayA !== dayB) return dayA - dayB;
+                return hourA - hourB;
+              }).forEach(([key, milestones]) => {
+                const [day, hour] = key.split('_').map(Number);
+                const milestoneHour = Math.floor(hour);
+                const milestoneMinute = Math.round((hour - milestoneHour) * 60);
+                const timeStr = `${String(milestoneHour).padStart(2, '0')}:${String(milestoneMinute).padStart(2, '0')}`;
+                allRows.push({ 
+                  type: 'milestone', 
+                  data: { 
+                    milestones: milestones.map(m => m.milestone),
+                    day,
+                    hour,
+                    label: `Milestone (${timeStr})`
+                  } 
+                });
+              });
+              
+              return allRows.map((row, rowIndex) => {
+                if (row.type === 'slot') {
+                  const timeSlot = row.data;
                   return (
-                    <td key={day} style={{ 
-                      padding: '8px', 
-                      borderBottom: '1px solid #f1f5f9',
-                      borderRight: '1px solid #f1f5f9',
-                      minHeight: '60px',
-                      verticalAlign: 'top'
-                    }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        {/* Milestones - Display all milestones in this slot */}
-                        {milestones.map((milestone, idx) => (
-                          <div 
-                            key={milestone.id || idx}
-                            onClick={() => openMilestoneModal(milestone)}
-                            style={{ 
-                              background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
-                                         getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
-                                         getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                              border: `1px solid ${getStatusColor(milestone.status)}`,
-                              borderRadius: 4,
-                              padding: 4,
-                              cursor: 'pointer',
-                              fontSize: 9,
-                              maxHeight: '50px',
-                              overflow: 'hidden',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
-                              📊 {milestone.name.length > 20 ? milestone.name.substring(0, 20) + '...' : milestone.name}
-                            </div>
-                            <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
-                              {getStatusText(milestone.status)}
-                            </div>
-                            <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
-                              {formatDate(milestone.endAt, 'HH:mm')} ({getGroupCode(milestone.groupId)})
-                            </div>
-                          </div>
-                        ))}
+                    <tr key={`slot_${timeSlot.id || timeSlot.label}`}>
+                      <td style={{ 
+                        padding: '8px', 
+                        borderBottom: '1px solid #f1f5f9', 
+                        fontSize: 11, 
+                        fontWeight: 600,
+                        background: '#f8fafc',
+                        textAlign: 'center',
+                        width: '180px',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {timeSlot.nameSlot ? `${timeSlot.nameSlot} (${timeSlot.startAt} - ${timeSlot.endAt})` : timeSlot.label}
+                      </td>
+                      {DAYS.map((day, dayIndex) => {
+                        const milestones = getMilestonesForSlot(dayIndex, timeSlot);
+                        const meetings = getMeetingsForSlot(dayIndex, timeSlot);
+                        const tasks = getTasksForSlot(dayIndex, timeSlot);
                         
-                        {/* Meetings - Display all meetings in this slot */}
-                        {meetings.map((meeting, idx) => (
-                          <div 
-                            key={meeting.id || idx}
-                            onClick={() => openMeetingModal(meeting)}
-                            style={{ 
-                              background: getMeetingStatusColor(meeting) === '#059669' ? '#ecfdf5' : 
-                                         getMeetingStatusColor(meeting) === '#dc2626' ? '#fee2e2' : '#fef3c7',
-                              border: `1px solid ${getMeetingStatusColor(meeting)}`,
-                              borderRadius: 4,
-                              padding: 4,
-                              cursor: 'pointer',
-                              fontSize: 9,
-                              maxHeight: '50px',
-                              overflow: 'hidden',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, color: getMeetingStatusColor(meeting), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
-                              📅 {meeting.description.length > 20 ? meeting.description.substring(0, 20) + '...' : meeting.description}
+                        return (
+                          <td key={day} style={{ 
+                            padding: '8px', 
+                            borderBottom: '1px solid #f1f5f9',
+                            borderRight: '1px solid #f1f5f9',
+                            minHeight: '60px',
+                            verticalAlign: 'top',
+                            width: '120px',
+                            maxWidth: '120px',
+                            wordWrap: 'break-word',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              {/* Milestones - Display all milestones in this slot */}
+                              {milestones.map((milestone, idx) => (
+                                <div 
+                                  key={milestone.id || idx}
+                                  onClick={() => openMilestoneModal(milestone)}
+                                  style={{ 
+                                    background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
+                                               getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
+                                               getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                                    border: `1px solid ${getStatusColor(milestone.status)}`,
+                                    borderRadius: 4,
+                                    padding: 4,
+                                    cursor: 'pointer',
+                                    fontSize: 9,
+                                    maxHeight: '50px',
+                                    overflow: 'hidden',
+                                    transition: 'all 0.2s ease',
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.transform = 'scale(1.02)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                    e.target.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                                    📊 {milestone.name.length > 15 ? milestone.name.substring(0, 15) + '...' : milestone.name}
+                                  </div>
+                                  <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                                    {getStatusText(milestone.status)}
+                                  </div>
+                                  <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                                    {formatDate(milestone.endAt, 'HH:mm')} ({getGroupCode(milestone.groupId)})
+                                  </div>
+                                </div>
+                              ))}
+                              
+                              {/* Meetings - Display all meetings in this slot */}
+                              {meetings.map((meeting, idx) => (
+                                <div 
+                                  key={meeting.id || idx}
+                                  onClick={() => openMeetingModal(meeting)}
+                                  style={{ 
+                                    background: getMeetingStatusColor(meeting) === '#059669' ? '#ecfdf5' : 
+                                               getMeetingStatusColor(meeting) === '#dc2626' ? '#fee2e2' : '#fef3c7',
+                                    border: `1px solid ${getMeetingStatusColor(meeting)}`,
+                                    borderRadius: 4,
+                                    padding: 4,
+                                    cursor: 'pointer',
+                                    fontSize: 9,
+                                    maxHeight: '50px',
+                                    overflow: 'hidden',
+                                    transition: 'all 0.2s ease',
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.transform = 'scale(1.02)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                    e.target.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600, color: getMeetingStatusColor(meeting), marginBottom: 2, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                                    📅 {meeting.description.length > 15 ? meeting.description.substring(0, 15) + '...' : meeting.description}
+                                  </div>
+                                  <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
+                                    {getMeetingStatusText(meeting)}
+                                  </div>
+                                  <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
+                                    {meeting.startAt ? meeting.startAt.substring(0, 5) : (meeting.time || 'N/A')}
+                                    {meeting.endAt && ` - ${meeting.endAt.substring(0, 5)}`}
+                                    {' '}({getGroupCode(meeting.groupId)})
+                                  </div>
+                                </div>
+                              ))}
+                              
+                              {/* Tasks - Display all tasks in this slot */}
+                              {tasks.map((task, idx) => {
+                                const taskTypeColor = getTaskTypeColor(task.taskType);
+                                const statusColor = getTaskStatusColor(task.status);
+                                // Nếu có taskTypeColor, dùng nó cho border, nếu không thì dùng statusColor
+                                const borderColor = taskTypeColor || statusColor;
+                                // Background dựa trên status, nhưng có thể điều chỉnh nếu có taskType
+                                let backgroundColor = statusColor === '#059669' ? '#ecfdf5' : 
+                                                    statusColor === '#dc2626' ? '#fee2e2' :
+                                                    statusColor === '#d97706' ? '#fef3c7' : '#f3f4f6';
+                                
+                                return (
+                                  <div 
+                                    key={task.id || idx}
+                                    onClick={() => openTaskModal(task)}
+                                    style={{ 
+                                      background: backgroundColor,
+                                      border: `2px solid ${borderColor}`,
+                                      borderRadius: 4,
+                                      padding: 4,
+                                      cursor: 'pointer',
+                                      fontSize: 9,
+                                      maxHeight: '50px',
+                                      overflow: 'hidden',
+                                      transition: 'all 0.2s ease',
+                                      maxWidth: '100%',
+                                      width: '100%',
+                                      boxSizing: 'border-box',
+                                      position: 'relative'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.target.style.transform = 'scale(1.02)';
+                                      e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.target.style.transform = 'scale(1)';
+                                      e.target.style.boxShadow = 'none';
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
+                                      <div style={{ fontWeight: 600, color: borderColor, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', flex: 1 }}>
+                                        📋 {task.title?.length > 15 ? task.title.substring(0, 15) + '...' : (task.title || task.name || 'N/A')}
+                                      </div>
+                                      {taskTypeColor && (
+                                        <span style={{
+                                          fontSize: '7px',
+                                          padding: '1px 3px',
+                                          backgroundColor: taskTypeColor,
+                                          color: 'white',
+                                          borderRadius: '3px',
+                                          fontWeight: '600',
+                                          whiteSpace: 'nowrap',
+                                          flexShrink: 0
+                                        }}>
+                                          {getTaskTypeText(task.taskType)}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div style={{ color: statusColor, fontSize: 8 }}>
+                                      {getTaskStatusText(task.status)}
+                                    </div>
+                                    <div style={{ color: statusColor, fontSize: 8 }}>
+                                      {formatDate(task.deadline, 'HH:mm')} ({getGroupCode(task.groupId)})
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                            <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
-                              {getMeetingStatusText(meeting)}
-                            </div>
-                            <div style={{ color: getMeetingStatusColor(meeting), fontSize: 8 }}>
-                              {meeting.time} ({getGroupCode(meeting.groupId)})
-                            </div>
-                          </div>
-                        ))}
-                        
-                        {/* Tasks - Display all tasks in this slot */}
-                        {tasks.map((task, idx) => (
-                          <div 
-                            key={task.id || idx}
-                            onClick={() => openTaskModal(task)}
-                            style={{ 
-                              background: getTaskStatusColor(task.status) === '#059669' ? '#ecfdf5' : 
-                                         getTaskStatusColor(task.status) === '#dc2626' ? '#fee2e2' :
-                                         getTaskStatusColor(task.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                              border: `1px solid ${getTaskStatusColor(task.status)}`,
-                              borderRadius: 4,
-                              padding: 4,
-                              cursor: 'pointer',
-                              fontSize: 9,
-                              maxHeight: '50px',
-                              overflow: 'hidden',
-                              transition: 'all 0.2s ease'
-                            }}
-                          >
-                            <div style={{ fontWeight: 600, color: getTaskStatusColor(task.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2 }}>
-                              📋 {task.title.length > 20 ? task.title.substring(0, 20) + '...' : task.title}
-                            </div>
-                            <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
-                              {getTaskStatusText(task.status)}
-                            </div>
-                            <div style={{ color: getTaskStatusColor(task.status), fontSize: 8 }}>
-                              {formatDate(task.deadline, 'HH:mm')} ({getGroupCode(task.groupId)})
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </td>
+                          </td>
+                        );
+                      })}
+                    </tr>
                   );
-                })}
+                } else {
+                  // Milestone row
+                  const { milestones, day, label } = row.data;
+                  return (
+                    <tr key={`milestone_${day}_${row.data.hour}`}>
+                      <td style={{ 
+                        padding: '8px', 
+                        borderBottom: '1px solid #f1f5f9', 
+                        fontSize: 11, 
+                        fontWeight: 600,
+                        background: '#fef3c7',
+                        textAlign: 'center',
+                        width: '180px',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {label}
+                      </td>
+                      {DAYS.map((dayName, dayIndex) => {
+                        const dayMilestones = dayIndex === day ? milestones : [];
+                        return (
+                          <td key={dayName} style={{ 
+                            padding: '8px', 
+                            borderBottom: '1px solid #f1f5f9',
+                            borderRight: '1px solid #f1f5f9',
+                            minHeight: '60px',
+                            verticalAlign: 'top',
+                            width: '120px',
+                            maxWidth: '120px',
+                            wordWrap: 'break-word',
+                            overflow: 'hidden'
+                          }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              {dayMilestones.map((milestone, idx) => (
+                                <div 
+                                  key={milestone.id || idx}
+                                  onClick={() => openMilestoneModal(milestone)}
+                                  style={{ 
+                                    background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
+                                               getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
+                                               getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                                    border: `1px solid ${getStatusColor(milestone.status)}`,
+                                    borderRadius: 4,
+                                    padding: 4,
+                                    cursor: 'pointer',
+                                    fontSize: 9,
+                                    maxHeight: '50px',
+                                    overflow: 'hidden',
+                                    transition: 'all 0.2s ease',
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.transform = 'scale(1.02)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                    e.target.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600, color: getStatusColor(milestone.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                                    📊 {milestone.name.length > 15 ? milestone.name.substring(0, 15) + '...' : milestone.name}
+                                  </div>
+                                  <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                                    {getStatusText(milestone.status)}
+                                  </div>
+                                  <div style={{ color: getStatusColor(milestone.status), fontSize: 8 }}>
+                                    {formatDate(milestone.endAt, 'HH:mm')} ({getGroupCode(milestone.groupId)})
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                }
+              });
+            })() : (
+              <tr>
+                <td colSpan={8} style={{ 
+                  padding: '20px', 
+                  textAlign: 'center', 
+                  color: '#6b7280',
+                  fontSize: 11
+                }}>
+                  Đang tải slots...
+                </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -905,7 +1378,7 @@ export default function SupervisorCalendar() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div><strong>Mô tả:</strong> {selectedMeeting.description}</div>
                   <div><strong>Ngày:</strong> {formatDate(selectedMeeting.meetingDate, 'YYYY-MM-DD')}</div>
-                  <div><strong>Giờ:</strong> {selectedMeeting.time}</div>
+                  <div><strong>Giờ:</strong> {selectedMeeting.startAt ? `${selectedMeeting.startAt.substring(0, 5)} - ${selectedMeeting.endAt ? selectedMeeting.endAt.substring(0, 5) : ''}` : (selectedMeeting.time || 'N/A')}</div>
                   <div><strong>Thứ:</strong> {selectedMeeting.dayOfWeek}</div>
                   <div><strong>Trạng thái:</strong> 
                     <span style={{ 
@@ -973,26 +1446,80 @@ export default function SupervisorCalendar() {
                     <div>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Thời gian</h4>
                       <div style={{ fontSize: 13, color: '#374151' }}>
-                        <div><strong>Bắt đầu:</strong> {formatDate(minuteData.startAt, 'DD/MM/YYYY HH:mm')}</div>
-                        <div><strong>Kết thúc:</strong> {formatDate(minuteData.endAt, 'DD/MM/YYYY HH:mm')}</div>
+                        {selectedMeeting?.startAt && selectedMeeting?.endAt ? (
+                          <>
+                            <div><strong>Bắt đầu:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                            <div><strong>Kết thúc:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                          </>
+                        ) : (
+                          <>
+                            <div><strong>Bắt đầu:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                            <div><strong>Kết thúc:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('vi-VN') : 'N/A'}</div>
+                          </>
+                        )}
                       </div>
                     </div>
                     
                     <div>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Danh sách tham gia</h4>
-                      <div style={{ 
-                        fontSize: 13, 
-                        color: '#374151', 
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        padding: '12px',
-                        background: 'rgba(255,255,255,0.5)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        minHeight: '80px'
-                      }}>
-                        {minuteData.attendance || 'N/A'}
-                      </div>
+                      {attendanceList.length > 0 ? (
+                        <div style={{
+                          border: '1px solid #d1d5db',
+                          borderRadius: '6px',
+                          padding: '8px',
+                          backgroundColor: 'rgba(255,255,255,0.5)'
+                        }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Thành viên</th>
+                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Tham gia</th>
+                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Lý do nghỉ</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {attendanceList.map((item) => (
+                                <tr key={item.studentId} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                  <td style={{ padding: '6px 8px' }}>
+                                    <div style={{ fontSize: '13px', fontWeight: '500', color: '#1f2937' }}>
+                                      {item.name}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '1px' }}>
+                                      {item.rollNumber} {item.role && `- ${item.role}`}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '6px 8px', textAlign: 'center' }}>
+                                    <span style={{
+                                      padding: '4px 8px',
+                                      borderRadius: '4px',
+                                      fontSize: '12px',
+                                      fontWeight: '500',
+                                      backgroundColor: item.attended ? '#d1fae5' : '#fee2e2',
+                                      color: item.attended ? '#065f46' : '#991b1b'
+                                    }}>
+                                      {item.attended ? 'Có' : 'Không'}
+                                    </span>
+                                  </td>
+                                  <td style={{ padding: '6px 8px', fontSize: '12px', color: '#6b7280' }}>
+                                    {item.reason || '-'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div style={{ 
+                          fontSize: 13, 
+                          color: '#6b7280', 
+                          padding: '12px',
+                          background: 'rgba(255,255,255,0.5)',
+                          borderRadius: '4px',
+                          border: '1px solid rgba(0,0,0,0.1)'
+                        }}>
+                          {minuteData?.attendance || 'Chưa có thông tin điểm danh'}
+                        </div>
+                      )}
                     </div>
                     
                     <div>
@@ -1308,18 +1835,60 @@ export default function SupervisorCalendar() {
                                         Uploaded by {attachment.userName} on {formatDate(attachment.createAt, 'DD/MM/YYYY HH:mm')}
                                       </div>
                                     </div>
-                                    <Button
-                                      onClick={() => {
-                                        const link = document.createElement('a');
-                                        link.href = `https://160.30.21.113:5000${attachment.path}`;
-                                        link.download = attachment.path.split('/').pop();
-                                        link.click();
-                                      }}
-                                      variant="ghost"
-                                      style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
-                                    >
-                                      Download
-                                    </Button>
+                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center' }}>
+                                      {canPreviewFile(attachment.path) && (
+                                        <button
+                                          onClick={() => openFilePreview(attachment)}
+                                          style={{ 
+                                            padding: '4px 6px',
+                                            background: 'transparent',
+                                            border: '1px solid #d1d5db',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#6b7280'
+                                          }}
+                                          title="Xem trước"
+                                          onMouseEnter={(e) => {
+                                            e.target.style.backgroundColor = '#f3f4f6';
+                                            e.target.style.borderColor = '#9ca3af';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.target.style.backgroundColor = 'transparent';
+                                            e.target.style.borderColor = '#d1d5db';
+                                          }}
+                                        >
+                                          <svg 
+                                            width="16" 
+                                            height="16" 
+                                            viewBox="0 0 24 24" 
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            strokeWidth="2" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round"
+                                            style={{ color: '#6b7280' }}
+                                          >
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                          </svg>
+                                        </button>
+                                      )}
+                                      <Button
+                                        onClick={() => {
+                                          const link = document.createElement('a');
+                                          link.href = `https://160.30.21.113:5000${attachment.path}`;
+                                          link.download = attachment.path.split('/').pop();
+                                          link.click();
+                                        }}
+                                        variant="ghost"
+                                        style={{ fontSize: 11, padding: '4px 8px' }}
+                                      >
+                                        Download
+                                      </Button>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -1340,6 +1909,7 @@ export default function SupervisorCalendar() {
           </div>
         )}
       </Modal>
+
     </div>
   );
 }

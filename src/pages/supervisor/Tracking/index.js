@@ -1,10 +1,15 @@
 import React from 'react';
 import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
-import client from '../../../utils/axiosClient';
+import DataTable from '../../../components/DataTable/DataTable';
 import { formatDate } from '../../../utils/date';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getDeliverablesByGroup, getDeliverableDetail, markDeliverableAttachmentDownloaded, confirmDeliverable, rejectDeliverable } from '../../../api/deliverables';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 
 export default function SupervisorTracking() {
   const [userInfo, setUserInfo] = React.useState(null);
@@ -20,6 +25,9 @@ export default function SupervisorTracking() {
   const [rejecting, setRejecting] = React.useState(false);
   const [note, setNote] = React.useState('');
   const [noteError, setNoteError] = React.useState('');
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
   const [windowWidth, setWindowWidth] = React.useState(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth;
@@ -40,38 +48,28 @@ export default function SupervisorTracking() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load user info
+  // Load user info from localStorage, don't call API
   React.useEffect(() => {
     let mounted = true;
-    async function loadUserInfo() {
+    function loadUserInfo() {
       try {
-        const res = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
-        const user = res?.data?.data || null;
+        const user = getUserInfo();
         if (!mounted) return;
         setUserInfo(user);
         
-        // Load groups that this supervisor is supervising
-        if (user?.groups && user.groups.length > 0) {
-          // Fetch all groups that this supervisor manages
-          const allGroups = [];
-          for (const groupId of user.groups) {
-            try {
-              const groupsRes = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
-              const groupData = groupsRes?.data?.data;
-              if (groupData) {
-                allGroups.push(groupData);
-              }
-            } catch (error) {
-              console.error(`Error loading group ${groupId}:`, error);
-            }
-          }
-          setGroups(allGroups);
-          if (allGroups.length > 0) {
-            setSelectedGroup(allGroups[0]);
-          }
+        // Get semesters and set default to current semester
+        const uniqueSemesters = getUniqueSemesters();
+        setSemesters(uniqueSemesters);
+        
+        const currentSemesterId = getCurrentSemesterId();
+        if (currentSemesterId) {
+          setSelectedSemesterId(currentSemesterId);
+        } else if (uniqueSemesters.length > 0) {
+          setSelectedSemesterId(uniqueSemesters[0].id);
         }
-      } catch {
+      } catch (error) {
         if (!mounted) return;
+        console.error('Error loading user info:', error);
         setUserInfo(null);
         setGroups([]);
       }
@@ -80,24 +78,87 @@ export default function SupervisorTracking() {
     return () => { mounted = false; };
   }, []);
 
-  // Load group info
+  // Load groups from localStorage when filter changes (no API call)
   React.useEffect(() => {
+    if (selectedSemesterId === null) {
+      setGroups([]);
+      return;
+    }
+    
+    // Get groups from localStorage based on semester and expired status
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    
+    // Only store basic info from localStorage, don't fetch details yet
+    const groupsBasicInfo = groupsFromStorage.map(groupInfo => ({
+      id: groupInfo.id,
+      name: groupInfo.name || '',
+      groupCode: groupInfo.code || groupInfo.groupCode || '',
+      semesterId: groupInfo.semesterId,
+      isExpired: groupInfo.isExpired || false
+    }));
+    
+    setGroups(groupsBasicInfo);
+    setLoading(false); // Set loading false after groups are loaded from localStorage
+    
+    // Check if selected group is still in filtered list
+    const selectedGroupExists = selectedGroup && groupsFromStorage.some(g => g.id === selectedGroup.id);
+    
+    if (selectedGroup && !selectedGroupExists) {
+      // Selected group is not in filtered list, clear selection and data
+      setSelectedGroup(null);
+      setGroupInfo(null);
+      setMilestones([]);
+      setSelectedMilestone(null);
+      setMilestoneDetails(null);
+      setNote('');
+      setNoteError('');
+    }
+  }, [selectedSemesterId, groupExpireFilter]);
+
+
+  // Load group details when group is selected (API call)
+  React.useEffect(() => {
+    if (!selectedGroup) {
+      setGroupInfo(null);
+      setMilestones([]);
+      setSelectedMilestone(null);
+      setMilestoneDetails(null);
+      return;
+    }
+
+    // Check if selected group exists in current filtered groups
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    const selectedGroupExists = groupsFromStorage.some(g => g.id === selectedGroup.id);
+    
+    if (!selectedGroupExists) {
+      setGroupInfo(null);
+      setMilestones([]);
+      setSelectedMilestone(null);
+      setMilestoneDetails(null);
+      return;
+    }
+
+    // Fetch group details when group is selected
     let mounted = true;
-    async function loadGroupInfo() {
-      if (!selectedGroup?.id) return;
+    async function loadGroupDetails() {
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${selectedGroup.id}`);
-        const group = res?.data?.data || null;
-        if (!mounted) return;
-        setGroupInfo(group);
-      } catch {
-        if (!mounted) return;
-        setGroupInfo(null);
+        const groupsRes = await getCapstoneGroupDetail(selectedGroup.id);
+        const groupData = groupsRes?.data;
+        if (groupData && mounted) {
+          setGroupInfo(groupData);
+        }
+      } catch (error) {
+        console.error(`Error loading group details for ${selectedGroup.id}:`, error);
+        if (mounted) {
+          setGroupInfo(null);
+        }
       }
     }
-    loadGroupInfo();
+    loadGroupDetails();
     return () => { mounted = false; };
-  }, [selectedGroup?.id]);
+  }, [selectedGroup, selectedSemesterId, groupExpireFilter]);
 
 
   // Load milestones
@@ -106,7 +167,7 @@ export default function SupervisorTracking() {
     async function loadMilestones() {
       if (!selectedGroup?.id) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${selectedGroup.id}`);
+        const res = await getDeliverablesByGroup(selectedGroup.id);
         const list = Array.isArray(res?.data) ? res.data : [];
         if (!mounted) return;
         setMilestones(list);
@@ -135,6 +196,8 @@ export default function SupervisorTracking() {
         return '#dc2626'; // Red
       case 'Pending':
         return '#d97706'; // Orange/Yellow
+      case 'PENDING':
+        return '#d97706'; // Orange/Yellow
       case 'UNSUBMITTED':
         return '#64748b'; // Gray
       case 'REJECTED':
@@ -151,6 +214,8 @@ export default function SupervisorTracking() {
       case 'LATE':
         return '⚠ Late';
       case 'Pending':
+        return '⏳ Pending Review';
+      case 'PENDING':
         return '⏳ Pending Review';
       case 'UNSUBMITTED':
         return '✗ Unsubmitted';
@@ -169,7 +234,7 @@ export default function SupervisorTracking() {
     
     // Load milestone details
     try {
-      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${selectedGroup.id}&deliverableId=${milestone.id}`);
+      const res = await getDeliverableDetail(selectedGroup.id, milestone.id);
       setMilestoneDetails(res?.data || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
@@ -179,17 +244,27 @@ export default function SupervisorTracking() {
 
   const markDownload = async (attachmentId) => {
     try {
-      const res = await client.put(`https://160.30.21.113:5000/api/v1/deliverables/Mark-download?attachmentId=${attachmentId}`);
-      if (res.data.status === 200) {
+      const res = await markDeliverableAttachmentDownloaded(attachmentId);
+      if (res.status === 200) {
         // Reload milestone details to update download status
         if (selectedMilestone) {
-          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${selectedGroup.id}&deliverableId=${selectedMilestone.id}`);
+          const detailRes = await getDeliverableDetail(selectedGroup.id, selectedMilestone.id);
           setMilestoneDetails(detailRes?.data || null);
         }
       }
     } catch (error) {
       console.error('Error marking download:', error);
     }
+  };
+
+  // Check if all items have at least one attachment (submitted)
+  const checkAllItemsSubmitted = () => {
+    if (!milestoneDetails?.deliveryItems) return false;
+    
+    return milestoneDetails.deliveryItems.every(item => {
+      // Item must have at least one attachment to be considered submitted
+      return item.attachments && item.attachments.length > 0;
+    });
   };
 
   const checkAllAttachmentsDownloaded = () => {
@@ -207,8 +282,19 @@ export default function SupervisorTracking() {
     });
   };
 
+  // Combined check: all items submitted AND all attachments downloaded
+  const checkCanConfirm = () => {
+    return checkAllItemsSubmitted() && checkAllAttachmentsDownloaded();
+  };
+
   const handleConfirm = async () => {
     if (!selectedGroup?.id || !selectedMilestone) return;
+    
+    // Check if all items are submitted
+    if (!checkAllItemsSubmitted()) {
+      alert('Cannot confirm: Some items have not been submitted yet. Please wait for all items to be submitted.');
+      return;
+    }
     
     // Check if all attachments are downloaded
     if (!checkAllAttachmentsDownloaded()) {
@@ -220,10 +306,10 @@ export default function SupervisorTracking() {
     setNoteError('');
     
     try {
-      const res = await client.put(`https://160.30.21.113:5000/api/v1/deliverables/confirmed?groupdId=${selectedGroup.id}&deliverableId=${selectedMilestone.id}&note=${encodeURIComponent(note)}`);
+      await confirmDeliverable(selectedGroup.id, selectedMilestone.id, note);
       
       // Reload milestones after successful confirmation
-      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${selectedGroup.id}`);
+      const milestonesRes = await getDeliverablesByGroup(selectedGroup.id);
       const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
       setMilestones(list);
       
@@ -234,7 +320,7 @@ export default function SupervisorTracking() {
       }
       
       // Reload milestone details
-      const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${selectedGroup.id}&deliverableId=${selectedMilestone.id}`);
+      const detailRes = await getDeliverableDetail(selectedGroup.id, selectedMilestone.id);
       setMilestoneDetails(detailRes?.data || null);
       
       setNote('');
@@ -266,27 +352,25 @@ export default function SupervisorTracking() {
     setNoteError('');
     
     try {
-      const res = await client.put(`https://160.30.21.113:5000/api/v1/deliverables/reject?groupdId=${selectedGroup.id}&deliverableId=${selectedMilestone.id}&note=${encodeURIComponent(note)}`);
+      await rejectDeliverable(selectedGroup.id, selectedMilestone.id, note);
       
-      if (res.data.status === 200) {
-        // Reload milestones after successful rejection
-        const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${selectedGroup.id}`);
-        const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
-        setMilestones(list);
-        
-        // Update selectedMilestone with new status
-        const updatedMilestone = list.find(m => m.id === selectedMilestone.id);
-        if (updatedMilestone) {
-          setSelectedMilestone(updatedMilestone);
-        }
-        
-        // Reload milestone details
-        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${selectedGroup.id}&deliverableId=${selectedMilestone.id}`);
-        setMilestoneDetails(detailRes?.data || null);
-        
-        setNote('');
-        alert('Milestone rejected successfully!');
+      // Reload milestones after successful rejection
+      const milestonesRes = await getDeliverablesByGroup(selectedGroup.id);
+      const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
+      setMilestones(list);
+      
+      // Update selectedMilestone with new status
+      const updatedMilestone = list.find(m => m.id === selectedMilestone.id);
+      if (updatedMilestone) {
+        setSelectedMilestone(updatedMilestone);
       }
+      
+      // Reload milestone details
+      const detailRes = await getDeliverableDetail(selectedGroup.id, selectedMilestone.id);
+      setMilestoneDetails(detailRes?.data || null);
+      
+      setNote('');
+      alert('Milestone rejected successfully!');
     } catch (error) {
       console.error('Error rejecting milestone:', error);
       alert('Error rejecting milestone. Please try again.');
@@ -321,6 +405,50 @@ export default function SupervisorTracking() {
     return attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
   };
 
+  // Check if file can be previewed (images, PDF, docs)
+  const canPreviewFile = (filePath) => {
+    if (!filePath) return false;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    
+    // Previewable formats
+    const previewableExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Documents (có thể xem qua Google Docs Viewer hoặc Office Online)
+      'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+      // Text files
+      'txt', 'csv'
+    ];
+    
+    return previewableExtensions.includes(extension);
+  };
+
+  // Mở preview file trong tab mới
+  const openFilePreview = (attachment) => {
+    if (!canPreviewFile(attachment.path)) {
+      alert('This file cannot be previewed. Please download to view.');
+      return;
+    }
+    
+    const filePath = attachment.path;
+    const fileName = filePath.split('/').pop().toLowerCase();
+    const extension = fileName.split('.').pop();
+    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    
+    let previewUrl = baseUrl;
+    
+    // Office documents - sử dụng Google Docs Viewer
+    if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(extension)) {
+      previewUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(baseUrl)}&embedded=true`;
+    }
+    
+    // Mở trong tab mới
+    window.open(previewUrl, '_blank');
+  };
+
   if (loading) {
     return (
       <div style={{ padding: 32, textAlign: 'center' }}>
@@ -335,22 +463,46 @@ export default function SupervisorTracking() {
   const isDesktop = windowWidth > 1024;
 
   return (
-    <div style={{ padding: isMobile ? '12px' : isTablet ? '14px' : '16px', maxWidth: '100%', overflowX: 'auto' }}>
-      {/* Header - Responsive */}
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: isMobile || isTablet ? 'column' : 'row',
-        alignItems: isMobile || isTablet ? 'flex-start' : 'center',
-        gap: isMobile ? 12 : 16, 
-        marginBottom: isMobile ? 20 : 24 
-      }}>
-        <h1 style={{ margin: 0, fontSize: isMobile ? '18px' : isTablet ? '22px' : '24px' }}>Milestones Tracking</h1>
+    <div className={sharedLayout.container}>
+      {/* Header */}
+      <div className={sharedLayout.header}>
+        <h1>Milestones Tracking</h1>
+      </div>
+
+      {/* Semester + Group Filter */}
+      <div style={{ marginBottom: 24 }}>
+        <SupervisorGroupFilter
+          semesters={semesters}
+          selectedSemesterId={selectedSemesterId}
+          onSemesterChange={setSelectedSemesterId}
+          groupExpireFilter={groupExpireFilter}
+          onGroupExpireFilterChange={setGroupExpireFilter}
+          groups={groups}
+          selectedGroupId={selectedGroup?.id ? selectedGroup.id.toString() : ''}
+          onGroupChange={(value) => {
+            const selectedId = value ? Number(value) : null;
+            const group = groups.find(g => String(g.id) === String(selectedId));
+            if (group) {
+              setSelectedGroup(group);
+              setMilestoneDetails(null);
+              setSelectedMilestone(null);
+              setDetailModal(false);
+              setNote('');
+              setNoteError('');
+            } else {
+              setSelectedGroup(null);
+            }
+          }}
+          groupSelectPlaceholder="Select group"
+          loading={loading}
+        />
         {groupInfo && (
           <div style={{ 
             fontSize: 14, 
             color: '#64748b',
             wordBreak: 'break-word',
-            maxWidth: '100%'
+            maxWidth: '100%',
+            marginTop: 8
           }}>
             Group: {groupInfo.projectName}
           </div>
@@ -376,54 +528,6 @@ export default function SupervisorTracking() {
           </div>
         </div>
       )}
-
-      {/* Group Selector - Responsive */}
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: isMobile || isTablet ? 'column' : 'row',
-        alignItems: isMobile || isTablet ? 'stretch' : 'center',
-        gap: 8, 
-        marginBottom: isMobile ? 12 : 16 
-      }}>
-        <span style={{ 
-          fontWeight: 600, 
-          fontSize: isMobile ? '13px' : '14px',
-          minWidth: isMobile || isTablet ? 'auto' : '60px'
-        }}>Group:</span>
-        <select 
-          value={selectedGroup?.id || ''} 
-          onChange={(e) => {
-            const selectedId = e.target.value ? Number(e.target.value) : null;
-            const group = groups.find(g => String(g.id) === String(selectedId));
-            if (group) {
-              setSelectedGroup(group);
-              // Reset milestone details when changing group
-              setMilestoneDetails(null);
-              setSelectedMilestone(null);
-              setDetailModal(false);
-              setNote('');
-              setNoteError('');
-            }
-          }}
-          style={{
-            padding: isMobile ? "6px 10px" : "8px 12px",
-            border: "1px solid #d1d5db",
-            borderRadius: "6px",
-            fontSize: isMobile ? "13px" : "14px",
-            backgroundColor: "white",
-            outline: "none",
-            width: isMobile || isTablet ? '100%' : 'auto',
-            minWidth: isMobile || isTablet ? 'auto' : 300,
-            maxWidth: isMobile || isTablet ? '100%' : 400
-          }}
-        >
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.projectName} 
-            </option>
-          ))}
-        </select>
-      </div>
 
 
       {/* Summary Tables - Responsive Layout */}
@@ -502,97 +606,98 @@ export default function SupervisorTracking() {
         )}
       </div>
       
-      {/* Milestones Summary Table - Responsive */}
-      <div style={{ flex: 1, marginTop: isMobile ? 16 : 24, width: '100%' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: isMobile ? '15px' : '16px', color: '#333' }}>Milestones Summary</h3>
-        <div style={{ 
-          border: '1px solid #e5e7eb', 
-          borderRadius: 8, 
-          overflow: 'auto',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-          background: '#fff',
-          width: '100%'
-        }}>
-          <table style={{ 
-            width: '100%', 
-            borderCollapse: 'separate', 
-            borderSpacing: 0,
-            minWidth: isMobile ? '600px' : 'auto'
-          }}>
-            <thead style={{ background: '#f8f9fa' }}>
-              <tr>
-                <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '35px' }}>#</th>
-                <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px' }}>Milestone</th>
-                <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '130px' }}>Deadline</th>
-                <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '130px' }}>Status</th>
-                <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '100px' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {milestones.map((milestone, index) => (
-                <tr key={milestone.id} style={{ borderBottom: '1px solid #f1f5f9', background: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                    <div style={{ fontWeight: 600, fontSize: isMobile ? '12px' : '13px', color: '#6c757d' }}>{index + 1}</div>
-                  </td>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                    <div style={{ fontWeight: 600, fontSize: isMobile ? '13px' : '14px', marginBottom: 4, color: '#333', wordBreak: 'break-word' }}>{milestone.name}</div>
-                    {milestone.description && (
-                      <div style={{ fontSize: isMobile ? '11px' : '12px', color: '#64748b', wordBreak: 'break-word' }}>{milestone.description}</div>
-                    )}
-                  </td>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                    <div style={{ color: '#059669', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', whiteSpace: 'nowrap' }}>
-                       {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
+      {/* Milestones Summary Table - Using DataTable */}
+      <div className={sharedLayout.contentSection} style={{ marginTop: isMobile ? 16 : 24 }}>
+        <h2>Milestones Summary</h2>
+        <DataTable
+          columns={[
+            {
+              key: 'index',
+              title: '#',
+              render: (milestone, index) => (
+                <div style={{ fontWeight: 600, fontSize: '13px', color: '#6c757d', textAlign: 'center' }}>
+                  {index + 1}
+                </div>
+              )
+            },
+            {
+              key: 'name',
+              title: 'Milestone',
+              render: (milestone) => (
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: 4, color: '#333', wordBreak: 'break-word' }}>
+                    {milestone.name}
+                  </div>
+                  {milestone.description && (
+                    <div style={{ fontSize: '12px', color: '#64748b', wordBreak: 'break-word' }}>
+                      {milestone.description}
                     </div>
-                  </td>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                    <span style={{ 
-                      color: getStatusColor(milestone.status), 
-                      background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
-                                 getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
-                                 getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                      padding: isMobile ? '3px 6px' : '4px 8px',
-                      borderRadius: 6,
-                      fontSize: isMobile ? '11px' : '12px',
-                      fontWeight: 600,
-                      border: `1px solid ${getStatusColor(milestone.status)}`,
-                      display: 'inline-block',
+                  )}
+                </div>
+              )
+            },
+            {
+              key: 'deadline',
+              title: 'Deadline',
+              render: (milestone) => (
+                <div style={{ color: '#059669', fontWeight: 600, fontSize: '13px' }}>
+                  {formatDate(milestone.endAt, 'YYYY-MM-DD HH:mm')}
+                </div>
+              )
+            },
+            {
+              key: 'status',
+              title: 'Status',
+              render: (milestone) => (
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ 
+                    color: getStatusColor(milestone.status), 
+                    background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
+                               getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
+                               getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    border: `1px solid ${getStatusColor(milestone.status)}`,
+                    display: 'inline-block',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {getStatusText(milestone.status)}
+                  </span>
+                </div>
+              )
+            },
+            {
+              key: 'actions',
+              title: 'Actions',
+              render: (milestone) => (
+                <div style={{ textAlign: 'center' }}>
+                  <Button
+                    onClick={() => openDetailModal(milestone)}
+                    variant="ghost"
+                    style={{ 
+                      fontSize: '12px', 
+                      padding: '6px 10px',
+                      background: '#007bff',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontWeight: 500,
                       whiteSpace: 'nowrap'
-                    }}>
-                      {getStatusText(milestone.status)}
-                    </span>
-                  </td>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                    <Button
-                      onClick={() => openDetailModal(milestone)}
-                      variant="ghost"
-                      style={{ 
-                        fontSize: isMobile ? '10px' : isTablet ? '11px' : '12px', 
-                        padding: isMobile ? '4px 6px' : isTablet ? '5px 8px' : '6px 10px',
-                        background: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        fontWeight: 500,
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      View Details
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {milestones.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
-                    No milestones found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                    }}
+                  >
+                    View Details
+                  </Button>
+                </div>
+              )
+            }
+          ]}
+          data={milestones}
+          loading={loading}
+          emptyMessage="No milestones found"
+        />
       </div>
 
       <Modal open={detailModal} onClose={() => setDetailModal(false)}>
@@ -729,13 +834,55 @@ export default function SupervisorTracking() {
                                         Uploaded by {attachment.userName} on {formatDate(attachment.createAt, 'DD/MM/YYYY HH:mm')}
                                       </div>
                                     </div>
-                                    <Button
-                                      onClick={() => downloadFile(attachment)}
-                                      variant="ghost"
-                                      style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
-                                    >
-                                      Download
-                                    </Button>
+                                    <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center' }}>
+                                      {canPreviewFile(attachment.path) && (
+                                        <button
+                                          onClick={() => openFilePreview(attachment)}
+                                          style={{ 
+                                            padding: '4px 6px',
+                                            background: 'transparent',
+                                            border: '1px solid #d1d5db',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            color: '#6b7280'
+                                          }}
+                                          title="Xem trước"
+                                          onMouseEnter={(e) => {
+                                            e.target.style.backgroundColor = '#f3f4f6';
+                                            e.target.style.borderColor = '#9ca3af';
+                                          }}
+                                          onMouseLeave={(e) => {
+                                            e.target.style.backgroundColor = 'transparent';
+                                            e.target.style.borderColor = '#d1d5db';
+                                          }}
+                                        >
+                                          <svg 
+                                            width="16" 
+                                            height="16" 
+                                            viewBox="0 0 24 24" 
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            strokeWidth="2" 
+                                            strokeLinecap="round" 
+                                            strokeLinejoin="round"
+                                            style={{ color: '#6b7280' }}
+                                          >
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                            <circle cx="12" cy="12" r="3"></circle>
+                                          </svg>
+                                        </button>
+                                      )}
+                                      <Button
+                                        onClick={() => downloadFile(attachment)}
+                                        variant="ghost"
+                                        style={{ fontSize: 11, padding: '4px 8px', flexShrink: 0 }}
+                                      >
+                                        Download
+                                      </Button>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -749,7 +896,7 @@ export default function SupervisorTracking() {
             )}
 
             {/* Note Input and Actions */}
-            {selectedMilestone.status === 'Pending' && (
+            {(selectedMilestone.status === 'Pending' || selectedMilestone.status === 'PENDING') && (
               <div style={{ marginTop: 24, padding: 16, background: '#f9fafb', borderRadius: 8, border: '1px solid #e5e7eb' }}>
                 <h4 style={{ margin: '0 0 12px 0', fontSize: 14, fontWeight: 600, color: '#374151' }}>
                   Review Note (Required for rejection)
@@ -790,12 +937,24 @@ export default function SupervisorTracking() {
                     fontSize: isMobile ? '11px' : '12px', 
                     color: '#64748b',
                     wordBreak: 'break-word',
-                    flex: isMobile || isTablet ? 'none' : '1'
+                    flex: isMobile || isTablet ? 'none' : '1',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px'
                   }}>
-                    {checkAllAttachmentsDownloaded() ? 
-                      '✓ Latest attachments downloaded' : 
-                      '⚠ Please download the latest attachments before confirming'
-                    }
+                    {!checkAllItemsSubmitted() ? (
+                      <div style={{ color: '#dc2626', fontWeight: 600 }}>
+                        ⚠ Cannot confirm: Some items have not been submitted yet
+                      </div>
+                    ) : checkAllAttachmentsDownloaded() ? (
+                      <div style={{ color: '#059669', fontWeight: 600 }}>
+                        ✓ All items submitted and latest attachments downloaded
+                      </div>
+                    ) : (
+                      <div style={{ color: '#d97706', fontWeight: 600 }}>
+                        ⚠ Please download the latest attachments before confirming
+                      </div>
+                    )}
                   </div>
                   
                   <div style={{ 
@@ -819,13 +978,15 @@ export default function SupervisorTracking() {
                     </Button>
                     <Button
                       onClick={handleConfirm}
-                      disabled={confirming || !checkAllAttachmentsDownloaded()}
+                      disabled={confirming || !checkCanConfirm()}
                       style={{ 
                         background: '#059669', 
                         color: 'white',
                         fontSize: isMobile ? '11px' : '12px',
                         padding: isMobile ? '6px 10px' : '6px 12px',
-                        width: isMobile || isTablet ? '100%' : 'auto'
+                        width: isMobile || isTablet ? '100%' : 'auto',
+                        opacity: !checkCanConfirm() ? 0.5 : 1,
+                        cursor: !checkCanConfirm() ? 'not-allowed' : 'pointer'
                       }}
                     >
                       {confirming ? 'Confirming...' : 'Confirm'}

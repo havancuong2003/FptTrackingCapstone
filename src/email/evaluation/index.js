@@ -1,4 +1,6 @@
 import axiosClient from '../../utils/axiosClient';
+import { baseTemplate } from '../templates';
+import { sendEmail } from '../api';
 
 /**
  * Send evaluation notification email
@@ -10,6 +12,8 @@ import axiosClient from '../../utils/axiosClient';
  * @param {string[]} evaluationData.penaltyCards - Array of penalty card names
  * @param {string} evaluationData.evaluatorName - Evaluator name
  * @param {string} evaluationData.subject - Email subject (optional)
+ * @param {string} evaluationData.detailUrl - URL to view evaluation details (optional)
+ * @param {string} evaluationData.systemUrl - URL to access system (optional)
  * @param {string[]} evaluationData.cc - Array of CC email addresses (optional)
  * @returns {Promise<Object>} API response
  */
@@ -33,31 +37,50 @@ export const sendEvaluationNotification = async (evaluationData) => {
             throw new Error(`Invalid email format: ${invalidEmails.join(', ')}`);
         }
 
-        // Create email body
-        let body = `Xin chào ${evaluationData.studentName},\n\n`;
-        body += `Bạn đã nhận được đánh giá cho milestone: ${evaluationData.milestoneName}\n\n`;
-        body += `Nhận xét từ ${evaluationData.evaluatorName || 'Giảng viên'}:\n`;
-        body += `${evaluationData.feedback}\n\n`;
-        
+        const infoItems = [
+            { label: 'Sinh viên', value: evaluationData.studentName },
+            { label: 'Milestone', value: evaluationData.milestoneName },
+            { label: 'Người đánh giá', value: evaluationData.evaluatorName || 'Giảng viên' }
+        ];
+
         if (evaluationData.penaltyCards && evaluationData.penaltyCards.length > 0) {
-            body += `Thẻ phạt:\n`;
-            evaluationData.penaltyCards.forEach(card => {
-                body += `- ${card}\n`;
-            });
-            body += `\n`;
+            infoItems.push({ label: 'Thẻ phạt', value: evaluationData.penaltyCards.join(', ') });
         }
-        
-        body += `Vui lòng xem chi tiết trong hệ thống.\n\n`;
-        body += `Trân trọng,\n`;
-        body += `Hệ thống FPT Tracking`;
-        const response = await axiosClient.post('/Mail/send-mails', {
+
+        // Build action links
+        const actionLinks = [];
+        if (evaluationData.detailUrl) {
+            actionLinks.push({
+                text: 'Xem chi tiết đánh giá',
+                url: evaluationData.detailUrl,
+                secondary: false
+            });
+        }
+        if (evaluationData.systemUrl) {
+            actionLinks.push({
+                text: 'Truy cập hệ thống Capstone Project',
+                url: evaluationData.systemUrl,
+                secondary: true
+            });
+        }
+
+        const htmlBody = baseTemplate({
+            title: 'Thông báo đánh giá milestone',
+            greeting: `Xin chào ${evaluationData.studentName},`,
+            content: `Bạn đã nhận được đánh giá cho milestone <strong>${evaluationData.milestoneName}</strong>.<br><br><strong>Nhận xét từ ${evaluationData.evaluatorName || 'Giảng viên'}:</strong><br>${evaluationData.feedback}`,
+            infoItems: infoItems,
+            actionLinks: actionLinks,
+            footerNote: actionLinks.length === 0 ? 'Vui lòng đăng nhập vào hệ thống để xem chi tiết.' : ''
+        });
+
+        const response = await sendEmail({
             to: evaluationData.recipients,
             cc: evaluationData.cc || [],
             subject: evaluationData.subject || `Đánh giá milestone: ${evaluationData.milestoneName}`,
-            body: body
+            body: htmlBody
         });
         
-        return response.data;
+        return response;
     } catch (error) {
         console.error('Error sending evaluation notification:', error);
         throw error;
@@ -73,6 +96,7 @@ export const sendEvaluationNotification = async (evaluationData) => {
  * @param {number} summaryData.totalEvaluations - Total number of evaluations
  * @param {number} summaryData.totalPenalties - Total number of penalties
  * @param {string} summaryData.subject - Email subject (optional)
+ * @param {string} summaryData.systemUrl - URL to access system (optional)
  * @param {string[]} summaryData.cc - Array of CC email addresses (optional)
  * @returns {Promise<Object>} API response
  */
@@ -96,22 +120,39 @@ export const sendEvaluationSummary = async (summaryData) => {
             throw new Error(`Invalid email format: ${invalidEmails.join(', ')}`);
         }
 
-        // Create email body
-        let body = `Tóm tắt đánh giá milestone: ${summaryData.milestoneName}\n\n`;
-        body += `Nhóm: ${summaryData.groupName}\n`;
-        body += `Tổng số đánh giá: ${summaryData.totalEvaluations || 0}\n`;
-        body += `Tổng số thẻ phạt: ${summaryData.totalPenalties || 0}\n\n`;
-        body += `Vui lòng xem chi tiết trong hệ thống.\n\n`;
-        body += `Trân trọng,\n`;
-        body += `Hệ thống FPT Tracking`;
+        const infoItems = [
+            { label: 'Nhóm', value: summaryData.groupName },
+            { label: 'Milestone', value: summaryData.milestoneName },
+            { label: 'Tổng số đánh giá', value: String(summaryData.totalEvaluations || 0) },
+            { label: 'Tổng số thẻ phạt', value: String(summaryData.totalPenalties || 0) }
+        ];
 
-        const response = await axiosClient.post('/Mail/send-mails', {
+        // Build action links
+        const actionLinks = [];
+        if (summaryData.systemUrl) {
+            actionLinks.push({
+                text: 'Truy cập hệ thống Capstone Project',
+                url: summaryData.systemUrl,
+                secondary: false
+            });
+        }
+
+        const htmlBody = baseTemplate({
+            title: 'Tóm tắt đánh giá milestone',
+            greeting: `Xin chào,`,
+            content: `Tóm tắt đánh giá cho milestone <strong>${summaryData.milestoneName}</strong> của nhóm <strong>${summaryData.groupName}</strong>.`,
+            infoItems: infoItems,
+            actionLinks: actionLinks,
+            footerNote: actionLinks.length === 0 ? 'Vui lòng đăng nhập vào hệ thống để xem chi tiết.' : ''
+        });
+
+        const response = await sendEmail({
             to: summaryData.recipients,
             cc: summaryData.cc || [],
             subject: summaryData.subject || `Tóm tắt đánh giá: ${summaryData.milestoneName}`,
-            body: body
+            body: htmlBody
         });
-        return response.data;
+        return response;
     } catch (error) {
         console.error('Error sending evaluation summary:', error);
         throw error;
@@ -127,6 +168,8 @@ export const sendEvaluationSummary = async (summaryData) => {
  * @param {string} penaltyData.penaltyDescription - Penalty description
  * @param {string} penaltyData.penaltyType - Penalty type (General/Milestone)
  * @param {string} penaltyData.subject - Email subject (optional)
+ * @param {string} penaltyData.detailUrl - URL to view penalty details (optional)
+ * @param {string} penaltyData.systemUrl - URL to access system (optional)
  * @param {string[]} penaltyData.cc - Array of CC email addresses (optional)
  * @returns {Promise<Object>} API response
  */
@@ -150,26 +193,49 @@ export const sendPenaltyNotification = async (penaltyData) => {
             throw new Error(`Invalid email format: ${invalidEmails.join(', ')}`);
         }
 
-        // Create email body
-        let body = `Xin chào ${penaltyData.studentName},\n\n`;
-        body += `Bạn đã nhận thẻ phạt: ${penaltyData.penaltyName}\n\n`;
-        body += `Loại thẻ phạt: ${penaltyData.penaltyType || 'General'}\n`;
-        
-        if (penaltyData.penaltyDescription) {
-            body += `Mô tả: ${penaltyData.penaltyDescription}\n\n`;
-        }
-        
-        body += `Vui lòng xem chi tiết trong hệ thống.\n\n`;
-        body += `Trân trọng,\n`;
-        body += `Hệ thống FPT Tracking`;
+        const infoItems = [
+            { label: 'Sinh viên', value: penaltyData.studentName },
+            { label: 'Thẻ phạt', value: penaltyData.penaltyName },
+            { label: 'Loại', value: penaltyData.penaltyType || 'General' }
+        ];
 
-        const response = await axiosClient.post('/Mail/send-mails', {
+        if (penaltyData.penaltyDescription) {
+            infoItems.push({ label: 'Mô tả', value: penaltyData.penaltyDescription });
+        }
+
+        // Build action links
+        const actionLinks = [];
+        if (penaltyData.detailUrl) {
+            actionLinks.push({
+                text: 'Xem chi tiết thẻ phạt',
+                url: penaltyData.detailUrl,
+                secondary: false
+            });
+        }
+        if (penaltyData.systemUrl) {
+            actionLinks.push({
+                text: 'Truy cập hệ thống Capstone Project',
+                url: penaltyData.systemUrl,
+                secondary: true
+            });
+        }
+
+        const htmlBody = baseTemplate({
+            title: 'Thông báo thẻ phạt',
+            greeting: `Xin chào ${penaltyData.studentName},`,
+            content: `Bạn đã nhận thẻ phạt <strong>${penaltyData.penaltyName}</strong>.`,
+            infoItems: infoItems,
+            actionLinks: actionLinks,
+            footerNote: actionLinks.length === 0 ? 'Vui lòng đăng nhập vào hệ thống để xem chi tiết.' : ''
+        });
+
+        const response = await sendEmail({
             to: penaltyData.recipients,
             cc: penaltyData.cc || [],
             subject: penaltyData.subject || `Thẻ phạt: ${penaltyData.penaltyName}`,
-            body: body
+            body: htmlBody
         });
-        return response.data;
+        return response;
     } catch (error) {
         console.error('Error sending penalty notification:', error);
         throw error;
@@ -183,6 +249,7 @@ export const sendPenaltyNotification = async (penaltyData) => {
  * @param {string} batchData.milestoneName - Milestone name
  * @param {string} batchData.groupName - Group name
  * @param {string} batchData.subject - Email subject (optional)
+ * @param {string} batchData.systemUrl - URL to access system (optional)
  * @param {string[]} batchData.cc - Array of CC email addresses (optional)
  * @returns {Promise<Object>} API response
  */
@@ -196,24 +263,39 @@ export const sendBatchEvaluationNotifications = async (batchData) => {
             throw new Error('Milestone name and group name are required');
         }
 
-        // Create email body for batch notification
-        let body = `Thông báo đánh giá batch cho milestone: ${batchData.milestoneName}\n\n`;
-        body += `Nhóm: ${batchData.groupName}\n`;
-        body += `Tổng số đánh giá: ${batchData.evaluations.length}\n\n`;
-        
-        body += `Chi tiết đánh giá:\n`;
-        batchData.evaluations.forEach((evaluation, index) => {
-            body += `${index + 1}. ${evaluation.studentName}\n`;
-            body += `   - Nhận xét: ${evaluation.feedback}\n`;
+        const infoItems = [
+            { label: 'Nhóm', value: batchData.groupName },
+            { label: 'Milestone', value: batchData.milestoneName },
+            { label: 'Tổng số đánh giá', value: String(batchData.evaluations.length) }
+        ];
+
+        const evaluationsList = batchData.evaluations.map((evaluation, index) => {
+            let item = `${index + 1}. ${evaluation.studentName}<br>`;
+            item += `&nbsp;&nbsp;- Nhận xét: ${evaluation.feedback}<br>`;
             if (evaluation.penaltyCards && evaluation.penaltyCards.length > 0) {
-                body += `   - Thẻ phạt: ${evaluation.penaltyCards.join(', ')}\n`;
+                item += `&nbsp;&nbsp;- Thẻ phạt: ${evaluation.penaltyCards.join(', ')}<br>`;
             }
-            body += `\n`;
+            return item;
+        }).join('<br>');
+
+        // Build action links
+        const actionLinks = [];
+        if (batchData.systemUrl) {
+            actionLinks.push({
+                text: 'Truy cập hệ thống Capstone Project',
+                url: batchData.systemUrl,
+                secondary: false
+            });
+        }
+
+        const htmlBody = baseTemplate({
+            title: 'Thông báo đánh giá batch',
+            greeting: `Xin chào,`,
+            content: `Thông báo đánh giá batch cho milestone <strong>${batchData.milestoneName}</strong>.<br><br><strong>Chi tiết đánh giá:</strong><br>${evaluationsList}`,
+            infoItems: infoItems,
+            actionLinks: actionLinks,
+            footerNote: actionLinks.length === 0 ? 'Vui lòng đăng nhập vào hệ thống để xem chi tiết.' : ''
         });
-        
-        body += `Vui lòng xem chi tiết trong hệ thống.\n\n`;
-        body += `Trân trọng,\n`;
-        body += `Hệ thống FPT Tracking`;
 
         // Get all unique email addresses from evaluations
         const allEmails = [...new Set(batchData.evaluations.map(evaluation => evaluation.studentEmail).filter(Boolean))];
@@ -222,13 +304,13 @@ export const sendBatchEvaluationNotifications = async (batchData) => {
             throw new Error('No valid email addresses found in evaluations');
         }
 
-        const response = await axiosClient.post('/Mail/send-mails', {
+        const response = await sendEmail({
             to: allEmails,
             cc: batchData.cc || [],
             subject: batchData.subject || `Đánh giá batch: ${batchData.milestoneName}`,
-            body: body
+            body: htmlBody
         });
-        return response.data;
+        return response;
     } catch (error) {
         console.error('Error sending batch evaluation notifications:', error);
         throw error;
@@ -241,3 +323,4 @@ export default {
     sendPenaltyNotification,
     sendBatchEvaluationNotifications
 };
+

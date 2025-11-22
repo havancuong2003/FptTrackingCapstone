@@ -1,11 +1,16 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
-import axiosClient from '../../../utils/axiosClient';
-import { sendTaskNotification } from '../../../api/email';
+import { sendTaskNotification } from '../../../email/api';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
+import { getDeliverablesByGroup } from '../../../api/deliverables';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getTasksByGroup } from '../../../api/tasks';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 
 export default function SupervisorTasks() {
   const navigate = useNavigate();
@@ -13,26 +18,19 @@ export default function SupervisorTasks() {
   const query = new URLSearchParams(location.search);
   const groupId = query.get('groupId');
   
-  // Lấy thông tin user từ localStorage
-  const getCurrentUser = () => {
-    try {
-      const authUser = localStorage.getItem('auth_user');
-      if (authUser) {
-        return JSON.parse(authUser);
-      }
-      return null;
-    } catch (error) {
-      console.error('Error parsing auth_user:', error);
-      return null;
-    }
-  };
+  // Get user info from localStorage
+  const currentUser = getUserInfo();
   
-  const currentUser = getCurrentUser();
   const [tasks, setTasks] = React.useState([]);
   const [milestones, setMilestones] = React.useState([]);
   const [meetings, setMeetings] = React.useState([]);
   const [groups, setGroups] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  
+  // Set default groupExpireFilter, will be updated when load group info
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active');
 
   // Status search-on-click
   const [isSearched, setIsSearched] = React.useState(false);
@@ -51,43 +49,62 @@ export default function SupervisorTasks() {
   const [meetingFilter, setMeetingFilter] = React.useState('');
   const [viewType, setViewType] = React.useState('project_view'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
 
-  // API: lấy milestones theo group
+  // API: Get milestones by group
   const fetchMilestonesByGroup = async (gid) => {
     if (!gid) return [];
     try {
-      //const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
-      const response = await axiosClient.get(`/deliverables/group/${gid}`);
-      if (response.data) {
-        const apiData = response.data;
-        const milestonesData = Array.isArray(apiData) ? apiData : [];
-        
-        return milestonesData.map(milestone => ({
-          id: milestone.id,
-          name: milestone.name,
-          groupId: gid,
-          description: milestone.description,
-          deadline: milestone.deadline
-        }));
-      } else {
-        console.error('Error fetching milestones:', response.data.message);
-        alert(`Error lấy milestones: ${response.data.message}`);
-        return [];
-      }
+      const response = await getDeliverablesByGroup(gid);
+      const apiData = response?.data || response;
+      const milestonesData = Array.isArray(apiData) ? apiData : [];
+      
+      return milestonesData.map(milestone => ({
+        id: milestone.id,
+        name: milestone.name,
+        groupId: gid,
+        description: milestone.description,
+        deadline: milestone.deadline
+      }));
     } catch (error) {
       console.error('Error fetching milestones:', error);
-      alert(`Error kết nối milestones: ${error.message}`);
       return [];
     }
   };
 
-  // API: lấy students theo group
+  // API: Get group info to know if active or expired
+  const fetchGroupInfo = async (gid) => {
+    if (!gid) return null;
+    try {
+      const response = await getCapstoneGroupDetail(gid);
+      
+      if (response.status === 200 && response.data) {
+        const groupData = response.data;
+        // Check isExpired from API or from status
+        const isExpired = groupData.isExpired !== undefined 
+          ? groupData.isExpired 
+          : (groupData.status === 'inactive');
+        
+        return {
+          id: groupData.id,
+          name: groupData.name,
+          groupCode: groupData.groupCode,
+          isExpired: isExpired
+        };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching group info:', error);
+      return null;
+    }
+  };
+
+  // API: Get students by group
   const fetchStudentsByGroup = async (gid) => {
     if (!gid) return [];
     try {
-      const response = await axiosClient.get(`/Staff/capstone-groups/${gid}`);
+      const response = await getCapstoneGroupDetail(gid);
       
-      if (response.data.status === 200) {
-        const apiData = response.data.data.students;
+      if (response.status === 200 && response.data) {
+        const apiData = response.data.students;
         const studentsData = Array.isArray(apiData) ? apiData : [];
         
         return studentsData.map(student => ({
@@ -96,40 +113,31 @@ export default function SupervisorTasks() {
           studentId: student.studentId || student.id,
           email: student.email || ''
         }));
-      } else {
-        console.error('Error fetching students:', response.data.message);
-        alert(`Error lấy danh sách students: ${response.data.message}`);
-        return [];
       }
+      return [];
     } catch (error) {
       console.error('Error fetching students:', error);
-      alert(`Error kết nối lấy students: ${error.message}`);
       return [];
     }
   };
 
-  // API: lấy tất cả groups mà supervisor hướng dẫn
-  const fetchSupervisorGroups = async () => {
+  // Get groups from localStorage (no API call) - only for dropdown
+  const fetchSupervisorGroups = (expireFilter = 'active', semesterId = null) => {
     try {
-      const response = await axiosClient.get('/Mentor/getGroups');
+      // Get groups from localStorage based on semester and expired status
+      const isExpired = expireFilter === 'expired';
+      const groupsFromStorage = getGroupsBySemesterAndStatus(semesterId, isExpired);
       
-      if (response.data.status === 200) {
-        const apiData = response.data.data;
-        const groupsData = Array.isArray(apiData) ? apiData : [];
-        
-        return groupsData.map(group => ({
-          id: group.id,
-          name: group.name,
-          description: group.description || ''
-        }));
-      } else {
-        console.error('Error fetching groups:', response.data.message);
-        alert(`Error lấy danh sách groups: ${response.data.message}`);
-        return [];
-      }
+      // Return groups from localStorage without fetching details
+      return groupsFromStorage.map(group => ({
+        id: group.id,
+        name: group.name || '',
+        groupCode: group.code || group.groupCode || '',
+        description: group.description || '',
+        isExpired: group.isExpired || false
+      }));
     } catch (error) {
-      console.error('Error fetching groups:', error);
-      alert(`Error kết nối lấy groups: ${error.message}`);
+      console.error('Error getting groups from localStorage:', error);
       return [];
     }
   };
@@ -181,43 +189,107 @@ export default function SupervisorTasks() {
     }
   };
 
+  // Khi có groupId từ URL, load thông tin group để set filter (chỉ khi mount lần đầu)
+  const [initialFilterSet, setInitialFilterSet] = React.useState(false);
   React.useEffect(() => {
-    const bootstrapData = async () => {
+    if (initialFilterSet) return; // Chỉ set filter lần đầu tiên
+    
+    const loadGroupInfoAndSetFilter = async () => {
+      if (groupId) {
+        const groupInfo = await fetchGroupInfo(groupId);
+        if (groupInfo) {
+          // Set filter dựa trên isExpired của group
+          const filter = groupInfo.isExpired ? 'expired' : 'active';
+          setGroupExpireFilter(filter);
+          setInitialFilterSet(true);
+        }
+      } else {
+        // Nếu không có groupId, reset về default
+        setGroupExpireFilter('active');
+        setInitialFilterSet(true);
+      }
+    };
+    
+    loadGroupInfoAndSetFilter();
+  }, [groupId, initialFilterSet]);
+
+  // Handle group expire filter change - remove groupId from URL if exists
+  const handleGroupExpireFilterChange = (newFilter) => {
+    setGroupExpireFilter(newFilter);
+    // Remove groupId from URL when filter changes
+    if (groupId) {
+      navigate('/supervisor/tasks', { replace: true });
+    }
+  };
+
+  // Load groups from localStorage when filter changes (no API call)
+  React.useEffect(() => {
+    const groupsData = fetchSupervisorGroups(groupExpireFilter, selectedSemesterId);
+    setGroups(groupsData);
+    setLoading(false); // Set loading false after groups are loaded from localStorage
+  }, [groupExpireFilter, selectedSemesterId]);
+
+  // Load data only when group is selected
+  React.useEffect(() => {
+    if (!groupId) {
+      // No group selected, clear all data
+      setMilestones([]);
+      setMeetings([]);
+      setAssigneeSource([]);
+      setTasks([]);
+      setAllTasks([]);
+      setIsSearched(false);
+      return;
+    }
+
+    // Check if selected group exists in current filtered groups
+    const groupsData = fetchSupervisorGroups(groupExpireFilter, selectedSemesterId);
+    const selectedGroup = groupsData.find(g => g.id.toString() === groupId);
+    
+    if (!selectedGroup) {
+      // Group not in filtered list, clear data but keep groupId in URL
+      // Don't navigate away, just clear the data
+      setMilestones([]);
+      setMeetings([]);
+      setAssigneeSource([]);
+      setTasks([]);
+      setAllTasks([]);
+      setIsSearched(false);
+      return;
+    }
+
+    // Group is selected and exists in filtered list, load data
+    const loadGroupData = async () => {
       try {
         setLoading(true);
         
-        // Load groups trước
-        const groupsData = await fetchSupervisorGroups();
-        setGroups(groupsData);
+        const [milestoneRes, studentRes, meetingRes] = await Promise.all([
+          fetchMilestonesByGroup(groupId),
+          fetchStudentsByGroup(groupId),
+          fetchCompletedMeetings(groupId),
+        ]);
+        setMilestones(milestoneRes);
+        setMeetings(meetingRes);
+        setAssigneeSource(studentRes);
         
-        // Nếu có groupId, load milestones, students và meetings
-        if (groupId) {
-          const [milestoneRes, studentRes, meetingRes] = await Promise.all([
-            fetchMilestonesByGroup(groupId),
-            fetchStudentsByGroup(groupId),
-            fetchCompletedMeetings(groupId),
-          ]);
-          setMilestones(milestoneRes);
-          setMeetings(meetingRes);
-          setAssigneeSource(studentRes);
-        } else {
-          setMilestones([]);
-          setMeetings([]);
-          setAssigneeSource([]);
+        // Load tasks for group
+        try {
+          await fetchTasksForGroup(groupId, true);
+        } catch (taskError) {
+          console.error('Error fetching tasks:', taskError);
         }
-        
-        setTasks([]);
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Error loading group data:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    bootstrapData();
-  }, [groupId]);
+    loadGroupData();
+  }, [groupId, groupExpireFilter, selectedSemesterId]);
 
-  // Nguồn assignee lấy từ API theo group
+
+  // Assignee source from API by group
   const [assigneeSource, setAssigneeSource] = React.useState([]);
 
   const getPriorityInfo = (priority) => {
@@ -380,8 +452,8 @@ export default function SupervisorTasks() {
     try {
       setLoading(true);
       
-      // Gọi API lấy tất cả issues theo group
-      const response = await axiosClient.get(`/Student/Task/get-by-group/${groupId}`);
+      // Call API to get all issues by group
+      const response = await getTasksByGroup(groupId);
       
       if (response.data.status === 200) {
         const apiData = response.data.data;
@@ -420,7 +492,7 @@ export default function SupervisorTasks() {
         setAllTasks(mappedTasks);
         setIsSearched(true);
         
-        // Hiển thị thông báo nếu không có task
+        // Show message if no tasks
         if (mappedTasks.length === 0) {
           alert('No tasks found');
         }
@@ -431,7 +503,7 @@ export default function SupervisorTasks() {
       }
     } catch (error) {
       console.error('Error fetching tasks:', error);
-      alert(`Error kết nối: ${error.message}`);
+        alert(`Error: ${error.message}`);
       setAllTasks([]);
     } finally {
       setLoading(false);
@@ -452,15 +524,24 @@ export default function SupervisorTasks() {
   };
 
   // Fetch issues for specific group
-  const fetchTasksForGroup = async (gid) => {
+  const fetchTasksForGroup = async (gid, skipLoading = false) => {
+    if (!gid) {
+      console.warn('fetchTasksForGroup: groupId is required');
+      return;
+    }
+    
     try {
-      setLoading(true);
+      // Only set loading if not skip (skip when called from bootstrapData)
+      if (!skipLoading) {
+        setLoading(true);
+      }
       
-      // Gọi API lấy tất cả issues theo group
-      const response = await axiosClient.get(`/Student/Task/get-by-group/${gid}`);
       
-      if (response.data.status === 200) {
-        const apiData = response.data.data;
+      // Call API to get all issues by group
+      const response = await getTasksByGroup(gid);
+      
+      if (response.status === 200) {
+        const apiData = response.data;
         const tasksData = Array.isArray(apiData) ? apiData : [];
         
         // Map data từ API response sang format frontend
@@ -496,7 +577,7 @@ export default function SupervisorTasks() {
         setAllTasks(mappedTasks);
         setIsSearched(true);
         
-        // Hiển thị thông báo nếu không có issue
+        // Show message if no issues
         if (mappedTasks.length === 0) {
           alert('No tasks found');
         }
@@ -506,11 +587,15 @@ export default function SupervisorTasks() {
         setAllTasks([]);
       }
     } catch (error) {
-      console.error('Error fetching issues:', error);
-      alert(`Error kết nối: ${error.message}`);
+      console.error('Error fetching tasks:', error);
+      alert(`Error kết nối lấy tasks: ${error.message}`);
       setAllTasks([]);
+      setIsSearched(false);
     } finally {
-      setLoading(false);
+      // Chỉ set loading false nếu không skip (khi gọi từ bootstrapData thì skip)
+      if (!skipLoading) {
+        setLoading(false);
+      }
     }
   };
 
@@ -522,14 +607,14 @@ export default function SupervisorTasks() {
     );
   }
 
-  // Filter tasks dựa trên các filter states
+  // Filter tasks based on filter states
   const filteredTasks = allTasks.filter(task => {
     const milestoneMatch = milestoneFilter === '' || task.deliverableId?.toString() === milestoneFilter;
     const assigneeMatch = assigneeFilter === '' || task.assignee.toString() === assigneeFilter;
     const statusMatch = statusFilter === '' || task.status === statusFilter;
     const priorityMatch = priorityFilter === '' || task.priority === priorityFilter;
     
-    // Filter theo loại task dựa trên isMeetingTask
+    // Filter by task type based on isMeetingTask
     let taskTypeMatch = true;
     if (taskTypeFilter === 'meeting') {
       taskTypeMatch = task.isMeetingTask === true;
@@ -537,7 +622,7 @@ export default function SupervisorTasks() {
       taskTypeMatch = task.isMeetingTask !== true;
     }
     
-    // Filter theo trạng thái active
+    // Filter by active status
     let activeTaskMatch = true;
     if (activeFilter === 'active') {
       activeTaskMatch = task.isActive === true;
@@ -545,23 +630,23 @@ export default function SupervisorTasks() {
       activeTaskMatch = task.isActive === false;
     }
     
-    // Filter theo deadline
+    // Filter by deadline
     let deadlineMatch = true;
     if (deadlineFilter) {
       const taskDeadline = new Date(task.deadline);
       const filterDeadline = new Date(deadlineFilter);
-      // Chuyển filterDeadline về cuối ngày để bao gồm cả ngày được chọn
+      // Convert filterDeadline to end of day to include the selected day
       filterDeadline.setHours(23, 59, 59, 999);
       deadlineMatch = taskDeadline <= filterDeadline;
     }
     
-    // Filter theo meeting
+    // Filter by meeting
     let meetingMatch = true;
     if (meetingFilter) {
       meetingMatch = task.meetingId && task.meetingId.toString() === meetingFilter;
     }
     
-    // Nếu activeFilter === 'all' thì activeTaskMatch = true (hiển thị tất cả)
+    // If activeFilter === 'all' then activeTaskMatch = true (show all)
     return milestoneMatch && assigneeMatch && statusMatch && priorityMatch && taskTypeMatch && activeTaskMatch && deadlineMatch && meetingMatch;
   });
 
@@ -575,34 +660,31 @@ export default function SupervisorTasks() {
   const doneTasks = filteredTasks.filter(task => task.status === 'done');
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div className={sharedLayout.container}>
+      <div className={sharedLayout.header}>
         <h1>Tasks Management - Supervisor View</h1>
       </div>
 
+      <SupervisorGroupFilter
+        semesters={semesters}
+        selectedSemesterId={selectedSemesterId}
+        onSemesterChange={setSelectedSemesterId}
+        groupExpireFilter={groupExpireFilter}
+        onGroupExpireFilterChange={handleGroupExpireFilterChange}
+        groups={groups}
+        selectedGroupId={groupId || ''}
+        onGroupChange={(newGroupId) => {
+          if (newGroupId) {
+            navigate(`/supervisor/tasks?groupId=${newGroupId}`, { replace: true });
+          } else {
+            navigate('/supervisor/tasks', { replace: true });
+          }
+        }}
+        groupSelectPlaceholder="Select group"
+        loading={loading}
+      />
 
-      {/* Group Selection - ở đầu dòng */}
-      <div className={styles.groupSection}>
-        <div className={styles.groupControls}>
-          <div className={styles.controlGroup}>
-            <label>Group:</label>
-          <select
-            value={groupId || ''}
-            onChange={(e) => handleGroupChange(e.target.value)}
-            className={`${styles.select} ${styles.groupSelect}`}
-          >
-            <option value="">Chọn group</option>
-            {groups.map(group => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Chỉ hiển thị khi đã chọn group */}
+      {/* Only show when group is selected */}
       {groupId && (
         <>
       {/* Stats Grid */}
@@ -695,7 +777,7 @@ export default function SupervisorTasks() {
                 </select>
               </div>
               
-              {/* Nhóm 2: Filter theo người và dự án */}
+              {/* Group 2: Filters by person and project */}
               <div className={styles.controlGroup}>
                 <label>Assignee:</label>
                 <select
@@ -727,7 +809,7 @@ export default function SupervisorTasks() {
                 </select>
               </div>
               
-              {/* Nhóm 3: Filter theo thời gian */}
+              {/* Group 3: Time filters */}
               <div className={styles.controlGroup}>
                 <label>Deadline:</label>
                 <input
@@ -739,7 +821,7 @@ export default function SupervisorTasks() {
                 />
               </div>
               
-              {/* Nhóm 4: Filter trạng thái */}
+              {/* Group 4: Status filters */}
               <div className={styles.controlGroup}>
                 <label>Task Status:</label>
                 <select

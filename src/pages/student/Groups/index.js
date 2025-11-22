@@ -2,8 +2,9 @@ import React from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
-import { getRoleInGroup, getUserInfo } from '../../../auth/auth';
-import client from '../../../utils/axiosClient';
+import { getRoleInGroup, getUserInfo, getGroupId } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { updateStudentRoleInGroup } from '../../../api/staff';
 
 export default function StudentGroups() {
     const [groups, setGroups] = React.useState([]);
@@ -25,23 +26,24 @@ export default function StudentGroups() {
             try {
                 setLoading(true);
                 
-                // Get user info first to get groups
-                const userResponse = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
-                const userInfo = userResponse?.data?.data;
+                // Get user info from localStorage, don't call API
+                const userInfo = getUserInfo();
                 
+                // Early check: if no groups, don't call API further
                 if (!userInfo?.groups || userInfo.groups.length === 0) {
                     console.error('No groups found for student');
                     setGroups([]);
+                    setLoading(false);
                     return;
                 }
                 
                 // Get group details for the first group
-                const groupId = userInfo.groups[0];
-                const response = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
+                const groupId = getGroupId() || userInfo.groups[0];
+                const response = await getCapstoneGroupDetail(groupId);
                 
-                if (response.data.status === 200) {
+                if (response.status === 200) {
                     // Convert API data format to required format
-                    const group = response.data.data;
+                    const group = response.data;
                     const formattedGroup = {
                         id: group.id,
                         groupCode: group.groupCode,
@@ -137,17 +139,9 @@ export default function StudentGroups() {
             }
             
             // Call API to change role
-            const response = await client.put(`https://160.30.21.113:5000/api/v1/Staff/update-role?groupId=${targetGroup.id}&studentId=${memberToChangeRole.studentId}`, 
-                `"${selectedRole}"`,
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+            const response = await updateStudentRoleInGroup(targetGroup.id, memberToChangeRole.studentId, selectedRole);
             
-            
-            if (response.data.status === 200) {
+            if (response.status === 200) {
                 // Update local state after successful API call
                 const updatedGroups = groups.map(group => {
                     if (group.id === targetGroup.id) {
@@ -256,7 +250,6 @@ export default function StudentGroups() {
                                     <h4>Members ({group.members.length})</h4>
                                     <div className={styles.membersList}>
                                         {group.members.map((member) => {
-                                            console.log(" member role: ", member);
                                             const canChange = canChangeRole(member);
                                             return (
                                                 <div key={member.id} className={styles.memberItem}>
@@ -286,9 +279,10 @@ export default function StudentGroups() {
                 })}
             </div>
             
-            {groups.length === 0 && (
+            {groups.length === 0 && !loading && (
                 <div className={styles.emptyState}>
-                    <p>You have not been assigned to any group yet.</p>
+                    <div className={styles.emptyTitle}>You are not in any group</div>
+                    <div className={styles.emptyMessage}>Please contact the supervisor to be added to a group.</div>
                 </div>
             )}
 

@@ -40,3 +40,15 @@ export async function updateSlots(campusId, slots) {
   }
 }
 
+// Soft delete slot (set isActive to false)
+export async function softDeleteSlot(campusId, slotId) {
+  try {
+    const response = await client.put(`/campus/${campusId}/slot/${slotId}/active`, {
+      isActive: false
+    });
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
