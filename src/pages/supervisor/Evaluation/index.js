@@ -81,31 +81,76 @@ export default function SupervisorEvaluation() {
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
 
   // ------------------ Fetch Evaluations ------------------
-  const fetchEvaluations = async () => {
+  const fetchEvaluationsRef = React.useRef(false);
+  
+  // ------------------ Fetch Evaluations when milestone changes ------------------
+  React.useEffect(() => {
+    if (!selectedGroup) {
+      setEvaluations([]);
+      return;
+    }
+    
+    // Prevent infinite loop by checking if already fetching
+    if (fetchEvaluationsRef.current) return;
+    fetchEvaluationsRef.current = true;
+    
+    let isCancelled = false;
+    
+    const loadEvaluations = async () => {
+      setLoadingEvaluations(true);
+      try {
+        // If no milestone selected or "all" selected, get all evaluations for the group
+        const response = await getEvaluationsByMentorDeliverable(selectedGroup, selectedMilestone !== "all" ? selectedMilestone : null);
+        
+        if (isCancelled) return;
+        
+        // Check if response.data is array directly
+        if (Array.isArray(response)) {
+          setEvaluations(response);
+        } else if (response?.status === 200) {
+          const evaluationsData = response.data || [];
+          setEvaluations(evaluationsData);
+        } else if (Array.isArray(response?.data)) {
+          setEvaluations(response.data);
+        } else {
+          setEvaluations([]);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          setEvaluations([]);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoadingEvaluations(false);
+        }
+        fetchEvaluationsRef.current = false;
+      }
+    };
+    
+    loadEvaluations();
+    
+    // Cleanup function để tránh update state sau khi component unmount
+    return () => {
+      isCancelled = true;
+      fetchEvaluationsRef.current = false;
+    };
+  }, [selectedGroup, selectedMilestone]);
+
+  // ------------------ Force Refresh Evaluations ------------------
+  const forceRefreshEvaluations = async () => {
     if (!selectedGroup) return;
     
+    setEvaluations([]); // Clear current evaluations first
     setLoadingEvaluations(true);
     try {
-      // If no milestone selected or "all" selected, get all evaluations for the group
-      const params = {
-        groupId: selectedGroup,
-        _t: Date.now() // Cache-busting parameter
-      };
-      
-      // Only add deliverableId if specific milestone is selected
-      if (selectedMilestone && selectedMilestone !== "all") {
-        params.deliverableId = selectedMilestone;
-      }
-      
       const response = await getEvaluationsByMentorDeliverable(selectedGroup, selectedMilestone !== "all" ? selectedMilestone : null);
       
-      // Check if response.data is array directly
       if (Array.isArray(response)) {
         setEvaluations(response);
-      } else if (response.status === 200) {
+      } else if (response?.status === 200) {
         const evaluationsData = response.data || [];
         setEvaluations(evaluationsData);
-      } else if (Array.isArray(response.data)) {
+      } else if (Array.isArray(response?.data)) {
         setEvaluations(response.data);
       } else {
         setEvaluations([]);
@@ -114,20 +159,32 @@ export default function SupervisorEvaluation() {
       setEvaluations([]);
     } finally {
       setLoadingEvaluations(false);
+      setRefreshTrigger(prev => prev + 1);
     }
   };
-
-  // ------------------ Force Refresh Evaluations ------------------
-  const forceRefreshEvaluations = async () => {
-    setEvaluations([]); // Clear current evaluations first
-    await fetchEvaluations();
-    setRefreshTrigger(prev => prev + 1);
-  };
-
-  // ------------------ Fetch Evaluations when milestone changes ------------------
-  React.useEffect(() => {
-    if (selectedGroup) {
-      fetchEvaluations();
+  
+  // Function để gọi fetch evaluations manually (không trigger useEffect)
+  const fetchEvaluations = React.useCallback(async () => {
+    if (!selectedGroup) return;
+    
+    setLoadingEvaluations(true);
+    try {
+      const response = await getEvaluationsByMentorDeliverable(selectedGroup, selectedMilestone !== "all" ? selectedMilestone : null);
+      
+      if (Array.isArray(response)) {
+        setEvaluations(response);
+      } else if (response?.status === 200) {
+        const evaluationsData = response.data || [];
+        setEvaluations(evaluationsData);
+      } else if (Array.isArray(response?.data)) {
+        setEvaluations(response.data);
+      } else {
+        setEvaluations([]);
+      }
+    } catch (err) {
+      setEvaluations([]);
+    } finally {
+      setLoadingEvaluations(false);
     }
   }, [selectedGroup, selectedMilestone]);
   
@@ -172,15 +229,20 @@ export default function SupervisorEvaluation() {
     setLoading(false); // Set loading false after groups are loaded from localStorage
     
     // Check if selected group is still in filtered list
-    const selectedGroupExists = selectedGroup && groupsFromStorage.some(g => g.id.toString() === selectedGroup);
-    
-    if (selectedGroup && !selectedGroupExists) {
-      // Selected group is not in filtered list, clear selection and data
-      setSelectedGroup(null);
-      setSelectedMilestone('all');
-      setEvaluations([]);
-      setPenaltyCards([]);
-    }
+    // Sử dụng functional update để tránh stale closure
+    setSelectedGroup(prevSelectedGroup => {
+      if (prevSelectedGroup) {
+        const selectedGroupExists = groupsFromStorage.some(g => g.id.toString() === prevSelectedGroup);
+        if (!selectedGroupExists) {
+          // Selected group is not in filtered list, clear selection and data
+          setSelectedMilestone('all');
+          setEvaluations([]);
+          setPenaltyCards([]);
+          return null;
+        }
+      }
+      return prevSelectedGroup;
+    });
   }, [selectedSemesterId, groupExpireFilter]);
 
 
@@ -196,37 +258,52 @@ export default function SupervisorEvaluation() {
           getCapstoneGroupDetail(selectedGroup)
         ]); 
 
-        const milestoneRes = milestoneResult.status === 'fulfilled' ? milestoneResult.value : null;
-        const studentRes = studentResult.status === 'fulfilled' ? studentResult.value : null;
+        const milestoneRes = milestoneResult?.status === 'fulfilled' ? milestoneResult.value : null;
+        const studentRes = studentResult?.status === 'fulfilled' ? studentResult.value : null;
 
         console.log('API Response - studentRes:', studentRes);
         console.log('API Response - milestoneRes:', milestoneRes);
+        
+        // Kiểm tra nếu có lỗi từ Promise.allSettled
+        if (milestoneResult?.status === 'rejected') {
+          console.error('Error fetching milestones:', milestoneResult.reason);
+        }
+        if (studentResult?.status === 'rejected') {
+          console.error('Error fetching group detail:', studentResult.reason);
+        }
 
         // Handle different API response formats
         let studentData;
         if (studentRes) {
           // studentRes là object { data: {...}, status: 200, message: '...' } từ getCapstoneGroupDetail
-          if (studentRes.status === 200 && studentRes.data) {
+          if (studentRes?.status === 200 && studentRes?.data) {
             studentData = studentRes.data;
-          } else if (studentRes.data) {
+          } else if (studentRes?.data) {
             // Fallback: nếu có data nhưng không có status
             studentData = studentRes.data;
-          } else if (studentRes.status === 200) {
+          } else if (studentRes?.status === 200) {
             // Fallback: nếu có status nhưng data ở root level
+            studentData = studentRes;
+          } else if (!studentRes?.status && studentRes?.id) {
+            // Fallback: nếu response là data trực tiếp (không có wrapper)
             studentData = studentRes;
           }
         }
 
         if (studentData) {
-          // milestoneRes là object { data: [...], status: 200, message: '...' } từ getDeliverablesByGroup
+          // milestoneRes có thể là { status: 200, data: [...] } hoặc array trực tiếp
           let milestoneData = [];
           if (milestoneRes) {
-            if (milestoneRes.status === 200 && Array.isArray(milestoneRes.data)) {
+            // Kiểm tra an toàn với optional chaining
+            if (milestoneRes?.status === 200 && Array.isArray(milestoneRes?.data)) {
               milestoneData = milestoneRes.data;
-            } else if (Array.isArray(milestoneRes.data)) {
+            } else if (Array.isArray(milestoneRes?.data)) {
               milestoneData = milestoneRes.data;
             } else if (Array.isArray(milestoneRes)) {
               milestoneData = milestoneRes;
+            } else if (milestoneRes?.status === 200 && milestoneRes?.data?.items) {
+              // Nếu có pagination
+              milestoneData = milestoneRes.data.items;
             }
           }
 
@@ -266,17 +343,35 @@ export default function SupervisorEvaluation() {
             milestones = [];
           }
 
-          setGroups((prev) =>
-            prev.map((g) =>
-              g.groupId === selectedGroup
-                ? {
-                    ...g,
-                    groupName: studentData?.projectName || g.groupName,
-                    milestones,
-                  }
-                : g
-            )
-          );
+          setGroups((prev) => {
+            const existingGroup = prev.find(g => g.groupId === selectedGroup);
+            // Chỉ cập nhật nếu có thay đổi thực sự
+            if (existingGroup) {
+              const hasChanges = 
+                existingGroup.groupName !== (studentData?.projectName || existingGroup.groupName) ||
+                JSON.stringify(existingGroup.milestones) !== JSON.stringify(milestones);
+              
+              if (hasChanges) {
+                return prev.map((g) =>
+                  g.groupId === selectedGroup
+                    ? {
+                        ...g,
+                        groupName: studentData?.projectName || g.groupName,
+                        milestones,
+                      }
+                    : g
+                );
+              }
+            } else {
+              // Nếu group chưa tồn tại, thêm mới
+              return [...prev, {
+                groupId: selectedGroup,
+                groupName: studentData?.projectName || `Group ${selectedGroup}`,
+                milestones,
+              }];
+            }
+            return prev; // Không có thay đổi, trả về state cũ
+          });
 
           // Don't automatically select first milestone, let user choose
         } else {
@@ -488,7 +583,7 @@ export default function SupervisorEvaluation() {
     try {
       const response = await getPenaltyCardsByMilestone(selectedGroup);
       
-      if (response.status === 200) {
+      if (response?.status === 200) {
         const penaltiesData = response.data || [];
         // Only get name from API
         const formattedPenalties = penaltiesData.map(penalty => ({
@@ -904,24 +999,25 @@ export default function SupervisorEvaluation() {
 
 
       // Check if response is successful (status 200 or no error)
-      if (response.status === 200 || !response.error) {
+      if (response?.status === 200 || !response?.error) {
         // Add new evaluation to state for immediate UI update
-        if (response.data) {
+        if (response?.data) {
+          const responseData = response.data;
           const newEvaluationData = {
-            ...response.data,
-            id: response.data.id, // Save real evaluationId from server
-            evaluationId: response.data.id, // Use new evaluationId from API
-            receiverId: response.data.receiverId || response.data.id,
+            ...responseData,
+            id: responseData?.id, // Save real evaluationId from server
+            evaluationId: responseData?.id, // Use new evaluationId from API
+            receiverId: responseData?.receiverId || responseData?.id,
             studentName: selectedStudent?.name || 'Unknown',
             evaluatorName: 'Instructor',
             // Ensure all necessary information is available
             deliverableName: selectedMilestoneData?.name || 'Unknown Milestone',
-            createAt: response.data.createAt || new Date().toISOString(),
-            penaltyCards: response.data.penaltyCards || [],
+            createAt: responseData?.createAt || new Date().toISOString(),
+            penaltyCards: responseData?.penaltyCards || [],
             // Keep server data to display correctly in columns
-            type: response.data.type,
-            feedback: response.data.feedback || '',
-            notes: response.data.feedback || ''
+            type: responseData?.type,
+            feedback: responseData?.feedback || '',
+            notes: responseData?.feedback || ''
           };
           
           // Thêm vào đầu danh sách để hiển thị ngay lập tức
@@ -958,7 +1054,7 @@ export default function SupervisorEvaluation() {
         setEvaluateModal(false);
         alert("Evaluation submitted successfully!");
       } else {
-        alert(`Error: ${response.data.message || 'Unable to create evaluation'}`);
+        alert(`Error: ${response?.data?.message || response?.message || 'Unable to create evaluation'}`);
       }
     } catch (err) {
       
@@ -1019,55 +1115,18 @@ export default function SupervisorEvaluation() {
       const response = await updateEvaluation(evaluationIdForUpdate, payload);
 
       // Check if response is successful
-      if (response.status === 200 || !response.error) {
+      if (response?.status === 200 || !response?.error) {
         // Close modal first
         setEditModal(false);
         
-        // Show success message from server
-        alert(response.message || "Evaluation updated successfully!");
-        
-        // Update directly to state for immediate UI refresh
-        const updatedData = response.data;
-        
-        // Tìm và cập nhật evaluation trong state
-        setEvaluations(prevEvaluations => {
-          return prevEvaluations.map(evaluation => {
-            // Kiểm tra nhiều điều kiện để tìm đúng evaluation cần cập nhật
-            const isTargetEvaluation = (
-              evaluation.evaluationId === evaluationIdForUpdate ||
-              evaluation.id === evaluationIdForUpdate ||
-              (evaluation.receiverId === parseInt(editEvaluation.studentId) && 
-               evaluation.deliverableId === parseInt(editEvaluation.milestoneId)) ||
-              (evaluation.receiverId === parseInt(editEvaluation.studentId) && 
-               evaluation.deliverableName === selectedMilestoneData?.name)
-            );
-            
-            if (isTargetEvaluation) {
-              // Cập nhật evaluation với dữ liệu mới
-              const updatedEvaluation = {
-                ...evaluation,
-                // Giữ nguyên giá trị server
-                type: updatedData.type || evaluation.type,
-                feedback: updatedData.feedback || evaluation.feedback,
-                notes: updatedData.feedback || evaluation.notes || '',
-                penaltyCards: updatedData.penaltyCards || [],
-                createAt: updatedData.updateAt || evaluation.createAt,
-                receiverId: updatedData.receiverId || evaluation.receiverId,
-                evaluationId: evaluationIdForUpdate || evaluation.evaluationId,
-                // Đảm bảo có đầy đủ thông tin để hiển thị
-                studentName: selectedStudent?.name || evaluation.studentName,
-                evaluatorName: evaluation.evaluatorName || 'Instructor',
-                deliverableName: selectedMilestoneData?.name || evaluation.deliverableName
-              };
-              
-              return updatedEvaluation;
-            }
-            return evaluation;
-          });
-        });
-        
         // Trigger refresh cho DataTable
         setRefreshTrigger(prev => prev + 1);
+        
+        // Show success message từ server
+        alert(response?.message || "Evaluation updated successfully!");
+        
+        // useEffect sẽ tự động fetch lại evaluations khi selectedGroup/selectedMilestone thay đổi
+        // Không cần gọi fetchEvaluations() thủ công để tránh vòng lặp
         
         // // Gửi email thông báo SAU KHI cập nhật thành công (đã tắt theo yêu cầu)
         // try {
@@ -1093,7 +1152,7 @@ export default function SupervisorEvaluation() {
         // }
         
       } else {
-        alert(`Error: ${response.data.message || 'Unable to update evaluation'}`);
+        alert(`Error: ${response?.data?.message || response?.message || 'Unable to update evaluation'}`);
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || "Unable to update evaluation.";
