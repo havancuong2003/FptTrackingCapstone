@@ -199,23 +199,36 @@ export default function SupervisorEvaluation() {
         const milestoneRes = milestoneResult.status === 'fulfilled' ? milestoneResult.value : null;
         const studentRes = studentResult.status === 'fulfilled' ? studentResult.value : null;
 
+        console.log('API Response - studentRes:', studentRes);
+        console.log('API Response - milestoneRes:', milestoneRes);
 
         // Handle different API response formats
         let studentData;
-        if (studentRes && studentRes.status === 'fulfilled') {
-          if (studentRes.value?.status === 200) {
-            studentData = studentRes.value.data;
-          } else if (studentRes.value?.data) {
-            // Fallback: if no status but has data
-            studentData = studentRes.value.data;
-          } else {
-            // Fallback: use entire response
-            studentData = studentRes.value;
+        if (studentRes) {
+          // studentRes là object { data: {...}, status: 200, message: '...' } từ getCapstoneGroupDetail
+          if (studentRes.status === 200 && studentRes.data) {
+            studentData = studentRes.data;
+          } else if (studentRes.data) {
+            // Fallback: nếu có data nhưng không có status
+            studentData = studentRes.data;
+          } else if (studentRes.status === 200) {
+            // Fallback: nếu có status nhưng data ở root level
+            studentData = studentRes;
           }
         }
 
         if (studentData) {
-          const milestoneData = milestoneRes?.status === 'fulfilled' ? (milestoneRes.value?.data || []) : []; // Can be empty if API error
+          // milestoneRes là object { data: [...], status: 200, message: '...' } từ getDeliverablesByGroup
+          let milestoneData = [];
+          if (milestoneRes) {
+            if (milestoneRes.status === 200 && Array.isArray(milestoneRes.data)) {
+              milestoneData = milestoneRes.data;
+            } else if (Array.isArray(milestoneRes.data)) {
+              milestoneData = milestoneRes.data;
+            } else if (Array.isArray(milestoneRes)) {
+              milestoneData = milestoneRes;
+            }
+          }
 
 
           // Check data structure
