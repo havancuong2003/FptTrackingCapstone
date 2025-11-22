@@ -235,7 +235,7 @@ export default function SupervisorTracking() {
     // Load milestone details
     try {
       const res = await getDeliverableDetail(selectedGroup.id, milestone.id);
-      setMilestoneDetails(res?.data || null);
+      setMilestoneDetails(res || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
       setMilestoneDetails(null);
@@ -249,7 +249,7 @@ export default function SupervisorTracking() {
         // Reload milestone details to update download status
         if (selectedMilestone) {
           const detailRes = await getDeliverableDetail(selectedGroup.id, selectedMilestone.id);
-          setMilestoneDetails(detailRes?.data || null);
+          setMilestoneDetails(detailRes || null);
         }
       }
     } catch (error) {
@@ -310,7 +310,7 @@ export default function SupervisorTracking() {
       
       // Reload milestones after successful confirmation
       const milestonesRes = await getDeliverablesByGroup(selectedGroup.id);
-      const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
+      const list = Array.isArray(milestonesRes) ? milestonesRes : [];
       setMilestones(list);
       
       // Update selectedMilestone with new status
@@ -321,7 +321,7 @@ export default function SupervisorTracking() {
       
       // Reload milestone details
       const detailRes = await getDeliverableDetail(selectedGroup.id, selectedMilestone.id);
-      setMilestoneDetails(detailRes?.data || null);
+      setMilestoneDetails(detailRes || null);
       
       setNote('');
       alert('Milestone confirmed successfully!');
@@ -356,7 +356,7 @@ export default function SupervisorTracking() {
       
       // Reload milestones after successful rejection
       const milestonesRes = await getDeliverablesByGroup(selectedGroup.id);
-      const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
+      const list = Array.isArray(milestonesRes) ? milestonesRes : [];
       setMilestones(list);
       
       // Update selectedMilestone with new status
@@ -367,7 +367,7 @@ export default function SupervisorTracking() {
       
       // Reload milestone details
       const detailRes = await getDeliverableDetail(selectedGroup.id, selectedMilestone.id);
-      setMilestoneDetails(detailRes?.data || null);
+      setMilestoneDetails(detailRes || null);
       
       setNote('');
       alert('Milestone rejected successfully!');
