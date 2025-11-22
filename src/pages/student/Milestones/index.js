@@ -3,12 +3,8 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
+import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
-import { getUserInfo, getGroupId } from '../../../auth/auth';
-import { getCapstoneGroupDetail } from '../../../api/staff/groups';
-import { getSemesterDetail } from '../../../api/semester';
-import { getDeliverablesByGroup, getDeliverableDetail } from '../../../api/deliverables';
-import { uploadMilestoneFile, deleteMilestoneAttachment } from '../../../api/upload';
 
 
 export default function StudentMilestones() {
@@ -55,10 +51,22 @@ export default function StudentMilestones() {
     };
   }, []);
 
-  // Load user info from localStorage, don't call API
+  // Load user info
   React.useEffect(() => {
-    const user = getUserInfo();
-    setUserInfo(user);
+    let mounted = true;
+    async function loadUserInfo() {
+      try {
+        const res = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
+        const user = res?.data?.data || null;
+        if (!mounted) return;
+        setUserInfo(user);
+      } catch {
+        if (!mounted) return;
+        setUserInfo(null);
+      }
+    }
+    loadUserInfo();
+    return () => { mounted = false; };
   }, []);
 
   // Load group info
@@ -67,10 +75,10 @@ export default function StudentMilestones() {
     async function loadGroupInfo() {
       if (!userInfo?.groups || userInfo.groups.length === 0) return;
       try {
-        // Get first group from groups list
+        // Lấy group đầu tiên từ danh sách groups
         const groupId = userInfo.groups[0];
-        const res = await getCapstoneGroupDetail(groupId);
-        const group = res?.data || null;
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
+        const group = res?.data?.data || null;
         if (!mounted) return;
         setGroupInfo(group);
       } catch {
@@ -88,8 +96,8 @@ export default function StudentMilestones() {
     async function loadSemesterInfo() {
       if (!groupInfo?.semesterId) return;
       try {
-        const res = await getSemesterDetail(groupInfo.semesterId);
-        const semester = res?.data || null;
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/semester/getSemesterBy/${groupInfo.semesterId}`);
+        const semester = res?.data?.data || null;
         if (!mounted) return;
         setSemesterInfo(semester);
       } catch {
@@ -107,10 +115,10 @@ export default function StudentMilestones() {
     async function loadMilestones() {
       if (!userInfo?.groups || userInfo.groups.length === 0) return;
       try {
-        // Get first group from groups list
+        // Lấy group đầu tiên từ danh sách groups
         const groupId = userInfo.groups[0];
-        const res = await getDeliverablesByGroup(groupId);
-        const list = Array.isArray(res) ? res : [];
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${groupId}`);
+        const list = Array.isArray(res?.data) ? res.data : [];
         if (!mounted) return;
         setMilestones(list);
       } catch {
@@ -124,16 +132,8 @@ export default function StudentMilestones() {
 
   // Set loading false when all data loaded
   React.useEffect(() => {
-    if (userInfo) {
-      // If no groups, set loading false immediately
-      if (!userInfo.groups || userInfo.groups.length === 0) {
-        setLoading(false);
-        return;
-      }
-      // If have groupInfo and semesterInfo then set loading false
-      if (groupInfo && semesterInfo) {
-        setLoading(false);
-      }
+    if (userInfo && groupInfo && semesterInfo) {
+      setLoading(false);
     }
   }, [userInfo, groupInfo, semesterInfo]);
 
@@ -150,20 +150,41 @@ export default function StudentMilestones() {
     
     // Load milestone details
     try {
-      // get user info from localStorage
-      const user = getUserInfo();
-      const groupId = user?.groups?.[0];
-      const res = await getDeliverableDetail(groupId, milestone.id);
-      setMilestoneDetails(res || null);
+      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${milestone.id}`);
+      setMilestoneDetails(res?.data || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
       setMilestoneDetails(null);
     }
   };
 
+  // Kiểm tra file có đúng định dạng được phép không
+  const isValidFileType = (fileName) => {
+    if (!fileName) return false;
+    const extension = fileName.split('.').pop().toLowerCase();
+    const allowedExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Archives
+      'zip', '7z',
+      // Java
+      'rar'
+    ];
+    return allowedExtensions.includes(extension);
+  };
+
   const handleFileSelect = (event, itemId) => {
     const file = event.target.files[0];
     if (file) {
+      // Kiểm tra định dạng file
+      if (!isValidFileType(file.name)) {
+        alert('Invalid file type. Only images, PDF, ZIP, 7ZIP, and RAR files are allowed.');
+        // Reset input
+        event.target.value = '';
+        return;
+      }
       setSelectedFiles(prev => ({ ...prev, [itemId]: file }));
     }
   };
@@ -172,19 +193,36 @@ export default function StudentMilestones() {
     const fileToUpload = selectedFiles[deliveryItemId];
     if (!fileToUpload || !userInfo?.groups[0]) return;
     
+    // Validate file type trước khi upload
+    if (!isValidFileType(fileToUpload.name)) {
+      alert('Invalid file type. Only images, PDF, ZIP, 7ZIP, and RAR files are allowed.');
+      // Clear invalid file
+      setSelectedFiles(prev => {
+        const newFiles = { ...prev };
+        delete newFiles[deliveryItemId];
+        return newFiles;
+      });
+      return;
+    }
+    
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append('file', fileToUpload);
       
-      // get user info from localStorage
-      const user = getUserInfo();
-      const groupId = user?.groups?.[0];
-      await uploadMilestoneFile(groupId, deliveryItemId, fileToUpload);
+      const res = await client.post(
+        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}`,
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        }
+      );
       
       // Reload milestones after successful upload
-      const milestonesRes = await getDeliverablesByGroup(groupId);
-      const list = Array.isArray(milestonesRes) ? milestonesRes : [];
+      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groups[0]}`);
+      const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
       setMilestones(list);
       
       // Update selectedMilestone with new status
@@ -195,8 +233,8 @@ export default function StudentMilestones() {
       
       // Reload milestone details after successful upload
       if (selectedMilestone) {
-        const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
-        setMilestoneDetails(detailRes || null);
+        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
+        setMilestoneDetails(detailRes?.data || null);
       }
       
       // Clear selected file for this item only
@@ -238,21 +276,18 @@ export default function StudentMilestones() {
     }
     
     try {
-      const response = await deleteMilestoneAttachment(attachmentId);
-      if (response.status === 200) {
-        alert('File deleted successfully!');
+      const response = await client.delete(`https://160.30.21.113:5000/api/v1/upload/milestone?attachmentId=${attachmentId}`);
+      if (response.data.status === 200) {
+        alert('Xóa file thành công!');
         // Reload milestone details
         if (selectedMilestone) {
-          // get user info from localStorage
-          const user = getUserInfo();
-          const groupId = user?.groups?.[0];
-          const detailRes = await getDeliverableDetail(groupId, selectedMilestone.id);
-          setMilestoneDetails(detailRes || null);
+          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
+          setMilestoneDetails(detailRes?.data || null);
         }
       }
     } catch (error) {
       console.error('Error deleting attachment:', error);
-      alert('Error deleting file. Please try again.');
+      alert('Có lỗi xảy ra khi xóa file. Vui lòng thử lại.');
     }
   };
 
@@ -261,13 +296,13 @@ export default function StudentMilestones() {
     return attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
   };
 
-  // Check if file can be previewed (images, PDF, docs)
+  // Kiểm tra file có thể xem được không (ảnh, PDF, docs)
   const canPreviewFile = (filePath) => {
     if (!filePath) return false;
     const fileName = filePath.split('/').pop().toLowerCase();
     const extension = fileName.split('.').pop();
     
-    // Previewable formats
+    // Các định dạng có thể xem được
     const previewableExtensions = [
       // Images
       'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
@@ -354,20 +389,6 @@ export default function StudentMilestones() {
   const isMobile = currentWidth <= 576;
   const isTablet = currentWidth > 576 && currentWidth <= 1024;
   const isDesktop = currentWidth > 1024;
-
-  // Nếu không có group, hiển thị thông báo
-  if (!loading && (!userInfo?.groups || userInfo.groups.length === 0)) {
-    return (
-      <div style={{ padding: 32, textAlign: 'center' }}>
-        <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
-          You are not in any group
-        </div>
-        <div style={{ color: '#6b7280' }}>
-          Please contact the supervisor to be added to a group.
-        </div>
-      </div>
-    );
-  }
 
   if (loading) {
     return (
@@ -693,6 +714,7 @@ export default function StudentMilestones() {
                             type="file"
                             id={`file-${item.id}`}
                             onChange={(e) => handleFileSelect(e, item.id)}
+                            accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.pdf,.zip,.7z,.rar"
                             style={{ display: 'none' }}
                           />
                           <label 
@@ -724,6 +746,9 @@ export default function StudentMilestones() {
                             Selected: {selectedFiles[item.id].name}
                           </div>
                         )}
+                        <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, fontStyle: 'italic' }}>
+                          Allowed file types: Images (JPG, PNG, GIF, etc.), PDF, ZIP, 7ZIP, RAR
+                        </div>
                       </div>
 
                       {/* All Attachments */}
