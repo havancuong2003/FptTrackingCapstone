@@ -70,7 +70,7 @@ export default function GroupDetail() {
 
     const handleSendEmail = async () => {
         if (!emailSubject.trim() || !emailContent.trim()) {
-            alert('Vui lòng nhập tiêu đề và nội dung email');
+            alert('Please enter email subject and content');
             return;
         }
 
@@ -89,16 +89,16 @@ export default function GroupDetail() {
             const response = await axiosClient.post('/Staff/send-group-email', emailData);
             
             if (response.data.status === 200) {
-                alert('Email đã được gửi thành công!');
+                alert('Email sent successfully!');
                 setEmailContent('');
                 setEmailSubject('');
                 setShowEmailComposer(false);
             } else {
-                alert('Lỗi gửi email: ' + response.data.message);
+                alert('Error sending email: ' + response.data.message);
             }
         } catch (error) {
             console.error('Error sending email:', error);
-            alert('Lỗi gửi email: ' + error.message);
+            alert('Error sending email: ' + error.message);
         }
     };
 
@@ -177,7 +177,7 @@ export default function GroupDetail() {
                     console.warn('Role changed successfully but email notification failed');
                 }
                 
-                alert(`Đã thay đổi role thành ${newRole} cho ${selectedMember.name}!${isSupervisor && newRole === 'Secretary' ? ' Email thông báo đã được gửi.' : isSecretary ? ' Email thông báo đã được gửi.' : ''}`);
+                alert(`Role changed to ${newRole} for ${selectedMember.name}!${isSupervisor && newRole === 'Secretary' ? ' Notification email has been sent.' : isSecretary ? ' Notification email has been sent.' : ''}`);
                 setShowRoleModal(false);
                 setSelectedMember(null);
                 setNewRole('');
@@ -186,7 +186,7 @@ export default function GroupDetail() {
             }
         } catch (error) {
             console.error('Error changing role:', error);
-            alert('Có lỗi khi thay đổi role. Vui lòng thử lại.');
+            alert('Error changing role. Please try again.');
         }
     };
 
@@ -225,7 +225,7 @@ export default function GroupDetail() {
 
     const sendEmail = async () => {
         if (!emailData.to.length || !emailData.subject || !emailData.body) {
-            alert('Vui lòng điền đầy đủ thông tin email');
+            alert('Please fill in all email information');
             return;
         }
 
@@ -235,7 +235,7 @@ export default function GroupDetail() {
         const invalidEmails = allEmails.filter(email => email && !emailRegex.test(email));
         
         if (invalidEmails.length > 0) {
-            alert(`Email không hợp lệ: ${invalidEmails.join(', ')}`);
+            alert(`Invalid email: ${invalidEmails.join(', ')}`);
             return;
         }
 
@@ -250,7 +250,7 @@ export default function GroupDetail() {
             });
             
             if (response.status === 200 || response.data) {
-                alert('Email đã được gửi thành công!');
+                alert('Email sent successfully!');
                 setShowEmailComposer(false);
                 setEmailData({
                     to: [],
@@ -259,12 +259,12 @@ export default function GroupDetail() {
                     cc: []
                 });
             } else {
-                alert('Có lỗi xảy ra khi gửi email');
+                alert('An error occurred while sending email');
             }
         } catch (error) {
             console.error('Error sending email:', error);
             console.error('Error response:', error.response?.data);
-            alert(`Lỗi gửi email: ${error.response?.data?.message || error.message || 'Có lỗi xảy ra'}`);
+            alert(`Error sending email: ${error.response?.data?.message || error.message || 'An error occurred'}`);
         } finally {
             setEmailLoading(false);
         }
@@ -273,7 +273,7 @@ export default function GroupDetail() {
     if (loading) {
         return (
             <div className={styles.loading}>
-                <div>Đang tải thông tin nhóm...</div>
+                <div>Loading group information...</div>
             </div>
         );
     }
@@ -282,9 +282,9 @@ export default function GroupDetail() {
         const backPath = isExpired ? '/supervisor/groups/expired' : '/supervisor/groups/active';
         return (
             <div className={styles.error}>
-                <div>Không tìm thấy thông tin nhóm</div>
+                <div>Group information not found</div>
                 <Button onClick={() => navigate(backPath)}>
-                    Quay lại danh sách
+                    Back to list
                 </Button>
             </div>
         );
@@ -293,7 +293,7 @@ export default function GroupDetail() {
     const backPath = isExpired ? '/supervisor/groups/expired' : '/supervisor/groups/active';
     return (
         <div className={styles.container}>
-            <BackButton to={backPath}>← Quay lại</BackButton>
+            <BackButton to={backPath}>← Back</BackButton>
             {isExpired && (
                 <div className={styles.expiredNotice} style={{ 
                     padding: '12px', 
@@ -304,19 +304,19 @@ export default function GroupDetail() {
                     color: '#92400e',
                     fontWeight: 500
                 }}>
-                    Nhóm này đã hết hạn. Bạn chỉ có thể xem thông tin (view-only mode).
+                    This group has expired. You can only view information (view-only mode).
                 </div>
             )}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
-                    <h1>Chi tiết nhóm: {group.groupName}</h1>
+                    <h1>Group Details: {group.groupName}</h1>
                 </div>
                 {!isExpired && (
                     <div className={styles.headerRight}>
                         <Button 
                             onClick={openEmailComposer}
                         >
-                            Gửi email cho nhóm
+                            Send email to group
                         </Button>
                     </div>
                 )}
@@ -324,18 +324,18 @@ export default function GroupDetail() {
 
             <div className={styles.groupInfo}>
                 <div className={styles.infoCard}>
-                    <h3>Thông tin nhóm</h3>
+                    <h3>Group Information</h3>
                     <div className={styles.infoGrid}>
                         <div className={styles.infoItem}>
-                            <label>Mã nhóm:</label>
+                            <label>Group Code:</label>
                             <span>{group.groupCode}</span>
                         </div>
                         <div className={styles.infoItem}>
-                            <label>Tên dự án:</label>
+                            <label>Project Name:</label>
                             <span>{group.projectName}</span>
                         </div>
                         <div className={styles.infoItem}>
-                            <label>Số thành viên:</label>
+                            <label>Number of Members:</label>
                             <span>{group.members.length}</span>
                         </div>
                     </div>
@@ -343,7 +343,7 @@ export default function GroupDetail() {
 
                 <div className={styles.membersCard}>
                     <div className={styles.membersHeader}>
-                        <h3>Thành viên nhóm</h3>
+                        <h3>Group Members</h3>
                     </div>
                     <div className={styles.membersList}>
                         {group.members.map((member) => (
@@ -361,7 +361,7 @@ export default function GroupDetail() {
                                             className={styles.changeRoleBtn}
                                             onClick={() => handleChangeRole(member)}
                                         >
-                                            Đổi Role
+                                            Change Role
                                         </button>
                                     )}
                                 </div>
@@ -376,7 +376,7 @@ export default function GroupDetail() {
                 <div className={styles.modalOverlay}>
                     <div className={styles.emailModal}>
                         <div className={styles.modalHeader}>
-                            <h2>Gửi email cho nhóm</h2>
+                            <h2>Send email to group</h2>
                             <button 
                                 className={styles.closeButton}
                                 onClick={() => setShowEmailComposer(false)}
@@ -387,7 +387,7 @@ export default function GroupDetail() {
                         
                         <div className={styles.modalContent}>
                             <div className={styles.formGroup}>
-                                <label>Người nhận (To)</label>
+                                <label>Recipients (To)</label>
                                 <div className={styles.recipientsList}>
                                     {group.members.map(member => (
                                         <div key={member.id} className={styles.recipient}>
@@ -398,7 +398,7 @@ export default function GroupDetail() {
                             </div>
 
                             <div className={styles.formGroup}>
-                                <label>CC (Giảng viên)</label>
+                                <label>CC (Supervisors)</label>
                                 <div className={styles.recipientsList}>
                                     {group.supervisorsInfor && group.supervisorsInfor.length > 0 ? (
                                         group.supervisorsInfor.map((supervisor, index) => (
@@ -407,7 +407,7 @@ export default function GroupDetail() {
                                             </div>
                                         ))
                                     ) : (
-                                        <div className={styles.noRecipients}>Không có thông tin giảng viên</div>
+                                        <div className={styles.noRecipients}>No supervisor information</div>
                                     )}
                                 </div>
                             </div>
@@ -440,10 +440,10 @@ export default function GroupDetail() {
                                 variant="secondary"
                                 onClick={() => setShowEmailComposer(false)}
                             >
-                                Hủy
+                                Cancel
                             </Button>
                             <Button onClick={sendEmail} disabled={emailLoading}>
-                                {emailLoading ? 'Đang gửi...' : 'Gửi email'}
+                                {emailLoading ? 'Sending...' : 'Send email'}
                             </Button>
                         </div>
                     </div>
@@ -455,7 +455,7 @@ export default function GroupDetail() {
                 <div className={styles.modalOverlay}>
                     <div className={styles.roleModal}>
                         <div className={styles.modalHeader}>
-                            <h2>Thay đổi Role cho {selectedMember.name}</h2>
+                            <h2>Change Role for {selectedMember.name}</h2>
                             <button 
                                 className={styles.closeButton}
                                 onClick={() => setShowRoleModal(false)}
@@ -465,11 +465,11 @@ export default function GroupDetail() {
                         </div>
                         <div className={styles.modalContent}>
                             <div className={styles.formGroup}>
-                                <label>Role hiện tại:</label>
+                                <label>Current Role:</label>
                                 <span className={styles.currentRole}>{selectedMember.currentRole}</span>
                             </div>
                             <div className={styles.formGroup}>
-                                <label>Role mới:</label>
+                                <label>New Role:</label>
                                 <select 
                                     value={newRole}
                                     onChange={(e) => setNewRole(e.target.value)}
@@ -486,10 +486,10 @@ export default function GroupDetail() {
                                 variant="secondary"
                                 onClick={() => setShowRoleModal(false)}
                             >
-                                Hủy
+                                Cancel
                             </Button>
                             <Button onClick={handleSaveRoleChange}>
-                                Lưu thay đổi
+                                Save changes
                             </Button>
                         </div>
                     </div>

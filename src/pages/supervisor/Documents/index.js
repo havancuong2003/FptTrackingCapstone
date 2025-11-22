@@ -17,8 +17,6 @@ export default function SupervisorDocuments() {
   const [files, setFiles] = React.useState([]);
   const [message, setMessage] = React.useState('');
   const fileInputRef = React.useRef(null);
-  const [semesters, setSemesters] = React.useState([]);
-  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
 
   React.useEffect(() => {
@@ -26,22 +24,28 @@ export default function SupervisorDocuments() {
   }, []);
 
   React.useEffect(() => {
-    if (selectedSemesterId !== null) {
-      loadGroupsBySemester();
-      
-      // Check if selected group is still in filtered list
-      const isExpired = groupExpireFilter === 'expired';
-      const filteredGroups = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
-      const selectedGroupExists = selectedGroupId && filteredGroups.some(g => g.id === Number(selectedGroupId));
-      
-      if (selectedGroupId && !selectedGroupExists) {
-        // Selected group is not in filtered list, clear selection and data
-        setSelectedGroupId('');
-        setGroupInfo(null);
-        setFiles([]);
-      }
+    loadGroups();
+    
+    // Check if selected group is still in filtered list
+    const isExpired = groupExpireFilter === 'expired';
+    const allSemesters = getUniqueSemesters();
+    let filteredGroups = [];
+    
+    // Get all groups from all semesters
+    allSemesters.forEach(semester => {
+      const groupsFromStorage = getGroupsBySemesterAndStatus(semester.id, isExpired);
+      filteredGroups = [...filteredGroups, ...groupsFromStorage];
+    });
+    
+    const selectedGroupExists = selectedGroupId && filteredGroups.some(g => g.id === Number(selectedGroupId));
+    
+    if (selectedGroupId && !selectedGroupExists) {
+      // Selected group is not in filtered list, clear selection and data
+      setSelectedGroupId('');
+      setGroupInfo(null);
+      setFiles([]);
     }
-  }, [selectedSemesterId, groupExpireFilter]);
+  }, [groupExpireFilter]);
 
   const loadUserInfo = () => {
     setLoading(true);
@@ -55,17 +59,6 @@ export default function SupervisorDocuments() {
         setLoading(false);
         return;
       }
-      
-      // Get semesters and set default
-      const uniqueSemesters = getUniqueSemesters();
-      setSemesters(uniqueSemesters);
-      
-      const currentSemesterId = getCurrentSemesterId();
-      if (currentSemesterId) {
-        setSelectedSemesterId(currentSemesterId);
-      } else if (uniqueSemesters.length > 0) {
-        setSelectedSemesterId(uniqueSemesters[0].id);
-      }
     } catch (e) {
       console.error('Error loading user info:', e);
       setMessage('Could not get user information');
@@ -74,29 +67,34 @@ export default function SupervisorDocuments() {
     }
   };
 
-  const loadGroupsBySemester = () => {
-    if (selectedSemesterId === null) return;
-    
+  const loadGroups = () => {
     try {
-      // Get groups from localStorage based on semester and expired status (no API call)
+      // Get groups from all semesters based on expired status (no API call)
       const isExpired = groupExpireFilter === 'expired';
-      const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+      const allSemesters = getUniqueSemesters();
+      let allGroups = [];
       
-      if (groupsFromStorage.length === 0) {
+      // Get all groups from all semesters
+      allSemesters.forEach(semester => {
+        const groupsFromStorage = getGroupsBySemesterAndStatus(semester.id, isExpired);
+        allGroups = [...allGroups, ...groupsFromStorage];
+      });
+      
+      if (allGroups.length === 0) {
         setGroupOptions([]);
         setUserGroups([]);
         return;
       }
       
       // Build options from localStorage only (no API call)
-      const options = groupsFromStorage.map((groupInfo) => {
+      const options = allGroups.map((groupInfo) => {
         const gid = String(groupInfo.id);
         const label = groupInfo.name || groupInfo.code || `Group #${gid}`;
         return { value: gid, label };
       });
       
       setGroupOptions(options);
-      setUserGroups(groupsFromStorage.map(g => g.id));
+      setUserGroups(allGroups.map(g => g.id));
     } catch (e) {
       console.error('Error loading groups from localStorage:', e);
       setMessage('Could not get group information');
@@ -337,9 +335,9 @@ export default function SupervisorDocuments() {
       </div>
 
       <SupervisorGroupFilter
-        semesters={semesters}
-        selectedSemesterId={selectedSemesterId}
-        onSemesterChange={setSelectedSemesterId}
+        semesters={[]}
+        selectedSemesterId={null}
+        onSemesterChange={() => {}}
         groupExpireFilter={groupExpireFilter}
         onGroupExpireFilterChange={setGroupExpireFilter}
         groups={groupOptions.map(opt => ({ id: opt.value, name: opt.label }))}
@@ -398,11 +396,10 @@ export default function SupervisorDocuments() {
                 borderRadius: 6,
                 cursor: 'pointer'
               }}
-            >Làm mới</button>
+            >Refresh</button>
           </div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
-            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Semester: <b>{groupInfo.semesterId}</b></div>
-            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Số SV: <b>{Array.isArray(groupInfo.students) ? groupInfo.students.length : 0}</b></div>
+            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Number of Students: <b>{Array.isArray(groupInfo.students) ? groupInfo.students.length : 0}</b></div>
             <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Supervisors: <b>{(groupInfo.supervisors || []).join(', ')}</b></div>
           </div>
         </div>
@@ -411,14 +408,14 @@ export default function SupervisorDocuments() {
       {selectedGroupId && (
         <div className={styles.semesterList}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <div style={{ fontWeight: 600 }}>Danh sách tài liệu</div>
-            <div style={{ opacity: 0.7 }}>{files.length} tài liệu</div>
+            <div style={{ fontWeight: 600 }}>Document List</div>
+            <div style={{ opacity: 0.7 }}>{files.length} document{files.length !== 1 ? 's' : ''}</div>
           </div>
           <DataTable
             columns={columns}
             data={files}
             loading={loading}
-            emptyMessage="Chưa có tài liệu nào"
+            emptyMessage="No documents yet"
           />
           </div>
         )}

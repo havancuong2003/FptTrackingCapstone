@@ -71,8 +71,8 @@
 
 .infoItem {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid #f0f0f0;
 }
@@ -84,6 +84,8 @@
 .infoItem label {
   font-weight: 600;
   color: #555;
+  min-width: 150px;
+  flex-shrink: 0;
 }
 
 .infoItem span {
