@@ -117,3 +117,13 @@ export async function getIncompleteTasksByGroup(groupId) {
   }
 }
 
+// Get tasks by reviewer (for supervisor)
+export async function getTasksByReviewer(groupId) {
+  try {
+    const response = await client.get(`/Tasks/reviewer?groupId=${groupId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+

@@ -12,11 +12,13 @@ import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurre
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
 import { getSlotsByCampusId } from '../../../api/slots';
 import { getDeliverablesByGroup, getDeliverableDetail } from '../../../api/deliverables';
-import { getTasksByGroup } from '../../../api/tasks';
+import { getTasksByGroup, getTasksByReviewer } from '../../../api/tasks';
 import { getMeetingScheduleDatesByGroup, getMeetingMinutesByMeetingDateId } from '../../../api/meetings';
 import { getMeetingTasksByMinuteId } from '../../../api/tasks';
 import { getSemesterDetail } from '../../../api/semester';
+import { getMeetingScheduleByGroupId } from '../../../api/schedule';
 import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
+import client from '../../../utils/axiosClient';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -59,6 +61,8 @@ export default function SupervisorCalendar() {
   const [semesters, setSemesters] = React.useState([]);
   const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
+  const [groupsWithoutSchedule, setGroupsWithoutSchedule] = React.useState([]); // Danh sách nhóm chưa chốt lịch họp
+  const [groupDetails, setGroupDetails] = React.useState([]); // Chi tiết các nhóm
 
   // Load user info from localStorage, don't call API
   React.useEffect(() => {
@@ -199,24 +203,98 @@ export default function SupervisorCalendar() {
   }, [groups]);
 
 
-  // Selected group state for Calendar
-  const [selectedGroupId, setSelectedGroupId] = React.useState(null);
-
-  // Load data only when a group is selected
+  // Load group details for all groups
   React.useEffect(() => {
-    if (!selectedGroupId) {
-      setMilestones([]);
-      setMeetings([]);
-      setTasks([]);
-      return;
+    let mounted = true;
+    async function loadGroupDetails() {
+      if (!groups.length) {
+        setGroupDetails([]);
+        return;
+      }
+      
+      try {
+        const detailsPromises = groups.map(async (group) => {
+          try {
+            const res = await getCapstoneGroupDetail(group.id);
+            return res?.data || null;
+          } catch (error) {
+            console.error(`Error loading group details for ${group.id}:`, error);
+            return null;
+          }
+        });
+        
+        const details = await Promise.all(detailsPromises);
+        if (!mounted) return;
+        setGroupDetails(details.filter(d => d !== null));
+      } catch (error) {
+        console.error('Error loading group details:', error);
+        if (!mounted) return;
+        setGroupDetails([]);
+      }
     }
+    loadGroupDetails();
+    return () => { mounted = false; };
+  }, [groups]);
 
-    // Check if selected group exists in current filtered groups
-    const isExpired = groupExpireFilter === 'expired';
-    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
-    const selectedGroupExists = groupsFromStorage.some(g => g.id === Number(selectedGroupId));
-    
-    if (!selectedGroupExists) {
+  // Check groups without schedule
+  React.useEffect(() => {
+    let mounted = true;
+    async function checkGroupsSchedule() {
+      if (!groups.length) {
+        setGroupsWithoutSchedule([]);
+        return;
+      }
+
+      try {
+        const groupsWithoutScheduleList = [];
+
+        for (const group of groups) {
+          try {
+            const response = await getMeetingScheduleByGroupId(group.id);
+            // API có thể trả về { status: 200, data: {...}, message: "..." } hoặc throw error
+            if (response && response.status === 200) {
+              const data = response.data;
+              // Kiểm tra nếu message là "Schedule not found." hoặc data.id === 0 hoặc không có thông tin hợp lệ
+              if (response.message === "Schedule not found." || 
+                  !data || 
+                  !data.id || 
+                  data.id === 0 || 
+                  !data.isActive || 
+                  !data.meetingLink || 
+                  !data.slot || 
+                  !data.dayOfWeek) {
+                // Lưu cả string và number để so sánh dễ dàng
+                groupsWithoutScheduleList.push(String(group.id));
+                groupsWithoutScheduleList.push(Number(group.id));
+              }
+            } else {
+              // Response không hợp lệ, coi như chưa chốt lịch
+              groupsWithoutScheduleList.push(String(group.id));
+              groupsWithoutScheduleList.push(Number(group.id));
+            }
+          } catch (error) {
+            console.error(`Error checking schedule for group ${group.id}:`, error);
+            // Nếu lỗi, cũng coi như chưa chốt lịch
+            groupsWithoutScheduleList.push(String(group.id));
+            groupsWithoutScheduleList.push(Number(group.id));
+          }
+        }
+
+        if (!mounted) return;
+        setGroupsWithoutSchedule(groupsWithoutScheduleList);
+      } catch (error) {
+        console.error('Error checking groups schedule:', error);
+        if (!mounted) return;
+        setGroupsWithoutSchedule([]);
+      }
+    }
+    checkGroupsSchedule();
+    return () => { mounted = false; };
+  }, [groups]);
+
+  // Load data for all groups
+  React.useEffect(() => {
+    if (!groups.length || !selectedSemesterId) {
       setMilestones([]);
       setMeetings([]);
       setTasks([]);
@@ -224,66 +302,102 @@ export default function SupervisorCalendar() {
     }
 
     let mounted = true;
-    async function loadGroupData() {
+    async function loadAllGroupsData() {
       try {
-        // Load milestones, meetings, tasks for selected group
-        const [milestonesRes, meetingsRes, tasksRes] = await Promise.allSettled([
-          getDeliverablesByGroup(selectedGroupId),
-          getMeetingScheduleDatesByGroup(selectedGroupId),
-          getTasksByGroup(selectedGroupId)
-        ]);
-;
+        const allMilestones = [];
+        const allMeetings = [];
+        const allTasks = [];
+
+        // Load data for each group
+        for (const group of groups) {
+          try {
+            // Load milestones
+            const milestonesRes = await getDeliverablesByGroup(group.id);
+            if (Array.isArray(milestonesRes)) {
+              milestonesRes.forEach(milestone => {
+                allMilestones.push({
+                  ...milestone,
+                  groupId: group.id
+                });
+              });
+            }
+
+            // Load meetings
+            const meetingsRes = await getMeetingScheduleDatesByGroup(group.id);
+            if (meetingsRes?.status === 200 && Array.isArray(meetingsRes.data)) {
+              meetingsRes.data.forEach(meeting => {
+                allMeetings.push({
+                  ...meeting,
+                  groupId: group.id
+                });
+              });
+            }
+
+            // Load tasks by reviewer (only tasks assigned to this supervisor as reviewer)
+            try {
+              const tasksRes = await getTasksByReviewer(group.id);
+              // API trả về array hoặc object với message
+              if (Array.isArray(tasksRes)) {
+                tasksRes.forEach(task => {
+                  allTasks.push({
+                    ...task,
+                    groupId: group.id,
+                    id: task.id || Math.random(), // Ensure id exists
+                    title: task.name || task.title || 'N/A',
+                    deadline: task.deadline,
+                    status: task.status || 'Todo',
+                    taskType: task.type || task.taskType || null,
+                    isActive: true
+                  });
+                });
+              } else if (tasksRes && typeof tasksRes === 'object') {
+                // Kiểm tra nếu có message "No reviewer tasks found in this group."
+                if (tasksRes.message && tasksRes.message === "No reviewer tasks found in this group.") {
+                  // Không có task nào, bỏ qua
+                } else if (Array.isArray(tasksRes.data)) {
+                  // Có thể có format { data: [...] }
+                  tasksRes.data.forEach(task => {
+                    allTasks.push({
+                      ...task,
+                      groupId: group.id,
+                      id: task.id || Math.random(),
+                      title: task.name || task.title || 'N/A',
+                      deadline: task.deadline,
+                      status: task.status || 'Todo',
+                      taskType: task.type || task.taskType || null,
+                      isActive: true
+                    });
+                  });
+                }
+              }
+            } catch (taskError) {
+              // Nếu không có task nào hoặc lỗi, bỏ qua
+              console.log(`No reviewer tasks for group ${group.id}:`, taskError);
+            }
+          } catch (error) {
+            console.error(`Error loading data for group ${group.id}:`, error);
+          }
+        }
+
         if (!mounted) return;
 
-        // Process milestones
-        if (milestonesRes.status === 'fulfilled') {
-          const list = Array.isArray(milestonesRes.value) ? milestonesRes.value : [];
-          const milestonesWithGroup = list.map(milestone => ({
-            ...milestone,
-            groupId: selectedGroupId
-          }));
-          setMilestones(milestonesWithGroup);
-        } else {
-          setMilestones([]);
-        }
+        // Sort meetings by date
+        allMeetings.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
 
-        // Process meetings
-        if (meetingsRes.status === 'fulfilled' && meetingsRes.value?.status === 200) {
-        
-          const meetingsData = meetingsRes.value?.data || [];
-          const meetingsWithGroup = meetingsData.map(meeting => ({
-            ...meeting,
-            groupId: selectedGroupId
-          }));
-          meetingsWithGroup.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
-          setMeetings(meetingsWithGroup);
-        } else {
-          setMeetings([]);
-        }
-
-        // Process tasks
-        if (tasksRes.status === 'fulfilled' && tasksRes.value?.status === 200) {
-         
-          const tasksData = tasksRes.value?.data || [];
-          const tasksWithGroup = tasksData.map(task => ({
-            ...task,
-            groupId: selectedGroupId
-          }));
-          setTasks(tasksWithGroup);
-        } else {
-          setTasks([]);
-        }
+        setMilestones(allMilestones);
+        setMeetings(allMeetings);
+        setTasks(allTasks);
       } catch (error) {
-        console.error('Error loading group data:', error);
+        console.error('Error loading all groups data:', error);
         if (!mounted) return;
         setMilestones([]);
         setMeetings([]);
         setTasks([]);
       }
     }
-    loadGroupData();
+    loadAllGroupsData();
     return () => { mounted = false; };
-  }, [selectedGroupId, selectedSemesterId, groupExpireFilter]);
+  }, [groups, selectedSemesterId, groupExpireFilter]);
 
   // Set loading false when groups are loaded (no need to wait for data)
   React.useEffect(() => {
@@ -824,8 +938,12 @@ export default function SupervisorCalendar() {
 
   // Get group code by ID
   const getGroupCode = (groupId) => {
-    const group = groups.find(g => g.id === groupId || g.id === String(groupId));
-    return group?.groupCode || `GRP${groupId}`;
+    const group = groupDetails.find(g => g.id === groupId || g.id === Number(groupId) || g.id === String(groupId));
+    if (group) {
+      return group.groupCode || group.code || `GRP${groupId}`;
+    }
+    const basicGroup = groups.find(g => g.id === groupId || g.id === String(groupId) || g.id === Number(groupId));
+    return basicGroup?.groupCode || basicGroup?.code || `GRP${groupId}`;
   };
 
   // Join meeting
@@ -902,10 +1020,11 @@ export default function SupervisorCalendar() {
           groupExpireFilter={groupExpireFilter}
           onGroupExpireFilterChange={setGroupExpireFilter}
           groups={groups}
-          selectedGroupId={selectedGroupId ? selectedGroupId.toString() : ''}
-          onGroupChange={(value) => setSelectedGroupId(value ? Number(value) : null)}
-          groupSelectPlaceholder="-- Select group to view calendar --"
+          selectedGroupId=""
+          onGroupChange={() => {}}
+          groupSelectPlaceholder=""
           loading={loading}
+          hideGroupSelect={true}
         />
       </div>
       
@@ -924,6 +1043,187 @@ export default function SupervisorCalendar() {
             <div style={{ fontSize: 13, fontWeight: 600, color: '#0c4a6e' }}>
               Semester: {semesterInfo.name} ({formatDate(semesterInfo.startAt, 'DD/MM/YYYY')} - {formatDate(semesterInfo.endAt, 'DD/MM/YYYY')})
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Progress Summary by Group */}
+      {groupDetails.length > 0 && milestones.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Progress Summary by Group</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {groupDetails.map((group) => {
+              // Lọc milestones của nhóm này
+              const groupMilestones = milestones.filter(m => 
+                m.groupId === group.id || 
+                m.groupId === Number(group.id) || 
+                m.groupId === String(group.id)
+              );
+
+              if (groupMilestones.length === 0) return null;
+
+              const groupIdStr = String(group.id);
+              const groupIdNum = Number(group.id);
+              const hasNoSchedule = groupsWithoutSchedule.includes(groupIdStr) || 
+                                   groupsWithoutSchedule.includes(groupIdNum) ||
+                                   groupsWithoutSchedule.includes(group.id);
+
+              return (
+                <div key={group.id} style={{
+                  background: '#fff',
+                  border: hasNoSchedule ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  padding: 16,
+                  position: 'relative'
+                }}>
+                  {/* Group Header */}
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div style={{ fontWeight: 600, fontSize: 16, color: '#1f2937' }}>
+                        {group.projectName || 'N/A'}
+                      </div>
+                      {hasNoSchedule && (
+                        <div style={{
+                          background: '#f59e0b',
+                          color: '#fff',
+                          padding: '4px 8px',
+                          borderRadius: 4,
+                          fontSize: 10,
+                          fontWeight: 600
+                        }}>
+                          ⚠ Meeting schedule not finalized
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#64748b' }}>
+                      Group Code: {group.groupCode || 'N/A'} | Students: {group.students?.length || 0} | Supervisors: {group.supervisors?.join(', ') || 'N/A'}
+                    </div>
+                  </div>
+
+                  {/* Progress Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
+                    <div style={{ 
+                      background: '#f0f9ff', 
+                      border: '1px solid #0ea5e9', 
+                      borderRadius: 8, 
+                      padding: 12 
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#0c4a6e', marginBottom: 4 }}>
+                        Total Milestones
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: '#0369a1' }}>
+                        {groupMilestones.length}
+                      </div>
+                    </div>
+                    
+                    <div style={{ 
+                      background: '#ecfdf5', 
+                      border: '1px solid #10b981', 
+                      borderRadius: 8, 
+                      padding: 12 
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#065f46', marginBottom: 4 }}>
+                        Submitted
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: '#059669' }}>
+                        {groupMilestones.filter(m => m.status === 'SUBMITTED').length}
+                      </div>
+                    </div>
+                    
+                    <div style={{ 
+                      background: '#fef3c7', 
+                      border: '1px solid #f59e0b', 
+                      borderRadius: 8, 
+                      padding: 12 
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
+                        Pending
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: '#d97706' }}>
+                        {groupMilestones.filter(m => m.status === 'Pending' || m.status === 'PENDING').length}
+                      </div>
+                    </div>
+                    
+                    <div style={{ 
+                      background: '#fee2e2', 
+                      border: '1px solid #dc2626', 
+                      borderRadius: 8, 
+                      padding: 12 
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
+                        Late
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: '#dc2626' }}>
+                        {groupMilestones.filter(m => m.status === 'LATE').length}
+                      </div>
+                    </div>
+                    
+                    <div style={{ 
+                      background: '#f3f4f6', 
+                      border: '1px solid #64748b', 
+                      borderRadius: 8, 
+                      padding: 12 
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
+                        Unsubmitted
+                      </div>
+                      <div style={{ fontSize: 20, fontWeight: 700, color: '#64748b' }}>
+                        {groupMilestones.filter(m => m.status === 'UNSUBMITTED' || !m.status).length}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Managed Groups */}
+      {groupDetails.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Managed Groups</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+            {groupDetails.map((group) => {
+              const groupIdStr = String(group.id);
+              const groupIdNum = Number(group.id);
+              const hasNoSchedule = groupsWithoutSchedule.includes(groupIdStr) || 
+                                   groupsWithoutSchedule.includes(groupIdNum) ||
+                                   groupsWithoutSchedule.includes(group.id);
+              return (
+                <div key={group.id} style={{
+                  background: hasNoSchedule ? '#fef3c7' : '#f9fafb',
+                  border: hasNoSchedule ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  padding: 12,
+                  position: 'relative'
+                }}>
+                  {hasNoSchedule && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      background: '#f59e0b',
+                      color: '#fff',
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 10,
+                      fontWeight: 600
+                    }}>
+                      ⚠ Meeting schedule not finalized
+                    </div>
+                  )}
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
+                    {group.projectName}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    <div>Group Code: {group.groupCode || 'N/A'}</div>
+                    <div>Students: {group.students?.length || 0}</div>
+                    <div>Supervisors: {group.supervisors?.join(', ') || 'N/A'}</div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -16,7 +16,8 @@ export default function SupervisorGroupFilter({
   selectedGroupId,
   onGroupChange,
   groupSelectPlaceholder = 'Select group',
-  loading = false
+  loading = false,
+  hideGroupSelect = false
 }) {
   return (
     <div className={styles.filterContainer}>
@@ -57,26 +58,28 @@ export default function SupervisorGroupFilter({
             </label>
           </div>
         </div>
-        <div className={styles.controlGroup}>
-          <label className={styles.filterLabel}>Group:</label>
-          <select
-            value={selectedGroupId || ''}
-            onChange={(e) => onGroupChange(e.target.value)}
-            className={styles.groupSelect}
-            disabled={loading}
-          >
-            <option value="">{groupSelectPlaceholder}</option>
-            {groups.map((group) => {
-              const groupId = typeof group === 'object' ? (group.id || group.groupId) : group;
-              const groupName = typeof group === 'object' ? (group.name || group.groupName || group.label) : group;
-              return (
-                <option key={groupId} value={groupId}>
-                  {groupName}
-                </option>
-              );
-            })}
-          </select>
-        </div>
+        {!hideGroupSelect && (
+          <div className={styles.controlGroup}>
+            <label className={styles.filterLabel}>Group:</label>
+            <select
+              value={selectedGroupId || ''}
+              onChange={(e) => onGroupChange(e.target.value)}
+              className={styles.groupSelect}
+              disabled={loading}
+            >
+              <option value="">{groupSelectPlaceholder}</option>
+              {groups.map((group) => {
+                const groupId = typeof group === 'object' ? (group.id || group.groupId) : group;
+                const groupName = typeof group === 'object' ? (group.name || group.groupName || group.label) : group;
+                return (
+                  <option key={groupId} value={groupId}>
+                    {groupName}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+        )}
       </div>
     </div>
   );
