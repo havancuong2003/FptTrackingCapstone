@@ -179,6 +179,7 @@ export default function SupervisorSchedule() {
       try {
         const scheduleResponse = await getMeetingScheduleByGroupId(groupId);
         if (scheduleResponse.status === 200 && scheduleResponse.data.isActive) {
+          console.log('scheduleResponse', scheduleResponse);
           setMeetingSchedule(scheduleResponse.data);
           setIsFinalized(scheduleResponse.data.isActive);  
         }
@@ -499,8 +500,32 @@ export default function SupervisorSchedule() {
                           'sunday': 'Sunday'
                         };
                         const dayName = dayNames[meetingSchedule.dayOfWeek?.toLowerCase()] || meetingSchedule.dayOfWeek || '';
-                        const slot = campusSlots.find(s => s.id === meetingSchedule.slotId);
-                        const slotTime = slot ? `${slot.startAt || ''} - ${slot.endAt || ''}` : '';
+                        // Lấy thời gian trực tiếp từ meetingSchedule.slot
+                        let slotTime = '';
+                        if (meetingSchedule?.slot?.startAt && meetingSchedule?.slot?.endAt) {
+                          const formatTimeFromSlot = (timeStr) => {
+                            if (!timeStr) return '';
+                            // Format: "07:30:00" -> "7:30 AM" or "13:30:00" -> "1:30 PM"
+                            const parts = timeStr.split(':');
+                            if (parts.length < 2) return timeStr;
+                            
+                            const hours = parseInt(parts[0], 10);
+                            const minutes = parseInt(parts[1], 10);
+                            
+                            if (isNaN(hours) || isNaN(minutes)) return timeStr;
+                            
+                            const period = hours >= 12 ? 'PM' : 'AM';
+                            const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+                            const displayMinutes = minutes.toString().padStart(2, '0');
+                            
+                            return `${displayHours}:${displayMinutes} ${period}`;
+                          };
+                          slotTime = `${formatTimeFromSlot(meetingSchedule.slot.startAt)} - ${formatTimeFromSlot(meetingSchedule.slot.endAt)}`;
+                        } else {
+                          // Fallback: tìm trong campusSlots nếu không có slot trực tiếp
+                          const slot = campusSlots.find(s => s.id === meetingSchedule.slotId);
+                          slotTime = slot ? `${slot.startAt || ''} - ${slot.endAt || ''}` : '';
+                        }
                         return `${dayName} - ${slotTime}`;
                       })()}
                     </span>
@@ -508,8 +533,8 @@ export default function SupervisorSchedule() {
                   <div className={styles.infoRow}>
                     <span className={styles.infoLabel}>Created Date:</span>
                     <span className={styles.infoValue}>
-                      {meetingSchedule.createAt 
-                        ? new Date(meetingSchedule.createAt).toLocaleDateString('en-US')
+                      {meetingSchedule.createAt || meetingSchedule.iscreateAt
+                        ? new Date(meetingSchedule.createAt || meetingSchedule.iscreateAt).toLocaleDateString('en-US')
                         : new Date().toLocaleDateString('en-US')
                       }
                     </span>
