@@ -179,7 +179,6 @@ export default function SupervisorSchedule() {
       try {
         const scheduleResponse = await getMeetingScheduleByGroupId(groupId);
         if (scheduleResponse.status === 200 && scheduleResponse.data.isActive) {
-          console.log('scheduleResponse', scheduleResponse);
           setMeetingSchedule(scheduleResponse.data);
           setIsFinalized(scheduleResponse.data.isActive);  
         }
