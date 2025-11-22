@@ -44,6 +44,7 @@ export default function StudentHome() {
   // Load user info from localStorage, don't call API
   React.useEffect(() => {
     const user = getUserInfo();
+    console.log('user', user);
     setUserInfo(user);
   }, []);
 
@@ -484,8 +485,12 @@ export default function StudentHome() {
     
     // Load milestone details
     try {
-      const res = await getDeliverableDetail(userInfo.groups[0], milestone.id);
-      setMilestoneDetails(res?.data || null);
+      console.log('check user info', userInfo);
+      
+      console.log('userInfo?.groups?.[0]', userInfo?.groups?.[0]);
+      const res = await getDeliverableDetail(userInfo?.groups?.[0], milestone.id);
+      console.log('res 3', res);
+      setMilestoneDetails(res || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
       setMilestoneDetails(null);
