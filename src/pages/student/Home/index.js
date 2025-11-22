@@ -130,6 +130,7 @@ export default function StudentHome() {
       if (!groupInfo?.semesterId) return;
       try {
         const res = await getSemesterDetail(groupInfo.semesterId);
+        console.log('res 2', res);
         const semester = res?.data || null;
         if (!mounted) return;
         setSemesterInfo(semester);
@@ -156,7 +157,9 @@ export default function StudentHome() {
         // Get first group from groups list
         const groupId = userInfo.groups[0];
         const res = await getDeliverablesByGroup(groupId);
-        const list = Array.isArray(res?.data) ? res.data : [];
+     //   console.log('res', res);
+        const list = Array.isArray(res) ? res : [];
+      //  console.log('list', list);
         if (!mounted) return;
         setMilestones(list);
       } catch {
