@@ -110,7 +110,7 @@ export default function StudentMilestones() {
         // Get first group from groups list
         const groupId = userInfo.groups[0];
         const res = await getDeliverablesByGroup(groupId);
-        const list = Array.isArray(res?.data) ? res.data : [];
+        const list = Array.isArray(res) ? res : [];
         if (!mounted) return;
         setMilestones(list);
       } catch {
@@ -150,8 +150,11 @@ export default function StudentMilestones() {
     
     // Load milestone details
     try {
-      const res = await getDeliverableDetail(userInfo.groups[0], milestone.id);
-      setMilestoneDetails(res?.data || null);
+      // get user info from localStorage
+      const user = getUserInfo();
+      const groupId = user?.groups?.[0];
+      const res = await getDeliverableDetail(groupId, milestone.id);
+      setMilestoneDetails(res || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
       setMilestoneDetails(null);
@@ -174,11 +177,14 @@ export default function StudentMilestones() {
       const formData = new FormData();
       formData.append('file', fileToUpload);
       
-      await uploadMilestoneFile(userInfo.groups[0], deliveryItemId, fileToUpload);
+      // get user info from localStorage
+      const user = getUserInfo();
+      const groupId = user?.groups?.[0];
+      await uploadMilestoneFile(groupId, deliveryItemId, fileToUpload);
       
       // Reload milestones after successful upload
-      const milestonesRes = await getDeliverablesByGroup(userInfo.groups[0]);
-      const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
+      const milestonesRes = await getDeliverablesByGroup(groupId);
+      const list = Array.isArray(milestonesRes) ? milestonesRes : [];
       setMilestones(list);
       
       // Update selectedMilestone with new status
@@ -190,7 +196,7 @@ export default function StudentMilestones() {
       // Reload milestone details after successful upload
       if (selectedMilestone) {
         const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
-        setMilestoneDetails(detailRes?.data || null);
+        setMilestoneDetails(detailRes || null);
       }
       
       // Clear selected file for this item only
@@ -237,8 +243,11 @@ export default function StudentMilestones() {
         alert('File deleted successfully!');
         // Reload milestone details
         if (selectedMilestone) {
-          const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
-          setMilestoneDetails(detailRes?.data || null);
+          // get user info from localStorage
+          const user = getUserInfo();
+          const groupId = user?.groups?.[0];
+          const detailRes = await getDeliverableDetail(groupId, selectedMilestone.id);
+          setMilestoneDetails(detailRes || null);
         }
       }
     } catch (error) {

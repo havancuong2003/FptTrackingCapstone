@@ -232,12 +232,14 @@ export default function SupervisorCalendar() {
           getMeetingScheduleDatesByGroup(selectedGroupId),
           getTasksByGroup(selectedGroupId)
         ]);
-
+        console.log('milestonesRes', milestonesRes);
+        console.log('meetingsRes', meetingsRes);
+        console.log('tasksRes', tasksRes);
         if (!mounted) return;
 
         // Process milestones
         if (milestonesRes.status === 'fulfilled') {
-          const list = Array.isArray(milestonesRes.value?.data) ? milestonesRes.value.data : [];
+          const list = Array.isArray(milestonesRes.value) ? milestonesRes.value : [];
           const milestonesWithGroup = list.map(milestone => ({
             ...milestone,
             groupId: selectedGroupId
@@ -249,7 +251,8 @@ export default function SupervisorCalendar() {
 
         // Process meetings
         if (meetingsRes.status === 'fulfilled' && meetingsRes.value?.status === 200) {
-          const meetingsData = meetingsRes.value.data || [];
+          console.log('meetingsRes', meetingsRes);
+          const meetingsData = meetingsRes.value?.data || [];
           const meetingsWithGroup = meetingsData.map(meeting => ({
             ...meeting,
             groupId: selectedGroupId
@@ -262,7 +265,8 @@ export default function SupervisorCalendar() {
 
         // Process tasks
         if (tasksRes.status === 'fulfilled' && tasksRes.value?.status === 200) {
-          const tasksData = tasksRes.value.data || [];
+          console.log('tasksRes', tasksRes);
+          const tasksData = tasksRes.value?.data || [];
           const tasksWithGroup = tasksData.map(task => ({
             ...task,
             groupId: selectedGroupId
@@ -292,6 +296,7 @@ export default function SupervisorCalendar() {
 
   // Get milestones for selected week
   const getMilestonesForWeek = () => {
+
     if (!selectedWeek || !milestones.length) return [];
     
     const selectedWeekData = weeks.find(w => w.weekNumber === selectedWeek);
@@ -302,7 +307,6 @@ export default function SupervisorCalendar() {
     
     // Set week end to 23:59:59 to include the entire last day
     weekEnd.setHours(23, 59, 59, 999);
-    
     return milestones.filter(milestone => {
       if (!milestone.endAt) return false;
       const deadline = new Date(milestone.endAt);
@@ -995,7 +999,7 @@ export default function SupervisorCalendar() {
             {timeSlots.length > 0 ? (() => {
               // Lấy tất cả milestones của tuần
               const weekMilestones = getMilestonesForWeek();
-              
+
               // Tạo một map để lưu các milestone không có slot phù hợp
               const milestoneRows = new Map();
               
@@ -1069,10 +1073,11 @@ export default function SupervisorCalendar() {
                         {timeSlot.nameSlot ? `${timeSlot.nameSlot} (${timeSlot.startAt} - ${timeSlot.endAt})` : timeSlot.label}
                       </td>
                       {DAYS.map((day, dayIndex) => {
+                     
                         const milestones = getMilestonesForSlot(dayIndex, timeSlot);
                         const meetings = getMeetingsForSlot(dayIndex, timeSlot);
                         const tasks = getTasksForSlot(dayIndex, timeSlot);
-                        
+                   
                         return (
                           <td key={day} style={{ 
                             padding: '8px', 

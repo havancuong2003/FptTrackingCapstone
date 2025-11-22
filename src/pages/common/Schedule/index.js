@@ -73,6 +73,25 @@ export default function Schedule() {
     { id: 7, name: 'Sunday', value: 'sunday' }
   ];
 
+  // Helper function to format time from slot (HH:MM:SS -> HH:MM AM/PM)
+  const formatTimeFromSlot = (timeStr) => {
+    if (!timeStr) return '';
+    // Format: "07:30:00" -> "7:30 AM" or "13:30:00" -> "1:30 PM"
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return timeStr;
+    
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+    
+    if (isNaN(hours) || isNaN(minutes)) return timeStr;
+    
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    const displayMinutes = minutes.toString().padStart(2, '0');
+    
+    return `${displayHours}:${displayMinutes} ${period}`;
+  };
+
   useEffect(() => {
     // If no valid groupId, don't call API
     if (!hasValidGroupId) {
@@ -119,6 +138,7 @@ export default function Schedule() {
     try {
       const response = await getMeetingScheduleByGroupId(groupId);
       if (response.status === 200) {
+        console.log('response', response);
         setMeetingSchedule(response.data);
         if(response.data.isActive) {
           setIsFinalized(true);
@@ -485,8 +505,14 @@ export default function Schedule() {
           <div className={styles.finalized}>
           <div className={styles.finalizedContent}>
               <h3>Meeting Schedule Confirmed!</h3>
-              <p>Time: {meetingSchedule?.dayOfWeek ? meetingSchedule.dayOfWeek.charAt(0).toUpperCase() + meetingSchedule.dayOfWeek.slice(1) : ''} - {meetingSchedule?.time}</p>
-              <p>Created Date: {new Date(meetingSchedule?.createAt).toLocaleDateString('en-US')}</p>
+              <p>
+                Time: {meetingSchedule?.dayOfWeek ? meetingSchedule.dayOfWeek.charAt(0).toUpperCase() + meetingSchedule.dayOfWeek.slice(1) : ''} - {
+                  meetingSchedule?.slot?.startAt && meetingSchedule?.slot?.endAt
+                    ? `${formatTimeFromSlot(meetingSchedule.slot.startAt)} - ${formatTimeFromSlot(meetingSchedule.slot.endAt)}`
+                    : meetingSchedule?.time || 'N/A'
+                }
+              </p>
+              <p>Created Date: {new Date(meetingSchedule?.createAt || meetingSchedule?.iscreateAt).toLocaleDateString('en-US')}</p>
               {meetingSchedule?.meetingLink && (
                 <a 
                   href={meetingSchedule?.meetingLink} 

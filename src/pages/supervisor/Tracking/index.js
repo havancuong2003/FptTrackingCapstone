@@ -168,7 +168,7 @@ export default function SupervisorTracking() {
       if (!selectedGroup?.id) return;
       try {
         const res = await getDeliverablesByGroup(selectedGroup.id);
-        const list = Array.isArray(res?.data) ? res.data : [];
+        const list = Array.isArray(res) ? res : [];
         if (!mounted) return;
         setMilestones(list);
       } catch {
