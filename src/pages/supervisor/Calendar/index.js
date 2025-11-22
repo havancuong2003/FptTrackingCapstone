@@ -784,7 +784,7 @@ export default function SupervisorCalendar() {
     // Load milestone details
     try {
       const res = await getDeliverableDetail(milestone.groupId, milestone.id);
-      setMilestoneDetails(res?.data || null);
+      setMilestoneDetails(res || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
       setMilestoneDetails(null);
