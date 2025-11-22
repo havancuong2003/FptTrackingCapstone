@@ -232,9 +232,7 @@ export default function SupervisorCalendar() {
           getMeetingScheduleDatesByGroup(selectedGroupId),
           getTasksByGroup(selectedGroupId)
         ]);
-        console.log('milestonesRes', milestonesRes);
-        console.log('meetingsRes', meetingsRes);
-        console.log('tasksRes', tasksRes);
+;
         if (!mounted) return;
 
         // Process milestones
@@ -251,7 +249,7 @@ export default function SupervisorCalendar() {
 
         // Process meetings
         if (meetingsRes.status === 'fulfilled' && meetingsRes.value?.status === 200) {
-          console.log('meetingsRes', meetingsRes);
+        
           const meetingsData = meetingsRes.value?.data || [];
           const meetingsWithGroup = meetingsData.map(meeting => ({
             ...meeting,
@@ -265,7 +263,7 @@ export default function SupervisorCalendar() {
 
         // Process tasks
         if (tasksRes.status === 'fulfilled' && tasksRes.value?.status === 200) {
-          console.log('tasksRes', tasksRes);
+         
           const tasksData = tasksRes.value?.data || [];
           const tasksWithGroup = tasksData.map(task => ({
             ...task,

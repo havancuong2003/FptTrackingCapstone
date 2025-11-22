@@ -138,7 +138,7 @@ export default function Schedule() {
     try {
       const response = await getMeetingScheduleByGroupId(groupId);
       if (response.status === 200) {
-        console.log('response', response);
+     
         setMeetingSchedule(response.data);
         if(response.data.isActive) {
           setIsFinalized(true);

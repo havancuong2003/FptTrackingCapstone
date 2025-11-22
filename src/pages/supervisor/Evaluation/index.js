@@ -7,7 +7,7 @@ import DataTable from "../../../components/DataTable/DataTable";
 import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from "../../../auth/auth";
 import { getCapstoneGroupDetail } from "../../../api/staff/groups";
 import { getDeliverablesByGroup } from "../../../api/deliverables";
-import { getEvaluationsByMentorDeliverable, getPenaltyCardsByMilestone, createEvaluation, updateEvaluation } from "../../../api/evaluation";
+import { getEvaluationsByMentorDeliverable, getPenaltyCardsByMilestone, createEvaluation, updateEvaluation as updateEvaluationAPI } from "../../../api/evaluation";
 import SupervisorGroupFilter from "../../../components/SupervisorGroupFilter/SupervisorGroupFilter";
 
 // API endpoints - using axiosClient
@@ -196,23 +196,15 @@ export default function SupervisorEvaluation() {
         const milestoneRes = milestoneResult.status === 'fulfilled' ? milestoneResult.value : null;
         const studentRes = studentResult.status === 'fulfilled' ? studentResult.value : null;
 
-
         // Handle different API response formats
         let studentData;
-        if (studentRes && studentRes.status === 'fulfilled') {
-          if (studentRes.value?.status === 200) {
-            studentData = studentRes.value.data;
-          } else if (studentRes.value?.data) {
-            // Fallback: if no status but has data
-            studentData = studentRes.value.data;
-          } else {
-            // Fallback: use entire response
-            studentData = studentRes.value;
-          }
+        if (studentRes && studentRes.status === 200) {
+          studentData = studentRes.data;
         }
 
         if (studentData) {
-          const milestoneData = milestoneRes?.status === 'fulfilled' ? (milestoneRes.value?.data || []) : []; // Can be empty if API error
+         
+          const milestoneData = milestoneRes ? (milestoneRes || []) : []; // Can be empty if API error
 
 
           // Check data structure
@@ -239,6 +231,7 @@ export default function SupervisorEvaluation() {
 
 
           let milestones = [];
+          console.log('milestoneData2', milestoneData);
           if (Array.isArray(milestoneData) && milestoneData.length > 0) {
             milestones = milestoneData.map((m) => ({
               id: m.id.toString(),
@@ -280,9 +273,10 @@ export default function SupervisorEvaluation() {
   const selectedMilestoneData = selectedGroupData?.milestones?.find(
     (m) => m.id === selectedMilestone
   );
-  
+  console.log('selectedGroupData', selectedGroupData);
   // If no milestone selected or "all" selected, get all students from all milestones
   let studentsToEvaluate = [];
+
   if (!selectedMilestone || selectedMilestone === "all") {
     if (selectedGroupData?.milestones) {
       // Lấy tất cả students từ tất cả milestones và merge lại
@@ -757,7 +751,7 @@ export default function SupervisorEvaluation() {
 
       
       // Use new API endpoint to update evaluation
-      const response = await updateEvaluation(evaluationIdForUpdate, payload);
+      const response = await updateEvaluationAPI(evaluationIdForUpdate, payload);
 
       // Check if response is successful
       if (response.status === 200 || !response.error) {
