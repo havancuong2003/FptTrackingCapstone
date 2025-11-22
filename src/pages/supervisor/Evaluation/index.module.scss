@@ -1283,3 +1283,229 @@
   user-select: none;
   margin-left: 4px;
 }
+
+// ------------------ Statistics Modal Styles ------------------
+.statisticsContent {
+  margin-top: 24px;
+  max-height: 600px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.loadingStatistics {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+  font-size: 16px;
+}
+
+.noStatistics {
+  text-align: center;
+  padding: 40px;
+  color: #64748b;
+  font-style: italic;
+}
+
+.statisticsSection {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 20px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+  &:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: #cbd5e1;
+  }
+}
+
+.sectionTitle {
+  margin: 0 0 20px 0;
+  color: #1e293b;
+  font-size: 20px;
+  font-weight: 700;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #3b82f6;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.statisticsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.statItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+  }
+}
+
+.statLabel {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statValue {
+  font-size: 18px;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.successValue {
+  color: #10b981;
+}
+
+.warningValue {
+  color: #f59e0b;
+}
+
+.percentageValue {
+  color: #3b82f6;
+  font-size: 20px;
+}
+
+.errorValue {
+  color: #ef4444;
+}
+
+.absencesList {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 2px solid #e2e8f0;
+}
+
+.absencesTitle {
+  margin: 0 0 16px 0;
+  color: #1e293b;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ef4444;
+}
+
+.absenceItem {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #ef4444;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #fee2e2;
+    box-shadow: 0 2px 8px rgba(239, 68, 68, 0.1);
+  }
+}
+
+.absenceHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.absenceDate {
+  font-size: 14px;
+  font-weight: 600;
+  color: #991b1b;
+}
+
+.absenceDescription {
+  font-size: 14px;
+  color: #7f1d1d;
+  font-weight: 500;
+}
+
+.absenceReason {
+  padding-top: 12px;
+  border-top: 1px solid #fecaca;
+  font-size: 13px;
+  color: #7f1d1d;
+  line-height: 1.6;
+
+  strong {
+    color: #991b1b;
+    font-weight: 600;
+  }
+}
+
+.milestoneInfo {
+  margin-top: 16px;
+  padding: 12px 16px;
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  border-radius: 6px;
+  
+  p {
+    margin: 0;
+    color: #1e40af;
+    font-size: 14px;
+    
+    strong {
+      color: #1e3a8a;
+    }
+  }
+}
+
+.statisticsList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.statisticsItem {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  h4 {
+    margin: 0 0 16px 0;
+    color: #1e293b;
+    font-size: 18px;
+    font-weight: 700;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+}
+
+.statisticsDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  p {
+    margin: 0;
+    color: #374151;
+    font-size: 14px;
+    line-height: 1.6;
+
+    strong {
+      color: #1e293b;
+      font-weight: 600;
+    }
+  }
+}

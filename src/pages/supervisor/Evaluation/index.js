@@ -15,6 +15,7 @@ export default function SupervisorEvaluation() {
   const [loading, setLoading] = React.useState(true);
   const [evaluateModal, setEvaluateModal] = React.useState(false);
   const [editModal, setEditModal] = React.useState(false);
+  const [statisticsModal, setStatisticsModal] = React.useState(false);
   const [selectedStudent, setSelectedStudent] = React.useState(null);
   const [selectedEvaluation, setSelectedEvaluation] = React.useState(null);
   const [newEvaluation, setNewEvaluation] = React.useState({
@@ -69,6 +70,8 @@ export default function SupervisorEvaluation() {
   const [penaltyCards, setPenaltyCards] = React.useState([]);
   const [loadingPenaltyCards, setLoadingPenaltyCards] = React.useState(false);
   const [refreshTrigger, setRefreshTrigger] = React.useState(0);
+  const [studentStatistics, setStudentStatistics] = React.useState(null);
+  const [loadingStatistics, setLoadingStatistics] = React.useState(false);
 
   // ------------------ Fetch Evaluations ------------------
   const fetchEvaluations = async () => {
@@ -315,14 +318,14 @@ export default function SupervisorEvaluation() {
   };
   const columns = [
     {
-      key: 'student',
-      title: 'Student',
-      render: (student) => (
-        <div className={styles.studentInfo}>
-          <strong>{student.name}</strong>
-          <span className={styles.studentCode}>{student.id}</span>
-        </div>
-      )
+      key: 'name',
+      title: 'Name',
+      render: (student) => student.name
+    },
+    {
+      key: 'studentId',
+      title: 'Student ID',
+      render: (student) => student.id
     },
     {
       key: 'role',
@@ -340,6 +343,8 @@ export default function SupervisorEvaluation() {
     {
       key: 'type-feedback',
       title: 'Feedback',
+      headerStyle: { width: '250px', minWidth: '250px' },
+      cellStyle: { width: '250px', minWidth: '250px' },
       render: (student) => {
         // Lấy evaluation mới nhất theo milestone đang chọn
         const studentEvaluation = getLatestEvaluationForStudent(student);
@@ -361,6 +366,8 @@ export default function SupervisorEvaluation() {
     {
       key: 'notes',
       title: 'Notes',
+      headerStyle: { width: '300px', minWidth: '300px' },
+      cellStyle: { width: '300px', minWidth: '300px' },
       render: (student) => {
         const studentEvaluation = getLatestEvaluationForStudent(student);
       // Ưu tiên notes; fallback feedback. Ẩn nếu trùng text type
@@ -387,6 +394,9 @@ export default function SupervisorEvaluation() {
       render: (student) => {
         // Lấy evaluation mới nhất theo milestone đang chọn
         const studentEvaluation = getLatestEvaluationForStudent(student);
+        
+        // Chặn đánh giá khi chưa chọn milestone cụ thể
+        const isMilestoneSelected = selectedMilestone && selectedMilestone !== "all";
 
         return (
           <div className={styles.actions}>
@@ -395,6 +405,8 @@ export default function SupervisorEvaluation() {
                 variant="primary"
                 size="small"
                 onClick={() => openEvaluateModal(student)}
+                disabled={!isMilestoneSelected}
+                title={!isMilestoneSelected ? "Vui lòng chọn milestone cụ thể để đánh giá" : ""}
               >
                 Evaluate
               </Button>
@@ -403,10 +415,20 @@ export default function SupervisorEvaluation() {
                 variant="secondary"
                 size="small"
                 onClick={() => openEditModal(student, studentEvaluation)}
+                disabled={!isMilestoneSelected}
+                title={!isMilestoneSelected ? "Vui lòng chọn milestone cụ thể để chỉnh sửa" : ""}
               >
                 Edit
               </Button>
             )}
+            <Button 
+              variant="ghost"
+              size="small"
+              onClick={() => openStatisticsModal(student)}
+              title="Xem thống kê đánh giá"
+            >
+              Thống kê
+            </Button>
           </div>
         );
       }
@@ -447,10 +469,16 @@ export default function SupervisorEvaluation() {
 
   // ------------------ Modal Logic ------------------
   const openEvaluateModal = async (student) => {
+    // Chặn mở modal nếu chưa chọn milestone cụ thể
+    if (!selectedMilestone || selectedMilestone === "all") {
+      alert("Vui lòng chọn milestone cụ thể để đánh giá sinh viên.");
+      return;
+    }
+    
     setSelectedStudent(student);
     setNewEvaluation({
       studentId: student.studentId, // Sử dụng studentId để gọi API
-      milestoneId: selectedMilestone === "all" ? "all" : (selectedMilestoneData?.id || ""),
+      milestoneId: selectedMilestoneData?.id || "",
       feedback: "",
       notes: "",
     });
@@ -458,6 +486,11 @@ export default function SupervisorEvaluation() {
   };
 
   const openEditModal = async (student, evaluation) => {
+    // Chặn mở modal nếu chưa chọn milestone cụ thể
+    if (!selectedMilestone || selectedMilestone === "all") {
+      alert("Vui lòng chọn milestone cụ thể để chỉnh sửa đánh giá.");
+      return;
+    }
     
     setSelectedStudent(student);
     setSelectedEvaluation(evaluation);
@@ -542,6 +575,219 @@ export default function SupervisorEvaluation() {
       notes: evaluation.feedback || evaluation.notes || evaluation.comment || "", // Notes lấy từ feedback text của API
     });
     setEditModal(true);
+  };
+
+  const openStatisticsModal = async (student) => {
+    setSelectedStudent(student);
+    setStatisticsModal(true);
+    setLoadingStatistics(true);
+    setStudentStatistics(null);
+    
+    // Fetch statistics khi mở modal
+    await fetchStudentStatistics(student);
+  };
+
+  // Fetch thống kê task từ API
+  const fetchTaskStatistics = async (studentId, deliverableId = null) => {
+    try {
+      const params = {
+        assigneeId: parseInt(studentId)
+      };
+      
+      // Nếu có milestone được chọn, thêm deliverableId
+      if (deliverableId && deliverableId !== "all") {
+        params.deliverableId = parseInt(deliverableId);
+      }
+      
+      const response = await axiosClient.get('/task/statistic/assignee', { params });
+      
+      // Xử lý nhiều format response khác nhau
+      if (response.data) {
+        // Format 1: { status: 200, data: {...} }
+        if (response.data.status === 200 && response.data.data) {
+          return response.data.data;
+        }
+        // Format 2: { totalTasks, completedTasks, uncompletedTasks } trực tiếp
+        if (response.data.totalTasks !== undefined) {
+          return response.data;
+        }
+        // Format 3: data trực tiếp trong response.data
+        if (response.data.data && typeof response.data.data === 'object') {
+          return response.data.data;
+        }
+      }
+      
+      // Fallback: trả về response.data nếu có
+      return response.data || null;
+    } catch (error) {
+      console.error('Error fetching task statistics:', error);
+      return null;
+    }
+  };
+
+  // Fetch meetings và đếm số buổi họp tham gia/vắng mặt
+  const fetchMeetingAttendance = async (groupId, studentName, studentId) => {
+    try {
+      // Lấy danh sách meetings của group
+      const meetingsResponse = await axiosClient.get(`/Student/Meeting/group/${groupId}/schedule-dates`);
+      
+      console.log('Meeting response:', meetingsResponse.data);
+      
+      if (meetingsResponse.data.status !== 200) {
+        console.log('Meeting response status not 200:', meetingsResponse.data.status);
+        return { 
+          totalMeetings: 0, 
+          totalMeetingsHeld: 0,
+          attendedMeetings: 0, 
+          absentMeetings: 0,
+          absences: []
+        };
+      }
+      
+      const meetings = meetingsResponse.data.data || [];
+      const totalMeetings = meetings.length;
+      let totalMeetingsHeld = 0; // Tổng số buổi họp đã diễn ra (isMeeting === true)
+      let attendedMeetings = 0;
+      let absentMeetings = 0;
+      const absences = [];
+      
+      console.log('Total meetings:', totalMeetings);
+      console.log('Student info:', { studentName, studentId });
+      if (meetings.length > 0) {
+        console.log('First meeting sample:', meetings[0]);
+        console.log('Meeting keys:', Object.keys(meetings[0]));
+        console.log('isMeeting value:', meetings[0].isMeeting, 'type:', typeof meetings[0].isMeeting);
+      }
+      
+      // Đếm số buổi họp tham gia và vắng mặt
+      for (const meeting of meetings) {
+        // Kiểm tra buổi họp đã diễn ra - xử lý nhiều format khác nhau
+        const isMeetingHeld = meeting.isMeeting === true || 
+                              meeting.isMeeting === 1 || 
+                              meeting.isMeeting === 'true' ||
+                              String(meeting.isMeeting || '').toLowerCase() === 'true';
+        
+        // Đếm tổng số buổi họp đã diễn ra
+        if (isMeetingHeld) {
+          totalMeetingsHeld++;
+          console.log('Meeting held:', meeting.id, meeting.description, 'isMinute:', meeting.isMinute, 'isMeeting:', meeting.isMeeting);
+          
+          // Chỉ kiểm tra có mặt/vắng mặt nếu có biên bản
+          const hasMinute = meeting.isMinute === true || 
+                           meeting.isMinute === 1 || 
+                           meeting.isMinute === 'true' ||
+                           String(meeting.isMinute).toLowerCase() === 'true';
+          
+          if (hasMinute) {
+            try {
+              const minuteResponse = await axiosClient.get(`/MeetingMinute?meetingDateId=${meeting.id}`);
+              if (minuteResponse.data.status === 200 && minuteResponse.data.data) {
+                const minuteData = minuteResponse.data.data;
+                const attendance = minuteData.attendance || '';
+                
+                console.log('Meeting minute attendance:', attendance);
+                
+                // Kiểm tra nếu tên hoặc MSSV của sinh viên có trong danh sách tham gia
+                const attendanceLower = attendance.toLowerCase();
+                const studentNameLower = studentName.toLowerCase();
+                const isAttended = attendance && (
+                  attendanceLower.includes(studentNameLower) ||
+                  attendance.includes(studentId) ||
+                  attendance.includes(String(studentId))
+                );
+                
+                console.log('Is attended:', isAttended);
+                
+                if (isAttended) {
+                  attendedMeetings++;
+                } else {
+                  // Vắng mặt: buổi họp đã diễn ra nhưng không có trong danh sách tham gia
+                  absentMeetings++;
+                  absences.push({
+                    meetingId: meeting.id,
+                    meetingDate: meeting.meetingDate,
+                    meetingDescription: meeting.description || 'N/A',
+                    reason: minuteData.other || minuteData.issue || 'Không có lý do'
+                  });
+                }
+              }
+            } catch (err) {
+              // Bỏ qua nếu không lấy được biên bản
+              console.error('Error fetching meeting minute:', err);
+            }
+          }
+        }
+      }
+      
+      const result = { 
+        totalMeetings, 
+        totalMeetingsHeld, // Tổng số buổi họp đã diễn ra
+        attendedMeetings, 
+        absentMeetings,
+        absences
+      };
+      
+      console.log('Meeting stats result:', result);
+      
+      return result;
+    } catch (error) {
+      console.error('Error fetching meeting attendance:', error);
+      return { 
+        totalMeetings: 0, 
+        totalMeetingsHeld: 0,
+        attendedMeetings: 0, 
+        absentMeetings: 0,
+        absences: []
+      };
+    }
+  };
+
+  // Fetch toàn bộ thống kê của sinh viên
+  const fetchStudentStatistics = async (student) => {
+    try {
+      setLoadingStatistics(true);
+      console.log('Fetching statistics for student:', student);
+      
+      const deliverableId = selectedMilestone && selectedMilestone !== "all" ? selectedMilestone : null;
+      
+      // Fetch thống kê task
+      const taskStats = await fetchTaskStatistics(student.studentId, deliverableId);
+      console.log('Task stats:', taskStats);
+      
+      // Fetch thống kê meeting
+      const meetingStats = selectedGroup 
+        ? await fetchMeetingAttendance(selectedGroup, student.name, student.id)
+        : { totalMeetings: 0, totalMeetingsHeld: 0, attendedMeetings: 0, absentMeetings: 0, absences: [] };
+      
+      console.log('Meeting stats:', meetingStats);
+      
+      // Tổng hợp thống kê
+      const statistics = {
+        // Thông tin cơ bản
+        basicInfo: {
+          name: student.name,
+          studentId: student.id,
+          role: student.role || 'Member',
+          email: student.email || 'N/A'
+        },
+        // Thống kê task
+        taskStats: taskStats || {
+          totalTasks: 0,
+          completedTasks: 0,
+          uncompletedTasks: 0
+        },
+        // Thống kê meeting
+        meetingStats: meetingStats
+      };
+      
+      console.log('Final statistics:', statistics);
+      setStudentStatistics(statistics);
+    } catch (error) {
+      console.error('Error fetching student statistics:', error);
+      setStudentStatistics(null);
+    } finally {
+      setLoadingStatistics(false);
+    }
   };
 
   const submitEvaluation = async () => {
@@ -884,7 +1130,7 @@ export default function SupervisorEvaluation() {
               className={styles.select}
             >
               {/* <option value="">Chọn milestone</option> */}
-              <option value="all">All evaluations</option>
+              <option value="all">Select Milestone</option>
               {selectedGroupData?.milestones?.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name}
@@ -1027,6 +1273,180 @@ export default function SupervisorEvaluation() {
                 Cancel
               </Button>
               <Button onClick={updateEvaluation}>Update Evaluation</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ------------------ Statistics Modal ------------------ */}
+      <Modal open={statisticsModal} onClose={() => setStatisticsModal(false)}>
+        {selectedStudent && (
+          <div className={styles.evaluateModal}>
+            <h2>Báo cáo tổng hợp</h2>
+            
+            {loadingStatistics ? (
+              <div className={styles.loadingStatistics}>
+                <p>Đang tải thống kê...</p>
+              </div>
+            ) : studentStatistics ? (
+              <div className={styles.statisticsContent}>
+                {/* Thông tin cơ bản */}
+                <div className={styles.statisticsSection}>
+                  <h3 className={styles.sectionTitle}>Thông tin cơ bản</h3>
+                  <div className={styles.statisticsGrid}>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Tên</span>
+                      <span className={styles.statValue}>{studentStatistics.basicInfo.name}</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>MSSV</span>
+                      <span className={styles.statValue}>{studentStatistics.basicInfo.studentId}</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Vai trò</span>
+                      <span className={styles.statValue}>
+                        {studentStatistics.basicInfo.role === 'Leader' ? 'Leader' :
+                         studentStatistics.basicInfo.role === 'Secretary' ? 'Secretary' :
+                         'Member'}
+                      </span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Email</span>
+                      <span className={styles.statValue}>{studentStatistics.basicInfo.email}</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Số buổi meeting tham gia</span>
+                      <span className={styles.statValue}>{studentStatistics.meetingStats.attendedMeetings}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Đóng góp tổng quan */}
+                <div className={styles.statisticsSection}>
+                  <h3 className={styles.sectionTitle}>Đóng góp tổng quan</h3>
+                  <div className={styles.statisticsGrid}>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Tổng số task được giao</span>
+                      <span className={styles.statValue}>{studentStatistics.taskStats.totalTasks || 0}</span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Số task đã hoàn thành</span>
+                      <span className={`${styles.statValue} ${styles.successValue}`}>
+                        {studentStatistics.taskStats.completedTasks || 0}
+                      </span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Số task chưa hoàn thành</span>
+                      <span className={`${styles.statValue} ${styles.warningValue}`}>
+                        {studentStatistics.taskStats.uncompletedTasks || 0}
+                      </span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Tỷ lệ hoàn thành</span>
+                      <span className={`${styles.statValue} ${styles.percentageValue}`}>
+                        {studentStatistics.taskStats.totalTasks > 0
+                          ? ((studentStatistics.taskStats.completedTasks / studentStatistics.taskStats.totalTasks) * 100).toFixed(1)
+                          : 0}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tham gia họp */}
+                <div className={styles.statisticsSection}>
+                  <h3 className={styles.sectionTitle}>Tham gia họp</h3>
+                  <div className={styles.statisticsGrid}>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Số buổi họp có mặt</span>
+                      <span className={`${styles.statValue} ${styles.successValue}`}>
+                        {studentStatistics.meetingStats.attendedMeetings}
+                      </span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Số buổi họp vắng mặt</span>
+                      <span className={`${styles.statValue} ${styles.errorValue}`}>
+                        {studentStatistics.meetingStats.absentMeetings || 0}
+                      </span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Tổng buổi meeting đã diễn ra</span>
+                      <span className={styles.statValue}>
+                        {(() => {
+                          const totalHeld = studentStatistics.meetingStats?.totalMeetingsHeld;
+                          if (totalHeld !== undefined && totalHeld !== null) {
+                            return totalHeld;
+                          }
+                          const attended = studentStatistics.meetingStats?.attendedMeetings || 0;
+                          const absent = studentStatistics.meetingStats?.absentMeetings || 0;
+                          return attended + absent;
+                        })()}
+                      </span>
+                    </div>
+                    <div className={styles.statItem}>
+                      <span className={styles.statLabel}>Tỷ lệ tham gia</span>
+                      <span className={`${styles.statValue} ${styles.percentageValue}`}>
+                        {(() => {
+                          const totalHeld = studentStatistics.meetingStats?.totalMeetingsHeld;
+                          const total = totalHeld !== undefined && totalHeld !== null 
+                            ? totalHeld 
+                            : ((studentStatistics.meetingStats?.attendedMeetings || 0) + (studentStatistics.meetingStats?.absentMeetings || 0));
+                          const attended = studentStatistics.meetingStats?.attendedMeetings || 0;
+                          return total > 0 ? ((attended / total) * 100).toFixed(1) : 0;
+                        })()}%
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Danh sách buổi vắng mặt với lý do */}
+                  {studentStatistics.meetingStats.absences && studentStatistics.meetingStats.absences.length > 0 && (
+                    <div className={styles.absencesList}>
+                      <h4 className={styles.absencesTitle}>Danh sách buổi vắng mặt ({studentStatistics.meetingStats.absences.length})</h4>
+                      {studentStatistics.meetingStats.absences.map((absence, index) => {
+                        const meetingDate = absence.meetingDate 
+                          ? new Date(absence.meetingDate).toLocaleDateString('vi-VN', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })
+                          : 'Ngày không xác định';
+                        
+                        return (
+                          <div key={absence.meetingId || index} className={styles.absenceItem}>
+                            <div className={styles.absenceHeader}>
+                              <span className={styles.absenceDate}>{meetingDate}</span>
+                              <span className={styles.absenceDescription}>{absence.meetingDescription}</span>
+                            </div>
+                            <div className={styles.absenceReason}>
+                              <strong>Lý do:</strong> {absence.reason}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Milestone hiện tại (nếu có) */}
+                {selectedMilestone && selectedMilestone !== "all" && selectedMilestoneData && (
+                  <div className={styles.milestoneInfo}>
+                    <p><em>Thống kê được lọc theo milestone: <strong>{selectedMilestoneData.name}</strong></em></p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className={styles.noStatistics}>
+                <p>Không thể tải thống kê. Vui lòng thử lại.</p>
+              </div>
+            )}
+
+            <div className={styles.modalActions}>
+              <Button
+                variant="secondary"
+                onClick={() => setStatisticsModal(false)}
+              >
+                Đóng
+              </Button>
             </div>
           </div>
         )}

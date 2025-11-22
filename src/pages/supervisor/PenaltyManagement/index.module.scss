@@ -257,8 +257,9 @@
 // ------------------ Modal Styles ------------------
 .penaltyModal {
   padding: 32px;
-  max-width: 600px;
+  max-width: 900px;
   width: 100%;
+  min-width: 700px;
 
   h2 {
     font-size: 24px;
@@ -266,6 +267,12 @@
     color: #1e293b;
     margin: 0 0 24px 0;
     text-align: center;
+  }
+
+  // Đảm bảo Input component có width 100%
+  :global(.input) {
+    width: 100%;
+    box-sizing: border-box;
   }
 }
 
@@ -278,6 +285,14 @@
     color: #374151;
     margin-bottom: 8px;
     font-size: 14px;
+  }
+
+  // Đảm bảo Input và select có cùng width
+  :global(input),
+  input[type="text"],
+  input {
+    width: 100%;
+    box-sizing: border-box;
   }
 }
 
@@ -312,7 +327,8 @@
   background: #fff;
   font-size: 14px;
   color: #374151;
-  min-width: 200px;
+  width: 100%;
+  box-sizing: border-box;
   transition: border-color 0.2s ease;
 
   &:focus {
@@ -549,6 +565,8 @@
   .penaltyModal, .statsModal {
     padding: 20px;
     margin: 16px;
+    max-width: 95vw;
+    min-width: auto;
   }
 
   .penaltyModal h2, .statsModal h2 {
@@ -576,6 +594,8 @@
   .penaltyModal, .statsModal {
     padding: 16px;
     margin: 8px;
+    max-width: 95vw;
+    min-width: auto;
   }
 
   .penaltyModal h2, .statsModal h2 {
