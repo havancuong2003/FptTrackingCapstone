@@ -1139,7 +1139,7 @@ export default function StudentMeetingManagement() {
   if (loading) {
     return (
       <div className={styles.loading}>
-        <div>Đang tải dữ liệu...</div>
+        <div>Loading data...</div>
       </div>
     );
   }
@@ -1150,24 +1150,24 @@ export default function StudentMeetingManagement() {
     <div className={styles.container}>
       <div className={styles.header}>
         <h1>Meeting Management</h1>
-        <p>Quản lý các buổi họp nhóm</p>
+        <p>Manage group meetings</p>
           {userInfo && (
             <div className={styles.userInfo}>
-              <p><strong>Người dùng:</strong> {userInfo.name}</p>
-              <p><strong>Vai trò:</strong> {userInfo.roleInGroup || userInfo.role}</p>
+              <p><strong>User:</strong> {userInfo.name}</p>
+              <p><strong>Role:</strong> {userInfo.roleInGroup || userInfo.role}</p>
             </div>
           )}
         </div>
         <div className={styles.noData}>
-          <h3>Không có cuộc họp nào</h3>
-          <p>Hiện tại chưa có cuộc họp nào được lên lịch cho nhóm của bạn.</p>
+          <h3>No data</h3>
+          <p>No meetings have been scheduled for your group yet.</p>
           {!userInfo && (
             <div style={{ color: 'red', marginTop: '10px' }}>
-              <p><strong>Lỗi:</strong> Không thể lấy thông tin người dùng. Vui lòng kiểm tra:</p>
+              <p><strong>Error:</strong> Unable to retrieve user information. Please check:</p>
               <ul style={{ textAlign: 'left', display: 'inline-block' }}>
-                <li>Đã đăng nhập chưa?</li>
-                <li>Token có hợp lệ không?</li>
-                <li>API có hoạt động không?</li>
+                <li>Are you logged in?</li>
+                <li>Is the token valid?</li>
+                <li>Is the API working?</li>
               </ul>
           <Button 
             onClick={() => {
@@ -1176,7 +1176,7 @@ export default function StudentMeetingManagement() {
             }}
                 style={{ marginTop: '10px' }}
           >
-                Thử lại
+                Try again
           </Button>
             </div>
           )}
@@ -1208,7 +1208,7 @@ export default function StudentMeetingManagement() {
           fontSize: '14px', 
           color: '#6b7280'
         }}>
-          Quản lý các buổi họp nhóm
+          Manage group meetings
         </p>
         
         {userInfo && (
@@ -1218,13 +1218,13 @@ export default function StudentMeetingManagement() {
             flexWrap: 'wrap'
           }}>
             <span style={{ fontSize: '14px', color: '#374151' }}>
-              <strong>Người dùng:</strong> {userInfo.name}
+              <strong>User:</strong> {userInfo.name}
             </span>
             <span style={{ fontSize: '14px', color: '#374151' }}>
-              <strong>Vai trò:</strong> {userInfo.roleInGroup || userInfo.role}
+              <strong>Role:</strong> {userInfo.roleInGroup || userInfo.role}
             </span>
             <span style={{ fontSize: '14px', color: '#374151' }}>
-              <strong>Nhóm:</strong> {userInfo.groups && userInfo.groups.length > 0 ? userInfo.groups[0] : 'N/A'}
+              <strong>Group:</strong> {userInfo.groups && userInfo.groups.length > 0 ? userInfo.groups[0] : 'N/A'}
             </span>
           </div>
         )}

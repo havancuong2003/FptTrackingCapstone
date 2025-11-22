@@ -898,7 +898,7 @@ export default function SupervisorEvaluation() {
             groupSelectPlaceholder="Select group"
             loading={loading}
           />
-          <div className={styles.controlGroup} style={{ marginTop: 16 }}>
+          <div className={styles.controlGroup} style={{ marginTop: '10px' }}>
             <label>Deliverables:</label>
             <select
               value={selectedMilestone || ""}

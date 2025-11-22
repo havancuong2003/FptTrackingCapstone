@@ -61,6 +61,7 @@ export default function PenaltyManagement() {
   React.useEffect(() => {
     if (selectedSemesterId === null) {
       setGroups([]);
+      setLoading(false);
       return;
     }
     
@@ -76,11 +77,11 @@ export default function PenaltyManagement() {
     }));
     
     setGroups(groupsData);
+    setLoading(false); // Set loading false after groups are loaded from localStorage
     
     // Check if selected group is still in filtered list
     const selectedGroupExists = selectedGroup && groupsFromStorage.some(g => {
-      const groupId = typeof selectedGroup === 'object' ? selectedGroup.id : selectedGroup;
-      return g.id === Number(groupId);
+      return g.id === Number(selectedGroup.id);
     });
     
     if (selectedGroup && !selectedGroupExists) {
@@ -183,7 +184,7 @@ export default function PenaltyManagement() {
       }
       
       // Filter penalty cards by selected group
-      const groupId = typeof selectedGroup === 'object' ? selectedGroup.id : selectedGroup;
+      const groupId = selectedGroup?.id;
       
       // Check data structure to understand how to filter
       if (allPenalties.length > 0) {
@@ -411,7 +412,7 @@ export default function PenaltyManagement() {
           description: payload.description,
           type: payload.type,
           userId: payload.userId,
-          groupId: parseInt(selectedGroup),
+          groupId: selectedGroup?.id,
             createdAt: response.data?.createdAt || new Date().toISOString(),
           studentName: studentName
         };
@@ -705,13 +706,15 @@ export default function PenaltyManagement() {
   return (
     <div className={sharedLayout.container}>
       <div className={sharedLayout.header}>
-        <h1>Penalty Management</h1>
-        <div className={sharedLayout.headerControls}>
-          <Button
-            onClick={() => openPenaltyModal()}
-          >
-            Issue Penalty
-          </Button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <h1 style={{ margin: 0 }}>Penalty Management</h1>
+          <div className={sharedLayout.headerControls}>
+            <Button
+              onClick={() => openPenaltyModal()}
+            >
+              Issue Penalty
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -723,15 +726,18 @@ export default function PenaltyManagement() {
           groupExpireFilter={groupExpireFilter}
           onGroupExpireFilterChange={setGroupExpireFilter}
           groups={groups}
-          selectedGroupId={typeof selectedGroup === 'object' ? (selectedGroup?.id?.toString() || '') : (selectedGroup || '')}
+          selectedGroupId={selectedGroup?.id ? selectedGroup.id.toString() : ''}
           onGroupChange={async (value) => {
-            setSelectedGroup(value);
+            const selectedId = value ? Number(value) : null;
+            const group = groups.find(g => String(g.id) === String(selectedId));
             
-            // Fetch students of selected group
-            if (value) {
-              await fetchStudents(value);
+            if (group) {
+              setSelectedGroup(group);
+              // Fetch students of selected group
+              await fetchStudents(group.id);
             } else {
-              // If no group selected, clear students
+              // If no group selected, clear selection and students
+              setSelectedGroup(null);
               await fetchStudents();
             }
           }}
@@ -767,7 +773,7 @@ export default function PenaltyManagement() {
       {selectedGroup && (
         <div className={styles.tableSection}>
           <div className={styles.tableHeader}>
-            <h2>Penalty List - {groups.find(g => g.id == selectedGroup)?.name || 'Selected Group'}</h2>
+            <h2>Penalty List - {selectedGroup?.name || 'Selected Group'}</h2>
           </div>
           <div className={styles.tableContainer}>
             <DataTable

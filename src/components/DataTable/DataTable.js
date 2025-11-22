@@ -37,7 +37,7 @@ const DataTable = ({
         <thead className={headerClassName}>
           <tr>
             {showIndex && (
-              <th className={styles.indexHeader}>${''}{indexTitle}</th>
+              <th className={styles.indexHeader}>{''}{indexTitle}</th>
             )}
             {columns.map((column, index) => (
               <th 
