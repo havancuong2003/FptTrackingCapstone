@@ -49,6 +49,9 @@ export default function TaskDetail() {
   const [showUnsavedModal, setShowUnsavedModal] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState('details'); // 'details' or 'history'
+  const [historyActionFilter, setHistoryActionFilter] = React.useState('');
+  const [historyUserFilter, setHistoryUserFilter] = React.useState('');
   
   const toDateTimeLocal = React.useCallback((dateString) => {
     if (!dateString) return '';
@@ -463,18 +466,42 @@ export default function TaskDetail() {
       if (response.data.status === 200) {
         const assigneeOption = assigneeOptions.find(opt => opt.value === editValues.assignee);
         const reviewerOption = reviewerOptions.find(opt => opt.value === editValues.reviewer);
+        const oldAssigneeOption = assigneeOptions.find(opt => opt.value === String(task.assignee));
+        const oldReviewerOption = reviewerOptions.find(opt => opt.value === String(task.reviewerId));
         const nowIso = new Date().toISOString();
-        const changedFields = [];
-        if (assignmentChanged) changedFields.push('assignee');
-        if (reviewerChanged) changedFields.push('reviewer');
-        if (statusChanged) changedFields.push('status');
-        if (priorityChanged) changedFields.push('priority');
-        if (deadlineChanged) changedFields.push('deadline');
-        if (task.description !== trimmedDescription) changedFields.push('description');
-        if (task.title !== trimmedTitle) changedFields.push('title');
+        
+        // Build detailed change log
+        const changeDetails = [];
+        if (task.title !== trimmedTitle) {
+          changeDetails.push(`Title: "${task.title}" → "${trimmedTitle}"`);
+        }
+        if (task.description !== trimmedDescription) {
+          changeDetails.push(`Description: "${task.description || ''}" → "${trimmedDescription}"`);
+        }
+        if (statusChanged) {
+          changeDetails.push(`Status: "${getStatusText(task.status)}" → "${getStatusText(editValues.status)}"`);
+        }
+        if (priorityChanged) {
+          changeDetails.push(`Priority: "${task.priority}" → "${editValues.priority}"`);
+        }
+        if (assignmentChanged) {
+          const oldName = oldAssigneeOption?.label || task.assigneeName || 'None';
+          const newName = assigneeOption?.label || 'None';
+          changeDetails.push(`Assignee: "${oldName}" → "${newName}"`);
+        }
+        if (reviewerChanged) {
+          const oldName = oldReviewerOption?.label || task.reviewerName || 'None';
+          const newName = reviewerOption?.label || 'None';
+          changeDetails.push(`Reviewer: "${oldName}" → "${newName}"`);
+        }
+        if (deadlineChanged) {
+          const oldDeadline = task.deadline ? formatDate(task.deadline) : 'None';
+          const newDeadline = editValues.deadline ? formatDate(new Date(editValues.deadline).toISOString()) : 'None';
+          changeDetails.push(`Deadline: "${oldDeadline}" → "${newDeadline}"`);
+        }
 
-        const historyDetail = changedFields.length > 0
-          ? `Updated ${changedFields.join(', ')}`
+        const historyDetail = changeDetails.length > 0
+          ? changeDetails.join('\n')
           : 'Updated task information';
 
         const newHistoryItem = {
@@ -483,7 +510,7 @@ export default function TaskDetail() {
           detail: historyDetail,
           at: nowIso,
           user: currentUser?.name || currentUser?.id || 'User',
-          action: 'Updated'
+          action: 'UPDATE'
         };
 
         setTask(prev => ({
@@ -633,7 +660,7 @@ export default function TaskDetail() {
           at: nowIso,
           // user get from localStorage
           user: currentUser?.id,
-          action: 'Commented'
+          action: 'COMMENT'
         };
 
         // Cập nhật state
@@ -822,16 +849,43 @@ export default function TaskDetail() {
       </div>
       <TaskPermissionNotice permissions={permissions} groupName={task.groupName || groupInfo?.name} />
 
+      {/* Tab Navigation */}
+      <div className={styles.tabNav}>
+        <button 
+          className={`${styles.tabButton} ${activeTab === 'details' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('details')}
+        >
+          Task Details
+        </button>
+        <button 
+          className={`${styles.tabButton} ${activeTab === 'history' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('history')}
+        >
+          History ({(task.history || []).length})
+        </button>
+      </div>
+
       <div className={styles.content}>
+        {activeTab === 'details' && (
         <div className={styles.mainContent}>
           <div className={styles.section}>
             <h2>Description</h2>
             {permissions.canEditTask && isEditing ? (
               <textarea
                 className={styles.descriptionEditor}
-                rows={6}
+                rows={Math.max(6, ((editValues?.description ?? task.description ?? '').match(/\n/g) || []).length + 3)}
                 value={editValues?.description ?? task.description ?? ''}
-                onChange={(e) => handleFieldChange('description', e.target.value)}
+                onChange={(e) => {
+                  handleFieldChange('description', e.target.value);
+                  // Auto resize
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
+                onFocus={(e) => {
+                  // Auto resize on focus
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
                 placeholder="Add task description..."
               />
             ) : (
@@ -1173,30 +1227,87 @@ export default function TaskDetail() {
             )}
           </div>
         </div>
+        )}
 
-        <div className={styles.sidebar}>
+        {activeTab === 'history' && (
+        <div className={styles.historyTab}>
           <div className={styles.section}>
-            <h2>History</h2>
+            <h2>Change History</h2>
+            
+            {/* Filters */}
+            <div className={styles.historyFilters}>
+              <label>Phân loại</label>
+              <select 
+                value={historyActionFilter || ''} 
+                onChange={(e) => setHistoryActionFilter(e.target.value)}
+              >
+                <option value="">Chọn tiêu chí...</option>
+                {[...new Set((task.history || []).map(h => h.action).filter(Boolean))].map(action => (
+                  <option key={action} value={action}>{action}</option>
+                ))}
+              </select>
+              
+              <label>Cập nhật bởi</label>
+              <select 
+                value={historyUserFilter || ''} 
+                onChange={(e) => setHistoryUserFilter(e.target.value)}
+              >
+                <option value="">Chọn tiêu chí...</option>
+                {[...new Set((task.history || []).map(h => h.user).filter(Boolean))].map(user => (
+                  <option key={user} value={user}>{user}</option>
+                ))}
+              </select>
+
+            </div>
+
             <div className={styles.historyList}>
-              {(task.history || []).length === 0 && (
-                <div className={styles.emptyState}>Chưa có lịch sử thay đổi.</div>
+              {(task.history || []).length === 0 ? (
+                <div className={styles.emptyState}>No change history yet.</div>
+              ) : (
+                <>
+                  {(task.history || [])
+                    .filter(item => {
+                      if (historyActionFilter && item.action !== historyActionFilter) return false;
+                      if (historyUserFilter && item.user !== historyUserFilter) return false;
+                      return true;
+                    })
+                    .map(item => {
+                    const getActionClass = (action) => {
+                      const a = (action || '').toLowerCase();
+                      if (a.includes('creat')) return styles.historyActionCreated;
+                      if (a.includes('updat')) return styles.historyActionUpdated;
+                      if (a.includes('comment')) return styles.historyActionCommented;
+                      if (a.includes('delet')) return styles.historyActionDeleted;
+                      return styles.historyActionUpdated;
+                    };
+
+                    return (
+                      <div key={item.id} className={styles.historyItem}>
+                        <div className={styles.historyItemHeader}>
+                          <div className={styles.historyTime}>{formatDate(item.at)}</div>
+                          <div className={styles.historyDot} />
+                          <div className={styles.historyUser}>
+                            <span>{item.user || 'Hệ thống'}</span>
+                          </div>
+                          <span className={`${styles.historyAction} ${getActionClass(item.action)}`}>
+                            {item.action || 'UPDATE'}
+                          </span>
+                        </div>
+                        <div className={styles.historyContent}>
+                          <div className={styles.historyTitle}>
+                            <span className={styles.historyTitleIcon}>📄</span>
+                            {item.detail}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
               )}
-              {(task.history || []).map(item => (
-                <div key={item.id} className={styles.historyItem}>
-                  <div className={styles.historyDot} />
-                  <div className={styles.historyContent}>
-                    <div className={styles.historyTitle}>{item.detail}</div>
-                    <div className={styles.historyMeta}>
-                      <span className={styles.historyUser}>{item.user}</span>
-                      <span className={styles.historyAction}>{item.action}</span>
-                      <span className={styles.historyTime}>{formatDate(item.at)}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
+        )}
       </div>
       <UnsavedChangesPrompt
         open={showUnsavedModal}

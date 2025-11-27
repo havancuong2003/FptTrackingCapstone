@@ -429,7 +429,7 @@ export default function PenaltyManagement() {
           type: "",
           userId: "",
         });
-        alert("Penalty issued successfully!");
+        alert("Discipline issued successfully!");
       } else {
         alert(`Error: ${response.message || 'Unable to issue penalty'}`);
       }
@@ -485,7 +485,7 @@ export default function PenaltyManagement() {
 
       if (response.status === 200 || !response.error) {
         setEditModal(false);
-        alert(response.message || "Penalty updated successfully!");
+        alert(response.message || "Discipline updated successfully!");
         
         
         // Update directly to state instead of full refresh
@@ -707,12 +707,12 @@ export default function PenaltyManagement() {
     <div className={sharedLayout.container}>
       <div className={sharedLayout.header}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
-          <h1 style={{ margin: 0 }}>Penalty Management</h1>
+          <h1 style={{ margin: 0 }}>Discipline Management</h1>
           <div className={sharedLayout.headerControls}>
             <Button
               onClick={() => openPenaltyModal()}
             >
-              Issue Penalty
+              Issue Discipline
             </Button>
           </div>
         </div>
@@ -758,7 +758,7 @@ export default function PenaltyManagement() {
       {selectedGroup && (
         <div className={sharedLayout.contentSection}>
           <div className={styles.statsHeader}>
-            <h2>Thống kê Thẻ phạt theo Sinh viên</h2>
+            <h2>Discipline Statistics by Student</h2>
           </div>
           <div className={styles.statsTableContainer}>
             {loadingPenaltyStats ? (
@@ -781,7 +781,7 @@ export default function PenaltyManagement() {
       {selectedGroup && (
         <div className={styles.tableSection}>
           <div className={styles.tableHeader}>
-            <h2>Penalty List - {selectedGroup?.name || 'Selected Group'}</h2>
+            <h2>Discipline List - {selectedGroup?.name || 'Selected Group'}</h2>
           </div>
           <div className={styles.tableContainer}>
             <DataTable
@@ -798,7 +798,7 @@ export default function PenaltyManagement() {
       {/* ------------------ Penalty Modal ------------------ */}
       <Modal open={penaltyModal} onClose={() => setPenaltyModal(false)}>
         <div className={styles.penaltyModal}>
-          <h2>Issue Penalty</h2>
+          <h2>Issue Discipline</h2>
           
           <div className={styles.formGroup}>
             <label>Penalty Name *</label>
@@ -878,7 +878,7 @@ export default function PenaltyManagement() {
             <Button
               onClick={submitPenalty}
             >
-              Issue Penalty
+              Issue Discipline
             </Button>
           </div>
         </div>
@@ -887,7 +887,7 @@ export default function PenaltyManagement() {
       {/* ------------------ Edit Penalty Modal ------------------ */}
       <Modal open={editModal} onClose={() => setEditModal(false)}>
         <div className={styles.penaltyModal}>
-          <h2>Edit Penalty</h2>
+          <h2>Edit Discipline</h2>
           
           <div className={styles.formGroup}>
             <label>Penalty Name *</label>
@@ -965,7 +965,7 @@ export default function PenaltyManagement() {
       {/* ------------------ Issued Penalties List ------------------ */}
       {issuedPenalties.length > 0 && (
         <div className={styles.issuedPenaltiesSection}>
-          <h2>Recently Issued Penalties</h2>
+          <h2>Recently Issued Disciplines</h2>
           <div className={styles.issuedPenaltiesList}>
             {issuedPenalties.map((penalty) => (
               <div key={penalty.id} className={styles.issuedPenaltyCard}>

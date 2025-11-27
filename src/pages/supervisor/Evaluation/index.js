@@ -9,6 +9,7 @@ import { getCapstoneGroupDetail } from "../../../api/staff/groups";
 import { getDeliverablesByGroup } from "../../../api/deliverables";
 import { getEvaluationsByMentorDeliverable, getPenaltyCardsByMilestone, createEvaluation, updateEvaluation as updateEvaluationAPI } from "../../../api/evaluation";
 import SupervisorGroupFilter from "../../../components/SupervisorGroupFilter/SupervisorGroupFilter";
+import axiosClient from "../../../utils/axiosClient";
 
 // API endpoints - using axiosClient
 
@@ -36,37 +37,25 @@ export default function SupervisorEvaluation() {
     notes: "",
   });
 
-  // Feedback statements (theo mức độ giảm dần)
+  // Feedback statements (3 mức: Above Normal, Normal, Below Normal)
   const feedbackStatements = [
     { 
-      value: "exceeds", 
-      text: "Exceeds requirements",
+      value: "above_normal", 
+      text: "Above Normal",
       shortValue: "excellent",  // Giá trị gửi lên backend
       level: 1
     },
     { 
-      value: "fully_meets", 
-      text: "Fully meets requirements",
+      value: "normal", 
+      text: "Normal",
       shortValue: "good",  // Giá trị gửi lên backend
       level: 2
     },
     { 
-      value: "mostly_meets", 
-      text: "Mostly meets requirements",
-      shortValue: "fair",  // Giá trị gửi lên backend
-      level: 3
-    },
-    { 
-      value: "basic", 
-      text: "Meets basics, lacks detail",
-      shortValue: "average",  // Giá trị gửi lên backend
-      level: 4
-    },
-    { 
-      value: "below_standard", 
-      text: "Below standard",
+      value: "below_normal", 
+      text: "Below Normal",
       shortValue: "poor",  // Giá trị gửi lên backend
-      level: 5
+      level: 3
     }
   ];
   const [evaluations, setEvaluations] = React.useState([]);
@@ -79,6 +68,13 @@ export default function SupervisorEvaluation() {
   const [semesters, setSemesters] = React.useState([]);
   const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
+
+  // State cho bảng thống kê nhóm (matrix sinh viên x milestone)
+  const [taskModal, setTaskModal] = React.useState(false);
+  const [selectedCellStudent, setSelectedCellStudent] = React.useState(null);
+  const [selectedCellMilestone, setSelectedCellMilestone] = React.useState(null);
+  const [cellTasks, setCellTasks] = React.useState([]);
+  const [loadingCellTasks, setLoadingCellTasks] = React.useState(false);
 
   // ------------------ Fetch Evaluations ------------------
   const fetchEvaluationsRef = React.useRef(false);
@@ -906,6 +902,62 @@ export default function SupervisorEvaluation() {
     }
   };
 
+  // ------------------ Fetch Tasks for Cell (Student x Milestone) ------------------
+  const fetchCellTasks = async (student, milestone) => {
+    setLoadingCellTasks(true);
+    setCellTasks([]);
+    try {
+      const params = {
+        assigneeId: parseInt(student.studentId),
+        deliverableId: parseInt(milestone.id)
+      };
+      
+      const response = await axiosClient.get('/task', { params });
+      
+      let tasks = [];
+      if (response?.data?.status === 200 && Array.isArray(response.data.data)) {
+        tasks = response.data.data;
+      } else if (Array.isArray(response?.data)) {
+        tasks = response.data;
+      } else if (Array.isArray(response)) {
+        tasks = response;
+      }
+      
+      setCellTasks(tasks);
+    } catch (error) {
+      console.error('Error fetching cell tasks:', error);
+      setCellTasks([]);
+    } finally {
+      setLoadingCellTasks(false);
+    }
+  };
+
+  // Mở modal hiển thị tasks của sinh viên trong milestone
+  const openTaskModal = (student, milestone) => {
+    setSelectedCellStudent(student);
+    setSelectedCellMilestone(milestone);
+    setTaskModal(true);
+    fetchCellTasks(student, milestone);
+  };
+
+  // Tính toán thống kê task cho từng ô (student x milestone)
+  const getCellTaskStats = (student, milestone) => {
+    // Lọc evaluations theo student và milestone
+    const studentEvaluations = evaluations.filter(e => 
+      e.receiverId === parseInt(student.studentId) &&
+      (e.deliverableId === parseInt(milestone.id) || e.deliverableName === milestone.name)
+    );
+    
+    const latestEval = studentEvaluations.length > 0 
+      ? studentEvaluations.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0]
+      : null;
+    
+    return {
+      hasEvaluation: !!latestEval,
+      evaluation: latestEval
+    };
+  };
+
   const submitEvaluation = async () => {
     if (!newEvaluation.feedback) {
       alert("Please select a feedback level before submitting.");
@@ -1271,6 +1323,67 @@ export default function SupervisorEvaluation() {
           </div>
         </div>
 
+        {/* ------------------ Group Overview Matrix (Student x Milestone) ------------------ */}
+        <div className={sharedLayout.contentSection}>
+          <h2>Group Evaluation Overview</h2>
+          <p className={styles.matrixDescription}>Click on a cell to view all tasks for that student in the milestone</p>
+          <div className={styles.matrixContainer}>
+            {selectedGroupData?.milestones?.length > 0 && studentsToEvaluate.length > 0 ? (
+              <table className={styles.matrixTable}>
+                <thead>
+                  <tr>
+                    <th className={styles.matrixHeaderStudent}>Student</th>
+                    {selectedGroupData.milestones.map(milestone => (
+                      <th key={milestone.id} className={styles.matrixHeaderMilestone}>
+                        {milestone.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {studentsToEvaluate.map(student => (
+                    <tr key={student.studentId}>
+                      <td className={styles.matrixStudentCell}>
+                        <div className={styles.studentCellInfo}>
+                          <strong>{student.name}</strong>
+                          <span className={styles.studentCellId}>{student.id}</span>
+                        </div>
+                      </td>
+                      {selectedGroupData.milestones.map(milestone => {
+                        const cellStats = getCellTaskStats(student, milestone);
+                        return (
+                          <td 
+                            key={`${student.studentId}-${milestone.id}`} 
+                            className={`${styles.matrixCell} ${cellStats.hasEvaluation ? styles.matrixCellEvaluated : styles.matrixCellPending}`}
+                            onClick={() => openTaskModal(student, milestone)}
+                            title={`Click to view tasks for ${student.name} in ${milestone.name}`}
+                          >
+                            <div className={styles.matrixCellContent}>
+                              {cellStats.hasEvaluation ? (
+                                <span className={styles.evaluationBadge}>
+                                  {mapFeedbackToText(cellStats.evaluation?.type || cellStats.evaluation?.feedback)}
+                                </span>
+                              ) : (
+                                <span className={styles.pendingBadge}>Not evaluated</span>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className={styles.noMatrixData}>
+                {!selectedGroupData?.milestones?.length 
+                  ? "No milestones found for this group" 
+                  : "No students found for evaluation"}
+              </div>
+            )}
+          </div>
+        </div>
+
         <div className={sharedLayout.contentSection}>
           <h2>Student evaluation table</h2>
           <div className={styles.tableContainer}>
@@ -1575,6 +1688,96 @@ export default function SupervisorEvaluation() {
                 onClick={() => setStatisticsModal(false)}
               >
                 Đóng
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ------------------ Task List Modal (Click on Matrix Cell) ------------------ */}
+      <Modal open={taskModal} onClose={() => setTaskModal(false)}>
+        {selectedCellStudent && selectedCellMilestone && (
+          <div className={styles.evaluateModal}>
+            <h2>Tasks Overview</h2>
+            
+            <div className={styles.studentInfo}>
+              <h3>{selectedCellStudent.name}</h3>
+              <p className={styles.studentCode}>Student ID: {selectedCellStudent.id}</p>
+              <p>Milestone: {selectedCellMilestone.name}</p>
+            </div>
+
+            {loadingCellTasks ? (
+              <div className={styles.loadingStatistics}>
+                <p>Loading tasks...</p>
+              </div>
+            ) : cellTasks.length > 0 ? (
+              <div className={styles.taskListContainer}>
+                <div className={styles.taskSummary}>
+                  <span>Total: {cellTasks.length} tasks</span>
+                  <span className={styles.completedCount}>
+                    Completed: {cellTasks.filter(t => t.status === 'Done' || t.status === 'Completed').length}
+                  </span>
+                  <span className={styles.pendingCount}>
+                    Pending: {cellTasks.filter(t => t.status !== 'Done' && t.status !== 'Completed').length}
+                  </span>
+                </div>
+                <div className={styles.taskList}>
+                  {cellTasks.map((task, index) => (
+                    <div 
+                      key={task.id || index} 
+                      className={`${styles.taskItem} ${task.status === 'Done' || task.status === 'Completed' ? styles.taskCompleted : styles.taskPending}`}
+                      onClick={() => {
+                        // Navigate to task tracking page
+                        window.open(`/student/tasks?taskId=${task.id}`, '_blank');
+                      }}
+                      title="Click to view task details"
+                    >
+                      <div className={styles.taskHeader}>
+                        <span className={styles.taskName}>{task.name || task.title || 'Unnamed Task'}</span>
+                        <span className={`${styles.taskStatus} ${styles[`status${task.status?.replace(/\s/g, '')}`]}`}>
+                          {task.status || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className={styles.taskDetails}>
+                        {task.deadline && (
+                          <span className={styles.taskDeadline}>
+                            Deadline: {new Date(task.deadline).toLocaleDateString('vi-VN')}
+                          </span>
+                        )}
+                        {task.progress !== undefined && (
+                          <span className={styles.taskProgress}>
+                            Progress: {task.progress}%
+                          </span>
+                        )}
+                        {task.assignerName && (
+                          <span className={styles.taskAssigner}>
+                            Assigned by: {task.assignerName}
+                          </span>
+                        )}
+                      </div>
+                      {task.description && (
+                        <div className={styles.taskDescription}>
+                          {task.description.length > 100 
+                            ? `${task.description.substring(0, 100)}...` 
+                            : task.description}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className={styles.noStatistics}>
+                <p>No tasks found for this student in this milestone.</p>
+              </div>
+            )}
+
+            <div className={styles.modalActions}>
+              <Button
+                variant="secondary"
+                onClick={() => setTaskModal(false)}
+              >
+                Close
               </Button>
             </div>
           </div>
