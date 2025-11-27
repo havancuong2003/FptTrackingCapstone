@@ -12,7 +12,7 @@ import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurre
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
 import { getSlotsByCampusId } from '../../../api/slots';
 import { getDeliverablesByGroup, getDeliverableDetail } from '../../../api/deliverables';
-import { getTasksByGroup, getTasksByReviewer } from '../../../api/tasks';
+import { getTasksByGroup } from '../../../api/tasks';
 import { getMeetingScheduleDatesByGroup, getMeetingMinutesByMeetingDateId } from '../../../api/meetings';
 import { getMeetingTasksByMinuteId } from '../../../api/tasks';
 import { getSemesterDetail } from '../../../api/semester';
@@ -63,6 +63,7 @@ export default function SupervisorCalendar() {
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
   const [groupsWithoutSchedule, setGroupsWithoutSchedule] = React.useState([]); // Danh sách nhóm chưa chốt lịch họp
   const [groupDetails, setGroupDetails] = React.useState([]); // Chi tiết các nhóm
+  const [groupIssues, setGroupIssues] = React.useState({}); // { groupId: [issues] }
 
   // Load user info from localStorage, don't call API
   React.useEffect(() => {
@@ -190,7 +191,15 @@ export default function SupervisorCalendar() {
         setSemesterInfo(semester);
         setWeeks(semester?.weeks || []);
         if (semester?.weeks?.length > 0) {
-          setSelectedWeek(semester.weeks[0].weekNumber);
+          // Tìm tuần hiện tại dựa trên ngày hiện tại
+          const now = new Date();
+          const currentWeek = semester.weeks.find(week => {
+            const startAt = new Date(week.startAt);
+            const endAt = new Date(week.endAt);
+            endAt.setHours(23, 59, 59, 999);
+            return now >= startAt && now <= endAt;
+          });
+          setSelectedWeek(currentWeek ? currentWeek.weekNumber : semester.weeks[0].weekNumber);
         }
       } catch {
         if (!mounted) return;
@@ -306,7 +315,6 @@ export default function SupervisorCalendar() {
       try {
         const allMilestones = [];
         const allMeetings = [];
-        const allTasks = [];
 
         // Load data for each group
         for (const group of groups) {
@@ -333,47 +341,6 @@ export default function SupervisorCalendar() {
               });
             }
 
-            // Load tasks by reviewer (only tasks assigned to this supervisor as reviewer)
-            try {
-              const tasksRes = await getTasksByReviewer(group.id);
-              // API trả về array hoặc object với message
-              if (Array.isArray(tasksRes)) {
-                tasksRes.forEach(task => {
-                  allTasks.push({
-                    ...task,
-                    groupId: group.id,
-                    id: task.id || Math.random(), // Ensure id exists
-                    title: task.name || task.title || 'N/A',
-                    deadline: task.deadline,
-                    status: task.status || 'Todo',
-                    taskType: task.type || task.taskType || null,
-                    isActive: true
-                  });
-                });
-              } else if (tasksRes && typeof tasksRes === 'object') {
-                // Kiểm tra nếu có message "No reviewer tasks found in this group."
-                if (tasksRes.message && tasksRes.message === "No reviewer tasks found in this group.") {
-                  // Không có task nào, bỏ qua
-                } else if (Array.isArray(tasksRes.data)) {
-                  // Có thể có format { data: [...] }
-                  tasksRes.data.forEach(task => {
-                    allTasks.push({
-                      ...task,
-                      groupId: group.id,
-                      id: task.id || Math.random(),
-                      title: task.name || task.title || 'N/A',
-                      deadline: task.deadline,
-                      status: task.status || 'Todo',
-                      taskType: task.type || task.taskType || null,
-                      isActive: true
-                    });
-                  });
-                }
-              }
-            } catch (taskError) {
-              // Nếu không có task nào hoặc lỗi, bỏ qua
-              console.log(`No reviewer tasks for group ${group.id}:`, taskError);
-            }
           } catch (error) {
             console.error(`Error loading data for group ${group.id}:`, error);
           }
@@ -386,7 +353,7 @@ export default function SupervisorCalendar() {
 
         setMilestones(allMilestones);
         setMeetings(allMeetings);
-        setTasks(allTasks);
+        setTasks([]);
       } catch (error) {
         console.error('Error loading all groups data:', error);
         if (!mounted) return;
@@ -398,6 +365,46 @@ export default function SupervisorCalendar() {
     loadAllGroupsData();
     return () => { mounted = false; };
   }, [groups, selectedSemesterId, groupExpireFilter]);
+
+  // Load group issues for all groups
+  React.useEffect(() => {
+    let mounted = true;
+    async function loadAllGroupIssues() {
+      if (!groups.length) {
+        setGroupIssues({});
+        return;
+      }
+      
+      try {
+        const issuesMap = {};
+        for (const group of groups) {
+          try {
+            const res = await client.get(`https://160.30.21.113:5000/api/v1/task/taskTypeIssue/${group.id}`);
+            if (res.data?.code === 200) {
+              const issuesData = res.data.data || [];
+              // Add groupId to each issue
+              issuesMap[group.id] = Array.isArray(issuesData) ? issuesData.map(issue => ({
+                ...issue,
+                groupId: group.id
+              })) : [];
+            }
+          } catch (error) {
+            console.error(`Error loading issues for group ${group.id}:`, error);
+            issuesMap[group.id] = [];
+          }
+        }
+        
+        if (!mounted) return;
+        setGroupIssues(issuesMap);
+      } catch (error) {
+        console.error('Error loading group issues:', error);
+        if (!mounted) return;
+        setGroupIssues({});
+      }
+    }
+    loadAllGroupIssues();
+    return () => { mounted = false; };
+  }, [groups]);
 
   // Set loading false when groups are loaded (no need to wait for data)
   React.useEffect(() => {
@@ -567,6 +574,81 @@ export default function SupervisorCalendar() {
     }
     
     return matchedTasks;
+  };
+
+  // Get issues for selected week
+  const getIssuesForWeek = () => {
+    if (!selectedWeek || !Object.keys(groupIssues).length) return [];
+    
+    const selectedWeekData = weeks.find(w => w.weekNumber === selectedWeek);
+    if (!selectedWeekData) return [];
+    
+    const weekStart = new Date(selectedWeekData.startAt);
+    const weekEnd = new Date(selectedWeekData.endAt);
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    const allIssues = [];
+    Object.values(groupIssues).forEach(issues => {
+      issues.forEach(issue => {
+        if (issue.deadline) {
+          const deadline = new Date(issue.deadline);
+          if (deadline >= weekStart && deadline <= weekEnd) {
+            allIssues.push(issue);
+          }
+        }
+      });
+    });
+    
+    return allIssues;
+  };
+
+  // Get issues for specific day and time slot
+  const getIssuesForSlot = (day, timeSlot) => {
+    const weekIssues = getIssuesForWeek();
+    if (!weekIssues.length) return [];
+    
+    const matchedIssues = [];
+    for (const issue of weekIssues) {
+      const deadline = new Date(issue.deadline);
+      const dayOfWeek = deadline.getDay();
+      const hour = deadline.getHours();
+      
+      const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      
+      if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
+        matchedIssues.push(issue);
+      }
+    }
+    
+    return matchedIssues;
+  };
+
+  // Get issue status color
+  const getIssueStatusColor = (status) => {
+    switch (status) {
+      case 'Done':
+        return '#059669'; // Green
+      case 'InProgress':
+        return '#d97706'; // Orange
+      case 'Todo':
+        return '#6b7280'; // Gray
+      default:
+        return '#6b7280';
+    }
+  };
+
+  // Get issue status text
+  const getIssueStatusText = (status) => {
+    switch (status) {
+      case 'Done':
+        return '✅ Done';
+      case 'InProgress':
+        return '🔄 In Progress';
+      case 'Todo':
+        return '📋 To Do';
+      default:
+        return '❓ Unknown';
+    }
   };
 
   const getStatusColor = (status) => {
@@ -1047,137 +1129,6 @@ export default function SupervisorCalendar() {
         </div>
       )}
 
-      {/* Progress Summary by Group */}
-      {groupDetails.length > 0 && milestones.length > 0 && (
-        <div style={{ marginBottom: 24 }}>
-          <h3 style={{ margin: '0 0 16px 0', fontSize: 16 }}>Progress Summary by Group</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {groupDetails.map((group) => {
-              // Lọc milestones của nhóm này
-              const groupMilestones = milestones.filter(m => 
-                m.groupId === group.id || 
-                m.groupId === Number(group.id) || 
-                m.groupId === String(group.id)
-              );
-
-              if (groupMilestones.length === 0) return null;
-
-              const groupIdStr = String(group.id);
-              const groupIdNum = Number(group.id);
-              const hasNoSchedule = groupsWithoutSchedule.includes(groupIdStr) || 
-                                   groupsWithoutSchedule.includes(groupIdNum) ||
-                                   groupsWithoutSchedule.includes(group.id);
-
-              return (
-                <div key={group.id} style={{
-                  background: '#fff',
-                  border: hasNoSchedule ? '2px solid #f59e0b' : '1px solid #e5e7eb',
-                  borderRadius: 8,
-                  padding: 16,
-                  position: 'relative'
-                }}>
-                  {/* Group Header */}
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <div style={{ fontWeight: 600, fontSize: 16, color: '#1f2937' }}>
-                        {group.projectName || 'N/A'}
-                      </div>
-                      {hasNoSchedule && (
-                        <div style={{
-                          background: '#f59e0b',
-                          color: '#fff',
-                          padding: '4px 8px',
-                          borderRadius: 4,
-                          fontSize: 10,
-                          fontWeight: 600
-                        }}>
-                          ⚠ Meeting schedule not finalized
-                        </div>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>
-                      Group Code: {group.groupCode || 'N/A'} | Students: {group.students?.length || 0} | Supervisors: {group.supervisors?.join(', ') || 'N/A'}
-                    </div>
-                  </div>
-
-                  {/* Progress Cards */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
-                    <div style={{ 
-                      background: '#f0f9ff', 
-                      border: '1px solid #0ea5e9', 
-                      borderRadius: 8, 
-                      padding: 12 
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#0c4a6e', marginBottom: 4 }}>
-                        Total Milestones
-                      </div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: '#0369a1' }}>
-                        {groupMilestones.length}
-                      </div>
-                    </div>
-                    
-                    <div style={{ 
-                      background: '#ecfdf5', 
-                      border: '1px solid #10b981', 
-                      borderRadius: 8, 
-                      padding: 12 
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#065f46', marginBottom: 4 }}>
-                        Submitted
-                      </div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: '#059669' }}>
-                        {groupMilestones.filter(m => m.status === 'SUBMITTED').length}
-                      </div>
-                    </div>
-                    
-                    <div style={{ 
-                      background: '#fef3c7', 
-                      border: '1px solid #f59e0b', 
-                      borderRadius: 8, 
-                      padding: 12 
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
-                        Pending
-                      </div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: '#d97706' }}>
-                        {groupMilestones.filter(m => m.status === 'Pending' || m.status === 'PENDING').length}
-                      </div>
-                    </div>
-                    
-                    <div style={{ 
-                      background: '#fee2e2', 
-                      border: '1px solid #dc2626', 
-                      borderRadius: 8, 
-                      padding: 12 
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
-                        Late
-                      </div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: '#dc2626' }}>
-                        {groupMilestones.filter(m => m.status === 'LATE').length}
-                      </div>
-                    </div>
-                    
-                    <div style={{ 
-                      background: '#f3f4f6', 
-                      border: '1px solid #64748b', 
-                      borderRadius: 8, 
-                      padding: 12 
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-                        Unsubmitted
-                      </div>
-                      <div style={{ fontSize: 20, fontWeight: 700, color: '#64748b' }}>
-                        {groupMilestones.filter(m => m.status === 'UNSUBMITTED' || !m.status).length}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Managed Groups */}
       {groupDetails.length > 0 && (
@@ -1213,8 +1164,25 @@ export default function SupervisorCalendar() {
                       ⚠ Meeting schedule not finalized
                     </div>
                   )}
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-                    {group.projectName}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      {group.projectName}
+                    </div>
+                    <button
+                      onClick={() => navigate(`/supervisor/tracking?groupId=${group.id}`)}
+                      style={{
+                        background: '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 500
+                      }}
+                    >
+                      View Tracking →
+                    </button>
                   </div>
                   <div style={{ fontSize: 12, color: '#64748b' }}>
                     <div>Group Code: {group.groupCode || 'N/A'}</div>
@@ -1228,38 +1196,83 @@ export default function SupervisorCalendar() {
         </div>
       )}
 
-      {/* Week Selector */}
+      {/* Week Selector with arrows and dropdown */}
       <div className={sharedLayout.contentSection} style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>Week:</span>
-        <select 
-          value={selectedWeek} 
-          onChange={(e) => setSelectedWeek(Number(e.target.value))}
-          style={{
-            padding: "8px 12px",
-            border: "1px solid #d1d5db",
-            borderRadius: "6px",
-            fontSize: "14px",
-            backgroundColor: "white",
-            outline: "none",
-            minWidth: 120,
-            maxWidth: 300
-          }}
-        >
-          {weeks.map((week) => (
-            <option 
-              key={week.weekNumber} 
-              value={week.weekNumber}
-              disabled={week.isVacation}
-              style={{ 
-                color: week.isVacation ? '#9ca3af' : '#000',
-                backgroundColor: week.isVacation ? '#f3f4f6' : '#fff'
-              }}
-            >
-              Week {week.weekNumber} ({formatDate(week.startAt, 'DD/MM/YYYY')}-{formatDate(week.endAt, 'DD/MM/YYYY')}) {week.isVacation ? '(Vacation)' : ''}
-            </option>
-          ))}
-        </select>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Week:</span>
+          
+          <button
+            onClick={() => {
+              const currentIndex = weeks.findIndex(w => w.weekNumber === selectedWeek);
+              if (currentIndex > 0) {
+                setSelectedWeek(weeks[currentIndex - 1].weekNumber);
+              }
+            }}
+            disabled={weeks.findIndex(w => w.weekNumber === selectedWeek) === 0}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              background: weeks.findIndex(w => w.weekNumber === selectedWeek) === 0 ? '#f3f4f6' : 'white',
+              cursor: weeks.findIndex(w => w.weekNumber === selectedWeek) === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: weeks.findIndex(w => w.weekNumber === selectedWeek) === 0 ? '#9ca3af' : '#374151'
+            }}
+          >
+            ← Prev
+          </button>
+          
+          <select 
+            value={selectedWeek} 
+            onChange={(e) => setSelectedWeek(Number(e.target.value))}
+            style={{
+              padding: "8px 12px",
+              border: "1px solid #d1d5db",
+              borderRadius: "6px",
+              fontSize: "14px",
+              backgroundColor: "white",
+              outline: "none",
+              minWidth: 120,
+              maxWidth: 350
+            }}
+          >
+            {weeks.map((week) => (
+              <option 
+                key={week.weekNumber} 
+                value={week.weekNumber}
+                disabled={week.isVacation}
+                style={{ 
+                  color: week.isVacation ? '#9ca3af' : '#000',
+                  backgroundColor: week.isVacation ? '#f3f4f6' : '#fff'
+                }}
+              >
+                Week {week.weekNumber} ({formatDate(week.startAt, 'DD/MM/YYYY')}-{formatDate(week.endAt, 'DD/MM/YYYY')}) {week.isVacation ? '(Vacation)' : ''}
+              </option>
+            ))}
+          </select>
+          
+          <button
+            onClick={() => {
+              const currentIndex = weeks.findIndex(w => w.weekNumber === selectedWeek);
+              if (currentIndex < weeks.length - 1) {
+                setSelectedWeek(weeks[currentIndex + 1].weekNumber);
+              }
+            }}
+            disabled={weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              background: weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1 ? '#f3f4f6' : 'white',
+              cursor: weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1 ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1 ? '#9ca3af' : '#374151'
+            }}
+          >
+            Next →
+          </button>
         </div>
       </div>
 
@@ -1371,11 +1384,10 @@ export default function SupervisorCalendar() {
                         {timeSlot.nameSlot ? `${timeSlot.nameSlot} (${timeSlot.startAt} - ${timeSlot.endAt})` : timeSlot.label}
                       </td>
                       {DAYS.map((day, dayIndex) => {
-                     
                         const milestones = getMilestonesForSlot(dayIndex, timeSlot);
                         const meetings = getMeetingsForSlot(dayIndex, timeSlot);
-                        const tasks = getTasksForSlot(dayIndex, timeSlot);
-                   
+                        const issues = getIssuesForSlot(dayIndex, timeSlot);
+                        
                         return (
                           <td key={day} style={{ 
                             padding: '8px', 
@@ -1474,73 +1486,50 @@ export default function SupervisorCalendar() {
                                 </div>
                               ))}
                               
-                              {/* Tasks - Display all tasks in this slot */}
-                              {tasks.map((task, idx) => {
-                                const taskTypeColor = getTaskTypeColor(task.taskType);
-                                const statusColor = getTaskStatusColor(task.status);
-                                // Nếu có taskTypeColor, dùng nó cho border, nếu không thì dùng statusColor
-                                const borderColor = taskTypeColor || statusColor;
-                                // Background dựa trên status, nhưng có thể điều chỉnh nếu có taskType
-                                let backgroundColor = statusColor === '#059669' ? '#ecfdf5' : 
-                                                    statusColor === '#dc2626' ? '#fee2e2' :
-                                                    statusColor === '#d97706' ? '#fef3c7' : '#f3f4f6';
-                                
-                                return (
-                                  <div 
-                                    key={task.id || idx}
-                                    onClick={() => openTaskModal(task)}
-                                    style={{ 
-                                      background: backgroundColor,
-                                      border: `2px solid ${borderColor}`,
-                                      borderRadius: 4,
-                                      padding: 4,
-                                      cursor: 'pointer',
-                                      fontSize: 9,
-                                      maxHeight: '50px',
-                                      overflow: 'hidden',
-                                      transition: 'all 0.2s ease',
-                                      maxWidth: '100%',
-                                      width: '100%',
-                                      boxSizing: 'border-box',
-                                      position: 'relative'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.target.style.transform = 'scale(1.02)';
-                                      e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.target.style.transform = 'scale(1)';
-                                      e.target.style.boxShadow = 'none';
-                                    }}
-                                  >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                                      <div style={{ fontWeight: 600, color: borderColor, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', flex: 1 }}>
-                                        📋 {task.title?.length > 15 ? task.title.substring(0, 15) + '...' : (task.title || task.name || 'N/A')}
-                                      </div>
-                                      {taskTypeColor && (
-                                        <span style={{
-                                          fontSize: '7px',
-                                          padding: '1px 3px',
-                                          backgroundColor: taskTypeColor,
-                                          color: 'white',
-                                          borderRadius: '3px',
-                                          fontWeight: '600',
-                                          whiteSpace: 'nowrap',
-                                          flexShrink: 0
-                                        }}>
-                                          {getTaskTypeText(task.taskType)}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div style={{ color: statusColor, fontSize: 8 }}>
-                                      {getTaskStatusText(task.status)}
-                                    </div>
-                                    <div style={{ color: statusColor, fontSize: 8 }}>
-                                      {formatDate(task.deadline, 'HH:mm')} ({getGroupCode(task.groupId)})
-                                    </div>
+                              {/* Issues - Display all issues in this slot */}
+                              {issues.map((issue, idx) => (
+                                <div 
+                                  key={issue.id || `issue_${idx}`}
+                                  onClick={() => {
+                                    if (issue.id && issue.groupId) {
+                                      navigate(`/supervisor/task/group/${issue.groupId}?taskId=${issue.id}`);
+                                    }
+                                  }}
+                                  style={{ 
+                                    background: getIssueStatusColor(issue.status) === '#059669' ? '#ecfdf5' : 
+                                               getIssueStatusColor(issue.status) === '#d97706' ? '#fef3c7' : '#e0e7ff',
+                                    border: `1px solid ${getIssueStatusColor(issue.status)}`,
+                                    borderRadius: 4,
+                                    padding: 4,
+                                    cursor: issue.id ? 'pointer' : 'default',
+                                    fontSize: 9,
+                                    maxHeight: '50px',
+                                    overflow: 'hidden',
+                                    transition: 'all 0.2s ease',
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.transform = 'scale(1.02)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                    e.target.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600, color: getIssueStatusColor(issue.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                                    🐛 {issue.name?.length > 15 ? issue.name.substring(0, 15) + '...' : (issue.name || 'N/A')}
                                   </div>
-                                );
-                              })}
+                                  <div style={{ color: getIssueStatusColor(issue.status), fontSize: 8 }}>
+                                    {getIssueStatusText(issue.status)}
+                                  </div>
+                                  <div style={{ color: getIssueStatusColor(issue.status), fontSize: 8 }}>
+                                    {formatDate(issue.deadline, 'HH:mm')} {issue.groupId && `(${getGroupCode(issue.groupId)})`}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </td>
                         );

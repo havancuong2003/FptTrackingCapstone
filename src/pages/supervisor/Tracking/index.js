@@ -10,6 +10,8 @@ import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurre
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
 import { getDeliverablesByGroup, getDeliverableDetail, markDeliverableAttachmentDownloaded, confirmDeliverable, rejectDeliverable } from '../../../api/deliverables';
 import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
+import { sendEmail } from '../../../email/api';
+import { baseTemplate } from '../../../email/templates';
 
 export default function SupervisorTracking() {
   const [userInfo, setUserInfo] = React.useState(null);
@@ -202,6 +204,8 @@ export default function SupervisorTracking() {
         return '#64748b'; // Gray
       case 'REJECTED':
         return '#dc2626'; // Red
+      case 'MISSING':
+        return '#dc2626'; // Red
       default:
         return '#64748b'; // Gray
     }
@@ -221,9 +225,23 @@ export default function SupervisorTracking() {
         return '✗ Unsubmitted';
       case 'REJECTED':
         return '❌ Rejected';
+      case 'MISSING':
+        return '❌ Missing';
       default:
         return '❓ Unknown';
     }
+  };
+
+  // Hàm kiểm tra và trả về status thực tế (bao gồm MISSING)
+  const getActualStatus = (milestone) => {
+    if (milestone.status === 'UNSUBMITTED') {
+      const now = new Date();
+      const deadline = new Date(milestone.endAt);
+      if (deadline < now) {
+        return 'MISSING';
+      }
+    }
+    return milestone.status;
   };
 
   const openDetailModal = async (milestone) => {
@@ -287,6 +305,60 @@ export default function SupervisorTracking() {
     return checkAllItemsSubmitted() && checkAllAttachmentsDownloaded();
   };
 
+  // Send email notification to group members
+  const sendMilestoneNotification = async (action, milestoneName, comment) => {
+    try {
+      if (!groupInfo?.students || groupInfo.students.length === 0) {
+        console.warn('No students to send email');
+        return;
+      }
+
+      // Get all student emails
+      const studentEmails = groupInfo.students
+        .filter(s => s.email)
+        .map(s => s.email);
+
+      if (studentEmails.length === 0) {
+        console.warn('No valid email addresses found');
+        return;
+      }
+
+      const isApproved = action === 'approved';
+      const supervisorName = userInfo?.name || 'Supervisor';
+      const projectName = groupInfo?.projectName || 'Your Project';
+      const deadline = selectedMilestone?.endAt ? formatDate(selectedMilestone.endAt, 'DD/MM/YYYY HH:mm') : 'N/A';
+
+      const emailBody = baseTemplate({
+        title: isApproved ? 'Milestone Approved' : 'Milestone Rejected',
+        greeting: `Dear ${projectName} Team,`,
+        content: isApproved 
+          ? `Your supervisor has <strong>approved</strong> the milestone submission. Great work!`
+          : `Your supervisor has <strong>rejected</strong> the milestone submission. Please review the feedback and resubmit.`,
+        infoItems: [
+          { label: 'Milestone', value: milestoneName },
+          { label: 'Deadline', value: deadline },
+          { label: 'Status', value: isApproved ? 'Approved ✓' : 'Rejected ✗' },
+          { label: 'Supervisor', value: supervisorName },
+          ...(comment ? [{ label: 'Comment', value: comment }] : [])
+        ],
+        footerNote: isApproved 
+          ? 'Keep up the good work! Continue with your next milestones.'
+          : 'Please address the feedback and resubmit as soon as possible.'
+      });
+
+      await sendEmail({
+        to: studentEmails,
+        subject: `[Capstone] Milestone "${milestoneName}" has been ${isApproved ? 'Approved' : 'Rejected'}`,
+        body: emailBody
+      });
+
+      console.log('Email notification sent successfully');
+    } catch (error) {
+      console.error('Error sending email notification:', error);
+      // Don't throw - email failure shouldn't block the main action
+    }
+  };
+
   const handleConfirm = async () => {
     if (!selectedGroup?.id || !selectedMilestone) return;
     
@@ -307,6 +379,9 @@ export default function SupervisorTracking() {
     
     try {
       await confirmDeliverable(selectedGroup.id, selectedMilestone.id, note);
+      
+      // Send email notification
+      await sendMilestoneNotification('approved', selectedMilestone.name, note);
       
       // Reload milestones after successful confirmation
       const milestonesRes = await getDeliverablesByGroup(selectedGroup.id);
@@ -353,6 +428,9 @@ export default function SupervisorTracking() {
     
     try {
       await rejectDeliverable(selectedGroup.id, selectedMilestone.id, note);
+      
+      // Send email notification
+      await sendMilestoneNotification('rejected', selectedMilestone.name, note);
       
       // Reload milestones after successful rejection
       const milestonesRes = await getDeliverablesByGroup(selectedGroup.id);
@@ -612,20 +690,22 @@ export default function SupervisorTracking() {
         <DataTable
           columns={[
             {
-              key: 'index',
-              title: '#',
-              render: (milestone, index) => (
-                <div style={{ fontWeight: 600, fontSize: '13px', color: '#6c757d', textAlign: 'center' }}>
-                  {index + 1}
-                </div>
-              )
-            },
-            {
               key: 'name',
               title: 'Milestone',
               render: (milestone) => (
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '14px', marginBottom: 4, color: '#333', wordBreak: 'break-word' }}>
+                  <div 
+                    onClick={() => openDetailModal(milestone)}
+                    style={{ 
+                      fontWeight: 600, 
+                      fontSize: '14px', 
+                      marginBottom: 4, 
+                      color: '#3b82f6', 
+                      wordBreak: 'break-word',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    }}
+                  >
                     {milestone.name}
                   </div>
                   {milestone.description && (
@@ -648,50 +728,28 @@ export default function SupervisorTracking() {
             {
               key: 'status',
               title: 'Status',
-              render: (milestone) => (
-                <div style={{ textAlign: 'center' }}>
-                  <span style={{ 
-                    color: getStatusColor(milestone.status), 
-                    background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
-                               getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
-                               getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-                    padding: '4px 8px',
-                    borderRadius: 6,
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    border: `1px solid ${getStatusColor(milestone.status)}`,
-                    display: 'inline-block',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {getStatusText(milestone.status)}
-                  </span>
-                </div>
-              )
-            },
-            {
-              key: 'actions',
-              title: 'Actions',
-              render: (milestone) => (
-                <div style={{ textAlign: 'center' }}>
-                  <Button
-                    onClick={() => openDetailModal(milestone)}
-                    variant="ghost"
-                    style={{ 
-                      fontSize: '12px', 
-                      padding: '6px 10px',
-                      background: '#007bff',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      fontWeight: 500,
+              render: (milestone) => {
+                const actualStatus = getActualStatus(milestone);
+                return (
+                  <div style={{ textAlign: 'center' }}>
+                    <span style={{ 
+                      color: getStatusColor(actualStatus), 
+                      background: getStatusColor(actualStatus) === '#059669' ? '#ecfdf5' : 
+                                 getStatusColor(actualStatus) === '#dc2626' ? '#fee2e2' :
+                                 getStatusColor(actualStatus) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                      padding: '4px 8px',
+                      borderRadius: 6,
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      border: `1px solid ${getStatusColor(actualStatus)}`,
+                      display: 'inline-block',
                       whiteSpace: 'nowrap'
-                    }}
-                  >
-                    View Details
-                  </Button>
-                </div>
-              )
+                    }}>
+                      {getStatusText(actualStatus)}
+                    </span>
+                  </div>
+                );
+              }
             }
           ]}
           data={milestones}
