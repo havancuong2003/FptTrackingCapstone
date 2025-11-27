@@ -831,6 +831,14 @@ export default function SupervisorMeetingManagement() {
         loading={loading}
       />
 
+      {/* Show message when no group selected */}
+      {!selectedGroupId && (
+        <div className={sharedLayout.noSelection}>
+          <p>Please select a group</p>
+          <p>You will see group information and document list after selection.</p>
+        </div>
+      )}
+
       {/* Chỉ hiển thị danh sách khi đã chọn nhóm */}
       {selectedGroupId && (
       <div className={sharedLayout.contentSection}>

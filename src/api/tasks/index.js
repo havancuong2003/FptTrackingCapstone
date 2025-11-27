@@ -28,9 +28,33 @@ export async function createTask(taskData) {
   }
 }
 
+export async function uploadTaskAttachment(groupId, taskId, semester, file) {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await client.post(
+      `/upload/task?groupId=${groupId}&taskId=${taskId}&semester=${encodeURIComponent(semester)}`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
 export async function updateTask(updateData) {
   try {
     const response = await client.post('/Student/Task/update', updateData);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function deleteTask(taskId) {
+  try {
+    const response = await client.delete(`/Task/delete/${taskId}`);
     return response.data;
   } catch (error) {
     throw error;

@@ -32,6 +32,31 @@ export default function SupervisorTasks() {
   // Set default groupExpireFilter, will be updated when load group info
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active');
 
+  // Load semesters and set default to current semester
+  React.useEffect(() => {
+    function loadSemesters() {
+      const uniqueSemesters = getUniqueSemesters();
+      setSemesters(uniqueSemesters);
+      
+      // Luôn ưu tiên kì hiện tại khi lần đầu render
+      const currentSemesterId = getCurrentSemesterId();
+      if (currentSemesterId) {
+        // Kiểm tra xem currentSemesterId có trong danh sách không
+        const existsInList = uniqueSemesters.some(s => s.id === currentSemesterId);
+        if (existsInList) {
+          setSelectedSemesterId(currentSemesterId);
+        } else if (uniqueSemesters.length > 0) {
+          // Nếu không có trong danh sách, fallback về semester đầu tiên
+          setSelectedSemesterId(uniqueSemesters[0].id);
+        }
+      } else if (uniqueSemesters.length > 0) {
+        // Nếu không có currentSemesterId, fallback về semester đầu tiên
+        setSelectedSemesterId(uniqueSemesters[0].id);
+      }
+    }
+    loadSemesters();
+  }, []);
+
   // Status search-on-click
   const [isSearched, setIsSearched] = React.useState(false);
   
@@ -196,13 +221,41 @@ export default function SupervisorTasks() {
     
     const loadGroupInfoAndSetFilter = async () => {
       if (groupId) {
-        const groupInfo = await fetchGroupInfo(groupId);
-        if (groupInfo) {
-          // Set filter dựa trên isExpired của group
-          const filter = groupInfo.isExpired ? 'expired' : 'active';
-          setGroupExpireFilter(filter);
-          setInitialFilterSet(true);
+        // Get group info from localStorage to get semesterId
+        const allSemesters = getUniqueSemesters();
+        let foundGroup = null;
+        let foundSemesterId = null;
+        
+        // Search for group in all semesters
+        for (const semester of allSemesters) {
+          const activeGroups = getGroupsBySemesterAndStatus(semester.id, false);
+          const expiredGroups = getGroupsBySemesterAndStatus(semester.id, true);
+          const allGroups = [...activeGroups, ...expiredGroups];
+          
+          foundGroup = allGroups.find(g => g.id === Number(groupId));
+          if (foundGroup) {
+            foundSemesterId = semester.id;
+            break;
+          }
         }
+        
+        if (foundGroup) {
+          // Set semester based on group
+          if (foundSemesterId) {
+            setSelectedSemesterId(foundSemesterId);
+          }
+          // Set filter dựa trên isExpired của group
+          const filter = foundGroup.isExpired ? 'expired' : 'active';
+          setGroupExpireFilter(filter);
+        } else {
+          // Fallback: try to get from API
+          const groupInfo = await fetchGroupInfo(groupId);
+          if (groupInfo) {
+            const filter = groupInfo.isExpired ? 'expired' : 'active';
+            setGroupExpireFilter(filter);
+          }
+        }
+        setInitialFilterSet(true);
       } else {
         // Nếu không có groupId, reset về default
         setGroupExpireFilter('active');
@@ -220,10 +273,39 @@ export default function SupervisorTasks() {
     if (groupId) {
       navigate('/supervisor/tasks', { replace: true });
     }
+    // Clear all data when filter changes
+    setMilestones([]);
+    setMeetings([]);
+    setAssigneeSource([]);
+    setTasks([]);
+    setAllTasks([]);
+    setIsSearched(false);
+  };
+
+  // Handle semester change - clear data
+  const handleSemesterChange = (newSemesterId) => {
+    setSelectedSemesterId(newSemesterId);
+    // Remove groupId from URL when semester changes
+    if (groupId) {
+      navigate('/supervisor/tasks', { replace: true });
+    }
+    // Clear all data when semester changes
+    setMilestones([]);
+    setMeetings([]);
+    setAssigneeSource([]);
+    setTasks([]);
+    setAllTasks([]);
+    setIsSearched(false);
   };
 
   // Load groups from localStorage when filter changes (no API call)
   React.useEffect(() => {
+    if (selectedSemesterId === null) {
+      setGroups([]);
+      setLoading(false);
+      return;
+    }
+    
     const groupsData = fetchSupervisorGroups(groupExpireFilter, selectedSemesterId);
     setGroups(groupsData);
     setLoading(false); // Set loading false after groups are loaded from localStorage
@@ -335,7 +417,15 @@ export default function SupervisorTasks() {
       render: (task) => (
         <div>
           <div className={styles.taskTitle}>
-            {task.title}
+            <span
+              className={styles.taskTitleLink}
+              onClick={(e) => {
+                e.stopPropagation();
+                openTaskDetail(task);
+              }}
+            >
+              {task.title}
+            </span>
             {task.hasDependencies && (
               <span className={styles.dependencyIcon} title="Có phụ thuộc">
                 🔗
@@ -418,21 +508,18 @@ export default function SupervisorTasks() {
       render: (task) => formatDate(task.deadline)
     },
     {
-      key: 'actions',
-      title: 'Actions',
+      key: 'isActive',
+      title: 'Active',
       render: (task) => (
-        <div className={styles.actionButtons}>
-          <Button 
-            size="sm"
-            variant="secondary"
-            onClick={(e) => {
-              e.stopPropagation();
-              openTaskDetail(task);
-            }}
-          >
-            Details
-          </Button>
-        </div>
+        <span 
+          className={styles.statusBadge}
+          style={{ 
+            color: task.isActive ? '#059669' : '#dc2626',
+            backgroundColor: task.isActive ? '#d1fae5' : '#fee2e2'
+          }}
+        >
+          {task.isActive ? 'Active' : 'Inactive'}
+        </span>
       )
     }
   ];
@@ -668,7 +755,7 @@ export default function SupervisorTasks() {
       <SupervisorGroupFilter
         semesters={semesters}
         selectedSemesterId={selectedSemesterId}
-        onSemesterChange={setSelectedSemesterId}
+        onSemesterChange={handleSemesterChange}
         groupExpireFilter={groupExpireFilter}
         onGroupExpireFilterChange={handleGroupExpireFilterChange}
         groups={groups}
@@ -867,9 +954,9 @@ export default function SupervisorTasks() {
 
       {/* Empty state khi chưa chọn group */}
       {!groupId && (
-        <div className={styles.emptyState}>
-          <div className={styles.emptyTitle}>Chọn group để xem issues</div>
-          <div className={styles.emptySubtitle}>Chọn group từ dropdown bên trên để xem issues</div>
+        <div className={sharedLayout.noSelection}>
+          <p>Please select a group</p>
+          <p>You will see group information and document list after selection.</p>
         </div>
       )}
 

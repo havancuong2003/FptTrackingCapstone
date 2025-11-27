@@ -13,6 +13,13 @@
   align-items: center;
 }
 
+.groupRow {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  margin-top: 12px;
+}
+
 .filterItem {
   display: flex;
   align-items: center;
@@ -107,41 +114,53 @@
   }
 
   .filterRow {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
     gap: 12px;
   }
 
   .controlGroup {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
   }
 
   .controlGroup label {
-    font-size: 13px;
+    font-size: 12px;
+    white-space: nowrap;
   }
 
   .filterItem {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
     gap: 6px;
   }
 
   .radioGroup {
-    flex-wrap: wrap;
-    gap: 12px;
+    flex-wrap: nowrap;
+    gap: 8px;
   }
 
   .radioLabel {
-    font-size: 13px;
+    font-size: 12px;
+    gap: 4px;
+    
+    input[type="radio"] {
+      width: 14px;
+      height: 14px;
+    }
   }
 
   .groupSelect {
     width: 100%;
     min-width: auto;
-    padding: 10px 12px;
-    font-size: 14px;
+    padding: 8px 10px;
+    font-size: 13px;
+    flex: 1;
   }
 }
 
@@ -151,24 +170,38 @@
   }
 
   .filterRow {
-    gap: 10px;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
-  .controlGroup label {
-    font-size: 12px;
+  .controlGroup {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    
+    label {
+      font-size: 11px;
+    }
   }
 
   .radioGroup {
-    gap: 10px;
+    gap: 6px;
   }
 
   .radioLabel {
-    font-size: 12px;
+    font-size: 11px;
+    gap: 3px;
+    
+    input[type="radio"] {
+      width: 12px;
+      height: 12px;
+    }
   }
 
   .groupSelect {
-    padding: 8px 10px;
-    font-size: 13px;
+    padding: 6px 8px;
+    font-size: 12px;
   }
 }
 

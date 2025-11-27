@@ -58,7 +58,9 @@ export default function SupervisorGroupFilter({
             </label>
           </div>
         </div>
-        {!hideGroupSelect && (
+      </div>
+      {!hideGroupSelect && (
+        <div className={styles.groupRow}>
           <div className={styles.controlGroup}>
             <label className={styles.filterLabel}>Group:</label>
             <select
@@ -79,8 +81,8 @@ export default function SupervisorGroupFilter({
               })}
             </select>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

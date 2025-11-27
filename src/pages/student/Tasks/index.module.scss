@@ -30,24 +30,127 @@
 /* Responsive fixes */
 @media (max-width: 1024px) {
   .controls { flex-wrap: wrap; }
-  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+  .statsGrid { grid-template-columns: repeat(4, 1fr); }
 }
 
 @media (max-width: 768px) {
-  .controls { flex-direction: column; align-items: stretch; }
   .tasksTable { overflow-x: auto; }
   .detailGrid { grid-template-columns: 1fr; }
+  
+  // Stats grid - 4 cards in 1 row on mobile
+  .statsGrid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 8px;
+  }
+  
+  .statCard {
+    padding: 12px 8px;
+  }
+  
+  .statValue {
+    font-size: 16px;
+  }
+  
+  .statLabel {
+    font-size: 10px;
+  }
+  
+  // Controls - 2 cột trên mobile giống supervisor
+  .controls {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+  
+  .controlGroup {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  
+  .radioGroup {
+    flex-direction: row;
+    gap: 8px;
+    flex-wrap: nowrap;
+  }
+  
+  .radioLabel {
+    font-size: 12px;
+  }
 }
 
 @media (max-width: 480px) {
-  .controlGroup { min-width: 0; width: 100%; }
   .filterSelect { width: 100%; }
+  
+  // Stats grid - still 4 cards in 1 row
+  .statsGrid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 4px;
+  }
+  
+  .statCard {
+    padding: 8px 4px;
+  }
+  
+  .statValue {
+    font-size: 14px;
+  }
+  
+  .statLabel {
+    font-size: 9px;
+  }
+  
+  // Controls - 2 cột trên mobile giống supervisor
+  .controls {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 12px !important;
+  }
+  
+  .controlGroup {
+    min-width: 0 !important;
+    width: 100% !important;
+    
+    label {
+      font-size: 11px;
+    }
+  }
+  
+  .radioGroup {
+    gap: 6px;
+  }
+  
+  .radioLabel {
+    font-size: 11px;
+    gap: 4px;
+    
+    input[type="radio"] {
+      width: 14px;
+      height: 14px;
+    }
+  }
+  
+  .select {
+    padding: 8px 10px;
+    font-size: 12px;
+    min-width: 100px;
+    width: 100%;
+  }
 }
 
 .taskTitle {
   font-weight: 600;
   color: #333;
   margin-bottom: 4px;
+}
+
+.taskTitleLink {
+  text-decoration: underline;
+  color: #2563eb;
+  cursor: pointer;
+  
+  &:hover {
+    color: #1d4ed8;
+  }
 }
 
 .taskDescription {
@@ -957,4 +1060,103 @@
     border-color: #3b82f6;
     box-shadow: 0 2px 4px rgba(59, 130, 246, 0.1);
   }
+}
+
+// File Upload Section for Create Task Modal
+.fileUploadSection {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fileUploadLabel {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: #f1f5f9;
+  color: #3b82f6;
+  border: 1px dashed #3b82f6;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: fit-content;
+  
+  &:hover {
+    background: #e0f2fe;
+    border-color: #2563eb;
+  }
+}
+
+.selectedFilesList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.selectedFileItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+}
+
+.fileName {
+  font-size: 13px;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.removeFileBtn {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  
+  &:hover {
+    color: #b91c1c;
+  }
+}
+
+.fileTypeHint {
+  font-size: 12px;
+  color: #64748b;
+  font-style: italic;
+}
+
+/* My Task Highlight */
+.myTaskCell {
+  position: relative;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    left: -12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 70%;
+    background: #3b82f6;
+    border-radius: 2px;
+  }
+}
+
+.myTaskIndicator {
+  color: #3b82f6;
+  font-size: 12px;
+  margin-left: 6px;
+  opacity: 0.8;
 }

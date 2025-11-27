@@ -780,8 +780,8 @@ export default function Schedule() {
         </div>
       )}
 
-      {/* Show Members' Free Time when finalized */}
-      {isFinalized && (
+      {/* Show Members' Free Time when finalized - REMOVED: No longer needed when meeting schedule is confirmed */}
+      {false && isFinalized && (
         <div className={styles.freeTimeSection}>
           <h2>Members' Free Time</h2>
           {(() => {

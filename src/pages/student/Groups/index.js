@@ -50,6 +50,7 @@ export default function StudentGroups() {
                         groupName: group.groupCode,
                         projectName: group.projectName,
                         projectCode: group.groupCode,
+                        expireDate: group.expireDate || null,
                         members: group.students.map(student => ({
                             id: student.rollNumber,
                             studentId: student.id, // Save studentId để gọi API
@@ -57,6 +58,8 @@ export default function StudentGroups() {
                             currentRole: student.role === "Student" ? 'Member' : (student.role || 'Member'),
                             email: student.email || ''
                         })),
+                        supervisors: group.supervisors || [],
+                        supervisorsInfor: group.supervisorsInfor || [],
                         progress: {
                             completedMilestones: 0,
                             totalMilestones: 7,
@@ -242,10 +245,42 @@ export default function StudentGroups() {
                                     {group.groupCode !== group.groupName && (
                                         <p className={styles.projectCode}>Group Code: {group.groupCode}</p>
                                     )}
+                                    {group.expireDate && (
+                                        <p className={styles.expireDate}>
+                                            <span className={styles.expireDateLabel}>Expire Date:</span>
+                                            <span className={new Date(group.expireDate) < new Date() ? styles.expired : styles.active}>
+                                                {new Date(group.expireDate).toLocaleDateString('vi-VN', {
+                                                    day: '2-digit',
+                                                    month: '2-digit',
+                                                    year: 'numeric'
+                                                })}
+                                            </span>
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                             
                             <div className={styles.groupDetails}>
+                                {/* Supervisors Section */}
+                                <div className={styles.detailSection}>
+                                    <h4>Supervisors ({group.supervisorsInfor?.length || 0})</h4>
+                                    <div className={styles.membersList}>
+                                        {group.supervisorsInfor && group.supervisorsInfor.length > 0 ? (
+                                            group.supervisorsInfor.map((supervisor, index) => (
+                                                <div key={supervisor.id || index} className={styles.memberItem}>
+                                                    <div className={styles.memberInfo}>
+                                                        <span className={styles.memberName}>{supervisor.name || supervisor.fullName}</span>
+                                                        <span className={styles.memberEmail}>{supervisor.email}</span>
+                                                        <span className={styles.memberRoleTag} style={{ backgroundColor: '#10b981', color: 'white' }}>Supervisor</span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className={styles.emptyState}>No supervisor assigned</div>
+                                        )}
+                                    </div>
+                                </div>
+
                                 <div className={styles.detailSection}>
                                     <h4>Members ({group.members.length})</h4>
                                     <div className={styles.membersList}>

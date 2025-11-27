@@ -746,6 +746,14 @@ export default function PenaltyManagement() {
         />
       </div>
 
+      {/* Show message when no group selected */}
+      {!selectedGroup && (
+        <div className={sharedLayout.noSelection}>
+          <p>Please select a group</p>
+          <p>You will see group information and document list after selection.</p>
+        </div>
+      )}
+
       {/* ------------------ Penalty Statistics Section ------------------ */}
       {selectedGroup && (
         <div className={sharedLayout.contentSection}>

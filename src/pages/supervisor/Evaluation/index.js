@@ -195,10 +195,19 @@ export default function SupervisorEvaluation() {
       const uniqueSemesters = getUniqueSemesters();
       setSemesters(uniqueSemesters);
       
+      // Luôn ưu tiên kì hiện tại khi lần đầu render
       const currentSemesterId = getCurrentSemesterId();
       if (currentSemesterId) {
-        setSelectedSemesterId(currentSemesterId);
+        // Kiểm tra xem currentSemesterId có trong danh sách không
+        const existsInList = uniqueSemesters.some(s => s.id === currentSemesterId);
+        if (existsInList) {
+          setSelectedSemesterId(currentSemesterId);
+        } else if (uniqueSemesters.length > 0) {
+          // Nếu không có trong danh sách, fallback về semester đầu tiên
+          setSelectedSemesterId(uniqueSemesters[0].id);
+        }
       } else if (uniqueSemesters.length > 0) {
+        // Nếu không có currentSemesterId, fallback về semester đầu tiên
         setSelectedSemesterId(uniqueSemesters[0].id);
       }
       // Set loading false after semesters are loaded
@@ -1161,15 +1170,11 @@ export default function SupervisorEvaluation() {
     }
   };
 
-  if (loading) {
+  if (loading && semesters.length === 0) {
     return <div className={sharedLayout.loading}>Loading data...</div>;
   }
 
-  if (groups.length === 0) {
-    return <div className={sharedLayout.loading}>No groups found.</div>;
-  }
-
-  // Hiển thị thông báo khi chưa chọn nhóm
+  // Hiển thị thông báo khi chưa chọn nhóm - filter component luôn hiển thị
   if (!selectedGroup) {
     return (
       <div className={sharedLayout.container}>
@@ -1180,9 +1185,23 @@ export default function SupervisorEvaluation() {
           <SupervisorGroupFilter
             semesters={semesters}
             selectedSemesterId={selectedSemesterId}
-            onSemesterChange={setSelectedSemesterId}
+            onSemesterChange={(newSemesterId) => {
+              setSelectedSemesterId(newSemesterId);
+              // Clear data when semester changes
+              setSelectedGroup(null);
+              setSelectedMilestone('all');
+              setEvaluations([]);
+              setPenaltyCards([]);
+            }}
             groupExpireFilter={groupExpireFilter}
-            onGroupExpireFilterChange={setGroupExpireFilter}
+            onGroupExpireFilterChange={(newFilter) => {
+              setGroupExpireFilter(newFilter);
+              // Clear data when filter changes
+              setSelectedGroup(null);
+              setSelectedMilestone('all');
+              setEvaluations([]);
+              setPenaltyCards([]);
+            }}
             groups={groups.map(g => ({ id: g.groupId, name: g.groupName }))}
             selectedGroupId={selectedGroup || ''}
             onGroupChange={setSelectedGroup}
@@ -1191,7 +1210,8 @@ export default function SupervisorEvaluation() {
           />
         </div>
         <div className={sharedLayout.noSelection}>
-          <p>Please select a group to view student list and evaluations.</p>
+          <p>Please select a group</p>
+          <p>You will see group information and document list after selection.</p>
         </div>
       </div>
     );
@@ -1208,9 +1228,23 @@ export default function SupervisorEvaluation() {
           <SupervisorGroupFilter
             semesters={semesters}
             selectedSemesterId={selectedSemesterId}
-            onSemesterChange={setSelectedSemesterId}
+            onSemesterChange={(newSemesterId) => {
+              setSelectedSemesterId(newSemesterId);
+              // Clear data when semester changes
+              setSelectedGroup(null);
+              setSelectedMilestone('all');
+              setEvaluations([]);
+              setPenaltyCards([]);
+            }}
             groupExpireFilter={groupExpireFilter}
-            onGroupExpireFilterChange={setGroupExpireFilter}
+            onGroupExpireFilterChange={(newFilter) => {
+              setGroupExpireFilter(newFilter);
+              // Clear data when filter changes
+              setSelectedGroup(null);
+              setSelectedMilestone('all');
+              setEvaluations([]);
+              setPenaltyCards([]);
+            }}
             groups={groups.map(g => ({ id: g.groupId, name: g.groupName }))}
             selectedGroupId={selectedGroup || ''}
             onGroupChange={setSelectedGroup}

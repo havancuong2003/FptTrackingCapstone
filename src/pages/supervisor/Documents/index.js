@@ -18,26 +18,51 @@ export default function SupervisorDocuments() {
   const [message, setMessage] = React.useState('');
   const fileInputRef = React.useRef(null);
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
-
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(getCurrentSemesterId());
+  console.log('selectedSemesterId', selectedSemesterId);
+  // Load semesters and set default to current semester
   React.useEffect(() => {
+    function loadSemesters() {
+      const uniqueSemesters = getUniqueSemesters();
+      setSemesters(uniqueSemesters);
+      
+      // Luôn ưu tiên kì hiện tại khi lần đầu render
+      const currentSemesterId = getCurrentSemesterId();
+      console.log('currentSemesterId', currentSemesterId);
+      if (currentSemesterId) {
+        // Kiểm tra xem currentSemesterId có trong danh sách không
+        const existsInList = uniqueSemesters.some(s => s.id === currentSemesterId);
+        console.log('existsInList', existsInList);
+        if (existsInList) {
+          setSelectedSemesterId(currentSemesterId);
+        } else if (uniqueSemesters.length > 0) {
+          // Nếu không có trong danh sách, fallback về semester đầu tiên
+          setSelectedSemesterId(uniqueSemesters[0].id);
+        }
+      } else if (uniqueSemesters.length > 0) {
+        // Nếu không có currentSemesterId, fallback về semester đầu tiên
+        setSelectedSemesterId(uniqueSemesters[0].id);
+      }
+    }
+    loadSemesters();
     loadUserInfo();
   }, []);
 
   React.useEffect(() => {
+    if (selectedSemesterId === null) {
+      setGroupOptions([]);
+      setUserGroups([]);
+      return;
+    }
+    
     loadGroups();
     
     // Check if selected group is still in filtered list
     const isExpired = groupExpireFilter === 'expired';
-    const allSemesters = getUniqueSemesters();
-    let filteredGroups = [];
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
     
-    // Get all groups from all semesters
-    allSemesters.forEach(semester => {
-      const groupsFromStorage = getGroupsBySemesterAndStatus(semester.id, isExpired);
-      filteredGroups = [...filteredGroups, ...groupsFromStorage];
-    });
-    
-    const selectedGroupExists = selectedGroupId && filteredGroups.some(g => g.id === Number(selectedGroupId));
+    const selectedGroupExists = selectedGroupId && groupsFromStorage.some(g => g.id === Number(selectedGroupId));
     
     if (selectedGroupId && !selectedGroupExists) {
       // Selected group is not in filtered list, clear selection and data
@@ -45,7 +70,7 @@ export default function SupervisorDocuments() {
       setGroupInfo(null);
       setFiles([]);
     }
-  }, [groupExpireFilter]);
+  }, [selectedSemesterId, groupExpireFilter]);
 
   const loadUserInfo = () => {
     setLoading(true);
@@ -69,32 +94,31 @@ export default function SupervisorDocuments() {
 
   const loadGroups = () => {
     try {
-      // Get groups from all semesters based on expired status (no API call)
+      if (selectedSemesterId === null) {
+        setGroupOptions([]);
+        setUserGroups([]);
+        return;
+      }
+      
+      // Get groups from selected semester based on expired status (no API call)
       const isExpired = groupExpireFilter === 'expired';
-      const allSemesters = getUniqueSemesters();
-      let allGroups = [];
+      const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
       
-      // Get all groups from all semesters
-      allSemesters.forEach(semester => {
-        const groupsFromStorage = getGroupsBySemesterAndStatus(semester.id, isExpired);
-        allGroups = [...allGroups, ...groupsFromStorage];
-      });
-      
-      if (allGroups.length === 0) {
+      if (groupsFromStorage.length === 0) {
         setGroupOptions([]);
         setUserGroups([]);
         return;
       }
       
       // Build options from localStorage only (no API call)
-      const options = allGroups.map((groupInfo) => {
+      const options = groupsFromStorage.map((groupInfo) => {
         const gid = String(groupInfo.id);
         const label = groupInfo.name || groupInfo.code || `Group #${gid}`;
         return { value: gid, label };
       });
       
       setGroupOptions(options);
-      setUserGroups(allGroups.map(g => g.id));
+      setUserGroups(groupsFromStorage.map(g => g.id));
     } catch (e) {
       console.error('Error loading groups from localStorage:', e);
       setMessage('Could not get group information');
@@ -335,11 +359,23 @@ export default function SupervisorDocuments() {
       </div>
 
       <SupervisorGroupFilter
-        semesters={[]}
-        selectedSemesterId={null}
-        onSemesterChange={() => {}}
+        semesters={semesters}
+        selectedSemesterId={selectedSemesterId}
+        onSemesterChange={(newSemesterId) => {
+          setSelectedSemesterId(newSemesterId);
+          // Clear data when semester changes
+          setSelectedGroupId('');
+          setGroupInfo(null);
+          setFiles([]);
+        }}
         groupExpireFilter={groupExpireFilter}
-        onGroupExpireFilterChange={setGroupExpireFilter}
+        onGroupExpireFilterChange={(newFilter) => {
+          setGroupExpireFilter(newFilter);
+          // Clear data when filter changes
+          setSelectedGroupId('');
+          setGroupInfo(null);
+          setFiles([]);
+        }}
         groups={groupOptions.map(opt => ({ id: opt.value, name: opt.label }))}
         selectedGroupId={selectedGroupId || ''}
         onGroupChange={onSelectGroup}

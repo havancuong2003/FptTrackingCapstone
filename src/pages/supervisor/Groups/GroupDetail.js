@@ -4,8 +4,9 @@ import styles from './GroupDetail.module.scss';
 import Button from '../../../components/Button/Button';
 import BackButton from '../../common/BackButton';
 import axiosClient from '../../../utils/axiosClient';
-import { getRoleInGroup, getUserInfo } from '../../../auth/auth';
+import { getRoleInGroup, getUserInfo, refreshUserInfo } from '../../../auth/auth';
 import { sendSecretaryAssignmentEmail, sendRoleAssignmentEmail } from '../../../email/groups';
+import { updateGroupExpireDate } from '../../../api/staff/groups';
 
 export default function GroupDetail() {
     const { groupId } = useParams();
@@ -25,6 +26,9 @@ export default function GroupDetail() {
     const [showRoleModal, setShowRoleModal] = React.useState(false);
     const [selectedMember, setSelectedMember] = React.useState(null);
     const [newRole, setNewRole] = React.useState('');
+    const [showExpireDateModal, setShowExpireDateModal] = React.useState(false);
+    const [newExpireDate, setNewExpireDate] = React.useState('');
+    const [expireDateLoading, setExpireDateLoading] = React.useState(false);
 
     React.useEffect(() => {
         fetchGroupDetails();
@@ -42,6 +46,7 @@ export default function GroupDetail() {
                     groupCode: groupData.groupCode,
                     groupName: groupData.groupCode,
                     projectName: groupData.projectName,
+                    expireDate: groupData.expireDate || null,
                     members: groupData.students.map(student => ({
                         id: student.rollNumber,
                         studentId: student.id,
@@ -106,6 +111,51 @@ export default function GroupDetail() {
         setSelectedMember(member);
         setNewRole(member.currentRole);
         setShowRoleModal(true);
+    };
+
+    const openExpireDateModal = () => {
+        if (group?.expireDate) {
+            // Convert to date format (YYYY-MM-DD)
+            const date = new Date(group.expireDate);
+            const localDate = date.toISOString().slice(0, 10);
+            setNewExpireDate(localDate);
+        } else {
+            setNewExpireDate('');
+        }
+        setShowExpireDateModal(true);
+    };
+
+    const handleSaveExpireDate = async () => {
+        if (!newExpireDate) {
+            alert('Please select expire date');
+            return;
+        }
+
+        setExpireDateLoading(true);
+        try {
+            const expireDateISO = new Date(newExpireDate).toISOString();
+            const response = await updateGroupExpireDate(groupId, expireDateISO);
+            
+            if (response.status === 200) {
+                setGroup(prev => ({
+                    ...prev,
+                    expireDate: expireDateISO
+                }));
+                
+                // Refresh user info to update group status (active/inactive)
+                await refreshUserInfo();
+                
+                alert('Expire date updated successfully!');
+                setShowExpireDateModal(false);
+            } else {
+                alert(`Error: ${response.message}`);
+            }
+        } catch (error) {
+            console.error('Error updating expire date:', error);
+            alert('Error updating expire date. Please try again.');
+        } finally {
+            setExpireDateLoading(false);
+        }
     };
 
     const handleSaveRoleChange = async () => {
@@ -338,12 +388,54 @@ export default function GroupDetail() {
                             <label>Number of Members:</label>
                             <span>{group.members.length}</span>
                         </div>
+                        <div className={styles.infoItem}>
+                            <label>Expire Date:</label>
+                            <div className={styles.expireDateContainer}>
+                                <span className={group.expireDate && new Date(group.expireDate) < new Date() ? styles.expiredText : styles.activeText}>
+                                    {group.expireDate 
+                                        ? new Date(group.expireDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                        : 'Not set'}
+                                </span>
+                                <button 
+                                    className={styles.editExpireBtn}
+                                    onClick={openExpireDateModal}
+                                >
+                                    Edit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Supervisors Section */}
+                <div className={styles.membersCard}>
+                    <div className={styles.membersHeader}>
+                        <h3>Supervisors ({group.supervisorsInfor?.length || 0})</h3>
+                    </div>
+                    <div className={styles.membersList}>
+                        {group.supervisorsInfor && group.supervisorsInfor.length > 0 ? (
+                            group.supervisorsInfor.map((supervisor, index) => (
+                                <div key={supervisor.id || index} className={styles.memberCard}>
+                                    <div className={styles.memberInfo}>
+                                        <div className={styles.memberName}>{supervisor.name || supervisor.fullName}</div>
+                                        <div className={styles.memberEmail}>{supervisor.email}</div>
+                                    </div>
+                                    <div className={styles.memberActions}>
+                                        <span className={`${styles.roleTag} ${styles.supervisor}`}>
+                                            Supervisor
+                                        </span>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className={styles.emptyState}>No supervisor assigned</div>
+                        )}
                     </div>
                 </div>
 
                 <div className={styles.membersCard}>
                     <div className={styles.membersHeader}>
-                        <h3>Group Members</h3>
+                        <h3>Group Members ({group.members.length})</h3>
                     </div>
                     <div className={styles.membersList}>
                         {group.members.map((member) => (
@@ -444,6 +536,53 @@ export default function GroupDetail() {
                             </Button>
                             <Button onClick={sendEmail} disabled={emailLoading}>
                                 {emailLoading ? 'Sending...' : 'Send email'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Expire Date Modal */}
+            {showExpireDateModal && (
+                <div className={styles.modalOverlay}>
+                    <div className={styles.roleModal}>
+                        <div className={styles.modalHeader}>
+                            <h2>Edit Expire Date</h2>
+                            <button 
+                                className={styles.closeButton}
+                                onClick={() => setShowExpireDateModal(false)}
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div className={styles.modalContent}>
+                            <div className={styles.formGroup}>
+                                <label>Current Expire Date:</label>
+                                <span className={styles.currentRole}>
+                                    {group.expireDate 
+                                        ? new Date(group.expireDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                        : 'Not set'}
+                                </span>
+                            </div>
+                            <div className={styles.formGroup}>
+                                <label>New Expire Date:</label>
+                                <input 
+                                    type="date"
+                                    value={newExpireDate}
+                                    onChange={(e) => setNewExpireDate(e.target.value)}
+                                    className={styles.input}
+                                />
+                            </div>
+                        </div>
+                        <div className={styles.modalActions}>
+                            <Button 
+                                variant="secondary"
+                                onClick={() => setShowExpireDateModal(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button onClick={handleSaveExpireDate} disabled={expireDateLoading}>
+                                {expireDateLoading ? 'Saving...' : 'Save'}
                             </Button>
                         </div>
                     </div>

@@ -672,3 +672,27 @@ h1 {
     gap: 20px;
   }
 }
+
+/* Expire Date Styles */
+.expireDate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.expireDateLabel {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.expireDate .expired {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.expireDate .active {
+  color: #059669;
+  font-weight: 600;
+}

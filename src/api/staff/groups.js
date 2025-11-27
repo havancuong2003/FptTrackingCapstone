@@ -117,9 +117,11 @@ export async function sendEmailToGroup(groupId, content) {
 }
 
 // ================== sync from Call4Project ==================
-export async function getMockDataGroups() {
+export async function getMockDataGroups(semesterId) {
   try {
-    const res = await client.get('/mock-data/group');
+    const res = await client.get('/mock-data/group', {
+      params: { semesterId }
+    });
     const payload = res.data;
     if (payload.status === 200) {
       return {
@@ -150,6 +152,28 @@ export async function syncMockDataGroups(groupsData) {
       data: null,
       status: 500,
       message: error.response?.data?.message || 'Error syncing data',
+    };
+  }
+}
+
+// ================== update expire date ==================
+export async function updateGroupExpireDate(groupId, expireDate) {
+  try {
+    const res = await client.put(`/group/${groupId}/expire-date`, {
+      expireDate: expireDate
+    });
+    const payload = res.data;
+    return {
+      data: payload.data,
+      status: payload.status ?? res.status,
+      message: payload.message || 'Expire date updated successfully',
+    };
+  } catch (error) {
+    console.error('Error updating expire date:', error);
+    return {
+      data: null,
+      status: 500,
+      message: error.response?.data?.message || 'Error updating expire date',
     };
   }
 }

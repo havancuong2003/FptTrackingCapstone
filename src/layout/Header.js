@@ -6,17 +6,11 @@ import { useLayout } from './LayoutContext';
 import { useAuth } from '../auth/authProvider';
 
 export default function Header() {
-  const [theme, setTheme] = React.useState(() => localStorage.getItem('theme') || 'light');
   const [semesterInfo, setSemesterInfo] = React.useState(null);
   const [isMobile, setIsMobile] = React.useState(false);
   const { status, refresh } = useAuth();
   const authed = status === 'authenticated';
   const { sidebarOpen, setSidebarOpen } = useLayout();
-
-  React.useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem('theme', theme);
-  }, [theme]);
 
   React.useEffect(() => {
     if (authed) {
@@ -37,10 +31,6 @@ export default function Header() {
     
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-
-  function handleToggleTheme() {
-    setTheme(t => (t === 'light' ? 'dark' : 'light'));
-  }
 
   async function handleLogout() {
     await logout();
@@ -64,9 +54,6 @@ export default function Header() {
             <span className={styles.semesterName}>{semesterInfo.name}</span>
           </div>
         )}
-        <Button variant="ghost" onClick={handleToggleTheme}>
-          {theme === 'light' ? 'Dark' : 'Light'}
-        </Button>
         {authed ? (
           <Button variant="secondary" onClick={handleLogout}>Logout</Button>
         ) : (

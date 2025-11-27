@@ -194,18 +194,7 @@ export default function SupervisorMeetings() {
     return <div className={sharedLayout.loading}>Loading data...</div>;
   }
 
-  if (groups.length === 0) {
-    return (
-      <div className={sharedLayout.container}>
-        <div className={sharedLayout.header}>
-          <h1>Meeting Management - Supervisor View</h1>
-        </div>
-        <div className={sharedLayout.emptyState}>
-          <p>No groups found.</p>
-        </div>
-      </div>
-    );
-  }
+  // Don't return early, always show filter component
 
   return (
     <div className={sharedLayout.container}>
@@ -226,6 +215,17 @@ export default function SupervisorMeetings() {
         loading={loading}
       />
 
+      {/* Show message when no group selected */}
+      {!selectedGroup && (
+        <div className={sharedLayout.noSelection}>
+          <p>Please select a group</p>
+          <p>You will see group information and document list after selection.</p>
+        </div>
+      )}
+
+      {/* Only show content when group is selected */}
+      {selectedGroup && (
+        <>
       <div className={sharedLayout.contentSection}>
         <div className={styles.controls}>
           <div className={styles.controlGroup}>
@@ -702,6 +702,8 @@ export default function SupervisorMeetings() {
           </div>
         </div>
       </Modal>
+        </>
+      )}
     </div>
   );
 }
