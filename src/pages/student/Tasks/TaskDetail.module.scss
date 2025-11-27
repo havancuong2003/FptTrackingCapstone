@@ -47,7 +47,32 @@
   color: #111827;
   font-size: 28px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.3;
+  word-break: break-word;
+  white-space: pre-line;
+}
+
+.titleWrapper {
+  position: relative;
+  flex: 1;
+}
+
+.titleText {
+  margin: 0;
+  color: #111827;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.3;
+  word-break: break-word;
+  white-space: pre-line;
+}
+
+.titleCollapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  position: relative;
 }
 
 .titleInput {
@@ -134,6 +159,35 @@
   font-size: 15px;
   white-space: pre-line;
   word-break: break-word;
+  margin: 0;
+}
+
+.descriptionWrapper {
+  position: relative;
+}
+
+.descriptionCollapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.toggleBtn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: #3b82f6;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #dbeafe;
+  }
 }
 
 .descriptionEditor {
@@ -539,6 +593,39 @@
   padding: 12px 16px;
   border-radius: 8px;
   border-left: 3px solid #3b82f6;
+  position: relative;
+}
+
+.historyTitleText {
+  display: block;
+}
+
+.historyTitleCollapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.historyTitleExpanded {
+  display: block;
+}
+
+.historyToggleBtn {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: #3b82f6;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: #dbeafe;
+  }
 }
 
 .historyTitleIcon {

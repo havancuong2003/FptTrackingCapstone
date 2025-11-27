@@ -52,6 +52,9 @@ export default function TaskDetail() {
   const [activeTab, setActiveTab] = React.useState('details'); // 'details' or 'history'
   const [historyActionFilter, setHistoryActionFilter] = React.useState('');
   const [historyUserFilter, setHistoryUserFilter] = React.useState('');
+  const [expandedHistoryItems, setExpandedHistoryItems] = React.useState({});
+  const [descriptionExpanded, setDescriptionExpanded] = React.useState(false);
+  const [titleExpanded, setTitleExpanded] = React.useState(false);
   
   const toDateTimeLocal = React.useCallback((dateString) => {
     if (!dateString) return '';
@@ -809,7 +812,19 @@ export default function TaskDetail() {
               placeholder="Enter task title"
             />
           ) : (
-            <h1>{task.title}</h1>
+            <div className={styles.titleWrapper}>
+              <h1 className={`${styles.titleText} ${!titleExpanded && (task.title || '').length > 80 ? styles.titleCollapsed : ''}`}>
+                {task.title}
+              </h1>
+              {(task.title || '').length > 80 && (
+                <button 
+                  className={styles.toggleBtn}
+                  onClick={() => setTitleExpanded(!titleExpanded)}
+                >
+                  {titleExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+                </button>
+              )}
+            </div>
           )}
         </div>
         {permissions.canEditTask && (
@@ -889,7 +904,19 @@ export default function TaskDetail() {
                 placeholder="Add task description..."
               />
             ) : (
-              <p className={styles.description}>{task.description}</p>
+              <div className={styles.descriptionWrapper}>
+                <p className={`${styles.description} ${!descriptionExpanded && (task.description || '').length > 300 ? styles.descriptionCollapsed : ''}`}>
+                  {task.description}
+                </p>
+                {(task.description || '').length > 300 && (
+                  <button 
+                    className={styles.toggleBtn}
+                    onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                  >
+                    {descriptionExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -1281,6 +1308,9 @@ export default function TaskDetail() {
                       return styles.historyActionUpdated;
                     };
 
+                    const isLongContent = (item.detail || '').length > 150 || (item.detail || '').split('\n').length > 3;
+                    const isExpanded = expandedHistoryItems[item.id];
+
                     return (
                       <div key={item.id} className={styles.historyItem}>
                         <div className={styles.historyItemHeader}>
@@ -1296,7 +1326,20 @@ export default function TaskDetail() {
                         <div className={styles.historyContent}>
                           <div className={styles.historyTitle}>
                             <span className={styles.historyTitleIcon}>📄</span>
-                            {item.detail}
+                            <span className={`${styles.historyTitleText} ${isLongContent && !isExpanded ? styles.historyTitleCollapsed : styles.historyTitleExpanded}`}>
+                              {item.detail}
+                            </span>
+                            {isLongContent && (
+                              <button 
+                                className={styles.historyToggleBtn}
+                                onClick={() => setExpandedHistoryItems(prev => ({
+                                  ...prev,
+                                  [item.id]: !prev[item.id]
+                                }))}
+                              >
+                                {isExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
