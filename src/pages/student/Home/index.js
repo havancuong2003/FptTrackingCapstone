@@ -18,7 +18,7 @@ export default function StudentHome() {
   const [milestones, setMilestones] = React.useState([]);
   const [tasks, setTasks] = React.useState([]);
   const [meetings, setMeetings] = React.useState([]);
-  const [selectedWeek, setSelectedWeek] = React.useState(1);
+  const [selectedWeek, setSelectedWeek] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
   const [selectedMilestone, setSelectedMilestone] = React.useState(null);
   const [selectedMeeting, setSelectedMeeting] = React.useState(null);
@@ -33,6 +33,7 @@ export default function StudentHome() {
   const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
   const [meetingGroupInfo, setMeetingGroupInfo] = React.useState(null);
   const [hasSelectedFreeTime, setHasSelectedFreeTime] = React.useState(true); // Kiểm tra xem sinh viên đã chọn lịch rảnh chưa
+  const [groupIssues, setGroupIssues] = React.useState([]); // Issues của nhóm (chỉ hiển thị cho leader)
 
   // Load user info
   React.useEffect(() => {
@@ -140,7 +141,15 @@ export default function StudentHome() {
         setSemesterInfo(semester);
         setWeeks(semester?.weeks || []);
         if (semester?.weeks?.length > 0) {
-          setSelectedWeek(semester.weeks[0].weekNumber);
+          // Tìm tuần hiện tại dựa trên ngày hiện tại
+          const now = new Date();
+          const currentWeek = semester.weeks.find(week => {
+            const startAt = new Date(week.startAt);
+            const endAt = new Date(week.endAt);
+            endAt.setHours(23, 59, 59, 999);
+            return now >= startAt && now <= endAt;
+          });
+          setSelectedWeek(currentWeek ? currentWeek.weekNumber : semester.weeks[0].weekNumber);
         }
       } catch {
         if (!mounted) return;
@@ -215,6 +224,30 @@ export default function StudentHome() {
       }
     }
     loadMeetings();
+    return () => { mounted = false; };
+  }, [userInfo?.groups]);
+
+  // Load group issues (hiển thị trong calendar)
+  React.useEffect(() => {
+    let mounted = true;
+    async function loadGroupIssues() {
+      if (!userInfo?.groups || userInfo.groups.length === 0) return;
+      
+      try {
+        const groupId = userInfo.groups[0];
+        const res = await client.get(`https://160.30.21.113:5000/api/v1/task/taskTypeIssue/${groupId}`);
+        if (res.data?.code === 200) {
+          const issuesData = res.data.data || [];
+          if (!mounted) return;
+          setGroupIssues(Array.isArray(issuesData) ? issuesData : []);
+        }
+      } catch (error) {
+        console.error('Error loading group issues:', error);
+        if (!mounted) return;
+        setGroupIssues([]);
+      }
+    }
+    loadGroupIssues();
     return () => { mounted = false; };
   }, [userInfo?.groups]);
 
@@ -421,6 +454,73 @@ export default function StudentHome() {
     }
     
     return matchedTasks;
+  };
+
+  // Get issues for selected week
+  const getIssuesForWeek = () => {
+    if (!selectedWeek || !groupIssues.length) return [];
+    
+    const selectedWeekData = weeks.find(w => w.weekNumber === selectedWeek);
+    if (!selectedWeekData) return [];
+    
+    const weekStart = new Date(selectedWeekData.startAt);
+    const weekEnd = new Date(selectedWeekData.endAt);
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    return groupIssues.filter(issue => {
+      if (!issue.deadline) return false;
+      const deadline = new Date(issue.deadline);
+      return deadline >= weekStart && deadline <= weekEnd;
+    });
+  };
+
+  // Get issues for specific day and time slot
+  const getIssuesForSlot = (day, timeSlot) => {
+    const weekIssues = getIssuesForWeek();
+    if (!weekIssues.length) return [];
+    
+    const matchedIssues = [];
+    for (const issue of weekIssues) {
+      const deadline = new Date(issue.deadline);
+      const dayOfWeek = deadline.getDay();
+      const hour = deadline.getHours();
+      
+      const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      
+      if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
+        matchedIssues.push(issue);
+      }
+    }
+    
+    return matchedIssues;
+  };
+
+  // Get issue status color
+  const getIssueStatusColor = (status) => {
+    switch (status) {
+      case 'Done':
+        return '#059669'; // Green
+      case 'InProgress':
+        return '#d97706'; // Orange
+      case 'Todo':
+        return '#6b7280'; // Gray
+      default:
+        return '#6b7280';
+    }
+  };
+
+  // Get issue status text
+  const getIssueStatusText = (status) => {
+    switch (status) {
+      case 'Done':
+        return '✅ Done';
+      case 'InProgress':
+        return '🔄 In Progress';
+      case 'Todo':
+        return '📋 To Do';
+      default:
+        return '❓ Unknown';
+    }
   };
 
   const getStatusColor = (status) => {
@@ -766,9 +866,9 @@ export default function StudentHome() {
     return allTasks.slice(0, 3);
   }, [tasks]);
 
-  // Get 3 nearest milestones sorted by deadline
-  const getNearestMilestones = React.useMemo(() => {
-    if (!milestones.length) return [];
+  // Get 1 nearest upcoming milestone
+  const getNearestMilestone = React.useMemo(() => {
+    if (!milestones.length) return null;
     
     const now = new Date();
     const sortedMilestones = [...milestones].sort((a, b) => {
@@ -778,19 +878,14 @@ export default function StudentHome() {
       return deadlineA - deadlineB;
     });
 
-    // Lọc các milestone có deadline >= hiện tại (sắp tới) hoặc đã quá hạn nhưng chưa nộp
-    const relevantMilestones = sortedMilestones.filter(milestone => {
+    // Tìm milestone sắp tới (deadline >= hiện tại)
+    const upcomingMilestone = sortedMilestones.find(milestone => {
       if (!milestone.endAt) return false;
       const deadline = new Date(milestone.endAt);
-      // Nếu đã quá hạn nhưng status chưa phải SUBMITTED thì vẫn hiển thị
-      if (deadline < now && milestone.status === 'SUBMITTED') {
-        return false; // Đã nộp rồi thì không hiển thị
-      }
-      return true;
+      return deadline >= now;
     });
 
-    // Lấy 3 milestone gần nhất
-    return relevantMilestones.slice(0, 3);
+    return upcomingMilestone || null;
   }, [milestones]);
 
   // Task columns
@@ -799,7 +894,15 @@ export default function StudentHome() {
       key: 'title', 
       title: 'Task Title',
       render: (row) => (
-        <div style={{ fontWeight: 500, color: '#1f2937' }}>
+        <div 
+          style={{ 
+            fontWeight: 500, 
+            color: '#3b82f6', 
+            cursor: 'pointer',
+            textDecoration: 'underline'
+          }}
+          onClick={() => openTaskDetail(row)}
+        >
           {row.title || row.name || 'N/A'}
         </div>
       )
@@ -858,84 +961,13 @@ export default function StudentHome() {
         );
       }
     },
-    {
-      key: 'actions',
-      title: 'Actions',
-      render: (row) => (
-        <Button
-          onClick={(e) => {
-            e.stopPropagation();
-            openTaskDetail(row);
-          }}
-          style={{ padding: '4px 12px', fontSize: 12 }}
-        >
-          Details
-        </Button>
-      )
-    }
-  ], []);
-
-  // Milestone columns
-  const milestoneTableColumns = React.useMemo(() => [
     { 
-      key: 'name', 
-      title: 'Milestone Name',
+      key: 'reviewer', 
+      title: 'Reviewer',
       render: (row) => (
-        <div style={{ fontWeight: 500, color: '#1f2937' , width: '500px'}}>
-          {row.name || 'N/A'}
-        </div>
-      )
-    },
-    { 
-      key: 'endAt', 
-      title: 'Deadline',
-      render: (row) => {
-        if (!row.endAt) return 'N/A';
-        const deadline = new Date(row.endAt);
-        const now = new Date();
-        const isOverdue = deadline < now && row.status !== 'SUBMITTED';
-        return (
-          <div style={{ 
-            color: isOverdue ? '#dc2626' : '#374151',
-            fontWeight: isOverdue ? 600 : 400
-          }}>
-            {formatDate(row.endAt, 'DD/MM/YYYY HH:mm')}
-          </div>
-        );
-      }
-    },
-    { 
-      key: 'status', 
-      title: 'Status',
-      render: (row) => (
-        <span style={{
-          color: getStatusColor(row.status),
-          background: getStatusColor(row.status) === '#059669' ? '#ecfdf5' : 
-                     getStatusColor(row.status) === '#dc2626' ? '#fee2e2' :
-                     getStatusColor(row.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
-          padding: '4px 8px',
-          borderRadius: 4,
-          fontSize: 12,
-          fontWeight: 500,
-          border: `1px solid ${getStatusColor(row.status)}`
-        }}>
-          {getStatusText(row.status)}
+        <span style={{ color: row.reviewerName ? '#374151' : '#9ca3af', fontStyle: row.reviewerName ? 'normal' : 'italic' }}>
+          {row.reviewerName || 'No Reviewer'}
         </span>
-      )
-    },
-    {
-      key: 'actions',
-      title: 'Actions',
-      render: (row) => (
-        <Button
-          onClick={(e) => {
-            e.stopPropagation();
-            openDetailModal(row);
-          }}
-          style={{ padding: '4px 12px', fontSize: 12 }}
-        >
-          Details
-        </Button>
       )
     }
   ], []);
@@ -1183,9 +1215,32 @@ export default function StudentHome() {
         </div>
       )}
 
-      {/* Week Selector */}
+      {/* Week Selector with arrows and dropdown */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
         <span style={{ fontWeight: 600, fontSize: 14 }}>Week:</span>
+        
+        <button
+          onClick={() => {
+            const currentIndex = weeks.findIndex(w => w.weekNumber === selectedWeek);
+            if (currentIndex > 0) {
+              setSelectedWeek(weeks[currentIndex - 1].weekNumber);
+            }
+          }}
+          disabled={weeks.findIndex(w => w.weekNumber === selectedWeek) === 0}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            background: weeks.findIndex(w => w.weekNumber === selectedWeek) === 0 ? '#f3f4f6' : 'white',
+            cursor: weeks.findIndex(w => w.weekNumber === selectedWeek) === 0 ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            color: weeks.findIndex(w => w.weekNumber === selectedWeek) === 0 ? '#9ca3af' : '#374151'
+          }}
+        >
+          ← Prev
+        </button>
+        
         <select 
           value={selectedWeek} 
           onChange={(e) => setSelectedWeek(Number(e.target.value))}
@@ -1197,7 +1252,7 @@ export default function StudentHome() {
             backgroundColor: "white",
             outline: "none",
             minWidth: 120,
-            maxWidth: 300
+            maxWidth: 350
           }}
         >
           {weeks.map((week) => (
@@ -1214,6 +1269,28 @@ export default function StudentHome() {
             </option>
           ))}
         </select>
+        
+        <button
+          onClick={() => {
+            const currentIndex = weeks.findIndex(w => w.weekNumber === selectedWeek);
+            if (currentIndex < weeks.length - 1) {
+              setSelectedWeek(weeks[currentIndex + 1].weekNumber);
+            }
+          }}
+          disabled={weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1}
+          style={{
+            padding: '8px 12px',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            background: weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1 ? '#f3f4f6' : 'white',
+            cursor: weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1 ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            color: weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1 ? '#9ca3af' : '#374151'
+          }}
+        >
+          Next →
+        </button>
       </div>
 
       {/* Calendar Table */}
@@ -1329,6 +1406,7 @@ export default function StudentHome() {
                         const milestones = getMilestonesForSlot(dayIndex, timeSlot);
                         const meetings = getMeetingsForSlot(dayIndex, timeSlot);
                         const tasks = getTasksForSlot(dayIndex, timeSlot);
+                        const issues = getIssuesForSlot(dayIndex, timeSlot);
                         
                         return (
                           <td key={day} style={{ 
@@ -1468,6 +1546,52 @@ export default function StudentHome() {
                                   </div>
                                 </div>
                               ))}
+                              
+                              {/* Issues - Display all issues in this slot */}
+                              {issues.map((issue, idx) => (
+                                <div 
+                                  key={issue.id || `issue_${idx}`}
+                                  onClick={() => {
+                                    if (issue.id) {
+                                      const groupId = userInfo?.groups?.[0];
+                                      navigate(`/student/task-detail/${groupId}?taskId=${issue.id}`);
+                                    }
+                                  }}
+                                  style={{ 
+                                    background: getIssueStatusColor(issue.status) === '#059669' ? '#ecfdf5' : 
+                                               getIssueStatusColor(issue.status) === '#d97706' ? '#fef3c7' : '#e0e7ff',
+                                    border: `1px solid ${getIssueStatusColor(issue.status)}`,
+                                    borderRadius: 4,
+                                    padding: 4,
+                                    cursor: issue.id ? 'pointer' : 'default',
+                                    fontSize: 9,
+                                    maxHeight: '50px',
+                                    overflow: 'hidden',
+                                    transition: 'all 0.2s ease',
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.transform = 'scale(1.02)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                    e.target.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600, color: getIssueStatusColor(issue.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                                    🔔 {issue.name.length > 15 ? issue.name.substring(0, 15) + '...' : issue.name}
+                                  </div>
+                                  <div style={{ color: getIssueStatusColor(issue.status), fontSize: 8 }}>
+                                    {getIssueStatusText(issue.status)}
+                                  </div>
+                                  <div style={{ color: getIssueStatusColor(issue.status), fontSize: 8 }}>
+                                    {formatDate(issue.deadline, 'HH:mm')}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </td>
                         );
@@ -1599,80 +1723,86 @@ export default function StudentHome() {
         </div>
       </div> */}
 
-      {/* Quick Summary */}
+      {/* Nearest Milestone + Link to Milestones page */}
       <div style={{ marginTop: 24 }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Quick Summary</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
-          <div style={{ 
-            background: '#f0f9ff', 
-            border: '1px solid #0ea5e9', 
-            borderRadius: 8, 
-            padding: 16 
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#0c4a6e', marginBottom: 4 }}>
-              Total Milestones
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#0369a1' }}>
-              {milestones.length}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 16 }}>Upcoming Milestone</h3>
+          <Button
+            onClick={() => navigate('/student/milestones')}
+            style={{
+              background: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: 6,
+              cursor: 'pointer',
+              fontSize: 13,
+              fontWeight: 500
+            }}
+          >
+            View All Milestones →
+          </Button>
+        </div>
+        
+        {getNearestMilestone ? (
+          <div 
+            onClick={() => openDetailModal(getNearestMilestone)}
+            style={{ 
+              background: getStatusColor(getNearestMilestone.status) === '#059669' ? '#ecfdf5' : 
+                         getStatusColor(getNearestMilestone.status) === '#dc2626' ? '#fee2e2' :
+                         getStatusColor(getNearestMilestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+              border: `2px solid ${getStatusColor(getNearestMilestone.status)}`,
+              borderRadius: 8, 
+              padding: 16,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'scale(1.01)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'scale(1)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: '#1f2937', marginBottom: 4 }}>
+                  📊 {getNearestMilestone.name}
+                </div>
+                <div style={{ fontSize: 13, color: '#64748b', marginBottom: 8 }}>
+                  {getNearestMilestone.description}
+                </div>
+                <div style={{ fontSize: 13, color: '#374151' }}>
+                  <strong>Deadline:</strong> {formatDate(getNearestMilestone.endAt, 'DD/MM/YYYY HH:mm')}
+                </div>
+              </div>
+              <span style={{
+                color: getStatusColor(getNearestMilestone.status),
+                background: 'white',
+                padding: '4px 10px',
+                borderRadius: 4,
+                fontSize: 12,
+                fontWeight: 600,
+                border: `1px solid ${getStatusColor(getNearestMilestone.status)}`
+              }}>
+                {getStatusText(getNearestMilestone.status)}
+              </span>
             </div>
           </div>
-          
-          <div style={{ 
-            background: '#ecfdf5', 
-            border: '1px solid #10b981', 
-            borderRadius: 8, 
-            padding: 16 
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#065f46', marginBottom: 4 }}>
-              Submitted
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#059669' }}>
-              {milestones.filter(m => m.status === 'SUBMITTED').length}
-            </div>
-          </div>
-          
-          <div style={{ 
-            background: '#fef3c7', 
-            border: '1px solid #f59e0b', 
-            borderRadius: 8, 
-            padding: 16 
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>
-              Pending
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#d97706' }}>
-              {milestones.filter(m => m.status === 'Pending').length}
-            </div>
-          </div>
-          
-          <div style={{ 
-            background: '#fee2e2', 
-            border: '1px solid #dc2626', 
-            borderRadius: 8, 
-            padding: 16 
-          }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#991b1b', marginBottom: 4 }}>
-              Late
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#dc2626' }}>
-              {milestones.filter(m => m.status === 'LATE').length}
-            </div>
-          </div>
-          
+        ) : (
           <div style={{ 
             background: '#f3f4f6', 
-            border: '1px solid #64748b', 
+            border: '1px solid #d1d5db', 
             borderRadius: 8, 
-            padding: 16 
+            padding: 16,
+            textAlign: 'center',
+            color: '#6b7280'
           }}>
-            <div style={{ fontSize: 14, fontWeight: 600, color: '#475569', marginBottom: 4 }}>
-              Unsubmitted
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: '#64748b' }}>
-              {milestones.filter(m => m.status === 'UNSUBMITTED' || !m.status).length}
-            </div>
+            No upcoming milestones
           </div>
-        </div>
+        )}
       </div>
 
       {/* Upcoming Tasks Table */}
@@ -1694,29 +1824,7 @@ export default function StudentHome() {
             emptyMessage="No tasks available"
             showIndex={true}
             indexTitle="STT"
-          />
-        </div>
-      </div>
-
-      {/* Nearest Milestones Table */}
-      <div style={{ marginTop: 32 }}>
-        <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#1f2937' }}>
-          3 Nearest Milestones
-        </h3>
-        <div style={{ 
-          background: '#fff',
-          border: '1px solid #e5e7eb',
-          borderRadius: 8,
-          padding: 16,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <DataTable
-            columns={milestoneTableColumns}
-            data={getNearestMilestones}
-            loading={loading}
-            emptyMessage="No milestones available"
-            showIndex={true}
-            indexTitle="STT"
+            onRowClick={openTaskDetail}
           />
         </div>
       </div>

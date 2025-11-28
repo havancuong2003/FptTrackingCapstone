@@ -354,6 +354,8 @@ export default function StudentMilestones() {
         return '#64748b'; // Gray
       case 'REJECTED':
         return '#dc2626'; // Red
+      case 'MISSING':
+        return '#dc2626'; // Red
       default:
         return '#64748b'; // Gray
     }
@@ -367,15 +369,29 @@ export default function StudentMilestones() {
         return '⚠ Late';
       case 'Pending':
         return '⏳ Pending Review';
+      case 'PENDING':
+        return '⏳ Pending Review';
       case 'UNSUBMITTED':
         return '✗ Unsubmitted';
       case 'REJECTED':
         return '❌ Rejected';
+      case 'MISSING':
+        return '❌ Missing';
       default:
         return '❓ Unknown';
-      case 'PENDING':
-        return '⏳ Pending Review';
     }
+  };
+
+  // Hàm kiểm tra và trả về status thực tế (bao gồm MISSING)
+  const getActualStatus = (milestone) => {
+    if (milestone.status === 'UNSUBMITTED') {
+      const now = new Date();
+      const deadline = new Date(milestone.endAt);
+      if (deadline < now) {
+        return 'MISSING';
+      }
+    }
+    return milestone.status;
   };
 
   const showHistory = (item) => {
@@ -460,82 +476,30 @@ export default function StudentMilestones() {
       )}
 
 
-      {/* Summary Tables - Responsive Layout */}
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: isMobile || isTablet ? 'column' : 'row',
-        gap: isMobile ? 12 : 16, 
-        marginTop: isMobile ? 16 : 24 
-      }}>
-        
-
-        {/* Group Members Table - Responsive with # column */}
-        {groupInfo?.students && (
-          <div style={{ 
-            flex: 1, 
-            minWidth: isMobile || isTablet ? '100%' : '350px',
-            maxWidth: isMobile || isTablet ? '100%' : '500px',
-            marginBottom: isMobile || isTablet ? 20 : 0
-          }}>
-            <h3 style={{ margin: '0 0 12px 0', fontSize: isMobile ? '15px' : '16px', color: '#333' }}>Group Members</h3>
-            <div style={{ 
-              overflowX: 'auto',
-              border: '1px solid #e5e7eb', 
-              borderRadius: 8, 
-              overflow: 'hidden',
-              boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-              background: '#fff'
-            }}>
-              <table style={{ 
-                width: '100%', 
-                borderCollapse: 'separate', 
-                borderSpacing: 0,
-                minWidth: isMobile ? '400px' : 'auto',
-                tableLayout: 'fixed'
-              }}>
-                <thead style={{ background: '#f9fafb' }}>
-                  <tr>
-                    <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '35px' }}>#</th>
-                    <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '90px' }}>Student Code</th>
-                    <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px' }}>Name</th>
-                    <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '75px' }}>Role</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groupInfo.students.map((student, index) => (
-                    <tr key={student.id} style={{ borderBottom: '1px solid #f1f5f9', background: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
-                      <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                        <div style={{ fontWeight: 600, fontSize: isMobile ? '12px' : '13px', color: '#6c757d' }}>{index + 1}</div>
-                      </td>
-                      <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                        <div style={{ fontWeight: 600, fontSize: isMobile ? '12px' : '13px', wordBreak: 'break-word' }}>{student.rollNumber}</div>
-                      </td>
-                      <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                        <div style={{ fontSize: isMobile ? '13px' : '14px', wordBreak: 'break-word' }}>{student.name}</div>
-                      </td>
-                      <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                        <span style={{ 
-                          color: '#059669', 
-                          background: '#ecfdf5',
-                          padding: isMobile ? '3px 5px' : '4px 6px',
-                          borderRadius: 6,
-                          fontSize: isMobile ? '11px' : '12px',
-                          fontWeight: 600,
-                          border: '1px solid #10b981',
-                          display: 'inline-block',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {student.role === "Student" ? 'Member' : (student.role || 'Member')}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Group Members Link */}
+      {groupInfo?.students && (
+        <div style={{ marginTop: isMobile ? 16 : 24 }}>
+          <a 
+            href="/student/groups"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              color: '#3b82f6',
+              textDecoration: 'none',
+              fontSize: isMobile ? '14px' : '15px',
+              fontWeight: 500,
+              padding: '8px 16px',
+              background: '#eff6ff',
+              border: '1px solid #3b82f6',
+              borderRadius: 8,
+              cursor: 'pointer'
+            }}
+          >
+            👥 View Group Members ({groupInfo.students.length} members) →
+          </a>
+        </div>
+      )}
       
 {/* Milestones Summary Table - Responsive */}
 <div style={{ flex: 1, marginTop: isMobile ? 16 : 24, width: '100%' }}>
@@ -552,7 +516,7 @@ export default function StudentMilestones() {
             width: '100%', 
             borderCollapse: 'separate', 
             borderSpacing: 0,
-            minWidth: isMobile ? '600px' : 'auto'
+            minWidth: isMobile ? '500px' : 'auto'
           }}>
             <thead style={{ background: '#f8f9fa' }}>
               <tr>
@@ -560,17 +524,31 @@ export default function StudentMilestones() {
                 <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px' }}>Milestone</th>
                 <th style={{ textAlign: 'left', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '130px' }}>Deadline</th>
                 <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '130px' }}>Status</th>
-                <th style={{ textAlign: 'center', padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #e5e7eb', fontWeight: 600, fontSize: isMobile ? '12px' : '13px', width: '100px' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {milestones.map((milestone, index) => (
+              {milestones.map((milestone, index) => {
+                const actualStatus = getActualStatus(milestone);
+                return (
                 <tr key={milestone.id} style={{ borderBottom: '1px solid #f1f5f9', background: index % 2 === 0 ? '#fff' : '#f8f9fa' }}>
                   <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
                     <div style={{ fontWeight: 600, fontSize: isMobile ? '12px' : '13px', color: '#6c757d' }}>{index + 1}</div>
                   </td>
                   <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 8px', borderBottom: '1px solid #f1f5f9' }}>
-                    <div style={{ fontWeight: 600, fontSize: isMobile ? '13px' : '14px', marginBottom: 4, color: '#333', wordBreak: 'break-word' }}>{milestone.name}</div>
+                    <div 
+                      onClick={() => openDetailModal(milestone)}
+                      style={{ 
+                        fontWeight: 600, 
+                        fontSize: isMobile ? '13px' : '14px', 
+                        marginBottom: 4, 
+                        color: '#3b82f6', 
+                        wordBreak: 'break-word',
+                        cursor: 'pointer',
+                        textDecoration: 'underline'
+                      }}
+                    >
+                      {milestone.name}
+                    </div>
                     {milestone.description && (
                       <div style={{ fontSize: isMobile ? '11px' : '12px', color: '#64748b', wordBreak: 'break-word' }}>{milestone.description}</div>
                     )}
@@ -582,45 +560,27 @@ export default function StudentMilestones() {
                   </td>
                   <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
                     <span style={{ 
-                      color: getStatusColor(milestone.status), 
-                      background: getStatusColor(milestone.status) === '#059669' ? '#ecfdf5' : 
-                                 getStatusColor(milestone.status) === '#dc2626' ? '#fee2e2' :
-                                 getStatusColor(milestone.status) === '#d97706' ? '#fef3c7' : '#f3f4f6',
+                      color: getStatusColor(actualStatus), 
+                      background: getStatusColor(actualStatus) === '#059669' ? '#ecfdf5' : 
+                                 getStatusColor(actualStatus) === '#dc2626' ? '#fee2e2' :
+                                 getStatusColor(actualStatus) === '#d97706' ? '#fef3c7' : '#f3f4f6',
                       padding: isMobile ? '3px 6px' : '4px 8px',
                       borderRadius: 6,
                       fontSize: isMobile ? '11px' : '12px',
                       fontWeight: 600,
-                      border: `1px solid ${getStatusColor(milestone.status)}`,
+                      border: `1px solid ${getStatusColor(actualStatus)}`,
                       display: 'inline-block',
                       whiteSpace: 'nowrap'
                     }}>
-                      {getStatusText(milestone.status)}
+                      {getStatusText(actualStatus)}
                     </span>
                   </td>
-                  <td style={{ padding: isMobile ? '6px 4px' : isTablet ? '8px 4px' : '10px 6px', borderBottom: '1px solid #f1f5f9', textAlign: 'center' }}>
-                    <Button
-                      onClick={() => openDetailModal(milestone)}
-                      variant="ghost"
-                      style={{ 
-                        fontSize: isMobile ? '10px' : isTablet ? '11px' : '12px', 
-                        padding: isMobile ? '4px 6px' : isTablet ? '5px 8px' : '6px 10px',
-                        background: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        fontWeight: 500,
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      View Details
-                    </Button>
-                  </td>
                 </tr>
-              ))}
+                );
+              })}
               {milestones.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
+                  <td colSpan={4} style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>
                     No milestones found
                   </td>
                 </tr>
