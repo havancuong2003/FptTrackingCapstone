@@ -693,21 +693,10 @@ export default function TaskDetail() {
           timestamp: commentResponse.createAt
         };
 
-        const nowIso = new Date().toISOString();
-        const newHistoryItem = {
-          id: Date.now() + 1,
-          type: 'comment',
-          detail: `Added comment: ${newComment.trim().substring(0, 50)}${newComment.trim().length > 50 ? '...' : ''}`,
-          at: nowIso,
-          user: userRollNumber, // user trong history cũng là rollNumber
-          action: 'COMMENT'
-        };
-
-        // Cập nhật state trực tiếp
+        // Cập nhật state trực tiếp - chỉ thêm comment, không thêm vào history
         setTask(prev => ({
           ...prev,
-          comments: [...(prev.comments || []), newCommentObj],
-          history: [...(prev.history || []), newHistoryItem]
+          comments: [...(prev.comments || []), newCommentObj]
         }));
 
         setNewComment('');
