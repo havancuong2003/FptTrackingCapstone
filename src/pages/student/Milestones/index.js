@@ -205,13 +205,19 @@ export default function StudentMilestones() {
       return;
     }
     
+    // Check if semesterId is available
+    if (!groupInfo?.semesterId) {
+      alert('Semester information is not available. Please try again later.');
+      return;
+    }
+    
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append('file', fileToUpload);
       
       const res = await client.post(
-        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}`,
+        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}&semester=${groupInfo.semesterId}`,
         formData,
         {
           headers: {
