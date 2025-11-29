@@ -4,7 +4,10 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
-import axiosClient from '../../../utils/axiosClient';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { updateStudentRoleInGroup, sendEmails } from '../../../api/staff';
+import Select from '../../../components/Select/Select';
 
 export default function SupervisorGroups() {
     const navigate = useNavigate();
@@ -27,63 +30,80 @@ export default function SupervisorGroups() {
         cc: []
     });
     const [emailLoading, setEmailLoading] = React.useState(false);
+    const [semesters, setSemesters] = React.useState([]);
+    const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
 
     React.useEffect(() => {
+        // Get semesters and set default to current semester
+        const uniqueSemesters = getUniqueSemesters();
+        setSemesters(uniqueSemesters);
+        
+        const currentSemesterId = getCurrentSemesterId();
+        if (currentSemesterId) {
+            setSelectedSemesterId(currentSemesterId);
+        } else if (uniqueSemesters.length > 0) {
+            // Fallback to first semester if no current semester
+            setSelectedSemesterId(uniqueSemesters[0].id);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        if (selectedSemesterId === null) return;
+        
         const fetchGroups = async () => {
             try {
                 setLoading(true);
                 
-                // Step 1: Call API to get supervisor's group list (only id and name)
-                const groupsResponse = await axiosClient.get('/Mentor/getGroups');
-                if (groupsResponse.data.status === 200) {
-                    // Get basic group list (only id and name)
-                    const groupList = groupsResponse.data.data;
-                    
-                    // Step 2: Fetch details for each group (students, projectName, etc.)
-                    const detailedGroups = await Promise.all(
-                        groupList.map(async (group) => {
-                            try {
-                                const detailResponse = await axiosClient.get(`/Staff/capstone-groups/${group.id}`);
-                                
-                                if (detailResponse.data.status === 200) {
-                                    const groupDetail = detailResponse.data.data;
-                                    return {
-                                        id: group.id,
-                                        groupCode: groupDetail.groupCode,
-                                        groupName: groupDetail.groupCode,
-                                        projectName: groupDetail.projectName,
-                                        projectCode: groupDetail.groupCode,
-                                        members: groupDetail.students.map(student => ({
-                                            id: student.rollNumber,
-                                            studentId: student.id, // Save studentId for API calls
-                                            name: student.name,
-                                            currentRole: student.role === "Student" ? 'Member' : (student.role || 'Member'),
-                                            email: `${student.rollNumber.toLowerCase()}@student.fpt.edu.vn`
-                                        })),
-                                        progress: {
-                                            completedMilestones: 0,
-                                            totalMilestones: 7,
-                                            completionPercentage: 0
-                                        },
-                                        currentMilestone: "Project Initialization",
-                                        nextDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
-                                    };
-                                }
-                                return null;
-                            } catch (error) {
-                                console.error(`Error fetching details for group ${group.id}:`, error);
-                                return null;
-                            }
-                        })
-                    );
-                    
-                    // Filter out null groups
-                    const validGroups = detailedGroups.filter(group => group !== null);
-                    setGroups(validGroups);
-                } else {
-                    console.error('Error fetching groups:', groupsResponse.data.message);
+                // Step 1: Get groups from localStorage based on semester and expired status (only active groups for main page)
+                const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, false);
+                
+                if (groupsFromStorage.length === 0) {
                     setGroups([]);
+                    setLoading(false);
+                    return;
                 }
+                
+                // Step 2: Fetch details for each group (students, projectName, etc.)
+                const detailedGroups = await Promise.all(
+                    groupsFromStorage.map(async (groupInfo) => {
+                        try {
+                            const detailResponse = await getCapstoneGroupDetail(groupInfo.id);
+                            
+                            if (detailResponse.status === 200 && detailResponse.data) {
+                                const groupDetail = detailResponse.data;
+                                return {
+                                    id: groupInfo.id,
+                                    groupCode: groupDetail.groupCode || groupInfo.code || '',
+                                    groupName: groupDetail.groupCode || groupInfo.code || '',
+                                    projectName: groupDetail.projectName || groupInfo.name || '',
+                                    projectCode: groupDetail.groupCode || groupInfo.code || '',
+                                    members: (groupDetail.students || []).map(student => ({
+                                        id: student.rollNumber,
+                                        studentId: student.id, // Save studentId for API calls
+                                        name: student.name,
+                                        currentRole: student.role === "Student" ? 'Member' : (student.role || 'Member'),
+                                        email: student.email || `${student.rollNumber?.toLowerCase()}@student.fpt.edu.vn`
+                                    })),
+                                    progress: {
+                                        completedMilestones: 0,
+                                        totalMilestones: 7,
+                                        completionPercentage: 0
+                                    },
+                                    currentMilestone: "Project Initialization",
+                                    nextDeadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                                };
+                            }
+                            return null;
+                        } catch (error) {
+                            console.error(`Error fetching details for group ${groupInfo.id}:`, error);
+                            return null;
+                        }
+                    })
+                );
+                
+                // Filter out null groups
+                const validGroups = detailedGroups.filter(group => group !== null);
+                setGroups(validGroups);
             } catch (error) {
                 console.error('Error fetching groups:', error);
                 setGroups([]);
@@ -93,7 +113,7 @@ export default function SupervisorGroups() {
         };
 
         fetchGroups();
-    }, []);
+    }, [selectedSemesterId]);
 
     const getProgressColor = (percentage) => {
         if (percentage >= 80) return '#059669';
@@ -220,16 +240,9 @@ export default function SupervisorGroups() {
         
         try {
             // Call API to change role
-            const response = await axiosClient.put(`/Staff/update-role?groupId=${selectedGroup.id}&studentId=${memberToChangeRole.studentId}`, 
-                `"${selectedRole}"`,
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+            const response = await updateStudentRoleInGroup(selectedGroup.id, memberToChangeRole.studentId, selectedRole);
             
-            if (response.data.status === 200) {
+            if (response.status === 200) {
                 // Update local state after successful API call
                 const updatedGroups = groups.map(group => {
                     if (group.id === selectedGroup.id) {
@@ -286,22 +299,22 @@ export default function SupervisorGroups() {
     };
 
     const sendEmail = async () => {
-        if (!emailData.to.length || !emailData.subject || !emailData.body) {
-            alert('Vui lòng điền đầy đủ thông tin email');
-            return;
-        }
+            if (!emailData.to.length || !emailData.subject || !emailData.body) {
+                alert('Please fill in all email information');
+                return;
+            }
 
         setEmailLoading(true);
         try {
-            const response = await axiosClient.post('/Mail/send-mails', {
+            const response = await sendEmails({
                 to: emailData.to,
                 subject: emailData.subject,
                 body: emailData.body,
                 cc: emailData.cc
             });
 
-            if (response.data) {
-                alert('Email đã được gửi thành công!');
+            if (response) {
+                alert('Email sent successfully!');
                 setEmailModalOpen(false);
                 setEmailData({
                     to: [],
@@ -310,11 +323,11 @@ export default function SupervisorGroups() {
                     cc: []
                 });
             } else {
-                alert('Có lỗi xảy ra khi gửi email');
+                alert('Error sending email');
             }
         } catch (error) {
             console.error('Error sending email:', error);
-            alert(`Lỗi gửi email: ${error.message || 'Có lỗi xảy ra'}`);
+            alert(`Error sending email: ${error.message || 'An error occurred'}`);
         } finally {
             setEmailLoading(false);
         }
@@ -366,10 +379,24 @@ export default function SupervisorGroups() {
 
     return (
         <div className={styles.container}>
-            <h1>Group</h1>
-            <p className={styles.subtitle}>
-                Manage and track the groups you are supervising.
-            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                    <h1>Groups</h1>
+                    <p className={styles.subtitle}>
+                        Manage and track the groups you are supervising.
+                    </p>
+                </div>
+                {semesters.length > 0 && (
+                    <div style={{ minWidth: 200 }}>
+                        <Select
+                            value={selectedSemesterId?.toString() || ''}
+                            onChange={(e) => setSelectedSemesterId(parseInt(e.target.value))}
+                            options={semesters.map(s => ({ value: s.id.toString(), label: s.name }))}
+                            placeholder="Select Semester"
+                        />
+                    </div>
+                )}
+            </div>
             
             <div className={styles.groupsList}>
                 <DataTable

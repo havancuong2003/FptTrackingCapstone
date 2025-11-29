@@ -4,8 +4,9 @@ import styles from './GroupDetail.module.scss';
 import Button from '../../../components/Button/Button';
 import BackButton from '../../common/BackButton';
 import axiosClient from '../../../utils/axiosClient';
-import { getRoleInGroup, getUserInfo } from '../../../auth/auth';
+import { getRoleInGroup, getUserInfo, refreshUserInfo } from '../../../auth/auth';
 import { sendSecretaryAssignmentEmail, sendRoleAssignmentEmail } from '../../../email/groups';
+import { updateGroupExpireDate } from '../../../api/staff/groups';
 
 export default function GroupDetail() {
     const { groupId } = useParams();
@@ -25,6 +26,9 @@ export default function GroupDetail() {
     const [showRoleModal, setShowRoleModal] = React.useState(false);
     const [selectedMember, setSelectedMember] = React.useState(null);
     const [newRole, setNewRole] = React.useState('');
+    const [showExpireDateModal, setShowExpireDateModal] = React.useState(false);
+    const [newExpireDate, setNewExpireDate] = React.useState('');
+    const [expireDateLoading, setExpireDateLoading] = React.useState(false);
 
     React.useEffect(() => {
         fetchGroupDetails();
@@ -37,12 +41,12 @@ export default function GroupDetail() {
             
             if (response.data.status === 200) {
                 const groupData = response.data.data;
-                console.log(" group data:  ", groupData);
                 const formattedGroup = {
                     id: groupData.id,
                     groupCode: groupData.groupCode,
                     groupName: groupData.groupCode,
                     projectName: groupData.projectName,
+                    expireDate: groupData.expireDate || null,
                     members: groupData.students.map(student => ({
                         id: student.rollNumber,
                         studentId: student.id,
@@ -71,7 +75,7 @@ export default function GroupDetail() {
 
     const handleSendEmail = async () => {
         if (!emailSubject.trim() || !emailContent.trim()) {
-            alert('Vui lòng nhập tiêu đề và nội dung email');
+            alert('Please enter email subject and content');
             return;
         }
 
@@ -90,16 +94,16 @@ export default function GroupDetail() {
             const response = await axiosClient.post('/Staff/send-group-email', emailData);
             
             if (response.data.status === 200) {
-                alert('Email đã được gửi thành công!');
+                alert('Email sent successfully!');
                 setEmailContent('');
                 setEmailSubject('');
                 setShowEmailComposer(false);
             } else {
-                alert('Lỗi gửi email: ' + response.data.message);
+                alert('Error sending email: ' + response.data.message);
             }
         } catch (error) {
             console.error('Error sending email:', error);
-            alert('Lỗi gửi email: ' + error.message);
+            alert('Error sending email: ' + error.message);
         }
     };
 
@@ -107,6 +111,51 @@ export default function GroupDetail() {
         setSelectedMember(member);
         setNewRole(member.currentRole);
         setShowRoleModal(true);
+    };
+
+    const openExpireDateModal = () => {
+        if (group?.expireDate) {
+            // Convert to date format (YYYY-MM-DD)
+            const date = new Date(group.expireDate);
+            const localDate = date.toISOString().slice(0, 10);
+            setNewExpireDate(localDate);
+        } else {
+            setNewExpireDate('');
+        }
+        setShowExpireDateModal(true);
+    };
+
+    const handleSaveExpireDate = async () => {
+        if (!newExpireDate) {
+            alert('Please select expire date');
+            return;
+        }
+
+        setExpireDateLoading(true);
+        try {
+            const expireDateISO = new Date(newExpireDate).toISOString();
+            const response = await updateGroupExpireDate(groupId, expireDateISO);
+            
+            if (response.status === 200) {
+                setGroup(prev => ({
+                    ...prev,
+                    expireDate: expireDateISO
+                }));
+                
+                // Refresh user info to update group status (active/inactive)
+                await refreshUserInfo();
+                
+                alert('Expire date updated successfully!');
+                setShowExpireDateModal(false);
+            } else {
+                alert(`Error: ${response.message}`);
+            }
+        } catch (error) {
+            console.error('Error updating expire date:', error);
+            alert('Error updating expire date. Please try again.');
+        } finally {
+            setExpireDateLoading(false);
+        }
     };
 
     const handleSaveRoleChange = async () => {
@@ -142,9 +191,7 @@ export default function GroupDetail() {
                 
                 // Send email notification based on who is assigning the role
                 try {
-                    console.log(" isSupervisor: ", isSupervisor);
-                    console.log(" newRole: ", newRole);
-                    console.log(" isSecretary: ", isSecretary);
+
                     const systemUrl = `${window.location.origin}`;
                     const groupDetailUrl = `${window.location.origin}/supervisor/groups/${groupId}`;
                     
@@ -180,7 +227,7 @@ export default function GroupDetail() {
                     console.warn('Role changed successfully but email notification failed');
                 }
                 
-                alert(`Đã thay đổi role thành ${newRole} cho ${selectedMember.name}!${isSupervisor && newRole === 'Secretary' ? ' Email thông báo đã được gửi.' : isSecretary ? ' Email thông báo đã được gửi.' : ''}`);
+                alert(`Role changed to ${newRole} for ${selectedMember.name}!${isSupervisor && newRole === 'Secretary' ? ' Notification email has been sent.' : isSecretary ? ' Notification email has been sent.' : ''}`);
                 setShowRoleModal(false);
                 setSelectedMember(null);
                 setNewRole('');
@@ -189,7 +236,7 @@ export default function GroupDetail() {
             }
         } catch (error) {
             console.error('Error changing role:', error);
-            alert('Có lỗi khi thay đổi role. Vui lòng thử lại.');
+            alert('Error changing role. Please try again.');
         }
     };
 
@@ -228,7 +275,7 @@ export default function GroupDetail() {
 
     const sendEmail = async () => {
         if (!emailData.to.length || !emailData.subject || !emailData.body) {
-            alert('Vui lòng điền đầy đủ thông tin email');
+            alert('Please fill in all email information');
             return;
         }
 
@@ -238,7 +285,7 @@ export default function GroupDetail() {
         const invalidEmails = allEmails.filter(email => email && !emailRegex.test(email));
         
         if (invalidEmails.length > 0) {
-            alert(`Email không hợp lệ: ${invalidEmails.join(', ')}`);
+            alert(`Invalid email: ${invalidEmails.join(', ')}`);
             return;
         }
 
@@ -253,7 +300,7 @@ export default function GroupDetail() {
             });
             
             if (response.status === 200 || response.data) {
-                alert('Email đã được gửi thành công!');
+                alert('Email sent successfully!');
                 setShowEmailComposer(false);
                 setEmailData({
                     to: [],
@@ -262,12 +309,12 @@ export default function GroupDetail() {
                     cc: []
                 });
             } else {
-                alert('Có lỗi xảy ra khi gửi email');
+                alert('An error occurred while sending email');
             }
         } catch (error) {
             console.error('Error sending email:', error);
             console.error('Error response:', error.response?.data);
-            alert(`Lỗi gửi email: ${error.response?.data?.message || error.message || 'Có lỗi xảy ra'}`);
+            alert(`Error sending email: ${error.response?.data?.message || error.message || 'An error occurred'}`);
         } finally {
             setEmailLoading(false);
         }
@@ -276,7 +323,7 @@ export default function GroupDetail() {
     if (loading) {
         return (
             <div className={styles.loading}>
-                <div>Đang tải thông tin nhóm...</div>
+                <div>Loading group information...</div>
             </div>
         );
     }
@@ -285,19 +332,18 @@ export default function GroupDetail() {
         const backPath = isExpired ? '/supervisor/groups/expired' : '/supervisor/groups/active';
         return (
             <div className={styles.error}>
-                <div>Không tìm thấy thông tin nhóm</div>
+                <div>Group information not found</div>
                 <Button onClick={() => navigate(backPath)}>
-                    Quay lại danh sách
+                    Back to list
                 </Button>
             </div>
         );
     }
     
     const backPath = isExpired ? '/supervisor/groups/expired' : '/supervisor/groups/active';
-    console.log(" group members: ", group.members);
     return (
         <div className={styles.container}>
-            <BackButton to={backPath}>← Quay lại</BackButton>
+            <BackButton to={backPath}>← Back</BackButton>
             {isExpired && (
                 <div className={styles.expiredNotice} style={{ 
                     padding: '12px', 
@@ -308,19 +354,19 @@ export default function GroupDetail() {
                     color: '#92400e',
                     fontWeight: 500
                 }}>
-                    ⚠️ Nhóm này đã hết hạn. Bạn chỉ có thể xem thông tin (view-only mode).
+                    This group has expired. You can only view information (view-only mode).
                 </div>
             )}
             <div className={styles.header}>
                 <div className={styles.headerLeft}>
-                    <h1>Chi tiết nhóm: {group.groupName}</h1>
+                    <h1>Group Details: {group.groupName}</h1>
                 </div>
                 {!isExpired && (
                     <div className={styles.headerRight}>
                         <Button 
                             onClick={openEmailComposer}
                         >
-                            Gửi email cho nhóm
+                            Send email to group
                         </Button>
                     </div>
                 )}
@@ -328,26 +374,68 @@ export default function GroupDetail() {
 
             <div className={styles.groupInfo}>
                 <div className={styles.infoCard}>
-                    <h3>Thông tin nhóm</h3>
+                    <h3>Group Information</h3>
                     <div className={styles.infoGrid}>
                         <div className={styles.infoItem}>
-                            <label>Mã nhóm:</label>
+                            <label>Group Code:</label>
                             <span>{group.groupCode}</span>
                         </div>
                         <div className={styles.infoItem}>
-                            <label>Tên dự án:</label>
+                            <label>Project Name:</label>
                             <span>{group.projectName}</span>
                         </div>
                         <div className={styles.infoItem}>
-                            <label>Số thành viên:</label>
+                            <label>Number of Members:</label>
                             <span>{group.members.length}</span>
                         </div>
+                        <div className={styles.infoItem}>
+                            <label>Expire Date:</label>
+                            <div className={styles.expireDateContainer}>
+                                <span className={group.expireDate && new Date(group.expireDate) < new Date() ? styles.expiredText : styles.activeText}>
+                                    {group.expireDate 
+                                        ? new Date(group.expireDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                        : 'Not set'}
+                                </span>
+                                <button 
+                                    className={styles.editExpireBtn}
+                                    onClick={openExpireDateModal}
+                                >
+                                    Edit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Supervisors Section */}
+                <div className={styles.membersCard}>
+                    <div className={styles.membersHeader}>
+                        <h3>Supervisors ({group.supervisorsInfor?.length || 0})</h3>
+                    </div>
+                    <div className={styles.membersList}>
+                        {group.supervisorsInfor && group.supervisorsInfor.length > 0 ? (
+                            group.supervisorsInfor.map((supervisor, index) => (
+                                <div key={supervisor.id || index} className={styles.memberCard}>
+                                    <div className={styles.memberInfo}>
+                                        <div className={styles.memberName}>{supervisor.name || supervisor.fullName}</div>
+                                        <div className={styles.memberEmail}>{supervisor.email}</div>
+                                    </div>
+                                    <div className={styles.memberActions}>
+                                        <span className={`${styles.roleTag} ${styles.supervisor}`}>
+                                            Supervisor
+                                        </span>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className={styles.emptyState}>No supervisor assigned</div>
+                        )}
                     </div>
                 </div>
 
                 <div className={styles.membersCard}>
                     <div className={styles.membersHeader}>
-                        <h3>Thành viên nhóm</h3>
+                        <h3>Group Members ({group.members.length})</h3>
                     </div>
                     <div className={styles.membersList}>
                         {group.members.map((member) => (
@@ -365,7 +453,7 @@ export default function GroupDetail() {
                                             className={styles.changeRoleBtn}
                                             onClick={() => handleChangeRole(member)}
                                         >
-                                            Đổi Role
+                                            Change Role
                                         </button>
                                     )}
                                 </div>
@@ -380,7 +468,7 @@ export default function GroupDetail() {
                 <div className={styles.modalOverlay}>
                     <div className={styles.emailModal}>
                         <div className={styles.modalHeader}>
-                            <h2>Gửi email cho nhóm</h2>
+                            <h2>Send email to group</h2>
                             <button 
                                 className={styles.closeButton}
                                 onClick={() => setShowEmailComposer(false)}
@@ -391,7 +479,7 @@ export default function GroupDetail() {
                         
                         <div className={styles.modalContent}>
                             <div className={styles.formGroup}>
-                                <label>Người nhận (To)</label>
+                                <label>Recipients (To)</label>
                                 <div className={styles.recipientsList}>
                                     {group.members.map(member => (
                                         <div key={member.id} className={styles.recipient}>
@@ -402,7 +490,7 @@ export default function GroupDetail() {
                             </div>
 
                             <div className={styles.formGroup}>
-                                <label>CC (Giảng viên)</label>
+                                <label>CC (Supervisors)</label>
                                 <div className={styles.recipientsList}>
                                     {group.supervisorsInfor && group.supervisorsInfor.length > 0 ? (
                                         group.supervisorsInfor.map((supervisor, index) => (
@@ -411,7 +499,7 @@ export default function GroupDetail() {
                                             </div>
                                         ))
                                     ) : (
-                                        <div className={styles.noRecipients}>Không có thông tin giảng viên</div>
+                                        <div className={styles.noRecipients}>No supervisor information</div>
                                     )}
                                 </div>
                             </div>
@@ -444,10 +532,57 @@ export default function GroupDetail() {
                                 variant="secondary"
                                 onClick={() => setShowEmailComposer(false)}
                             >
-                                Hủy
+                                Cancel
                             </Button>
                             <Button onClick={sendEmail} disabled={emailLoading}>
-                                {emailLoading ? 'Đang gửi...' : 'Gửi email'}
+                                {emailLoading ? 'Sending...' : 'Send email'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Expire Date Modal */}
+            {showExpireDateModal && (
+                <div className={styles.modalOverlay}>
+                    <div className={styles.roleModal}>
+                        <div className={styles.modalHeader}>
+                            <h2>Edit Expire Date</h2>
+                            <button 
+                                className={styles.closeButton}
+                                onClick={() => setShowExpireDateModal(false)}
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div className={styles.modalContent}>
+                            <div className={styles.formGroup}>
+                                <label>Current Expire Date:</label>
+                                <span className={styles.currentRole}>
+                                    {group.expireDate 
+                                        ? new Date(group.expireDate).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                                        : 'Not set'}
+                                </span>
+                            </div>
+                            <div className={styles.formGroup}>
+                                <label>New Expire Date:</label>
+                                <input 
+                                    type="date"
+                                    value={newExpireDate}
+                                    onChange={(e) => setNewExpireDate(e.target.value)}
+                                    className={styles.input}
+                                />
+                            </div>
+                        </div>
+                        <div className={styles.modalActions}>
+                            <Button 
+                                variant="secondary"
+                                onClick={() => setShowExpireDateModal(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button onClick={handleSaveExpireDate} disabled={expireDateLoading}>
+                                {expireDateLoading ? 'Saving...' : 'Save'}
                             </Button>
                         </div>
                     </div>
@@ -459,7 +594,7 @@ export default function GroupDetail() {
                 <div className={styles.modalOverlay}>
                     <div className={styles.roleModal}>
                         <div className={styles.modalHeader}>
-                            <h2>Thay đổi Role cho {selectedMember.name}</h2>
+                            <h2>Change Role for {selectedMember.name}</h2>
                             <button 
                                 className={styles.closeButton}
                                 onClick={() => setShowRoleModal(false)}
@@ -469,11 +604,11 @@ export default function GroupDetail() {
                         </div>
                         <div className={styles.modalContent}>
                             <div className={styles.formGroup}>
-                                <label>Role hiện tại:</label>
+                                <label>Current Role:</label>
                                 <span className={styles.currentRole}>{selectedMember.currentRole}</span>
                             </div>
                             <div className={styles.formGroup}>
-                                <label>Role mới:</label>
+                                <label>New Role:</label>
                                 <select 
                                     value={newRole}
                                     onChange={(e) => setNewRole(e.target.value)}
@@ -490,10 +625,10 @@ export default function GroupDetail() {
                                 variant="secondary"
                                 onClick={() => setShowRoleModal(false)}
                             >
-                                Hủy
+                                Cancel
                             </Button>
                             <Button onClick={handleSaveRoleChange}>
-                                Lưu thay đổi
+                                Save changes
                             </Button>
                         </div>
                     </div>

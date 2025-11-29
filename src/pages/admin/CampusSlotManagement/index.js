@@ -374,8 +374,9 @@ export default function CampusSlotManagement() {
       return;
     }
 
-    // Nếu là slot mới chưa lưu, chỉ cần xóa khỏi state
-    if (slotId.toString().startsWith('new-')) {
+    // Nếu là slot mới chưa lưu xuống database (trong newSlots), chỉ cần xóa khỏi state
+    const isInNewSlots = newSlots.some(s => s.id === slotId);
+    if (isInNewSlots || slotId.toString().startsWith('new-')) {
       setNewSlots(prev => prev.filter(s => s.id !== slotId));
       setSlots(prev => prev.filter(s => s.id !== slotId));
       setEditingValues(prev => {
@@ -396,7 +397,7 @@ export default function CampusSlotManagement() {
       return;
     }
 
-    // Soft delete slot đã lưu
+    // Soft delete slot đã lưu xuống database
     setLoading(true);
     try {
       const response = await softDeleteSlot(selectedCampusId, slotId);
@@ -481,11 +482,12 @@ export default function CampusSlotManagement() {
                     const isEditing = editingSlotId === slot.id;
                     const editingValue = editingValues[slot.id] || {};
                     const isNew = slot.id && slot.id.toString().startsWith('new-');
+                    const isInNewSlots = newSlots.some(s => s.id === slot.id);
                     const errors = validationErrors[slot.id] || {};
                     
                     return (
                       <div className={styles.slotNameCell}>
-                        {isEditing && isNew ? (
+                        {isEditing && isInNewSlots ? (
                           <div className={styles.slotNameInputContainer}>
                             <div className={styles.slotNameInputGroup}>
                               <span className={styles.slotPrefix}>Slot</span>
@@ -523,11 +525,12 @@ export default function CampusSlotManagement() {
                     const isEditing = editingSlotId === slot.id;
                     const editingValue = editingValues[slot.id] || {};
                     const isNew = slot.id && slot.id.toString().startsWith('new-');
+                    const isInNewSlots = newSlots.some(s => s.id === slot.id);
                     const errors = validationErrors[slot.id] || {};
                     
                     return (
                       <div className={styles.timeCell}>
-                        {isEditing && isNew ? (
+                        {isEditing && isInNewSlots ? (
                           <div className={styles.timeInputContainer}>
                             <input
                               type="time"
@@ -554,11 +557,12 @@ export default function CampusSlotManagement() {
                     const isEditing = editingSlotId === slot.id;
                     const editingValue = editingValues[slot.id] || {};
                     const isNew = slot.id && slot.id.toString().startsWith('new-');
+                    const isInNewSlots = newSlots.some(s => s.id === slot.id);
                     const errors = validationErrors[slot.id] || {};
                     
                     return (
                       <div className={styles.timeCell}>
-                        {isEditing && isNew ? (
+                        {isEditing && isInNewSlots ? (
                           <div className={styles.timeInputContainer}>
                             <input
                               type="time"
@@ -586,10 +590,11 @@ export default function CampusSlotManagement() {
                   render: (slot) => {
                     const isEditing = editingSlotId === slot.id;
                     const isNew = slot.id && slot.id.toString().startsWith('new-');
+                    const isInNewSlots = newSlots.some(s => s.id === slot.id);
                     
                     return (
                       <div className={styles.actionButtons} onClick={(e) => e.stopPropagation()}>
-                        {isEditing && isNew ? (
+                        {isEditing && isInNewSlots ? (
                           <>
                             <button
                               type="button"
@@ -606,6 +611,45 @@ export default function CampusSlotManagement() {
                               title="Cancel"
                             >
                               Cancel
+                            </button>
+                          </>
+                        ) : isInNewSlots ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingSlotId(slot.id);
+                                setEditingValues({
+                                  ...editingValues,
+                                  [slot.id]: {
+                                    nameSlot: slot.nameSlot ? slot.nameSlot.replace(/^Slot\s+/i, '') : '',
+                                    startAt: slot.startAt ? convertTimeToInputFormat(slot.startAt) : '',
+                                    endAt: slot.endAt ? convertTimeToInputFormat(slot.endAt) : ''
+                                  }
+                                });
+                                // Validate immediately
+                                setTimeout(() => {
+                                  const editingValue = {
+                                    nameSlot: slot.nameSlot ? slot.nameSlot.replace(/^Slot\s+/i, '') : '',
+                                    startAt: slot.startAt ? convertTimeToInputFormat(slot.startAt) : '',
+                                    endAt: slot.endAt ? convertTimeToInputFormat(slot.endAt) : ''
+                                  };
+                                  validateSlot(slot.id, editingValue);
+                                }, 0);
+                              }}
+                              className={styles.editButton}
+                              title="Edit"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSlot(slot.id)}
+                              className={styles.deleteButton}
+                              title="Delete"
+                              disabled={loading}
+                            >
+                              Delete
                             </button>
                           </>
                         ) : (

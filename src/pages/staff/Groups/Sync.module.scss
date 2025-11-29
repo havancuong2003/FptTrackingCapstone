@@ -18,6 +18,39 @@ h1 {
   flex-wrap: wrap;
 }
 
+.semesterSelection {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.semesterLabel {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.semesterSelectWrapper {
+  min-width: 280px;
+}
+
+.emptyStateBox {
+  padding: 24px;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: #64748b;
+  font-size: 14px;
+  margin-top: 12px;
+  
+  p {
+    margin: 0;
+  }
+}
+
 .message {
   padding: 12px 16px;
   border-radius: 8px;
@@ -30,6 +63,11 @@ h1 {
 
 .previewSection {
   margin-top: 32px;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 
 .sectionHeader {
@@ -39,6 +77,8 @@ h1 {
   margin-bottom: 16px;
   flex-wrap: wrap;
   gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f3f4f6;
   
   h2 {
     margin: 0;
@@ -46,6 +86,24 @@ h1 {
     font-weight: 600;
     color: #1f2937;
   }
+}
+
+// New groups section styling
+.previewSection:first-of-type {
+  .sectionHeader h2 {
+    color: #059669;
+  }
+  
+  border-left: 4px solid #10b981;
+}
+
+// Existing groups section styling  
+.previewSection:last-of-type {
+  .sectionHeader h2 {
+    color: #6b7280;
+  }
+  
+  border-left: 4px solid #6b7280;
 }
 
 .pageSizeSelector {
@@ -383,17 +441,19 @@ h1 {
 // Major Categories Section
 .majorCategoriesSection {
   margin-top: 32px;
-  padding: 20px;
+  padding: 24px;
   background: #fff;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   
   h2 {
     margin: 0 0 20px 0;
     font-size: 20px;
     font-weight: 600;
     color: #1f2937;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #f3f4f6;
   }
 }
 
@@ -404,7 +464,12 @@ h1 {
   border-radius: 8px;
   border: 1px solid #e5e7eb;
   
-  &:last-child {
+  &:first-of-type {
+    border-left: 4px solid #10b981;
+  }
+  
+  &:last-of-type {
+    border-left: 4px solid #6b7280;
     margin-bottom: 0;
   }
   

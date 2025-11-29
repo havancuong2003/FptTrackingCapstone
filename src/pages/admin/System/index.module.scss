@@ -1,21 +1,346 @@
 .wrap {
-  padding: 16px;
+  padding: 32px;
+  max-width: 900px;
+  margin: 0 auto;
+  min-height: calc(100vh - 200px);
+}
+
+.header {
+  margin-bottom: 40px;
+}
+
+.header h1 {
+  margin: 0 0 12px 0;
+  color: #111827;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+
+.header p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.emailCard {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease;
+  
+  &:hover {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+}
+
+.cardHeader {
+  padding: 24px 28px;
+  border-bottom: 1px solid #f3f4f6;
+  background: linear-gradient(to right, #f9fafb, #ffffff);
+}
+
+.cardTitle {
+  margin: 0;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  
+  &::before {
+    content: '✉️';
+    font-size: 22px;
+  }
+}
+
+.cardBody {
+  padding: 28px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 24px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.successMessage {
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  border: 1px solid #10b981;
+  border-left: 4px solid #10b981;
+  border-radius: 8px;
+  color: #065f46;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: slideIn 0.3s ease-out;
+  
+  &::before {
+    content: '✓';
+    font-size: 18px;
+    font-weight: bold;
+    color: #10b981;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.loading {
+  text-align: center;
+  padding: 60px 40px;
+  color: #6b7280;
+  font-size: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  
+  &::before {
+    content: '⏳';
+    font-size: 32px;
+    animation: spin 1s linear infinite;
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// Cải thiện input styling
+.emailCard {
+  input[type="email"],
+  input[type="text"],
+  input[type="password"] {
+    padding: 12px 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 15px;
+    transition: all 0.2s ease;
+    background: #ffffff;
+    
+    &:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    
+    &:hover:not(:disabled):not([readonly]) {
+      border-color: #d1d5db;
+    }
+    
+    &:disabled,
+    &[readonly] {
+      background: #f9fafb;
+      cursor: default;
+      color: #374151;
+      border-color: #e5e7eb;
+    }
+    
+    &[readonly] {
+      &:hover {
+        border-color: #e5e7eb;
+      }
+    }
+  }
 }
 
 @media (max-width: 1024px) {
   .wrap {
-    padding: 12px;
+    padding: 24px;
+    max-width: 100%;
+  }
+  
+  .cardBody {
+    padding: 24px;
   }
 }
 
 @media (max-width: 768px) {
   .wrap {
-    padding: 8px;
+    padding: 20px;
+  }
+
+  .header h1 {
+    font-size: 28px;
+  }
+  
+  .header p {
+    font-size: 15px;
+  }
+
+  .cardHeader {
+    padding: 20px;
+  }
+  
+  .cardBody {
+    padding: 20px;
+  }
+  
+  .cardTitle {
+    font-size: 18px;
+  }
+
+  .form {
+    gap: 24px;
+  }
+
+  .actions {
+    flex-direction: column;
+    margin-top: 20px;
+  }
+
+  .actions button {
+    width: 100%;
+  }
+}
+
+// Test Email Modal
+.testModal {
+  padding: 32px;
+  min-width: 500px;
+  max-width: 600px;
+}
+
+.testModalTitle {
+  margin: 0 0 8px 0;
+  color: #111827;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.testModalDescription {
+  margin: 0 0 24px 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.testForm {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.testSuccessMessage {
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  border: 1px solid #3b82f6;
+  border-left: 4px solid #3b82f6;
+  border-radius: 8px;
+  color: #1e40af;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: slideIn 0.3s ease-out;
+  
+  &::before {
+    content: '✓';
+    font-size: 18px;
+    font-weight: bold;
+    color: #3b82f6;
+  }
+}
+
+.testModalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 20px;
+  border-top: 1px solid #f3f4f6;
+}
+
+@media (max-width: 768px) {
+  .testModal {
+    min-width: auto;
+    max-width: 95vw;
+    padding: 24px;
+  }
+  
+  .testModalTitle {
+    font-size: 20px;
+  }
+  
+  .testModalActions {
+    flex-direction: column-reverse;
+  }
+  
+  .testModalActions button {
+    width: 100%;
   }
 }
 
 @media (max-width: 480px) {
   .wrap {
-    padding: 8px;
+    padding: 16px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+  }
+  
+  .header {
+    margin-bottom: 28px;
+  }
+  
+  .cardHeader {
+    padding: 16px;
+  }
+  
+  .cardBody {
+    padding: 16px;
+  }
+  
+  .form {
+    gap: 20px;
+  }
+  
+  .testModal {
+    padding: 20px;
   }
 }

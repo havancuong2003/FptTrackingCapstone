@@ -13,53 +13,45 @@ import { getCampusId } from '../../../auth/auth';
 import Checkbox from '../../../components/Checkbox/Checkbox';
 
 export default function Schedule() {
-  // Lấy groupId từ localStorage (như trong auth.js)
+  // Get groupId from localStorage (as in auth.js)
   const getGroupId = () => {
     try {
       const studentGroupId = localStorage.getItem('student_group_id');
       if (studentGroupId) {
         return studentGroupId;
       }
-      // Fallback nếu không có trong localStorage
-      return '1';
+      return null;
     } catch (error) {
       console.error('Error getting groupId from localStorage:', error);
-      return '1';
+      return null;
     }
   };
   
   const groupId = getGroupId();
   
-  // Lấy thông tin user từ localStorage
+  // Check groupId from the start
+  const hasValidGroupId = groupId !== null && groupId !== undefined && groupId !== '';
+  
+  // Get user info from localStorage
   const getCurrentUser = () => {
     try {
       const authUser = localStorage.getItem('auth_user');
       if (authUser) {
         return JSON.parse(authUser);
       }
-      // Mock user nếu không có trong localStorage
-      return {
-        id: 1,
-        name: 'Nguyễn Văn A',
-        role: 'student'
-      };
+      return null;
     } catch (error) {
       console.error('Error parsing auth_user:', error);
-      // Mock user fallback
-      return {
-        id: 1,
-        name: 'Nguyễn Văn A',
-        role: 'student'
-      };
+      return null;
     }
   };
   
   const currentUser = getCurrentUser();
   const [loading, setLoading] = useState(false);
   const [group, setGroup] = useState(null);
-  const [freeTimeSlots, setFreeTimeSlots] = useState({}); // Object với key là day value, value là array các slot đã chọn
-  const [activeTab, setActiveTab] = useState('monday'); // Tab đang active
-  const [availableSlots, setAvailableSlots] = useState([]); // Tất cả slots từ campus
+  const [freeTimeSlots, setFreeTimeSlots] = useState({}); // Object with key as day value, value as array of selected slots
+  const [activeTab, setActiveTab] = useState('monday'); // Currently active tab
+  const [availableSlots, setAvailableSlots] = useState([]); // All slots from campus
   const [isFinalized, setIsFinalized] = useState(false);
   const [meetingSchedule, setMeetingSchedule] = useState(null);
   const [finalMeeting, setFinalMeeting] = useState(null);
@@ -67,8 +59,8 @@ export default function Schedule() {
   const [memberSchedules, setMemberSchedules] = useState({});
   const [mergedSchedule, setMergedSchedule] = useState({});
   const [isSupervisor, setIsSupervisor] = useState(false);
-  const [isSelectingMode, setIsSelectingMode] = useState(false); // Mode để chọn thời gian rảnh
-  const [initialFreeTimeSlots, setInitialFreeTimeSlots] = useState({}); // Lưu trạng thái ban đầu khi vào selecting mode
+  const [isSelectingMode, setIsSelectingMode] = useState(false); // Mode to select free time
+  const [initialFreeTimeSlots, setInitialFreeTimeSlots] = useState({}); // Save initial state when entering selecting mode
 
   // Days of the week
   const daysOfWeek = [
@@ -81,11 +73,35 @@ export default function Schedule() {
     { id: 7, name: 'Sunday', value: 'sunday' }
   ];
 
+  // Helper function to format time from slot (HH:MM:SS -> HH:MM AM/PM)
+  const formatTimeFromSlot = (timeStr) => {
+    if (!timeStr) return '';
+    // Format: "07:30:00" -> "7:30 AM" or "13:30:00" -> "1:30 PM"
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return timeStr;
+    
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+    
+    if (isNaN(hours) || isNaN(minutes)) return timeStr;
+    
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+    const displayMinutes = minutes.toString().padStart(2, '0');
+    
+    return `${displayHours}:${displayMinutes} ${period}`;
+  };
+
   useEffect(() => {
+    // If no valid groupId, don't call API
+    if (!hasValidGroupId) {
+      setLoading(false);
+      return;
+    }
     if (groupId) {
       loadGroupData();
     }
-  }, [groupId]);
+  }, [groupId, hasValidGroupId]);
 
   // Load slots từ campus
   useEffect(() => {
@@ -97,7 +113,7 @@ export default function Schedule() {
     try {
       const campusId = getCampusId();
       if (!campusId) {
-        console.error('Không tìm thấy campusId trong localStorage');
+        console.error('CampusId not found in localStorage');
         return;
       }
       
@@ -110,7 +126,7 @@ export default function Schedule() {
     }
   };
 
-  // Kiểm tra role của user
+  // Check user role
   useEffect(() => {
     if (currentUser) {
       setIsSupervisor(currentUser.role === 'supervisor' || currentUser.role === 'Supervisor');
@@ -122,6 +138,7 @@ export default function Schedule() {
     try {
       const response = await getMeetingScheduleByGroupId(groupId);
       if (response.status === 200) {
+     
         setMeetingSchedule(response.data);
         if(response.data.isActive) {
           setIsFinalized(true);
@@ -446,6 +463,18 @@ export default function Schedule() {
   };
 
 
+  // Nếu không có groupId hợp lệ, hiển thị thông báo
+  if (!hasValidGroupId) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.emptyState || styles.error}>
+          <div className={styles.emptyTitle || styles.errorTitle}>You are not in any group</div>
+          <div className={styles.emptyMessage || styles.errorMessage}>Please contact the supervisor to be added to a group.</div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading && !group) {
     return <div className={styles.loading}>Loading...</div>;
   }
@@ -476,8 +505,14 @@ export default function Schedule() {
           <div className={styles.finalized}>
           <div className={styles.finalizedContent}>
               <h3>Meeting Schedule Confirmed!</h3>
-              <p>Time: {meetingSchedule?.dayOfWeek ? meetingSchedule.dayOfWeek.charAt(0).toUpperCase() + meetingSchedule.dayOfWeek.slice(1) : ''} - {meetingSchedule?.time}</p>
-              <p>Created Date: {new Date(meetingSchedule?.createAt).toLocaleDateString('en-US')}</p>
+              <p>
+                Time: {meetingSchedule?.dayOfWeek ? meetingSchedule.dayOfWeek.charAt(0).toUpperCase() + meetingSchedule.dayOfWeek.slice(1) : ''} - {
+                  meetingSchedule?.slot?.startAt && meetingSchedule?.slot?.endAt
+                    ? `${formatTimeFromSlot(meetingSchedule.slot.startAt)} - ${formatTimeFromSlot(meetingSchedule.slot.endAt)}`
+                    : meetingSchedule?.time || 'N/A'
+                }
+              </p>
+              <p>Created Date: {new Date(meetingSchedule?.createAt || meetingSchedule?.iscreateAt).toLocaleDateString('en-US')}</p>
               {meetingSchedule?.meetingLink && (
                 <a 
                   href={meetingSchedule?.meetingLink} 
@@ -745,8 +780,8 @@ export default function Schedule() {
         </div>
       )}
 
-      {/* Show Members' Free Time when finalized */}
-      {isFinalized && (
+      {/* Show Members' Free Time when finalized - REMOVED: No longer needed when meeting schedule is confirmed */}
+      {false && isFinalized && (
         <div className={styles.freeTimeSection}>
           <h2>Members' Free Time</h2>
           {(() => {

@@ -16,6 +16,7 @@ export default function Button({
   const className = cls(
     styles.button,
     variant === 'secondary' && styles.secondary,
+    variant === 'danger' && styles.danger,
     variant === 'ghost' && styles.ghost,
     size === 'sm' && styles.sm,
     size === 'md' && styles.md,

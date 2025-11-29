@@ -1,13 +1,24 @@
 import React from 'react';
 // import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Input from '../../../components/Input/Input';
 import Textarea from '../../../components/Textarea/Textarea';
 import DataTable from '../../../components/DataTable/DataTable';
 import { useNavigate } from 'react-router-dom';
-import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getSlotsByCampusId } from '../../../api/slots';
+import { getDeliverablesByGroup, getDeliverableDetail } from '../../../api/deliverables';
+import { getTasksByGroup } from '../../../api/tasks';
+import { getMeetingScheduleDatesByGroup, getMeetingMinutesByMeetingDateId } from '../../../api/meetings';
+import { getMeetingTasksByMinuteId } from '../../../api/tasks';
+import { getSemesterDetail } from '../../../api/semester';
+import { getMeetingScheduleByGroupId } from '../../../api/schedule';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
+import client from '../../../utils/axiosClient';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -45,41 +56,37 @@ export default function SupervisorCalendar() {
   const [milestoneDetails, setMilestoneDetails] = React.useState(null);
   const [selectedMeetingGroupInfo, setSelectedMeetingGroupInfo] = React.useState(null);
   const [meetingIssues, setMeetingIssues] = React.useState([]);
-  const [timeSlots, setTimeSlots] = React.useState([]); // Slots từ API
+  const [timeSlots, setTimeSlots] = React.useState([]); // Slots from API
   const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
+  const [groupsWithoutSchedule, setGroupsWithoutSchedule] = React.useState([]); // Danh sách nhóm chưa chốt lịch họp
+  const [groupDetails, setGroupDetails] = React.useState([]); // Chi tiết các nhóm
+  const [groupIssues, setGroupIssues] = React.useState({}); // { groupId: [issues] }
 
-  // API Base URL
-  const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
-
-  // Load user info
+  // Load user info from localStorage, don't call API
   React.useEffect(() => {
     let mounted = true;
-    async function loadUserInfo() {
+    function loadUserInfo() {
       try {
-        const res = await client.get(`${API_BASE_URL}/auth/user-info`);
-        const user = res?.data?.data || null;
+        const user = getUserInfo();
         if (!mounted) return;
         setUserInfo(user);
         
-        // Load groups that this supervisor is supervising
-        if (user?.groups && user.groups.length > 0) {
-          // Fetch all groups that this supervisor manages
-          const allGroups = [];
-          for (const groupId of user.groups) {
-            try {
-              const groupsRes = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${groupId}`);
-              const groupData = groupsRes?.data?.data;
-              if (groupData) {
-                allGroups.push(groupData);
-              }
-            } catch (error) {
-              console.error(`Error loading group ${groupId}:`, error);
-            }
-          }
-          setGroups(allGroups);
+        // Get semesters and set default
+        const uniqueSemesters = getUniqueSemesters();
+        setSemesters(uniqueSemesters);
+        
+        const currentSemesterId = getCurrentSemesterId();
+        if (currentSemesterId) {
+          setSelectedSemesterId(currentSemesterId);
+        } else if (uniqueSemesters.length > 0) {
+          setSelectedSemesterId(uniqueSemesters[0].id);
         }
-      } catch {
+      } catch (error) {
         if (!mounted) return;
+        console.error('Error loading user info:', error);
         setUserInfo(null);
         setGroups([]);
       }
@@ -88,18 +95,47 @@ export default function SupervisorCalendar() {
     return () => { mounted = false; };
   }, []);
 
-  // Load slots từ API dựa trên campusId
+  // Load groups from localStorage when filter changes (no API call)
+  React.useEffect(() => {
+    if (selectedSemesterId === null || !userInfo) {
+      setGroups([]);
+      return;
+    }
+    
+    // Get groups from localStorage based on semester and expired status
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    
+    // Only store basic info from localStorage, don't fetch details yet
+    const groupsBasicInfo = groupsFromStorage.map(groupInfo => ({
+      id: groupInfo.id,
+      name: groupInfo.name || '',
+      groupCode: groupInfo.code || groupInfo.groupCode || '',
+      semesterId: groupInfo.semesterId,
+      isExpired: groupInfo.isExpired || false
+    }));
+    
+    setGroups(groupsBasicInfo);
+    setLoading(false); // Set loading false after groups are loaded from localStorage
+    
+    // Clear data when filter changes
+    setMilestones([]);
+    setMeetings([]);
+    setTasks([]);
+  }, [selectedSemesterId, groupExpireFilter, userInfo]); 
+
+  // Load slots from API based on campusId
   React.useEffect(() => {
     let mounted = true;
     async function loadSlots() {
       if (!userInfo?.campusId) return;
       try {
-        const res = await client.get(`${API_BASE_URL}/slot/ById/${userInfo.campusId}`);
-        if (res.data.status === 200 && res.data.data?.slots) {
-          const slots = res.data.data.slots;
-          // Chuyển đổi slots từ API thành format phù hợp
+        const res = await getSlotsByCampusId(userInfo.campusId);
+        if (res.status === 200 && res.data?.slots) {
+          const slots = res.data.slots;
+          // Convert slots from API to appropriate format
           const formattedSlots = slots.map(slot => {
-            // Parse thời gian từ "7:30 AM" hoặc "1:00 PM" format
+            // Parse time from "7:30 AM" or "1:00 PM" format
             const parseTime = (timeStr) => {
               const time = timeStr.trim();
               const isPM = time.toUpperCase().includes('PM');
@@ -128,7 +164,7 @@ export default function SupervisorCalendar() {
       } catch (error) {
         console.error('Error loading slots:', error);
         if (!mounted) return;
-        // Fallback về TIME_SLOTS mặc định nếu lỗi
+        // Fallback to default TIME_SLOTS if error
         setTimeSlots([
           { label: '00:00-04:00', start: 0, end: 4 },
           { label: '04:00-08:00', start: 4, end: 8 },
@@ -149,13 +185,21 @@ export default function SupervisorCalendar() {
     async function loadSemesterInfo() {
       if (!groups.length || !groups[0]?.semesterId) return;
       try {
-        const res = await client.get(`${API_BASE_URL}/Staff/semester/getSemesterBy/${groups[0].semesterId}`);
-        const semester = res?.data?.data || null;
+        const res = await getSemesterDetail(groups[0].semesterId);
+        const semester = res?.data || null;
         if (!mounted) return;
         setSemesterInfo(semester);
         setWeeks(semester?.weeks || []);
         if (semester?.weeks?.length > 0) {
-          setSelectedWeek(semester.weeks[0].weekNumber);
+          // Tìm tuần hiện tại dựa trên ngày hiện tại
+          const now = new Date();
+          const currentWeek = semester.weeks.find(week => {
+            const startAt = new Date(week.startAt);
+            const endAt = new Date(week.endAt);
+            endAt.setHours(23, 59, 59, 999);
+            return now >= startAt && now <= endAt;
+          });
+          setSelectedWeek(currentWeek ? currentWeek.weekNumber : semester.weeks[0].weekNumber);
         }
       } catch {
         if (!mounted) return;
@@ -168,125 +212,210 @@ export default function SupervisorCalendar() {
   }, [groups]);
 
 
-  // Load milestones for all groups
+  // Load group details for all groups
   React.useEffect(() => {
     let mounted = true;
-    async function loadMilestones() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
+    async function loadGroupDetails() {
+      if (!groups.length) {
+        setGroupDetails([]);
+        return;
+      }
+      
+      try {
+        const detailsPromises = groups.map(async (group) => {
+          try {
+            const res = await getCapstoneGroupDetail(group.id);
+            return res?.data || null;
+          } catch (error) {
+            console.error(`Error loading group details for ${group.id}:`, error);
+            return null;
+          }
+        });
+        
+        const details = await Promise.all(detailsPromises);
+        if (!mounted) return;
+        setGroupDetails(details.filter(d => d !== null));
+      } catch (error) {
+        console.error('Error loading group details:', error);
+        if (!mounted) return;
+        setGroupDetails([]);
+      }
+    }
+    loadGroupDetails();
+    return () => { mounted = false; };
+  }, [groups]);
+
+  // Check groups without schedule
+  React.useEffect(() => {
+    let mounted = true;
+    async function checkGroupsSchedule() {
+      if (!groups.length) {
+        setGroupsWithoutSchedule([]);
+        return;
+      }
+
+      try {
+        const groupsWithoutScheduleList = [];
+
+        for (const group of groups) {
+          try {
+            const response = await getMeetingScheduleByGroupId(group.id);
+            // API có thể trả về { status: 200, data: {...}, message: "..." } hoặc throw error
+            if (response && response.status === 200) {
+              const data = response.data;
+              // Kiểm tra nếu message là "Schedule not found." hoặc data.id === 0 hoặc không có thông tin hợp lệ
+              if (response.message === "Schedule not found." || 
+                  !data || 
+                  !data.id || 
+                  data.id === 0 || 
+                  !data.isActive || 
+                  !data.meetingLink || 
+                  !data.slot || 
+                  !data.dayOfWeek) {
+                // Lưu cả string và number để so sánh dễ dàng
+                groupsWithoutScheduleList.push(String(group.id));
+                groupsWithoutScheduleList.push(Number(group.id));
+              }
+            } else {
+              // Response không hợp lệ, coi như chưa chốt lịch
+              groupsWithoutScheduleList.push(String(group.id));
+              groupsWithoutScheduleList.push(Number(group.id));
+            }
+          } catch (error) {
+            console.error(`Error checking schedule for group ${group.id}:`, error);
+            // Nếu lỗi, cũng coi như chưa chốt lịch
+            groupsWithoutScheduleList.push(String(group.id));
+            groupsWithoutScheduleList.push(Number(group.id));
+          }
+        }
+
+        if (!mounted) return;
+        setGroupsWithoutSchedule(groupsWithoutScheduleList);
+      } catch (error) {
+        console.error('Error checking groups schedule:', error);
+        if (!mounted) return;
+        setGroupsWithoutSchedule([]);
+      }
+    }
+    checkGroupsSchedule();
+    return () => { mounted = false; };
+  }, [groups]);
+
+  // Load data for all groups
+  React.useEffect(() => {
+    if (!groups.length || !selectedSemesterId) {
+      setMilestones([]);
+      setMeetings([]);
+      setTasks([]);
+      return;
+    }
+
+    let mounted = true;
+    async function loadAllGroupsData() {
       try {
         const allMilestones = [];
-        for (const groupId of userInfo.groups) {
+        const allMeetings = [];
+
+        // Load data for each group
+        for (const group of groups) {
           try {
-            const res = await client.get(`${API_BASE_URL}/deliverables/group/${groupId}`);
-            const list = Array.isArray(res?.data) ? res.data : [];
-            if (list.length > 0) {
-              const milestonesWithGroup = list.map(milestone => ({
-                ...milestone,
-                groupId: groupId
-              }));
-              allMilestones.push(...milestonesWithGroup);
+            // Load milestones
+            const milestonesRes = await getDeliverablesByGroup(group.id);
+            if (Array.isArray(milestonesRes)) {
+              milestonesRes.forEach(milestone => {
+                allMilestones.push({
+                  ...milestone,
+                  groupId: group.id
+                });
+              });
             }
+
+            // Load meetings
+            const meetingsRes = await getMeetingScheduleDatesByGroup(group.id);
+            if (meetingsRes?.status === 200 && Array.isArray(meetingsRes.data)) {
+              meetingsRes.data.forEach(meeting => {
+                allMeetings.push({
+                  ...meeting,
+                  groupId: group.id
+                });
+              });
+            }
+
           } catch (error) {
-            console.error(`Error loading milestones for group ${groupId}:`, error);
+            console.error(`Error loading data for group ${group.id}:`, error);
           }
         }
+
         if (!mounted) return;
+
+        // Sort meetings by date
+        allMeetings.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
+
         setMilestones(allMilestones);
-      } catch {
+        setMeetings(allMeetings);
+        setTasks([]);
+      } catch (error) {
+        console.error('Error loading all groups data:', error);
         if (!mounted) return;
         setMilestones([]);
-      }
-    }
-    loadMilestones();
-    return () => { mounted = false; };
-  }, [userInfo?.groups]);
-
-  // Load meetings for all groups
-  React.useEffect(() => {
-    let mounted = true;
-    async function loadMeetings() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
-      try {
-        const allMeetings = [];
-        for (const groupId of userInfo.groups) {
-          try {
-            const response = await client.get(`${API_BASE_URL}/Student/Meeting/group/${groupId}/schedule-dates`);
-            if (response.data.status === 200) {
-              const meetingsData = response.data.data;
-              if (meetingsData && meetingsData.length > 0) {
-                const meetingsWithGroup = meetingsData.map(meeting => ({
-                  ...meeting,
-                  groupId: groupId
-                }));
-                allMeetings.push(...meetingsWithGroup);
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching meetings for group ${groupId}:`, error);
-          }
-        }
-        
-        // Sort by meeting date
-        allMeetings.sort((a, b) => new Date(a.meetingDate) - new Date(b.meetingDate));
-        
-        if (!mounted) return;
-        setMeetings(allMeetings);
-      } catch (error) {
-        console.error('Error loading meetings:', error);
-        if (!mounted) return;
         setMeetings([]);
-      }
-    }
-    loadMeetings();
-    return () => { mounted = false; };
-  }, [userInfo?.groups]);
-
-  // Load tasks for all groups
-  React.useEffect(() => {
-    let mounted = true;
-    async function loadTasks() {
-      if (!userInfo?.groups || userInfo.groups.length === 0) return;
-      try {
-        const allTasks = [];
-        for (const groupId of userInfo.groups) {
-          try {
-            const response = await client.get(`${API_BASE_URL}/Student/Task/get-by-group/${groupId}`);
-            if (response.data.status === 200) {
-              const tasksData = response.data.data;
-              if (tasksData && tasksData.length > 0) {
-                const tasksWithGroup = tasksData.map(task => ({
-                  ...task,
-                  groupId: groupId
-                }));
-                allTasks.push(...tasksWithGroup);
-              }
-            }
-          } catch (error) {
-            console.error(`Error fetching tasks for group ${groupId}:`, error);
-          }
-        }
-        
-        if (!mounted) return;
-        setTasks(allTasks);
-      } catch (error) {
-        console.error('Error loading tasks:', error);
-        if (!mounted) return;
         setTasks([]);
       }
     }
-    loadTasks();
+    loadAllGroupsData();
     return () => { mounted = false; };
-  }, [userInfo?.groups]);
+  }, [groups, selectedSemesterId, groupExpireFilter]);
 
-  // Set loading false when all data loaded
+  // Load group issues for all groups
   React.useEffect(() => {
-    if (userInfo && groups.length > 0 && semesterInfo && weeks.length > 0) {
+    let mounted = true;
+    async function loadAllGroupIssues() {
+      if (!groups.length) {
+        setGroupIssues({});
+        return;
+      }
+      
+      try {
+        const issuesMap = {};
+        for (const group of groups) {
+          try {
+            const res = await client.get(`https://160.30.21.113:5000/api/v1/task/taskTypeIssue/${group.id}`);
+            if (res.data?.code === 200) {
+              const issuesData = res.data.data || [];
+              // Add groupId to each issue
+              issuesMap[group.id] = Array.isArray(issuesData) ? issuesData.map(issue => ({
+                ...issue,
+                groupId: group.id
+              })) : [];
+            }
+          } catch (error) {
+            console.error(`Error loading issues for group ${group.id}:`, error);
+            issuesMap[group.id] = [];
+          }
+        }
+        
+        if (!mounted) return;
+        setGroupIssues(issuesMap);
+      } catch (error) {
+        console.error('Error loading group issues:', error);
+        if (!mounted) return;
+        setGroupIssues({});
+      }
+    }
+    loadAllGroupIssues();
+    return () => { mounted = false; };
+  }, [groups]);
+
+  // Set loading false when groups are loaded (no need to wait for data)
+  React.useEffect(() => {
+    if (userInfo && groups.length >= 0 && semesterInfo && weeks.length > 0) {
       setLoading(false);
     }
   }, [userInfo, groups, semesterInfo, weeks]);
 
   // Get milestones for selected week
   const getMilestonesForWeek = () => {
+
     if (!selectedWeek || !milestones.length) return [];
     
     const selectedWeekData = weeks.find(w => w.weekNumber === selectedWeek);
@@ -297,7 +426,6 @@ export default function SupervisorCalendar() {
     
     // Set week end to 23:59:59 to include the entire last day
     weekEnd.setHours(23, 59, 59, 999);
-    
     return milestones.filter(milestone => {
       if (!milestone.endAt) return false;
       const deadline = new Date(milestone.endAt);
@@ -448,6 +576,81 @@ export default function SupervisorCalendar() {
     return matchedTasks;
   };
 
+  // Get issues for selected week
+  const getIssuesForWeek = () => {
+    if (!selectedWeek || !Object.keys(groupIssues).length) return [];
+    
+    const selectedWeekData = weeks.find(w => w.weekNumber === selectedWeek);
+    if (!selectedWeekData) return [];
+    
+    const weekStart = new Date(selectedWeekData.startAt);
+    const weekEnd = new Date(selectedWeekData.endAt);
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    const allIssues = [];
+    Object.values(groupIssues).forEach(issues => {
+      issues.forEach(issue => {
+        if (issue.deadline) {
+          const deadline = new Date(issue.deadline);
+          if (deadline >= weekStart && deadline <= weekEnd) {
+            allIssues.push(issue);
+          }
+        }
+      });
+    });
+    
+    return allIssues;
+  };
+
+  // Get issues for specific day and time slot
+  const getIssuesForSlot = (day, timeSlot) => {
+    const weekIssues = getIssuesForWeek();
+    if (!weekIssues.length) return [];
+    
+    const matchedIssues = [];
+    for (const issue of weekIssues) {
+      const deadline = new Date(issue.deadline);
+      const dayOfWeek = deadline.getDay();
+      const hour = deadline.getHours();
+      
+      const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      
+      if (adjustedDay === day && hour >= timeSlot.start && hour < timeSlot.end) {
+        matchedIssues.push(issue);
+      }
+    }
+    
+    return matchedIssues;
+  };
+
+  // Get issue status color
+  const getIssueStatusColor = (status) => {
+    switch (status) {
+      case 'Done':
+        return '#059669'; // Green
+      case 'InProgress':
+        return '#d97706'; // Orange
+      case 'Todo':
+        return '#6b7280'; // Gray
+      default:
+        return '#6b7280';
+    }
+  };
+
+  // Get issue status text
+  const getIssueStatusText = (status) => {
+    switch (status) {
+      case 'Done':
+        return '✅ Done';
+      case 'InProgress':
+        return '🔄 In Progress';
+      case 'Todo':
+        return '📋 To Do';
+      default:
+        return '❓ Unknown';
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'SUBMITTED':
@@ -567,10 +770,10 @@ export default function SupervisorCalendar() {
   // Fetch group info for meeting
   const fetchMeetingGroupInfo = async (groupId) => {
     try {
-      const response = await client.get(`${API_BASE_URL}/Staff/capstone-groups/${groupId}`);
-      if (response.data.status === 200) {
-        setSelectedMeetingGroupInfo(response.data.data);
-        return response.data.data;
+      const response = await getCapstoneGroupDetail(groupId);
+      if (response.status === 200) {
+        setSelectedMeetingGroupInfo(response.data);
+        return response.data;
       }
       return null;
     } catch (error) {
@@ -580,7 +783,7 @@ export default function SupervisorCalendar() {
     }
   };
 
-  // Hàm parse attendance text thành danh sách
+  // Function to parse attendance text into list
   const parseAttendance = (attendanceText, students) => {
     if (!students || students.length === 0) {
       return [];
@@ -605,12 +808,12 @@ export default function SupervisorCalendar() {
       if (match) {
         const [, name, rollNumber, status] = match;
         const statusLower = status.toLowerCase();
-        const isAbsent = statusLower.includes('nghỉ') || statusLower.includes('vắng');
+        const isAbsent = statusLower.includes('absent') || statusLower.includes('nghỉ') || statusLower.includes('vắng');
         let reason = '';
         
         if (isAbsent) {
-          const reasonMatch = status.match(/(?:nghỉ|vắng)\s*-\s*(.+)/i);
-          reason = reasonMatch ? reasonMatch[1].trim() : status.replace(/^(nghỉ|vắng)\s*-?\s*/i, '').trim();
+          const reasonMatch = status.match(/(?:absent|nghỉ|vắng)\s*-\s*(.+)/i);
+          reason = reasonMatch ? reasonMatch[1].trim() : status.replace(/^(absent|nghỉ|vắng)\s*-?\s*/i, '').trim();
         }
         
         parsed.set(rollNumber.trim(), {
@@ -648,8 +851,8 @@ export default function SupervisorCalendar() {
   // Fetch meeting issues (tasks) by meeting minute id
   const fetchMeetingIssues = async (meetingMinuteId) => {
     try {
-      const res = await client.get(`${API_BASE_URL}/Student/Task/meeting-tasks/${meetingMinuteId}`);
-      const data = res.data?.data;
+      const res = await getMeetingTasksByMinuteId(meetingMinuteId);
+      const data = res?.data;
       const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
       return tasks.map(t => ({
         id: t.id,
@@ -686,7 +889,7 @@ export default function SupervisorCalendar() {
             style={{
               background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
             }}
-          >Chi tiết</button>
+          >Detail</button>
         </div>
       )
     }
@@ -708,33 +911,33 @@ export default function SupervisorCalendar() {
         currentGroupInfo = await fetchMeetingGroupInfo(meeting.groupId);
       }
 
-      // Chỉ fetch meeting minute nếu isMinute === true
+      // Only fetch meeting minute if isMinute === true
       if (meeting.isMinute === true) {
         try {
-          const response = await client.get(`${API_BASE_URL}/MeetingMinute?meetingDateId=${meeting.id}`);
-          if (response.data.status === 200 && response.data.data) {
-            setMinuteData(response.data.data);
+          const response = await getMeetingMinutesByMeetingDateId(meeting.id);
+          if (response.status === 200 && response.data) {
+            setMinuteData(response.data);
             
-            // Parse attendance từ text
+            // Parse attendance from text
             if (currentGroupInfo && currentGroupInfo.students) {
               const students = Array.isArray(currentGroupInfo.students) ? currentGroupInfo.students : [];
-              const parsedAttendance = parseAttendance(response.data.data.attendance, students);
+              const parsedAttendance = parseAttendance(response.data.attendance, students);
               setAttendanceList(parsedAttendance);
             }
             
             setFormData({
-              startAt: response.data.data.startAt ? response.data.data.startAt.split('T')[0] + 'T' + response.data.data.startAt.split('T')[1].substring(0, 5) : '',
-              endAt: response.data.data.endAt ? response.data.data.endAt.split('T')[0] + 'T' + response.data.data.endAt.split('T')[1].substring(0, 5) : '',
-              attendance: response.data.data.attendance || '',
-              issue: response.data.data.issue || '',
-              meetingContent: response.data.data.meetingContent || '',
-              other: response.data.data.other || ''
+              startAt: response.data.startAt ? response.data.startAt.split('T')[0] + 'T' + response.data.startAt.split('T')[1].substring(0, 5) : '',
+              endAt: response.data.endAt ? response.data.endAt.split('T')[0] + 'T' + response.data.endAt.split('T')[1].substring(0, 5) : '',
+              attendance: response.data.attendance || '',
+              issue: response.data.issue || '',
+              meetingContent: response.data.meetingContent || '',
+              other: response.data.other || ''
             });
             setIsEditing(true);
             
-            // Load meeting issues bằng meeting minute id
-            if (response.data.data.id) {
-              const meetingTasks = await fetchMeetingIssues(response.data.data.id);
+            // Load meeting issues by meeting minute id
+            if (response.data.id) {
+              const meetingTasks = await fetchMeetingIssues(response.data.id);
               setMeetingIssues(Array.isArray(meetingTasks) ? meetingTasks : []);
             }
           } else {
@@ -753,7 +956,7 @@ export default function SupervisorCalendar() {
     } catch (error) {
       console.error('Error loading meeting data:', error);
     } finally {
-      // Chỉ hiện modal sau khi đã load xong tất cả dữ liệu
+      // Only show modal after all data is loaded
       setMeetingModal(true);
     }
   };
@@ -776,8 +979,8 @@ export default function SupervisorCalendar() {
     
     // Load milestone details
     try {
-      const res = await client.get(`${API_BASE_URL}/deliverables/group/detail?groupdId=${milestone.groupId}&deliverableId=${milestone.id}`);
-      setMilestoneDetails(res?.data || null);
+      const res = await getDeliverableDetail(milestone.groupId, milestone.id);
+      setMilestoneDetails(res || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
       setMilestoneDetails(null);
@@ -817,8 +1020,12 @@ export default function SupervisorCalendar() {
 
   // Get group code by ID
   const getGroupCode = (groupId) => {
-    const group = groups.find(g => g.id === groupId || g.id === String(groupId));
-    return group?.groupCode || `GRP${groupId}`;
+    const group = groupDetails.find(g => g.id === groupId || g.id === Number(groupId) || g.id === String(groupId));
+    if (group) {
+      return group.groupCode || group.code || `GRP${groupId}`;
+    }
+    const basicGroup = groups.find(g => g.id === groupId || g.id === String(groupId) || g.id === Number(groupId));
+    return basicGroup?.groupCode || basicGroup?.code || `GRP${groupId}`;
   };
 
   // Join meeting
@@ -879,19 +1086,33 @@ export default function SupervisorCalendar() {
   }
 
   return (
-    <div style={{ padding: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>Supervisor Calendar</h1>
-        <div style={{ fontSize: 14, color: '#64748b' }}>
-          Managing {groups.length} group{groups.length > 1 ? 's' : ''}
-        </div>
+    <div className={sharedLayout.container}>
+      {/* Header */}
+      <div className={sharedLayout.header}>
+        <h1>Supervisor Calendar</h1>
+        <p>Managing {groups.length} group{groups.length > 1 ? 's' : ''}</p>
+      </div>
+
+      {/* Semester + Group Filter */}
+      <div style={{ marginBottom: 24 }}>
+        <SupervisorGroupFilter
+          semesters={semesters}
+          selectedSemesterId={selectedSemesterId}
+          onSemesterChange={setSelectedSemesterId}
+          groupExpireFilter={groupExpireFilter}
+          onGroupExpireFilterChange={setGroupExpireFilter}
+          groups={groups}
+          selectedGroupId=""
+          onGroupChange={() => {}}
+          groupSelectPlaceholder=""
+          loading={loading}
+          hideGroupSelect={true}
+        />
       </div>
       
+      {/* Semester Info */}
       {semesterInfo && (
         <div style={{ 
-        //   display: 'flex', 
-          alignItems: 'center', 
-          gap: 16, 
           marginBottom: 16 
         }}>
           <div style={{ 
@@ -899,8 +1120,7 @@ export default function SupervisorCalendar() {
             border: '1px solid #0ea5e9', 
             borderRadius: 8, 
             padding: 8, 
-            flex: 1,
-            width: '500px'
+            maxWidth: '100%'
           }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: '#0c4a6e' }}>
               Semester: {semesterInfo.name} ({formatDate(semesterInfo.startAt, 'DD/MM/YYYY')} - {formatDate(semesterInfo.endAt, 'DD/MM/YYYY')})
@@ -910,72 +1130,155 @@ export default function SupervisorCalendar() {
       )}
 
 
-      {/* Groups Information */}
-      {groups.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
+      {/* Managed Groups */}
+      {groupDetails.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
           <h3 style={{ margin: '0 0 12px 0', fontSize: 16 }}>Managed Groups</h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
-            {groups.map((group) => (
-              <div key={group.id} style={{
-                background: '#f9fafb',
-                border: '1px solid #e5e7eb',
-                borderRadius: 8,
-                padding: 12
-              }}>
-                <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>
-                  {group.projectName}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+            {groupDetails.map((group) => {
+              const groupIdStr = String(group.id);
+              const groupIdNum = Number(group.id);
+              const hasNoSchedule = groupsWithoutSchedule.includes(groupIdStr) || 
+                                   groupsWithoutSchedule.includes(groupIdNum) ||
+                                   groupsWithoutSchedule.includes(group.id);
+              return (
+                <div key={group.id} style={{
+                  background: hasNoSchedule ? '#fef3c7' : '#f9fafb',
+                  border: hasNoSchedule ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                  borderRadius: 8,
+                  padding: 12,
+                  position: 'relative'
+                }}>
+                  {hasNoSchedule && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      background: '#f59e0b',
+                      color: '#fff',
+                      padding: '4px 8px',
+                      borderRadius: 4,
+                      fontSize: 10,
+                      fontWeight: 600
+                    }}>
+                      ⚠ Meeting schedule not finalized
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>
+                      {group.projectName}
+                    </div>
+                    <button
+                      onClick={() => navigate(`/supervisor/tracking?groupId=${group.id}`)}
+                      style={{
+                        background: '#3b82f6',
+                        color: 'white',
+                        border: 'none',
+                        padding: '6px 12px',
+                        borderRadius: 6,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 500
+                      }}
+                    >
+                      View Tracking →
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    <div>Group Code: {group.groupCode || 'N/A'}</div>
+                    <div>Students: {group.students?.length || 0}</div>
+                    <div>Supervisors: {group.supervisors?.join(', ') || 'N/A'}</div>
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b' }}>
-                  <div>Group Code: {group.groupCode || 'N/A'}</div>
-                  {/* <div>ID: {group.id}</div> */}
-                  <div>Students: {group.students?.length || 0}</div>
-                  <div>Supervisors: {group.supervisors?.join(', ') || 'N/A'}</div>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Week Selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>Week:</span>
-        <select 
-          value={selectedWeek} 
-          onChange={(e) => setSelectedWeek(Number(e.target.value))}
-          style={{
-            padding: "8px 12px",
-            border: "1px solid #d1d5db",
-            borderRadius: "6px",
-            fontSize: "14px",
-            backgroundColor: "white",
-            outline: "none",
-            minWidth: 120,
-            maxWidth: 300
-          }}
-        >
-          {weeks.map((week) => (
-            <option 
-              key={week.weekNumber} 
-              value={week.weekNumber}
-              disabled={week.isVacation}
-              style={{ 
-                color: week.isVacation ? '#9ca3af' : '#000',
-                backgroundColor: week.isVacation ? '#f3f4f6' : '#fff'
-              }}
-            >
-              Week {week.weekNumber} ({formatDate(week.startAt, 'DD/MM/YYYY')}-{formatDate(week.endAt, 'DD/MM/YYYY')}) {week.isVacation ? '(Vacation)' : ''}
-            </option>
-          ))}
-        </select>
+      {/* Week Selector with arrows and dropdown */}
+      <div className={sharedLayout.contentSection} style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Week:</span>
+          
+          <button
+            onClick={() => {
+              const currentIndex = weeks.findIndex(w => w.weekNumber === selectedWeek);
+              if (currentIndex > 0) {
+                setSelectedWeek(weeks[currentIndex - 1].weekNumber);
+              }
+            }}
+            disabled={weeks.findIndex(w => w.weekNumber === selectedWeek) === 0}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              background: weeks.findIndex(w => w.weekNumber === selectedWeek) === 0 ? '#f3f4f6' : 'white',
+              cursor: weeks.findIndex(w => w.weekNumber === selectedWeek) === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: weeks.findIndex(w => w.weekNumber === selectedWeek) === 0 ? '#9ca3af' : '#374151'
+            }}
+          >
+            ← Prev
+          </button>
+          
+          <select 
+            value={selectedWeek} 
+            onChange={(e) => setSelectedWeek(Number(e.target.value))}
+            style={{
+              padding: "8px 12px",
+              border: "1px solid #d1d5db",
+              borderRadius: "6px",
+              fontSize: "14px",
+              backgroundColor: "white",
+              outline: "none",
+              minWidth: 120,
+              maxWidth: 350
+            }}
+          >
+            {weeks.map((week) => (
+              <option 
+                key={week.weekNumber} 
+                value={week.weekNumber}
+                disabled={week.isVacation}
+                style={{ 
+                  color: week.isVacation ? '#9ca3af' : '#000',
+                  backgroundColor: week.isVacation ? '#f3f4f6' : '#fff'
+                }}
+              >
+                Week {week.weekNumber} ({formatDate(week.startAt, 'DD/MM/YYYY')}-{formatDate(week.endAt, 'DD/MM/YYYY')}) {week.isVacation ? '(Vacation)' : ''}
+              </option>
+            ))}
+          </select>
+          
+          <button
+            onClick={() => {
+              const currentIndex = weeks.findIndex(w => w.weekNumber === selectedWeek);
+              if (currentIndex < weeks.length - 1) {
+                setSelectedWeek(weeks[currentIndex + 1].weekNumber);
+              }
+            }}
+            disabled={weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid #d1d5db',
+              borderRadius: '6px',
+              background: weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1 ? '#f3f4f6' : 'white',
+              cursor: weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1 ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              color: weeks.findIndex(w => w.weekNumber === selectedWeek) === weeks.length - 1 ? '#9ca3af' : '#374151'
+            }}
+          >
+            Next →
+          </button>
+        </div>
       </div>
 
       {/* Calendar Table */}
-      <div style={{ 
-        border: '1px solid #e5e7eb', 
-        borderRadius: 8, 
-        overflow: 'hidden',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
+      <div className={sharedLayout.contentSection} style={{ 
+        overflow: 'hidden'
       }}>
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
           <thead style={{ background: '#f9fafb' }}>
@@ -1007,7 +1310,7 @@ export default function SupervisorCalendar() {
             {timeSlots.length > 0 ? (() => {
               // Lấy tất cả milestones của tuần
               const weekMilestones = getMilestonesForWeek();
-              
+
               // Tạo một map để lưu các milestone không có slot phù hợp
               const milestoneRows = new Map();
               
@@ -1083,7 +1386,7 @@ export default function SupervisorCalendar() {
                       {DAYS.map((day, dayIndex) => {
                         const milestones = getMilestonesForSlot(dayIndex, timeSlot);
                         const meetings = getMeetingsForSlot(dayIndex, timeSlot);
-                        const tasks = getTasksForSlot(dayIndex, timeSlot);
+                        const issues = getIssuesForSlot(dayIndex, timeSlot);
                         
                         return (
                           <td key={day} style={{ 
@@ -1183,73 +1486,50 @@ export default function SupervisorCalendar() {
                                 </div>
                               ))}
                               
-                              {/* Tasks - Display all tasks in this slot */}
-                              {tasks.map((task, idx) => {
-                                const taskTypeColor = getTaskTypeColor(task.taskType);
-                                const statusColor = getTaskStatusColor(task.status);
-                                // Nếu có taskTypeColor, dùng nó cho border, nếu không thì dùng statusColor
-                                const borderColor = taskTypeColor || statusColor;
-                                // Background dựa trên status, nhưng có thể điều chỉnh nếu có taskType
-                                let backgroundColor = statusColor === '#059669' ? '#ecfdf5' : 
-                                                    statusColor === '#dc2626' ? '#fee2e2' :
-                                                    statusColor === '#d97706' ? '#fef3c7' : '#f3f4f6';
-                                
-                                return (
-                                  <div 
-                                    key={task.id || idx}
-                                    onClick={() => openTaskModal(task)}
-                                    style={{ 
-                                      background: backgroundColor,
-                                      border: `2px solid ${borderColor}`,
-                                      borderRadius: 4,
-                                      padding: 4,
-                                      cursor: 'pointer',
-                                      fontSize: 9,
-                                      maxHeight: '50px',
-                                      overflow: 'hidden',
-                                      transition: 'all 0.2s ease',
-                                      maxWidth: '100%',
-                                      width: '100%',
-                                      boxSizing: 'border-box',
-                                      position: 'relative'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.target.style.transform = 'scale(1.02)';
-                                      e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                      e.target.style.transform = 'scale(1)';
-                                      e.target.style.boxShadow = 'none';
-                                    }}
-                                  >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2 }}>
-                                      <div style={{ fontWeight: 600, color: borderColor, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', flex: 1 }}>
-                                        📋 {task.title?.length > 15 ? task.title.substring(0, 15) + '...' : (task.title || task.name || 'N/A')}
-                                      </div>
-                                      {taskTypeColor && (
-                                        <span style={{
-                                          fontSize: '7px',
-                                          padding: '1px 3px',
-                                          backgroundColor: taskTypeColor,
-                                          color: 'white',
-                                          borderRadius: '3px',
-                                          fontWeight: '600',
-                                          whiteSpace: 'nowrap',
-                                          flexShrink: 0
-                                        }}>
-                                          {getTaskTypeText(task.taskType)}
-                                        </span>
-                                      )}
-                                    </div>
-                                    <div style={{ color: statusColor, fontSize: 8 }}>
-                                      {getTaskStatusText(task.status)}
-                                    </div>
-                                    <div style={{ color: statusColor, fontSize: 8 }}>
-                                      {formatDate(task.deadline, 'HH:mm')} ({getGroupCode(task.groupId)})
-                                    </div>
+                              {/* Issues - Display all issues in this slot */}
+                              {issues.map((issue, idx) => (
+                                <div 
+                                  key={issue.id || `issue_${idx}`}
+                                  onClick={() => {
+                                    if (issue.id && issue.groupId) {
+                                      navigate(`/supervisor/task/group/${issue.groupId}?taskId=${issue.id}`);
+                                    }
+                                  }}
+                                  style={{ 
+                                    background: getIssueStatusColor(issue.status) === '#059669' ? '#ecfdf5' : 
+                                               getIssueStatusColor(issue.status) === '#d97706' ? '#fef3c7' : '#e0e7ff',
+                                    border: `1px solid ${getIssueStatusColor(issue.status)}`,
+                                    borderRadius: 4,
+                                    padding: 4,
+                                    cursor: issue.id ? 'pointer' : 'default',
+                                    fontSize: 9,
+                                    maxHeight: '50px',
+                                    overflow: 'hidden',
+                                    transition: 'all 0.2s ease',
+                                    maxWidth: '100%',
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.transform = 'scale(1.02)';
+                                    e.target.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.transform = 'scale(1)';
+                                    e.target.style.boxShadow = 'none';
+                                  }}
+                                >
+                                  <div style={{ fontWeight: 600, color: getIssueStatusColor(issue.status), marginBottom: 2, fontSize: 9, lineHeight: 1.2, wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                                    🐛 {issue.name?.length > 15 ? issue.name.substring(0, 15) + '...' : (issue.name || 'N/A')}
                                   </div>
-                                );
-                              })}
+                                  <div style={{ color: getIssueStatusColor(issue.status), fontSize: 8 }}>
+                                    {getIssueStatusText(issue.status)}
+                                  </div>
+                                  <div style={{ color: getIssueStatusColor(issue.status), fontSize: 8 }}>
+                                    {formatDate(issue.deadline, 'HH:mm')} {issue.groupId && `(${getGroupCode(issue.groupId)})`}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </td>
                         );

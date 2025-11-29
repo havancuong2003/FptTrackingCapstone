@@ -71,8 +71,8 @@
 
 .infoItem {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid #f0f0f0;
 }
@@ -84,6 +84,8 @@
 .infoItem label {
   font-weight: 600;
   color: #555;
+  min-width: 150px;
+  flex-shrink: 0;
 }
 
 .infoItem span {
@@ -155,6 +157,18 @@
 .roleTag.member {
   background: #f3f4f6;
   color: #6b7280;
+}
+
+.roleTag.supervisor {
+  background: #d1fae5;
+  color: #059669;
+}
+
+.emptyState {
+  padding: 16px;
+  text-align: center;
+  color: #9ca3af;
+  font-style: italic;
 }
 
 // Email Modal
@@ -458,5 +472,37 @@
     color: #6b7280;
     font-size: 12px;
     font-style: italic;
+  }
+}
+
+/* Expire Date Styles */
+.expireDateContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.expiredText {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.activeText {
+  color: #059669;
+  font-weight: 600;
+}
+
+.editExpireBtn {
+  padding: 4px 12px;
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  
+  &:hover {
+    background: #2563eb;
   }
 }

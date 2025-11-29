@@ -16,6 +16,9 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test --env=jsdom",
+    "test:coverage": "react-scripts test --env=jsdom --coverage --watchAll=false",
+    "test:export": "react-scripts test --env=jsdom --watchAll=false --json --outputFile=test-results.json",
+    "test:export:csv": "node scripts/exportTestResults.js",
     "eject": "react-scripts eject"
   },
   "devDependencies": {
