@@ -2,6 +2,8 @@ import React from 'react';
 import styles from './index.module.scss';
 import sharedLayout from '../sharedLayout.module.scss';
 import DataTable from '../../../components/DataTable/DataTable';
+import Modal from '../../../components/Modal/Modal';
+import Textarea from '../../../components/Textarea/Textarea';
 import { sendDocumentUploadEmail } from '../../../email/documents';
 import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
@@ -20,6 +22,9 @@ export default function SupervisorDocuments() {
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
   const [semesters, setSemesters] = React.useState([]);
   const [selectedSemesterId, setSelectedSemesterId] = React.useState(getCurrentSemesterId());
+  const [uploadModalOpen, setUploadModalOpen] = React.useState(false);
+  const [uploadDescription, setUploadDescription] = React.useState('');
+  const [selectedFile, setSelectedFile] = React.useState(null);
   console.log('selectedSemesterId', selectedSemesterId);
   // Load semesters and set default to current semester
   React.useEffect(() => {
@@ -232,14 +237,32 @@ export default function SupervisorDocuments() {
     }
   };
 
-  const handleUploadClick = () => fileInputRef.current?.click();
+  const handleUploadClick = () => {
+    if (!selectedGroupId) {
+      setMessage('Please select a group first');
+      return;
+    }
+    setUploadModalOpen(true);
+    setUploadDescription('');
+    setSelectedFile(null);
+  };
 
-  const handleUploadChange = async (e) => {
+  const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedGroupId) return;
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleUploadSubmit = async () => {
+    if (!selectedFile || !selectedGroupId || !selectedSemesterId) {
+      setMessage('Please select a file and ensure group and semester are selected');
+      return;
+    }
+    
     try {
       setLoading(true);
-      const res = await uploadGroupDocument(selectedGroupId, file);
+      const res = await uploadGroupDocument(selectedGroupId, selectedSemesterId, uploadDescription || '', selectedFile);
       if (res?.status === 200) {
         const uploadedFile = res.data; // File info from response
         await loadFiles(selectedGroupId);
@@ -263,7 +286,7 @@ export default function SupervisorDocuments() {
               
               await sendDocumentUploadEmail({
                 recipientEmails: studentEmails,
-                fileName: file.name,
+                fileName: selectedFile.name,
                 supervisorName: currentUser?.name || 'Supervisor',
                 groupName: groupInfo.groupCode || `Group ${selectedGroupId}`,
                 message: '',
@@ -276,6 +299,13 @@ export default function SupervisorDocuments() {
           console.error('Error sending document upload email:', emailError);
           // Don't block flow if email error
         }
+        
+        // Close modal and reset
+        setUploadModalOpen(false);
+        setUploadDescription('');
+        setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setMessage('Document uploaded successfully');
       } else {
         setMessage(res?.message || 'Upload failed');
       }
@@ -283,8 +313,14 @@ export default function SupervisorDocuments() {
       setMessage(e1?.message || 'Upload failed');
     } finally {
       setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const handleCloseUploadModal = () => {
+    setUploadModalOpen(false);
+    setUploadDescription('');
+    setSelectedFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const formatDate = (dateString) => {
@@ -306,6 +342,15 @@ export default function SupervisorDocuments() {
         <div>
           <div style={{ fontWeight: 600 }}>{row.fileName || '—'}</div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>{row.path}</div>
+        </div>
+      )
+    },
+    {
+      key: 'description',
+      title: 'Description',
+      render: (row) => (
+        <div style={{ maxWidth: '300px', wordBreak: 'break-word' }}>
+          {row.description || '—'}
         </div>
       )
     },
@@ -384,7 +429,7 @@ export default function SupervisorDocuments() {
       />
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <input ref={fileInputRef} type="file" onChange={handleUploadChange} style={{ display: 'none' }} />
+        <input ref={fileInputRef} type="file" onChange={handleFileSelect} style={{ display: 'none' }} />
         <button
           disabled={!selectedGroupId}
           onClick={handleUploadClick}
@@ -455,6 +500,93 @@ export default function SupervisorDocuments() {
           />
           </div>
         )}
+
+      {/* Upload Modal */}
+      <Modal open={uploadModalOpen} onClose={handleCloseUploadModal}>
+        <div style={{ padding: 24, minWidth: '500px', maxWidth: '90vw' }}>
+          <h2 style={{ margin: '0 0 20px 0', fontSize: 20 }}>Upload Document</h2>
+          
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
+              Description
+            </label>
+            <Textarea
+              value={uploadDescription}
+              onChange={(e) => setUploadDescription(e.target.value)}
+              placeholder="Enter document description..."
+              rows={4}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                border: '1px solid #d1d5db',
+                borderRadius: 6,
+                fontSize: 14,
+                fontFamily: 'inherit',
+                resize: 'vertical'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
+              File
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  background: '#3b82f6',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '8px 16px',
+                  borderRadius: 6,
+                  cursor: 'pointer',
+                  fontSize: 14
+                }}
+              >
+                Choose File
+              </button>
+              {selectedFile && (
+                <span style={{ fontSize: 14, color: '#374151' }}>
+                  {selectedFile.name}
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+            <button
+              onClick={handleCloseUploadModal}
+              style={{
+                background: '#f3f4f6',
+                color: '#374151',
+                border: '1px solid #d1d5db',
+                padding: '8px 16px',
+                borderRadius: 6,
+                cursor: 'pointer',
+                fontSize: 14
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleUploadSubmit}
+              disabled={!selectedFile || loading}
+              style={{
+                background: !selectedFile || loading ? '#9ca3af' : '#10b981',
+                color: '#fff',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: 6,
+                cursor: !selectedFile || loading ? 'not-allowed' : 'pointer',
+                fontSize: 14
+              }}
+            >
+              {loading ? 'Uploading...' : 'Upload'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

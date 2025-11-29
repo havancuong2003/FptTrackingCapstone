@@ -46,12 +46,12 @@ export async function getFilesByGroup(groupId) {
 }
 
 // Upload group document
-export async function uploadGroupDocument(groupId, file) {
+export async function uploadGroupDocument(groupId, semester, description, file) {
   try {
     const formData = new FormData();
     formData.append('file', file);
     const response = await client.post(`/upload/group`, formData, {
-      params: { groupId },
+      params: { groupId, semester, description },
       headers: {
         'Content-Type': 'multipart/form-data',
       },
