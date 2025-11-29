@@ -11,6 +11,8 @@
   cursor: pointer;
 }
 .secondary { background: var(--color-secondary); }
+.danger { background: #dc2626; color: white; }
+.danger:hover { background: #b91c1c; }
 .ghost { background: transparent; border-color: var(--color-border); color: inherit; }
 .sm { padding: 6px 10px; font-size: 14px; }
 .md { padding: 8px 12px; font-size: 14px; }

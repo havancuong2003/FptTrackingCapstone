@@ -3,8 +3,9 @@ import styles from "./index.module.scss";
 import Button from "../../../components/Button/Button";
 import Card from "../../../components/Card/Card";
 import DataTable from "../../../components/DataTable/DataTable";
-import axiosClient from "../../../utils/axiosClient";
 import { getGroupId } from "../../../auth/auth";
+import { getDeliverablesByGroup } from "../../../api/deliverables";
+import { getEvaluationsByStudent, getGeneralPenaltyCardsByStudent } from "../../../api/evaluation";
 
 export default function StudentEvaluation() {
   const [evaluations, setEvaluations] = React.useState([]);
@@ -19,25 +20,28 @@ export default function StudentEvaluation() {
     const fetchMilestones = async () => {
       setLoading(true);
       try {
-        // Ưu tiên lấy milestones theo group hiện tại của student
+        // Prioritize getting milestones by student's current group
         const gid = getGroupId() || localStorage.getItem('student_group_id');
         let response;
         if (gid) {
-          response = await axiosClient.get(`/deliverables/group/${gid}`);
+          response = await getDeliverablesByGroup(gid);
         } else {
-          response = await axiosClient.get('/Student/milestone');
+          // Fallback to student milestone endpoint if no group
+          // Note: This endpoint may need to be added to API
+          setMilestones([]);
+          return;
         }
         
-        // Kiểm tra nếu response.data là array trực tiếp
+        // Check if response.data is array directly
         if (Array.isArray(response.data)) {
           const normalized = response.data.map(m => ({ id: String(m.id || m.ID || m.value || m), name: m.name || m.label || m.title || m.toString() }));
           setMilestones(normalized);
-        } else if (response.data.status === 200) {
-          const milestonesData = (response.data.data || []).map(m => ({ id: String(m.id || m.ID || m.value), name: m.name || m.label || m.title }));
+        } else if (response.status === 200) {
+          const milestonesData = (response.data || []).map(m => ({ id: String(m.id || m.ID || m.value), name: m.name || m.label || m.title }));
           setMilestones(milestonesData);
         } else {
-          console.error('Failed to fetch milestones:', response.data.message);
-          console.error('Full response:', response.data);
+          console.error('Failed to fetch milestones:', response.message);
+          console.error('Full response:', response);
           setMilestones([]);
         }
       } catch (err) {
@@ -45,15 +49,8 @@ export default function StudentEvaluation() {
         console.error('Error details:', err.response?.data);
         console.error('Error status:', err.response?.status);
         
-        // Sử dụng mock data khi API lỗi
-        const mockMilestones = [
-          { id: "1", name: "Milestone 1: Project Introduction" },
-          { id: "2", name: "Milestone 2: Project Planning" },
-          { id: "3", name: "Milestone 3: Requirement Analysis" },
-          { id: "4", name: "Milestone 4: System Design" },
-          { id: "5", name: "Milestone 5: Implementation" }
-        ];
-        setMilestones(mockMilestones);
+        // Don't use mock data, return empty array
+        setMilestones([]);
       } finally {
         setLoading(false);
       }
@@ -68,18 +65,18 @@ export default function StudentEvaluation() {
   const fetchAllEvaluations = async () => {
     setLoading(true);
     try {
-      const response = await axiosClient.get('/Common/Evaluation/getEvaluationFromDeliverableByStudent');
+      const response = await getEvaluationsByStudent();
       
-      // Kiểm tra nếu response.data là array trực tiếp
+      // Check if response.data is array directly
       if (Array.isArray(response.data)) {
         setAllEvaluations(response.data);
         setEvaluations(response.data);
-      } else if (response.data.status === 200) {
-        const evaluationsData = response.data.data || [];
+      } else if (response.status === 200) {
+        const evaluationsData = response.data || [];
         setAllEvaluations(evaluationsData);
         setEvaluations(evaluationsData);
       } else {
-        console.error('Failed to fetch evaluations:', response.data.message);
+        console.error('Failed to fetch evaluations:', response.message);
         setAllEvaluations([]);
         setEvaluations([]);
       }
@@ -103,13 +100,13 @@ export default function StudentEvaluation() {
     const fetchGeneralPenaltyCards = async () => {
       setLoadingPenaltyCards(true);
       try {
-        const response = await axiosClient.get('/Common/Evaluation/getCardEvaluationGeneralByStudent');
+        const response = await getGeneralPenaltyCardsByStudent();
 
-        // API có thể trả mảng trực tiếp hoặc theo format { status, data }
+        // API can return array directly or in format { status, data }
         if (Array.isArray(response.data)) {
           setPenaltyCardsGeneral(response.data);
-        } else if (response.data?.status === 200) {
-          setPenaltyCardsGeneral(response.data.data || []);
+        } else if (response.status === 200) {
+          setPenaltyCardsGeneral(response.data || []);
         } else {
           setPenaltyCardsGeneral([]);
         }
@@ -129,7 +126,7 @@ export default function StudentEvaluation() {
     if (selectedMilestone === "all") {
       setEvaluations(allEvaluations);
     } else {
-      // Tìm milestone name từ milestones array
+      // Find milestone name from milestones array
       const selectedMilestoneData = milestones.find(m => m.id === selectedMilestone);
       const milestoneName = selectedMilestoneData?.name;
       
@@ -238,6 +235,26 @@ export default function StudentEvaluation() {
   };
 
   const stats = getSummaryStats();
+
+  // Kiểm tra nếu không có group
+  const groupId = getGroupId() || localStorage.getItem('student_group_id');
+  const hasNoGroup = !loading && !groupId;
+
+  // Nếu không có group, hiển thị thông báo
+  if (hasNoGroup) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.emptyState || styles.loading}>
+          <div style={{ fontSize: 18, fontWeight: 600, marginBottom: 8, color: '#374151' }}>
+            You are not in any group
+          </div>
+          <div style={{ color: '#6b7280' }}>
+            Please contact the supervisor to be added to a group.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && evaluations.length === 0) {
     return <div className={styles.loading}>Loading data...</div>;

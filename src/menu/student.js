@@ -14,7 +14,7 @@ const studentMenu = [
   // Công việc và lịch trình
   { 
     path: "/student/tasks", 
-    label: "My Issues", 
+    label: "My Issues & Tasks", 
     icon: "✅"
   },
   { 

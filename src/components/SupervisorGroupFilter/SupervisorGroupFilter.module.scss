@@ -1,0 +1,207 @@
+.filterContainer {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.filterRow {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.groupRow {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.filterItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.controlGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filterLabel {
+  font-weight: 600;
+  font-size: 14px;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.radioGroup {
+  display: flex;
+  gap: 16px;
+}
+
+.radioLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #374151;
+
+  input[type="radio"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: #2563eb;
+  }
+
+  span {
+    user-select: none;
+  }
+}
+
+.groupSelect {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  background-color: white;
+  outline: none;
+  min-width: 200px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+
+  &:hover:not(:disabled) {
+    border-color: #9ca3af;
+  }
+
+  &:focus {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  &:disabled {
+    background-color: #f3f4f6;
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+}
+
+// Responsive
+@media (max-width: 1024px) {
+  .filterContainer {
+    padding: 14px;
+  }
+
+  .filterRow {
+    gap: 16px;
+  }
+
+  .groupSelect {
+    min-width: 180px;
+  }
+}
+
+@media (max-width: 768px) {
+  .filterContainer {
+    padding: 12px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+  }
+
+  .filterRow {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .controlGroup {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .controlGroup label {
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .filterItem {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .radioGroup {
+    flex-wrap: nowrap;
+    gap: 8px;
+  }
+
+  .radioLabel {
+    font-size: 12px;
+    gap: 4px;
+    
+    input[type="radio"] {
+      width: 14px;
+      height: 14px;
+    }
+  }
+
+  .groupSelect {
+    width: 100%;
+    min-width: auto;
+    padding: 8px 10px;
+    font-size: 13px;
+    flex: 1;
+  }
+}
+
+@media (max-width: 480px) {
+  .filterContainer {
+    padding: 10px;
+  }
+
+  .filterRow {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .controlGroup {
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    
+    label {
+      font-size: 11px;
+    }
+  }
+
+  .radioGroup {
+    gap: 6px;
+  }
+
+  .radioLabel {
+    font-size: 11px;
+    gap: 3px;
+    
+    input[type="radio"] {
+      width: 12px;
+      height: 12px;
+    }
+  }
+
+  .groupSelect {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+}
+

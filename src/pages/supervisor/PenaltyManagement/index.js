@@ -5,8 +5,12 @@ import Modal from "../../../components/Modal/Modal";
 import Input from "../../../components/Input/Input";
 import Textarea from "../../../components/Textarea/Textarea";
 import DataTable from "../../../components/DataTable/DataTable";
-import axiosClient from "../../../utils/axiosClient";
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from "../../../auth/auth";
+import { getCapstoneGroupDetail } from "../../../api/staff/groups";
+import { getGeneralPenaltyCardsByMentor, createPenaltyCard, updatePenaltyCard } from "../../../api/evaluation";
+import SupervisorGroupFilter from "../../../components/SupervisorGroupFilter/SupervisorGroupFilter";
 import styles from "./index.module.scss";
+import sharedLayout from "../sharedLayout.module.scss";
 
 export default function PenaltyManagement() {
   const [penalties, setPenalties] = React.useState([]);
@@ -23,6 +27,9 @@ export default function PenaltyManagement() {
   // State for penalty statistics
   const [groupPenalties, setGroupPenalties] = React.useState([]);
   const [loadingPenaltyStats, setLoadingPenaltyStats] = React.useState(false);
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
   
   const [newPenalty, setNewPenalty] = React.useState({
     name: "",
@@ -35,11 +42,57 @@ export default function PenaltyManagement() {
   const [editPenalty, setEditPenalty] = React.useState(null);
   const [editModal, setEditModal] = React.useState(false);
 
-  // ------------------ Fetch Data ------------------
+  // ------------------ Load Semesters and Groups ------------------
   React.useEffect(() => {
-    fetchGroups();
-    // Không fetch students ngay từ đầu, chờ user chọn nhóm
+    function loadSemesters() {
+      const uniqueSemesters = getUniqueSemesters();
+      setSemesters(uniqueSemesters);
+      
+      const currentSemesterId = getCurrentSemesterId();
+      if (currentSemesterId) {
+        setSelectedSemesterId(currentSemesterId);
+      } else if (uniqueSemesters.length > 0) {
+        setSelectedSemesterId(uniqueSemesters[0].id);
+      }
+    }
+    loadSemesters();
   }, []);
+
+  React.useEffect(() => {
+    if (selectedSemesterId === null) {
+      setGroups([]);
+      setLoading(false);
+      return;
+    }
+    
+    // Get groups from localStorage only (no API call)
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    
+    // Build groups list from localStorage only
+    const groupsData = groupsFromStorage.map(groupInfo => ({
+      id: groupInfo.id,
+      name: groupInfo.name || `Group ${groupInfo.id}`,
+      groupCode: groupInfo.code || groupInfo.groupCode || ''
+    }));
+    
+    setGroups(groupsData);
+    setLoading(false); // Set loading false after groups are loaded from localStorage
+    
+    // Check if selected group is still in filtered list
+    const selectedGroupExists = selectedGroup && groupsFromStorage.some(g => {
+      return g.id === Number(selectedGroup.id);
+    });
+    
+    if (selectedGroup && !selectedGroupExists) {
+      // Selected group is not in filtered list, clear selection and data
+      setSelectedGroup(null);
+      setSelectedStudent(null);
+      setStudents([]);
+      setCreatedPenalties([]);
+      setGroupPenalties([]);
+    }
+  }, [selectedSemesterId, groupExpireFilter]);
 
   React.useEffect(() => {
     if (selectedGroup) {
@@ -52,42 +105,27 @@ export default function PenaltyManagement() {
     }
   }, [selectedGroup, students]);
 
-  const fetchGroups = async () => {
-    setLoading(true);
-    try {
-      const response = await axiosClient.get('/Mentor/getGroups');
-      
-      if (response.data.status === 200) {
-        const groupsData = response.data.data || [];
-        setGroups(groupsData);
-      } else {
-      }
-    } catch (err) {
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchStudents = async (groupId = null) => {
     try {
 
       if (!groupId) {
-        // Không chọn nhóm: clear students
+        // No group selected: clear students
         setStudents([]);
         return;
       }
 
-      // Đồng bộ cách lấy dữ liệu như Evaluation: dùng /Staff/capstone-groups/:id
-      const studentRes = await axiosClient.get(`/Staff/capstone-groups/${groupId}`);
+      // Sync data retrieval method with Evaluation: use /Staff/capstone-groups/:id
+      const studentRes = await getCapstoneGroupDetail(groupId);
 
-      // Chuẩn hóa dữ liệu trả về
+      // Normalize returned data
       let studentData;
-      if (studentRes.data?.status === 200) {
-        studentData = studentRes.data.data;
-      } else if (studentRes.data && studentRes.data.data) {
-        studentData = studentRes.data.data;
-      } else {
+      if (studentRes?.status === 200) {
         studentData = studentRes.data;
+      } else if (studentRes?.data) {
+        studentData = studentRes.data;
+      } else {
+        studentData = studentRes;
       }
 
       if (!studentData || !Array.isArray(studentData.students)) {
@@ -95,7 +133,7 @@ export default function PenaltyManagement() {
         return;
       }
 
-      // Map students theo chuẩn Evaluation
+      // Map students according to Evaluation standard
       const mappedStudents = studentData.students.map(s => ({
         id: s.rollNumber,
         studentId: s.id?.toString(),
@@ -107,7 +145,7 @@ export default function PenaltyManagement() {
 
       setStudents(mappedStudents);
 
-      // Cập nhật lại tên nhóm theo projectName giống Evaluation để hiển thị đồng nhất
+      // Update group name according to projectName like Evaluation for consistent display
       if (studentData.projectName) {
         setGroups(prev => prev.map(g => (
           (g.id?.toString() || g.groupId?.toString()) === groupId?.toString()
@@ -130,23 +168,25 @@ export default function PenaltyManagement() {
     setLoadingCreatedPenalties(true);
     
     try {
-      const response = await axiosClient.get('/Common/Evaluation/getCardGeneralFromMentorId');
+      const response = await getGeneralPenaltyCardsByMentor();
       
       let allPenalties = [];
       
-      // Kiểm tra nếu response.data là array trực tiếp
-      if (Array.isArray(response.data)) {
+      // Check if response.data is array directly
+      if (Array.isArray(response)) {
+        allPenalties = response;
+      } else if (response?.status === 200) {
+        allPenalties = response.data || [];
+      } else if (Array.isArray(response?.data)) {
         allPenalties = response.data;
-      } else if (response.data && response.data.status === 200) {
-        allPenalties = response.data.data || [];
       } else {
         allPenalties = [];
       }
       
-      // Lọc thẻ phạt theo nhóm được chọn
-      const groupId = typeof selectedGroup === 'object' ? selectedGroup.id : selectedGroup;
+      // Filter penalty cards by selected group
+      const groupId = selectedGroup?.id;
       
-      // Kiểm tra cấu trúc data để hiểu cách filter
+      // Check data structure to understand how to filter
       if (allPenalties.length > 0) {
       }
 
@@ -194,15 +234,17 @@ export default function PenaltyManagement() {
     
     setLoadingPenaltyStats(true);
     try {
-      const response = await axiosClient.get('/Common/Evaluation/getCardGeneralFromMentorId');
+      const response = await getGeneralPenaltyCardsByMentor();
       
       let allPenalties = [];
       
-      // Kiểm tra nếu response.data là array trực tiếp
-      if (Array.isArray(response.data)) {
+      // Check if response.data is array directly
+      if (Array.isArray(response)) {
+        allPenalties = response;
+      } else if (response?.status === 200) {
+        allPenalties = response.data || [];
+      } else if (Array.isArray(response?.data)) {
         allPenalties = response.data;
-      } else if (response.data && response.data.status === 200) {
-        allPenalties = response.data.data || [];
       } else {
         allPenalties = [];
       }
@@ -346,11 +388,11 @@ export default function PenaltyManagement() {
       };
       
 
-      const response = await axiosClient.post('/Common/Evaluation/create-card', payload);
+      const response = await createPenaltyCard(payload);
       
 
-      if (response.data.status === 200) {
-        // Thêm thẻ phạt vào danh sách đã cấp (hiển thị nhanh)
+      if (response.status === 200) {
+        // Add penalty card to issued list (quick display)
         const studentName = students.find(s => s.studentId === newPenalty.userId)?.name || "Unknown";
         const newIssuedPenalty = {
           id: Date.now(),
@@ -358,25 +400,25 @@ export default function PenaltyManagement() {
           description: payload.description,
           type: payload.type,
           studentName: studentName,
-            createdAt: response.data.data?.createdAt || new Date().toISOString(),
+            createdAt: response.data?.createdAt || new Date().toISOString(),
           userId: payload.userId
         };
         setIssuedPenalties(prev => [newIssuedPenalty, ...prev]);
 
-        // Cập nhật ngay bảng "Danh sách Thẻ phạt" (optimistic update)
+        // Update penalty list table immediately (optimistic update)
         const newCreatedPenalty = {
-          id: response.data.data?.id || Date.now(),
+          id: response.data?.id || Date.now(),
           name: payload.name,
           description: payload.description,
           type: payload.type,
           userId: payload.userId,
-          groupId: parseInt(selectedGroup),
-            createdAt: response.data.data?.createdAt || new Date().toISOString(),
+          groupId: selectedGroup?.id,
+            createdAt: response.data?.createdAt || new Date().toISOString(),
           studentName: studentName
         };
         setCreatedPenalties(prev => [newCreatedPenalty, ...prev]);
         
-        // Có thể refetch để đồng bộ với server (giữ lại nếu cần)
+        // Can refetch to sync with server (keep if needed)
         await fetchCreatedPenalties();
         await fetchGroupPenalties();
 
@@ -387,9 +429,9 @@ export default function PenaltyManagement() {
           type: "",
           userId: "",
         });
-        alert("Penalty issued successfully!");
+        alert("Discipline issued successfully!");
       } else {
-        alert(`Error: ${response.data.message || 'Unable to issue penalty'}`);
+        alert(`Error: ${response.message || 'Unable to issue penalty'}`);
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || "Unable to issue penalty. Please try again.";
@@ -438,16 +480,16 @@ export default function PenaltyManagement() {
       };
 
 
-      const response = await axiosClient.put(`/Common/Evaluation/update/penalty-card/${editPenalty.id}`, payload);
+      const response = await updatePenaltyCard(editPenalty.id, payload);
       
 
-      if (response.data.status === 200 || response.status === 200 || !response.data.error) {
+      if (response.status === 200 || !response.error) {
         setEditModal(false);
-        alert(response.data.message || "Penalty updated successfully!");
+        alert(response.message || "Discipline updated successfully!");
         
         
-        // Cập nhật trực tiếp vào state thay vì refresh toàn bộ
-        const updatedData = response.data.data;
+        // Update directly to state instead of full refresh
+        const updatedData = response.data;
         setCreatedPenalties(prevPenalties => 
           prevPenalties.map(penalty => {
             if (penalty.id === editPenalty.id) {
@@ -468,7 +510,7 @@ export default function PenaltyManagement() {
         await fetchGroupPenalties();
         
       } else {
-        alert(`Error: ${response.data.message || 'Unable to update penalty'}`);
+        alert(`Error: ${response.message || 'Unable to update penalty'}`);
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message || "Unable to update penalty. Please try again.";
@@ -662,51 +704,61 @@ export default function PenaltyManagement() {
 
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
-        <h1>Penalty Management</h1>
-        <div className={styles.headerActions}>
-          <Button
-            onClick={() => openPenaltyModal()}
-          >
-            Issue Penalty
-          </Button>
+    <div className={sharedLayout.container}>
+      <div className={sharedLayout.header}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+          <h1 style={{ margin: 0 }}>Discipline Management</h1>
+          <div className={sharedLayout.headerControls}>
+            <Button
+              onClick={() => openPenaltyModal()}
+            >
+              Issue Discipline
+            </Button>
+          </div>
         </div>
       </div>
 
       <div className={styles.controls}>
-        <div className={styles.controlGroup}>
-          <label>Group:</label>
-          <select
-            value={selectedGroup || ""}
-            onChange={async (e) => {
-              setSelectedGroup(e.target.value);
-              
-              // Fetch students của nhóm được chọn
-              if (e.target.value) {
-                await fetchStudents(e.target.value);
-              } else {
-                // Nếu không chọn nhóm, lấy tất cả sinh viên
-                await fetchStudents();
-              }
-            }}
-            className={styles.select}
-          >
-            <option value="">Select group</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SupervisorGroupFilter
+          semesters={semesters}
+          selectedSemesterId={selectedSemesterId}
+          onSemesterChange={setSelectedSemesterId}
+          groupExpireFilter={groupExpireFilter}
+          onGroupExpireFilterChange={setGroupExpireFilter}
+          groups={groups}
+          selectedGroupId={selectedGroup?.id ? selectedGroup.id.toString() : ''}
+          onGroupChange={async (value) => {
+            const selectedId = value ? Number(value) : null;
+            const group = groups.find(g => String(g.id) === String(selectedId));
+            
+            if (group) {
+              setSelectedGroup(group);
+              // Fetch students of selected group
+              await fetchStudents(group.id);
+            } else {
+              // If no group selected, clear selection and students
+              setSelectedGroup(null);
+              await fetchStudents();
+            }
+          }}
+          groupSelectPlaceholder="Select group"
+          loading={loading}
+        />
       </div>
+
+      {/* Show message when no group selected */}
+      {!selectedGroup && (
+        <div className={sharedLayout.noSelection}>
+          <p>Please select a group</p>
+          <p>You will see group information and document list after selection.</p>
+        </div>
+      )}
 
       {/* ------------------ Penalty Statistics Section ------------------ */}
       {selectedGroup && (
-        <div className={styles.penaltyStatsSection}>
+        <div className={sharedLayout.contentSection}>
           <div className={styles.statsHeader}>
-            <h2>Thống kê Thẻ phạt theo Sinh viên</h2>
+            <h2>Discipline Statistics by Student</h2>
           </div>
           <div className={styles.statsTableContainer}>
             {loadingPenaltyStats ? (
@@ -729,7 +781,7 @@ export default function PenaltyManagement() {
       {selectedGroup && (
         <div className={styles.tableSection}>
           <div className={styles.tableHeader}>
-            <h2>Penalty List - {groups.find(g => g.id == selectedGroup)?.name || 'Selected Group'}</h2>
+            <h2>Discipline List - {selectedGroup?.name || 'Selected Group'}</h2>
           </div>
           <div className={styles.tableContainer}>
             <DataTable
@@ -746,7 +798,7 @@ export default function PenaltyManagement() {
       {/* ------------------ Penalty Modal ------------------ */}
       <Modal open={penaltyModal} onClose={() => setPenaltyModal(false)}>
         <div className={styles.penaltyModal}>
-          <h2>Issue Penalty</h2>
+          <h2>Issue Discipline</h2>
           
           <div className={styles.formGroup}>
             <label>Penalty Name *</label>
@@ -826,7 +878,7 @@ export default function PenaltyManagement() {
             <Button
               onClick={submitPenalty}
             >
-              Issue Penalty
+              Issue Discipline
             </Button>
           </div>
         </div>
@@ -835,7 +887,7 @@ export default function PenaltyManagement() {
       {/* ------------------ Edit Penalty Modal ------------------ */}
       <Modal open={editModal} onClose={() => setEditModal(false)}>
         <div className={styles.penaltyModal}>
-          <h2>Edit Penalty</h2>
+          <h2>Edit Discipline</h2>
           
           <div className={styles.formGroup}>
             <label>Penalty Name *</label>
@@ -913,7 +965,7 @@ export default function PenaltyManagement() {
       {/* ------------------ Issued Penalties List ------------------ */}
       {issuedPenalties.length > 0 && (
         <div className={styles.issuedPenaltiesSection}>
-          <h2>Recently Issued Penalties</h2>
+          <h2>Recently Issued Disciplines</h2>
           <div className={styles.issuedPenaltiesList}>
             {issuedPenalties.map((penalty) => (
               <div key={penalty.id} className={styles.issuedPenaltyCard}>

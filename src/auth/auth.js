@@ -49,17 +49,19 @@ export async function login({ username, password }) {
       const roleInGroup = me.roleInGroup || me.role_in_group || me.groupRole || null;
 
       localStorage.setItem(USER_ROLE_KEY, role);
-      localStorage.setItem(
-        USER_INFO_KEY,
-        JSON.stringify({ 
-          id: me.id || me.userId || 'u_1', 
-          name: me.name || me.fullName || 'User', 
-          role,
-          roleInGroup,
-          campusId: me.campusId || null,
-          groups: me.groups || []
-        })
-      );
+      // Save full user info according to API response format
+      const userData = {
+        id: me.id || me.userId || 'u_1',
+        semesterId: me.semesterId || null,
+        name: me.name || me.fullName || 'User',
+        role,
+        roleInGroup,
+        campusId: me.campusId || null,
+        expireDate: me.expireDate || null,
+        groups: me.groups || [],
+        groupsInfo: me.groupsInfo || [] // Save groupsInfo for supervisor
+      };
+      localStorage.setItem(USER_INFO_KEY, JSON.stringify(userData));
 
       // Lưu groupId cho student để dùng cho điều hướng tasks
       try {
@@ -119,6 +121,47 @@ export async function logout() {
   resetLoading();
 }
 
+// Refresh user info from API (call after updating group expire date, etc.)
+export async function refreshUserInfo() {
+  try {
+    const meRes = await client.get('/auth/user-info');
+    const meBody = meRes?.data;
+    const me = meBody?.data || meBody || null;
+    if (me) {
+      const role = me.role || localStorage.getItem(USER_ROLE_KEY) || 'STUDENT';
+      const roleInGroup = me.roleInGroup || me.role_in_group || me.groupRole || null;
+
+      localStorage.setItem(USER_ROLE_KEY, role);
+      const userData = {
+        id: me.id || me.userId || 'u_1',
+        semesterId: me.semesterId || null,
+        name: me.name || me.fullName || 'User',
+        role,
+        roleInGroup,
+        campusId: me.campusId || null,
+        expireDate: me.expireDate || null,
+        groups: me.groups || [],
+        groupsInfo: me.groupsInfo || []
+      };
+      localStorage.setItem(USER_INFO_KEY, JSON.stringify(userData));
+
+      if (roleInGroup) {
+        localStorage.setItem('user_role_in_group', String(roleInGroup));
+      }
+
+      if (me.campusId) {
+        localStorage.setItem('user_campus_id', String(me.campusId));
+      }
+
+      return userData;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error refreshing user info:', error);
+    return null;
+  }
+}
+
 // Helper function để lấy roleInGroup từ localStorage
 export function getRoleInGroup() {
   try {
@@ -132,7 +175,76 @@ export function getRoleInGroup() {
 export function getUserInfo() {
   try {
     const userInfo = localStorage.getItem(USER_INFO_KEY);
-    return userInfo ? JSON.parse(userInfo) : null;
+    if (!userInfo) return null;
+    const parsed = JSON.parse(userInfo);
+    // Ensure format matches API response
+    return {
+      id: parsed.id,
+      semesterId: parsed.semesterId,
+      name: parsed.name,
+      role: parsed.role,
+      roleInGroup: parsed.roleInGroup || parsed.role_in_group || parsed.groupRole,
+      campusId: parsed.campusId,
+      expireDate: parsed.expireDate,
+      groups: parsed.groups || [],
+      groupsInfo: parsed.groupsInfo || [] // Include groupsInfo for supervisor
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Helper function to get unique semesters from groupsInfo
+export function getUniqueSemesters() {
+  try {
+    const userInfo = getUserInfo();
+    if (!userInfo || !userInfo.groupsInfo || !Array.isArray(userInfo.groupsInfo)) {
+      return [];
+    }
+    
+    const semestersMap = new Map();
+    userInfo.groupsInfo.forEach(group => {
+      if (group.semesterId) {
+        semestersMap.set(group.semesterId, {
+          id: group.semesterId,
+          name: group.sesesterName || group.semesterName || `Semester ${group.semesterId}`
+        });
+      }
+    });
+    
+    return Array.from(semestersMap.values());
+  } catch {
+    return [];
+  }
+}
+
+// Helper function to get groups by semester and expired status
+export function getGroupsBySemesterAndStatus(semesterId, isExpired = false) {
+  try {
+    const userInfo = getUserInfo();
+    if (!userInfo || !userInfo.groupsInfo || !Array.isArray(userInfo.groupsInfo)) {
+      return [];
+    }
+    const filteredGroups = userInfo.groupsInfo.filter(group => {
+      const matchesSemester = !semesterId || group.semesterId === semesterId;
+      const matchesExpired = group.isExpired === isExpired;
+
+      return matchesSemester && matchesExpired;
+    });
+    return filteredGroups;
+  } catch {
+    return [];
+  }
+}
+
+// Helper function to get current semester ID (from userInfo.semesterId)
+export function getCurrentSemesterId() {
+  try {
+    const userInfo = getUserInfo();
+    // current semester get from localstorage. read file auth.js getCurrentSemesterInfo()
+    const currentSemesterInfo = getCurrentSemesterInfo();
+    return currentSemesterInfo?.id || null;
+   // return userInfo?.semesterId || null;
   } catch {
     return null;
   }

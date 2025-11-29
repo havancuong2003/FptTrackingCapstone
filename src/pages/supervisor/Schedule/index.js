@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParams } from 'react-router-dom';
 import styles from './index.module.scss';
+import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import DataTable from '../../../components/DataTable/DataTable';
 import { 
@@ -10,9 +11,10 @@ import {
   getStudentFreeTimeSlotsNew 
 } from '../../../api/schedule';
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
-import { sendMeetingScheduleConfirmationEmail } from '../../../email/schedule';
-import { getCampusId } from '../../../auth/auth';
+import { sendMeetingScheduleConfirmationEmail, sendFreeTimeReminderEmail } from '../../../email/schedule';
+import { getCampusId, getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
 import { getCampusById } from '../../../api/campus';
+import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 
 export default function SupervisorSchedule() {
   const { groupId: urlGroupId } = useParams();
@@ -33,6 +35,7 @@ export default function SupervisorSchedule() {
   };
   
   const currentUser = getCurrentUser();
+  
   const [loading, setLoading] = React.useState(false);
   const [availableGroups, setAvailableGroups] = React.useState([]);
   const [selectedGroup, setSelectedGroup] = React.useState('');
@@ -45,6 +48,9 @@ export default function SupervisorSchedule() {
   const [meetingSchedule, setMeetingSchedule] = React.useState(null);
   const [isSupervisor, setIsSupervisor] = React.useState(true);
   const [campusSlots, setCampusSlots] = React.useState([]);
+  const [semesters, setSemesters] = React.useState([]);
+  const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
+  const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
   
   // Meeting form data
   const [meetingData, setMeetingData] = React.useState({
@@ -52,6 +58,9 @@ export default function SupervisorSchedule() {
     slotId: '',
     meetingLink: ''
   });
+  
+  // State for sending reminder email
+  const [sendingReminder, setSendingReminder] = React.useState(false);
 
   // Days of the week
   const daysOfWeek = [
@@ -65,33 +74,54 @@ export default function SupervisorSchedule() {
   ];
 
 
-  // Fetch available groups for supervisor
-  const fetchAvailableGroups = async () => {
-    try {
-      setLoading(true);
-      const response = await getSupervisorGroups();
+  // Load semesters and groups from localStorage
+  React.useEffect(() => {
+    function loadSemesters() {
+      const uniqueSemesters = getUniqueSemesters();
+      setSemesters(uniqueSemesters);
       
-      if (response.status === 200) {
-        const groupsData = response.data || [];
-        const mappedGroups = groupsData.map(group => ({
-          id: group.id,
-          name: group.name || `Group ${group.id}`,
-          description: group.description || '',
-          memberCount: group.students?.length || 0,
-          status: group.status || 'active'
-        }));
-        setAvailableGroups(mappedGroups);
-      } else {
-        console.error('Error fetching groups:', response.data.message);
-        setAvailableGroups([]);
+      // Luôn ưu tiên kì hiện tại khi lần đầu render
+      const currentSemesterId = getCurrentSemesterId();
+      if (currentSemesterId) {
+        // Kiểm tra xem currentSemesterId có trong danh sách không
+        const existsInList = uniqueSemesters.some(s => s.id === currentSemesterId);
+        if (existsInList) {
+          setSelectedSemesterId(currentSemesterId);
+        } else if (uniqueSemesters.length > 0) {
+          // Nếu không có trong danh sách, fallback về semester đầu tiên
+          setSelectedSemesterId(uniqueSemesters[0].id);
+        }
+      } else if (uniqueSemesters.length > 0) {
+        // Nếu không có currentSemesterId, fallback về semester đầu tiên
+        setSelectedSemesterId(uniqueSemesters[0].id);
       }
-    } catch (error) {
-      console.error('Error fetching groups:', error);
-      setAvailableGroups([]);
-    } finally {
-      setLoading(false);
     }
-  };
+    loadSemesters();
+  }, []);
+
+  // Load groups from localStorage when filter changes (no API call)
+  React.useEffect(() => {
+    if (selectedSemesterId === null) {
+      setAvailableGroups([]);
+      return;
+    }
+    
+    // Get groups from localStorage based on semester and expired status
+    const isExpired = groupExpireFilter === 'expired';
+    const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
+    
+    // Build groups list from localStorage only
+    const mappedGroups = groupsFromStorage.map(groupInfo => ({
+      id: groupInfo.id,
+      name: groupInfo.name || `Group ${groupInfo.id}`,
+      description: groupInfo.description || '',
+      memberCount: 0, // Will be loaded when group is selected
+      status: groupInfo.isExpired ? 'expired' : 'active'
+    }));
+    
+    setAvailableGroups(mappedGroups);
+    setLoading(false); // Set loading false after groups are loaded from localStorage
+  }, [selectedSemesterId, groupExpireFilter]);
 
   // Load campus slots
   const loadCampusSlots = async () => {
@@ -406,6 +436,70 @@ export default function SupervisorSchedule() {
     }));
   };
 
+  // Get students who haven't confirmed their free time
+  const getStudentsNotConfirmed = () => {
+    if (!members || members.length === 0) return [];
+    
+    const confirmedStudentIds = Object.keys(memberSchedules).map(id => parseInt(id));
+    
+    return members.filter(member => {
+      const memberId = member.id || member.studentId;
+      return !confirmedStudentIds.includes(parseInt(memberId));
+    });
+  };
+
+  // Send reminder email to students who haven't confirmed
+  const handleSendReminderEmail = async () => {
+    const studentsNotConfirmed = getStudentsNotConfirmed();
+    
+    if (studentsNotConfirmed.length === 0) {
+      alert('Tất cả sinh viên đã xác nhận lịch rảnh!');
+      return;
+    }
+
+    const confirmSend = window.confirm(
+      `Bạn có muốn gửi email nhắc nhở đến ${studentsNotConfirmed.length} sinh viên chưa xác nhận lịch rảnh không?\n\n` +
+      `Danh sách: ${studentsNotConfirmed.map(s => s.name).join(', ')}`
+    );
+
+    if (!confirmSend) return;
+
+    setSendingReminder(true);
+    try {
+      const studentEmails = studentsNotConfirmed
+        .map(student => student.email)
+        .filter(email => email);
+      
+      const studentNames = studentsNotConfirmed.map(student => student.name);
+
+      if (studentEmails.length === 0) {
+        alert('Không tìm thấy email của sinh viên!');
+        return;
+      }
+
+      // URL đến trang schedule của student
+      const scheduleUrl = 'http://10.0.0.4:8082/schedule';
+      const systemUrl = window.location.origin;
+
+      await sendFreeTimeReminderEmail({
+        recipientEmails: studentEmails,
+        recipientNames: studentNames,
+        groupName: group?.groupName || group?.groupCode || `Nhóm ${selectedGroup}`,
+        supervisorName: currentUser?.name || 'Giảng viên hướng dẫn',
+        supervisorEmail: currentUser?.email,
+        scheduleUrl: scheduleUrl,
+        systemUrl: systemUrl
+      });
+
+      alert(`Đã gửi email nhắc nhở thành công đến ${studentEmails.length} sinh viên!`);
+    } catch (error) {
+      console.error('Error sending reminder email:', error);
+      alert('Có lỗi xảy ra khi gửi email. Vui lòng thử lại!');
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
 
 
 
@@ -423,10 +517,6 @@ export default function SupervisorSchedule() {
     }
   };
 
-  // Load available groups when component mounts
-  React.useEffect(() => {
-    fetchAvailableGroups();
-  }, []);
 
   if (loading && !group) {
     return <div className={styles.loading}>Loading...</div>;
@@ -435,8 +525,8 @@ export default function SupervisorSchedule() {
   // Không cần return sớm nữa, luôn hiển thị group selector
 
   return (
-    <div className={styles.container}>
-      <div className={styles.header}>
+    <div className={sharedLayout.container}>
+      <div className={sharedLayout.header}>
         <h1>Group Meeting Schedule</h1>
         <div className={styles.headerControls}>
           <div className={styles.supervisorBadge}>
@@ -445,25 +535,48 @@ export default function SupervisorSchedule() {
         </div>
       </div>
 
-      {/* Group Selection - Luôn hiển thị */}
-      <div className={styles.section}>
-        <h2>Select Group</h2>
-        <div className={styles.groupSelector}>
-          <select
-            value={selectedGroup}
-            onChange={(e) => handleGroupSelect(e.target.value)}
-            className={styles.groupSelect}
-            disabled={loading}
-          >
-            <option value="">Select Group</option>
-            {availableGroups.map(group => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
+      <SupervisorGroupFilter
+        semesters={semesters}
+        selectedSemesterId={selectedSemesterId}
+        onSemesterChange={(newSemesterId) => {
+          setSelectedSemesterId(newSemesterId);
+          // Clear data when semester changes
+          setSelectedGroup('');
+          setGroup(null);
+          setMembers([]);
+          setMemberSchedules({});
+          setMergedSchedule({});
+          setIsFinalized(false);
+          setFinalMeeting(null);
+          setMeetingSchedule(null);
+        }}
+        groupExpireFilter={groupExpireFilter}
+        onGroupExpireFilterChange={(newFilter) => {
+          setGroupExpireFilter(newFilter);
+          // Clear data when filter changes
+          setSelectedGroup('');
+          setGroup(null);
+          setMembers([]);
+          setMemberSchedules({});
+          setMergedSchedule({});
+          setIsFinalized(false);
+          setFinalMeeting(null);
+          setMeetingSchedule(null);
+        }}
+        groups={availableGroups}
+        selectedGroupId={selectedGroup || ''}
+        onGroupChange={handleGroupSelect}
+        groupSelectPlaceholder="Select Group"
+        loading={loading}
+      />
+
+      {/* Show message when no group selected */}
+      {!selectedGroup && (
+        <div className={sharedLayout.noSelection}>
+          <p>Please select a group</p>
+          <p>You will see group information and document list after selection.</p>
         </div>
-      </div>
+      )}
 
       {/* Chỉ hiển thị nội dung khi có group được chọn */}
       {selectedGroup && group && (
@@ -493,8 +606,32 @@ export default function SupervisorSchedule() {
                           'sunday': 'Sunday'
                         };
                         const dayName = dayNames[meetingSchedule.dayOfWeek?.toLowerCase()] || meetingSchedule.dayOfWeek || '';
-                        const slot = campusSlots.find(s => s.id === meetingSchedule.slotId);
-                        const slotTime = slot ? `${slot.startAt || ''} - ${slot.endAt || ''}` : '';
+                        // Lấy thời gian trực tiếp từ meetingSchedule.slot
+                        let slotTime = '';
+                        if (meetingSchedule?.slot?.startAt && meetingSchedule?.slot?.endAt) {
+                          const formatTimeFromSlot = (timeStr) => {
+                            if (!timeStr) return '';
+                            // Format: "07:30:00" -> "7:30 AM" or "13:30:00" -> "1:30 PM"
+                            const parts = timeStr.split(':');
+                            if (parts.length < 2) return timeStr;
+                            
+                            const hours = parseInt(parts[0], 10);
+                            const minutes = parseInt(parts[1], 10);
+                            
+                            if (isNaN(hours) || isNaN(minutes)) return timeStr;
+                            
+                            const period = hours >= 12 ? 'PM' : 'AM';
+                            const displayHours = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
+                            const displayMinutes = minutes.toString().padStart(2, '0');
+                            
+                            return `${displayHours}:${displayMinutes} ${period}`;
+                          };
+                          slotTime = `${formatTimeFromSlot(meetingSchedule.slot.startAt)} - ${formatTimeFromSlot(meetingSchedule.slot.endAt)}`;
+                        } else {
+                          // Fallback: tìm trong campusSlots nếu không có slot trực tiếp
+                          const slot = campusSlots.find(s => s.id === meetingSchedule.slotId);
+                          slotTime = slot ? `${slot.startAt || ''} - ${slot.endAt || ''}` : '';
+                        }
                         return `${dayName} - ${slotTime}`;
                       })()}
                     </span>
@@ -502,8 +639,8 @@ export default function SupervisorSchedule() {
                   <div className={styles.infoRow}>
                     <span className={styles.infoLabel}>Created Date:</span>
                     <span className={styles.infoValue}>
-                      {meetingSchedule.createAt 
-                        ? new Date(meetingSchedule.createAt).toLocaleDateString('en-US')
+                      {meetingSchedule.createAt || meetingSchedule.iscreateAt
+                        ? new Date(meetingSchedule.createAt || meetingSchedule.iscreateAt).toLocaleDateString('en-US')
                         : new Date().toLocaleDateString('en-US')
                       }
                     </span>
@@ -536,7 +673,24 @@ export default function SupervisorSchedule() {
             <span>View members' free time and confirm the common meeting schedule</span>
           </div>
 
-          {/* Student Free Time Slots - DataTable View */}
+          {/* Students Not Confirmed - Simple inline display */}
+          {!isFinalized && getStudentsNotConfirmed().length > 0 && (
+            <div className={styles.notConfirmedBar}>
+              <span className={styles.notConfirmedText}>
+                ⚠ Not confirmed: {getStudentsNotConfirmed().map(s => s.name).join(', ')}
+              </span>
+              <button
+                className={styles.sendReminderBtn}
+                onClick={handleSendReminderEmail}
+                disabled={sendingReminder}
+              >
+                {sendingReminder ? 'Sending...' : 'Send Reminder'}
+              </button>
+            </div>
+          )}
+
+          {/* Student Free Time Slots - DataTable View - Only show when not finalized */}
+          {!isFinalized && (
           <div className={styles.freeTimeSection}>
             <h2>Members' Free Time</h2>
             {(() => {
@@ -695,6 +849,7 @@ export default function SupervisorSchedule() {
               );
             })()}
           </div>
+          )}
 
           {/* Meeting Finalization/Update Form - Only show when not finalized */}
           {!isFinalized && (

@@ -2,13 +2,16 @@ import React from 'react';
 import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
+import { getUserInfo, getGroupId, getRoleInGroup } from '../../../auth/auth';
+import { getMeetingScheduleDatesByGroup } from '../../../api/meetings';
 
 export default function StudentMinutes() {
   const [minutes, setMinutes] = React.useState([]);
   const [meetings, setMeetings] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [createModal, setCreateModal] = React.useState(false);
-  const [userRole, setUserRole] = React.useState('Secretary'); // Mock user role
+  const [userRole, setUserRole] = React.useState(null);
+  const [hasGroup, setHasGroup] = React.useState(false);
   const [newMinutes, setNewMinutes] = React.useState({
     meetingId: '',
     content: '',
@@ -17,71 +20,101 @@ export default function StudentMinutes() {
     attachments: []
   });
 
+  // Check groupId first
   React.useEffect(() => {
+    // Get info from localStorage, don't call API
+    const userInfo = getUserInfo();
+    const groupId = getGroupId() || localStorage.getItem('student_group_id');
+    
+    if (groupId || (userInfo?.groups && userInfo.groups.length > 0)) {
+      setHasGroup(true);
+      // Get role from localStorage
+      const roleInGroup = getRoleInGroup();
+      if (roleInGroup) {
+        setUserRole(roleInGroup === "Student" ? 'Member' : (roleInGroup || 'Member'));
+      }
+    } else {
+      setHasGroup(false);
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    // Chỉ fetch data nếu có group
+    if (!hasGroup) return;
+    
     const fetchData = async () => {
       try {
         setLoading(true);
-        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Mock meetings data
-        const meetingsData = {
-          "status": 200,
-          "message": "Fetched successfully",
-          "data": [
-            {
-              "id": 1,
-              "topic": "Project Kickoff Meeting",
-              "datetime": "2025-10-15T14:00:00Z",
-              "participants": ["SE00001", "SE00002", "SE00003", "MENTOR001"],
-              "status": "completed"
-            },
-            {
-              "id": 2,
-              "topic": "Weekly Progress Review",
-              "datetime": "2025-10-22T14:00:00Z",
-              "participants": ["SE00001", "SE00002", "SE00003", "MENTOR001"],
-              "status": "upcoming"
-            }
-          ]
-        };
+        // Lấy groupId từ localStorage, không gọi API
+        const userInfo = getUserInfo();
+        const groupId = getGroupId() || localStorage.getItem('student_group_id');
         
-        // Mock minutes data
-        const minutesData = {
-          "status": 200,
-          "message": "Fetched successfully",
-          "data": [
-            {
-              "id": 1,
-              "meetingId": 1,
-              "meetingTopic": "Project Kickoff Meeting",
-              "date": "2025-10-15T14:00:00Z",
-              "participants": ["SE00001", "SE00002", "SE00003", "MENTOR001"],
-              "content": "Discussed project requirements and initial planning. Team agreed on using React for frontend and Node.js for backend.",
-              "issues": ["Need to clarify database requirements", "Timeline might be tight"],
-              "actions": [
-                "Research database options (assigned to SE00002)",
-                "Setup development environment (assigned to SE00001)",
-                "Create project timeline (assigned to SE00003)"
-              ],
-              "attachments": ["meeting_notes.pdf"],
-              "createdBy": "SE00003",
-              "createdByName": "Nguyen Van C",
-              "status": "confirmed"
-            }
-          ]
-        };
+        if (!groupId) {
+          setMeetings([]);
+          setMinutes([]);
+          setLoading(false);
+          return;
+        }
         
-        setMeetings(meetingsData.data);
-        setMinutes(minutesData.data);
+        // Lấy role từ localStorage nếu chưa có
+        if (!userRole) {
+          const roleInGroup = getRoleInGroup();
+          if (roleInGroup) {
+            setUserRole(roleInGroup === "Student" ? 'Member' : (roleInGroup || 'Member'));
+          }
+        }
+        
+        // Call real API to get meetings
+        const meetingsResponse = await getMeetingScheduleDatesByGroup(groupId);
+        if (meetingsResponse.status === 200) {
+          const apiData = meetingsResponse.data;
+          const meetingsData = Array.isArray(apiData) ? apiData : [];
+          
+          // Map meetings từ API
+          const mappedMeetings = meetingsData
+            .filter(meeting => meeting.isMeeting === true)
+            .map(meeting => ({
+              id: meeting.id,
+              topic: meeting.description || 'Meeting',
+              datetime: meeting.meetingDate ? `${meeting.meetingDate}T${meeting.time || '00:00:00'}` : new Date().toISOString(),
+              participants: [],
+              status: new Date(meeting.meetingDate) < new Date() ? 'completed' : 'upcoming',
+              meetingDate: meeting.meetingDate,
+              time: meeting.time
+            }));
+          
+          setMeetings(mappedMeetings);
+        } else {
+          setMeetings([]);
+        }
+        
+        // Gọi API thật để lấy minutes (nếu có API endpoint)
+        // TODO: Thay thế bằng API endpoint thật khi có
+        try {
+          const minutesResponse = await client.get(`/Student/Meeting/group/${groupId}/minutes`);
+          if (minutesResponse.data.status === 200) {
+            const minutesData = minutesResponse.data.data || [];
+            setMinutes(Array.isArray(minutesData) ? minutesData : []);
+          } else {
+            setMinutes([]);
+          }
+        } catch (error) {
+
+          setMinutes([]);
+        }
       } catch (error) {
         console.error('Error fetching data:', error);
+        setMeetings([]);
+        setMinutes([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, []);
+  }, [hasGroup]);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('vi-VN', {
@@ -97,16 +130,52 @@ export default function StudentMinutes() {
     setCreateModal(true);
   };
 
-  const createMinutes = () => {
-    alert('Meeting minutes created successfully! (Mock)');
-    setCreateModal(false);
-    setNewMinutes({
-      meetingId: '',
-      content: '',
-      issues: '',
-      actions: '',
-      attachments: []
-    });
+  const createMinutes = async () => {
+    if (!newMinutes.meetingId || !newMinutes.content.trim()) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    
+    try {
+      const groupId = localStorage.getItem('student_group_id');
+      if (!groupId) {
+        alert('Group ID not found');
+        return;
+      }
+      
+      // Gọi API thật để tạo minutes
+      // TODO: Thay thế bằng API endpoint thật khi có
+      const minutesData = {
+        meetingId: parseInt(newMinutes.meetingId),
+        content: newMinutes.content.trim(),
+        issues: newMinutes.issues ? newMinutes.issues.split('\n').filter(i => i.trim()) : [],
+        actions: newMinutes.actions ? newMinutes.actions.split('\n').filter(a => a.trim()) : [],
+        attachments: newMinutes.attachments || []
+      };
+      
+      // const response = await client.post(`/Student/Meeting/group/${groupId}/minutes`, minutesData);
+      // if (response.data.status === 200) {
+      //   alert('Meeting minutes created successfully!');
+      //   setCreateModal(false);
+      //   setNewMinutes({
+      //     meetingId: '',
+      //     content: '',
+      //     issues: '',
+      //     actions: '',
+      //     attachments: []
+      //   });
+      //   // Reload data
+      //   window.location.reload();
+      // } else {
+      //   alert('Error creating minutes: ' + response.data.message);
+      // }
+      
+      // Tạm thời hiển thị thông báo
+      alert('Meeting minutes API endpoint is not available yet. Please contact administrator.');
+    } catch (error) {
+      console.error('Error creating minutes:', error);
+      alert('Error creating minutes: ' + error.message);
+    }
   };
 
   const getStatusInfo = (status) => {
@@ -122,6 +191,18 @@ export default function StudentMinutes() {
     }
   };
 
+  // Nếu không có group, hiển thị thông báo
+  if (!hasGroup && !loading) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.emptyState}>
+          <div className={styles.emptyTitle}>You are not in any group</div>
+          <div className={styles.emptyMessage}>Please contact the supervisor to be added to a group.</div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className={styles.loading}>
@@ -134,14 +215,14 @@ export default function StudentMinutes() {
     <div className={styles.container}>
       <div className={styles.header}>
         <h1>Meeting Minutes</h1>
-        {userRole === 'Secretary' && (
+        {userRole === 'Secretary' && hasGroup && (
           <Button onClick={openCreateModal}>
             Create New Minutes
           </Button>
         )}
       </div>
       
-      {userRole !== 'Secretary' && (
+      {userRole !== 'Secretary' && hasGroup && (
         <div className={styles.roleWarning}>
           <p>⚠️ Only students with the "Secretary" role can create meeting minutes.</p>
         </div>

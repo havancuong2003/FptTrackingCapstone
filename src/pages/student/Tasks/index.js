@@ -4,8 +4,12 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
-import axiosClient from '../../../utils/axiosClient';
 import { sendTaskAssignmentEmail } from '../../../email/tasks';
+import { getDeliverablesByGroup } from '../../../api/deliverables';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getMeetingScheduleDatesByGroup } from '../../../api/meetings';
+import { getTasksByGroup, getTaskById, createTask, createComment, uploadTaskAttachment } from '../../../api/tasks';
+import { getUserInfo, getGroupId } from '../../../auth/auth';
 
 export default function StudentTasks() {
   const navigate = useNavigate();
@@ -13,26 +17,16 @@ export default function StudentTasks() {
   const query = new URLSearchParams(location.search);
   const groupId = query.get('groupId');
   
-  // Lấy thông tin user từ localStorage
-  const getCurrentUser = () => {
-    try {
-      const authUser = localStorage.getItem('auth_user');
-      if (authUser) {
-        return JSON.parse(authUser);
-      }
-      return null; // Không có user
-    } catch (error) {
-      console.error('Error parsing auth_user:', error);
-      return null; // Error parse
-    }
-  };
-  
-  const currentUser = getCurrentUser();
+  // Get user info from localStorage
+  const currentUser = getUserInfo();
   const [tasks, setTasks] = React.useState([]);
   const [deliverables, setDeliverables] = React.useState([]);
   const [meetings, setMeetings] = React.useState([]);
   const [reviewers, setReviewers] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  
+  // Check groupId from the start
+  const hasValidGroupId = groupId !== null && groupId !== undefined && groupId !== '';
   const [taskModal, setTaskModal] = React.useState(false);
   const [newTask, setNewTask] = React.useState({
     title: '',
@@ -48,6 +42,24 @@ export default function StudentTasks() {
   const [selectedTask, setSelectedTask] = React.useState(null);
   const [newComment, setNewComment] = React.useState('');
   const [newAttachment, setNewAttachment] = React.useState('');
+  
+  // State cho file đính kèm khi tạo task
+  const [createTaskFiles, setCreateTaskFiles] = React.useState([]);
+  
+  // Kiểm tra file có đúng định dạng được phép không
+  const isValidFileType = (fileName) => {
+    if (!fileName) return false;
+    const extension = fileName.split('.').pop().toLowerCase();
+    const allowedExtensions = [
+      // Images
+      'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg',
+      // PDF
+      'pdf',
+      // Archives
+      'zip', '7z', 'rar'
+    ];
+    return allowedExtensions.includes(extension);
+  };
 
   // Status search-on-click
   const [isSearched, setIsSearched] = React.useState(false);
@@ -66,80 +78,53 @@ export default function StudentTasks() {
   const [deadlineFilter, setDeadlineFilter] = React.useState('');
   const [meetingFilter, setMeetingFilter] = React.useState('');
   const [viewType, setViewType] = React.useState('my_tasks'); // 'my_tasks', 'project_view', 'all_tasks', 'meeting_decisions'
-  // API: lấy deliverables theo group (backend vẫn là deliverable, chỉ data trả về gọi là milestone)
+  // API: Get deliverables by group
   const fetchMilestonesByGroup = async (gid) => {
     try {
-      //const response = await axiosClient.get(`/deliverables/getByGroupId/${gid}`);
-      const response = await axiosClient.get(`/deliverables/group/${gid}`);
+      const response = await getDeliverablesByGroup(gid);
+      const apiData = response?.data || response;
+      const deliverablesData = Array.isArray(apiData) ? apiData : [];
       
-      if (response.data) {
-        // Kiểm tra data có tồn tại và không null/undefined
-        const apiData = response.data;
-        const deliverablesData = Array.isArray(apiData) ? apiData : [];
-        
-        // Map data từ API response sang format frontend (vẫn gọi là milestone cho UI)
-        return deliverablesData.map(deliverable => ({
-          id: deliverable.id,
-          name: deliverable.name,
-          groupId: gid,
-          description: deliverable.description,
-          deadline: deliverable.deadline
-        }));
-      } else {
-        console.error('Error fetching deliverables:', response.data.message);
-    //    alert(`Error lấy deliverables: ${response.data.message}`);
-        return [];
-      }
+      // Map data from API response to frontend format
+      return deliverablesData.map(deliverable => ({
+        id: deliverable.id,
+        name: deliverable.name,
+        groupId: gid,
+        description: deliverable.description,
+        deadline: deliverable.deadline
+      }));
     } catch (error) {
       console.error('Error fetching deliverables:', error);
-      alert(`Error kết nối deliverables: ${error.message}`);
       return [];
     }
   };
 
 
-  // API: lấy students theo group
-  const fetchStudentsByGroup = async (gid) => {
+  // API: Get group data (students, reviewers, group info) - gọi 1 lần duy nhất
+  const fetchGroupData = async (gid) => {
     try {
-      const response = await axiosClient.get(`/Staff/capstone-groups/${gid}`);
-      if (response.data.status === 200) {
-        // Kiểm tra data có tồn tại và không null/undefined
-        if (response.data.data && response.data.data.students) {
-          const apiData = response.data.data.students;
-          const studentsData = Array.isArray(apiData) ? apiData : [];
-          return studentsData.map(student => ({
-            id: student.id,
-            name: student.name,
-            studentId: student.studentId || student.id,
-            email: student.email || ''
-          }));
-        }
-        return [];
-      } else {
-        console.error('Error fetching students:', response.data.message);
-        alert(`Error lấy danh sách students: ${response.data.message}`);
-        return [];
-      }
-    } catch (error) {
-      console.error('Error fetching students:', error);
-      alert(`Error kết nối lấy students: ${error.message}`);
-      return [];
-    }
-  };
-
-  // API: lấy reviewers (supervisors + students) từ group
-  const fetchReviewers = async (gid) => {
-    try {
-      const response = await axiosClient.get(`/Staff/capstone-groups/${gid}`);
-      
-      if (response.data.status === 200) {
-        const groupData = response.data.data;
+      const response = await getCapstoneGroupDetail(gid);
+      if (response.status === 200 && response.data) {
+        const groupData = response.data;
         
-        // Kiểm tra groupData có tồn tại và không null/undefined
-        if (!groupData) {
-          return [];
-        }
+        // Save group info
+        setGroupInfo({
+          id: groupData.id,
+          name: groupData.groupCode || groupData.name || `Group ${gid}`,
+          projectName: groupData.projectName || '',
+          semesterName: groupData.semesterName || ''
+        });
         
+        // Get students (for assignee)
+        const studentsData = Array.isArray(groupData.students) ? groupData.students : [];
+        const students = studentsData.map(student => ({
+          id: student.id,
+          name: student.name,
+          studentId: student.studentId || student.id,
+          email: student.email || ''
+        }));
+        
+        // Get reviewers (supervisors + students)
         const reviewersList = [];
         
         // Add supervisors
@@ -154,61 +139,52 @@ export default function StudentTasks() {
           });
         }
         
-        // Add students
-        if (groupData.students && Array.isArray(groupData.students)) {
-          groupData.students.forEach(student => {
-            reviewersList.push({
-              id: `${student.id}`,
-              name: student.name,
-              email: student.email,
-              type: 'Student',
-              role: student.role === "Student" ? 'Member' : (student.role || 'Member')
-            });
+        // Add students as reviewers
+        studentsData.forEach(student => {
+          reviewersList.push({
+            id: `${student.id}`,
+            name: student.name,
+            email: student.email,
+            type: 'Student',
+            role: student.role === "Student" ? 'Member' : (student.role || 'Member')
           });
-        }
+        });
         
-        return reviewersList;
-      } else {
-        console.error('Error fetching reviewers:', response.data.message);
-        return [];
+        return { students, reviewers: reviewersList };
       }
+      return { students: [], reviewers: [] };
     } catch (error) {
-      console.error('Error fetching reviewers:', error);
-      return [];
+      console.error('Error fetching group data:', error);
+      return { students: [], reviewers: [] };
     }
   };
 
-  // API: lấy meetings đã họp để tạo meeting tasks
+  // API: Get completed meetings to create meeting tasks
   const fetchCompletedMeetings = async (gid) => {
     try {
-      const response = await axiosClient.get(`/Student/Meeting/group/${gid}/schedule-dates`);
+      const response = await getMeetingScheduleDatesByGroup(gid);
       
-      if (response.data.status === 200) {
-        // Kiểm tra data có tồn tại và không null/undefined
-        const apiData = response.data.data;
+      if (response.status === 200) {
+        const apiData = response.data;
         const meetingsData = Array.isArray(apiData) ? apiData : [];
         
-        // Chỉ lấy ra những meeting có isMeeting = true
+        // Only get meetings with isMeeting = true
         const filteredMeetings = meetingsData.filter(meeting => meeting.isMeeting === true);
         
-        // Map data từ API response sang format frontend
+        // Map data from API response to frontend format
         return filteredMeetings.map(meeting => ({
           id: meeting.id,
           description: meeting.description,
           meetingDate: meeting.meetingDate,
           startTime: meeting.time,
-          endTime: meeting.time, // Sử dụng time làm endTime nếu không có endTime riêng
+          endTime: meeting.time,
           meetingLink: meeting.meetingLink,
           dayOfWeek: meeting.dayOfWeek
         }));
-      } else {
-        console.error('Error fetching meetings:', response.data.message);
-        alert(`Error lấy danh sách meetings: ${response.data.message}`);
-        return [];
       }
+      return [];
     } catch (error) {
       console.error('Error fetching meetings:', error);
-      alert(`Error kết nối meetings: ${error.message}`);
       return [];
     }
   };
@@ -216,10 +192,11 @@ export default function StudentTasks() {
   const fetchTasks = async () => {
     try {
       setLoading(true);
-      const response = await axiosClient.get(`/Student/Task/get-by-group/${groupId}`);
-      if (response.data.status === 200) {
-        const apiData = response.data.data;
+      const response = await getTasksByGroup(groupId);
+      if (response.status === 200) {
+        const apiData = response.data;
         const tasksData = Array.isArray(apiData) ? apiData : [];
+        console.log('Tasks from API:', tasksData); // Debug: xem API có trả về reviewerId không
         const mappedTasks = tasksData.map(task => {
           // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
           const mappedStatus = task.status?.toLowerCase() === 'todo' ? 'todo' : 
@@ -263,27 +240,29 @@ export default function StudentTasks() {
   };
 
   React.useEffect(() => {
+    // If no valid groupId, don't call API
+    if (!hasValidGroupId) {
+      setLoading(false);
+      return;
+    }
+
     const bootstrapFilters = async () => {
       try {
         setLoading(true);
-        // Load dữ liệu filter trước (milestones/students/meetings/reviewers theo group)
-        const [milestoneRes, studentRes, meetingRes, reviewerRes] = await Promise.all([
+        // Load dữ liệu filter trước (milestones/group data/meetings theo group)
+        const [milestoneRes, groupDataRes, meetingRes] = await Promise.all([
           fetchMilestonesByGroup(groupId),
-          fetchStudentsByGroup(groupId),
+          fetchGroupData(groupId),
           fetchCompletedMeetings(groupId),
-          fetchReviewers(groupId),
         ]);
-        const milestonesData = milestoneRes;
-        const students = studentRes;
-        const meetings = meetingRes;
-        const reviewers = reviewerRes;
-        setDeliverables(milestonesData); // Sử dụng milestones thay vì deliverables
-        setMeetings(meetings);
-        setReviewers(reviewers);
-        // Tự động load issues khi vào trang
+        
+        setDeliverables(milestoneRes);
+        setMeetings(meetingRes);
+        setReviewers(groupDataRes.reviewers);
+        setAssigneeSource(groupDataRes.students);
+        
+        // Tự động load tasks khi vào trang
         await fetchTasks();
-        // Save danh sách assignee từ API students
-        setAssigneeSource(students);
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {
@@ -292,10 +271,13 @@ export default function StudentTasks() {
     };
 
     bootstrapFilters();
-  }, [groupId]);
+  }, [groupId, hasValidGroupId]);
 
-  // Nguồn assignee lấy từ API theo group
+  // Assignee source from API by group
   const [assigneeSource, setAssigneeSource] = React.useState([]);
+  
+  // Group info from API
+  const [groupInfo, setGroupInfo] = React.useState(null);
 
   const getPriorityInfo = (priority) => {
     switch (priority) {
@@ -333,14 +315,35 @@ export default function StudentTasks() {
     }
   };
 
+  // Check if task belongs to current user (as assignee or reviewer)
+  const isMyTask = (task) => {
+    if (!currentUser) return false;
+    const isAssignee = task.assignee === currentUser.id || String(task.assignee) === String(currentUser.id);
+    const isReviewer = task.reviewerId === currentUser.id || String(task.reviewerId) === String(currentUser.id);
+    return isAssignee || isReviewer;
+  };
+
   const columns = [
     {
       key: 'title',
       title: 'Task',
       render: (task) => (
-        <div>
+        <div className={isMyTask(task) ? styles.myTaskCell : ''}>
           <div className={styles.taskTitle}>
-            {task.title}
+            <span
+              className={styles.taskTitleLink}
+              onClick={(e) => {
+                e.stopPropagation();
+                openTaskDetail(task);
+              }}
+            >
+              {task.title}
+            </span>
+            {isMyTask(task) && (
+              <span className={styles.myTaskIndicator} title="Task của tôi">
+                ★
+              </span>
+            )}
             {task.hasDependencies && (
               <span className={styles.dependencyIcon} title="Có phụ thuộc">
                 🔗
@@ -423,43 +426,18 @@ export default function StudentTasks() {
       render: (task) => formatDate(task.deadline)
     },
     {
-      key: 'actions',
-      title: 'Actions',
+      key: 'isActive',
+      title: 'Active',
       render: (task) => (
-        <div className={styles.actionButtons}>
-          <Button 
-            size="sm"
-            variant="secondary"
-            onClick={(e) => {
-              e.stopPropagation();
-              openTaskDetail(task);
-            }}
-          >
-            Details
-          </Button>
-          {task.status === 'todo' && (
-            <Button 
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                moveTask(task.id, 'todo', 'inProgress');
-              }}
-            >
-              Start
-            </Button>
-          )}
-          {task.status === 'inProgress' && (
-            <Button 
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                moveTask(task.id, 'inProgress', 'done');
-              }}
-            >
-              Complete
-            </Button>
-          )}
-        </div>
+        <span 
+          className={styles.statusBadge}
+          style={{ 
+            color: task.isActive ? '#059669' : '#dc2626',
+            backgroundColor: task.isActive ? '#d1fae5' : '#fee2e2'
+          }}
+        >
+          {task.isActive ? 'Active' : 'Inactive'}
+        </span>
       )
     }
   ];
@@ -510,7 +488,7 @@ export default function StudentTasks() {
         );
 
       
-      // Gửi email thông báo trước khi tạo task
+      // Send email notification before creating task
       try {
         const emailRecipients = [];
         
@@ -539,24 +517,34 @@ export default function StudentTasks() {
         priority: newTask.priority === 'high' ? 'High' : 
                  newTask.priority === 'medium' ? 'Medium' : 'Low',
         process: '0',
-        deliverableId: newTask.deliverableId ? parseInt(newTask.deliverableId) : null, // Backend vẫn sử dụng deliverableId
-        meetingId: null, // Mặc định không có meeting
-        taskType: 'throughout', // Mặc định là throughout task
+        deliverableId: newTask.deliverableId ? parseInt(newTask.deliverableId) : null, // Backend still uses deliverableId
+        meetingId: null, // Default no meeting
+        taskType: 'throughout', // Default is throughout task
         assignedUserId: newTask.assignee ? parseInt(newTask.assignee) : null,
         reviewerId: selectedReviewer ? parseInt(selectedReviewer.id) : null,
         reviewerName: selectedReviewer ? selectedReviewer.name : null
       };  
 
-      const response = await axiosClient.post('/Student/Task/create', taskData);
-      if (response.data.status === 200) {
-        const createdTaskId = response.data.data?.id;
+      const response = await createTask(taskData);
+      if (response.status === 200) {
+        const createdTaskId = response.data?.id;
         
-        // Gửi email cho người được assign sau khi tạo task thành công
+        // Upload files nếu có
+        if (createdTaskId && createTaskFiles.length > 0) {
+          const semester = groupInfo?.semesterName || '';
+          try {
+            for (const file of createTaskFiles) {
+              await uploadTaskAttachment(groupId, createdTaskId, semester, file);
+            }
+          } catch (uploadError) {
+            console.error('Error uploading files:', uploadError);
+            // Không block việc tạo task nếu upload fail
+          }
+        }
+        
+        // Send email to assignee after successfully creating task
         if (selectedAssignee?.email && createdTaskId) {
           try {
-            const systemUrl = `${window.location.origin}`;
-            const taskDetailUrl = `${window.location.origin}/student/tasks/${groupId}?taskId=${createdTaskId}`;
-            
             await sendTaskAssignmentEmail({
               recipientEmail: selectedAssignee.email,
               recipientName: selectedAssignee.label,
@@ -564,22 +552,47 @@ export default function StudentTasks() {
               taskDescription: newTask.description,
               deadline: newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
               priority: newTask.priority === 'high' ? 'High' : newTask.priority === 'medium' ? 'Medium' : 'Low',
-              assignerName: currentUser?.name || 'Người tạo',
-              groupName: groupId ? `Nhóm ${groupId}` : 'Capstone Project',
-              detailUrl: taskDetailUrl,
-              systemUrl: systemUrl
+              assignerName: currentUser?.name || 'Creator',
+              groupName: groupInfo?.name,
+              groupId: String(groupId),
+              taskId: String(createdTaskId),
+              recipientRole: 'student',
+              systemUrl: window.location.origin
             });
           } catch (emailError) {
             console.error('Error sending task assignment email:', emailError);
           }
         }
         
-        if (createdTaskId) {
-          // Fetch lại task vừa tạo để có đầy đủ thông tin từ API
+        // Send email to reviewer if selected (reviewer can be student or supervisor)
+        if (selectedReviewer?.email && createdTaskId) {
           try {
-            const fetchResponse = await axiosClient.get(`/Student/Task/get-by-id/${createdTaskId}`);
-            if (fetchResponse.data.status === 200) {
-              const taskData = fetchResponse.data.data;
+            const reviewerRole = selectedReviewer.type === 'Supervisor' ? 'supervisor' : 'student';
+            await sendTaskAssignmentEmail({
+              recipientEmail: selectedReviewer.email,
+              recipientName: selectedReviewer.name || selectedReviewer.label,
+              taskTitle: newTask.title,
+              taskDescription: newTask.description,
+              deadline: newTask.deadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+              priority: newTask.priority === 'high' ? 'High' : newTask.priority === 'medium' ? 'Medium' : 'Low',
+              assignerName: currentUser?.name || 'Creator',
+              groupName: groupInfo?.name,
+              groupId: String(groupId),
+              taskId: String(createdTaskId),
+              recipientRole: reviewerRole,
+              systemUrl: window.location.origin
+            });
+          } catch (emailError) {
+            console.error('Error sending reviewer assignment email:', emailError);
+          }
+        }
+        
+        if (createdTaskId) {
+          // Fetch the created task again to get full information from API
+          try {
+            const fetchResponse = await getTaskById(createdTaskId);
+            if (fetchResponse.status === 200) {
+              const taskData = fetchResponse.data;
               
               // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
               const mappedStatus = taskData.status?.toLowerCase() === 'todo' ? 'todo' : 
@@ -616,8 +629,8 @@ export default function StudentTasks() {
             }
           } catch (fetchError) {
             console.error('Error fetching created task:', fetchError);
-            // Nếu không fetch được, vẫn thử tạo task object từ response ban đầu
-            const createdTask = response.data.data;
+            // If cannot fetch, still try to create task object from initial response
+            const createdTask = response.data;
             const mappedStatus = createdTask.status?.toLowerCase() === 'todo' ? 'todo' : 
                                 createdTask.status?.toLowerCase() === 'inprogress' ? 'inProgress' : 'done';
             
@@ -659,6 +672,7 @@ export default function StudentTasks() {
           deadline: '',
           reviewer: ''
         });
+        setCreateTaskFiles([]);
         setTaskModal(false);
         alert('Task created successfully!');
       } else {
@@ -668,72 +682,6 @@ export default function StudentTasks() {
     } catch (error) {
       console.error('Error creating task:', error);
       alert(`Error creating task: ${error.message}`);
-    }
-  };
-
-  const moveTask = async (taskId, fromStatus, toStatus) => {
-    try {
-      // Tìm task hiện tại
-      const currentTask = allTasks.find(task => task.id === taskId);
-      if (!currentTask) return;
-
-      // Map status từ frontend sang backend
-      const backendStatus = toStatus === 'todo' ? 'ToDo' : 
-                           toStatus === 'inProgress' ? 'InProgress' : 'Done';
-      
-      // Map priority từ frontend sang backend
-      const backendPriority = currentTask.priority === 'high' ? 'High' : 
-                             currentTask.priority === 'medium' ? 'Medium' : 'Low';
-
-      // Gọi API update task theo cấu trúc mới
-      const updateData = {
-        id: parseInt(taskId),
-        name: currentTask.title,
-        groupId: parseInt(groupId) ,
-        description: currentTask.description,
-        endAt: currentTask.deadline,
-        statusId: backendStatus, // Sử dụng statusId thay vì status
-        priorityId: backendPriority, // Sử dụng priorityId thay vì priority
-        process: toStatus === 'done' ? '100' : currentTask.progress.toString(),
-        deliverableId: currentTask.deliverableId , // Backend vẫn sử dụng deliverableId
-        meetingId: currentTask.meetingId ,
-        assignedUserId: currentTask.assignee ,
-        reviewerId: currentTask.reviewerId 
-      };
-      const response = await axiosClient.post('/Student/Task/update', updateData);
-      
-      if (response.data.status === 200) {
-        const nowIso = new Date().toISOString();
-        
-        // Update state
-        setAllTasks(prev => {
-          return prev.map(task => {
-            if (task.id === taskId) {
-              const next = {
-                ...task,
-                status: toStatus,
-                ...(toStatus === 'done' && { 
-                  completedAt: nowIso,
-                  progress: 100 
-                }),
-              };
-              const nextHistory = Array.isArray(task.history) ? task.history.slice() : [];
-              nextHistory.push({ id: Date.now(), type: 'status', detail: `Moved to ${toStatus}`, at: nowIso });
-              next.history = nextHistory;
-              return next;
-            }
-            return task;
-          });
-        });
-        
-        alert(`Task moved to ${toStatus}!`);
-      } else {
-        console.error('Error updating task:', response.data.message);
-        alert(`Error cập nhật task: ${response.data.message}`);
-      }
-    } catch (error) {
-      console.error('Error updating task:', error);
-      alert(`Error kết nối cập nhật task: ${error.message}`);
     }
   };
 
@@ -749,7 +697,7 @@ export default function StudentTasks() {
 
       };
 
-      const response = await axiosClient.post('/Student/Comment/create', commentData);
+      const response = await createComment(commentData);
       
       if (response.data.status === 200) {
         const nowIso = new Date().toISOString();
@@ -794,7 +742,7 @@ export default function StudentTasks() {
       }
     } catch (error) {
       console.error('Error creating comment:', error);
-      alert(`Error kết nối tạo comment: ${error.message}`);
+      alert(`Error creating comment: ${error.message}`);
     }
   };
 
@@ -833,6 +781,18 @@ export default function StudentTasks() {
     }
   };
 
+  // If no valid groupId, show message
+  if (!hasValidGroupId) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.emptyState}>
+          <div className={styles.emptyTitle}>You are not in any group</div>
+          <div className={styles.emptyMessage}>Please contact the supervisor to be added to a group.</div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className={styles.loading}>
@@ -856,7 +816,20 @@ export default function StudentTasks() {
       taskTypeMatch = task.isMeetingTask !== true;
     }
     
-    const myTasksMatch = !myTasksOnly || (currentUser && task.assignee === currentUser.id);
+    // Filter task của tôi: hiển thị task mà user là assignee HOẶC reviewer
+    const isAssignee = task.assignee === currentUser?.id || String(task.assignee) === String(currentUser?.id);
+    const isReviewer = task.reviewerId === currentUser?.id || String(task.reviewerId) === String(currentUser?.id);
+    const myTasksMatch = !myTasksOnly || (currentUser && (isAssignee || isReviewer));
+    
+    // Debug log để kiểm tra
+    if (myTasksOnly && task.reviewerId && !isAssignee) {
+      console.log('Task reviewer check:', { 
+        taskId: task.id, 
+        reviewerId: task.reviewerId, 
+        currentUserId: currentUser?.id,
+        isReviewer 
+      });
+    }
     // Filter theo trạng thái active
     let activeTaskMatch = true;
     if (activeFilter === 'active') {
@@ -929,7 +902,7 @@ export default function StudentTasks() {
 
        <div className={styles.header}>
          <div className={styles.controls}>
-           {/* Nhóm 1: Filter cơ bản */}
+           {/* Group 1: Basic filters */}
            <div className={styles.controlGroup}>
              <label>Task Type:</label>
              <select
@@ -993,7 +966,7 @@ export default function StudentTasks() {
              </select>
            </div>
            
-           {/* Nhóm 2: Filter theo người và dự án */}
+           {/* Group 2: Filters by person and project */}
            <div className={styles.controlGroup}>
              <label>Assignee:</label>
              <select
@@ -1025,7 +998,7 @@ export default function StudentTasks() {
              </select>
            </div>
            
-           {/* Nhóm 3: Filter theo thời gian */}
+           {/* Group 3: Time filters */}
            <div className={styles.controlGroup}>
              <label>Deadline:</label>
              <input
@@ -1037,7 +1010,7 @@ export default function StudentTasks() {
              />
            </div>
            
-           {/* Nhóm 4: Filter trạng thái */}
+           {/* Group 4: Status filters */}
            <div className={styles.controlGroup}>
              <label>Task Status:</label>
              <select
@@ -1050,19 +1023,19 @@ export default function StudentTasks() {
                <option value="inactive">Inactive Tasks</option>
              </select>
            </div>
-           <div className={styles.controlGroup}>
-             <label>
-               <input
-                 type="checkbox"
-                 checked={myTasksOnly}
-                 onChange={(e) => setMyTasksOnly(e.target.checked)}
-                 className={styles.checkbox}
-               />
-               Task của tôi
-             </label>
-           </div>
+          <div className={styles.controlGroup}>
+            <label>
+              <input
+                type="checkbox"
+                checked={myTasksOnly}
+                onChange={(e) => setMyTasksOnly(e.target.checked)}
+                className={styles.checkbox}
+              />
+              Task của tôi (Assignee/Reviewer)
+            </label>
+          </div>
            
-           {/* Nhóm 5: Actions */}
+           {/* Group 5: Actions */}
            <button
              className={styles.searchButton}
              onClick={handleRefresh}
@@ -1089,7 +1062,7 @@ export default function StudentTasks() {
        </div>
 
 
-      {/* Empty state khi không có issue */}
+      {/* Empty state when no issues */}
       {filteredTasks.length === 0 ? (
         <div className={styles.emptyState}>
           <div className={styles.emptyTitle}>No tasks found</div>
@@ -1221,13 +1194,77 @@ export default function StudentTasks() {
             </div>
           </div>
           
+          {/* File Attachment Section */}
+          <div className={styles.formGroup}>
+            <label>Attachments</label>
+            <div className={styles.fileUploadSection}>
+              <input
+                type="file"
+                id="create-task-file-input"
+                multiple
+                accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.pdf,.zip,.7z,.rar"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files);
+                  const validFiles = [];
+                  const invalidFiles = [];
+                  
+                  files.forEach(file => {
+                    if (isValidFileType(file.name)) {
+                      validFiles.push(file);
+                    } else {
+                      invalidFiles.push(file.name);
+                    }
+                  });
+                  
+                  if (invalidFiles.length > 0) {
+                    alert(`Invalid file type: ${invalidFiles.join(', ')}\nOnly images (JPG, PNG, GIF...), PDF, ZIP, 7Z, RAR are allowed.`);
+                  }
+                  
+                  if (validFiles.length > 0) {
+                    setCreateTaskFiles(prev => [...prev, ...validFiles]);
+                  }
+                  e.target.value = '';
+                }}
+                style={{ display: 'none' }}
+              />
+              <label 
+                htmlFor="create-task-file-input"
+                className={styles.fileUploadLabel}
+              >
+                + Add Files
+              </label>
+              <span className={styles.fileTypeHint}>
+                Allowed: Images, PDF, ZIP, 7Z, RAR
+              </span>
+              {createTaskFiles.length > 0 && (
+                <div className={styles.selectedFilesList}>
+                  {createTaskFiles.map((file, index) => (
+                    <div key={index} className={styles.selectedFileItem}>
+                      <span className={styles.fileName}>{file.name}</span>
+                      <button
+                        type="button"
+                        className={styles.removeFileBtn}
+                        onClick={() => {
+                          setCreateTaskFiles(prev => prev.filter((_, i) => i !== index));
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          
           <div className={styles.modalActions}>
             <button 
               className={`${styles.modalButton} ${styles.secondary}`}
               onClick={() => {
-                // Kiểm tra xem có dữ liệu đã nhập không
+                // Check if there is entered data
                 const hasData = newTask.title || newTask.description || newTask.assignee || 
-                               newTask.deliverableId || newTask.deadline || newTask.reviewer;
+                               newTask.deliverableId || newTask.deadline || newTask.reviewer || 
+                               createTaskFiles.length > 0;
                 
                 if (hasData) {
                   // Nếu có dữ liệu, hiển thị confirm dialog
@@ -1243,10 +1280,11 @@ export default function StudentTasks() {
                       deadline: '',
                       reviewer: ''
                     });
+                    setCreateTaskFiles([]);
                     setTaskModal(false);
                   }
                 } else {
-                  // Nếu không có dữ liệu, đóng modal luôn
+                  // If no data, close modal immediately
                   setTaskModal(false);
                 }
               }}

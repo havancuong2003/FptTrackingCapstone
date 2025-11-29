@@ -19,6 +19,11 @@ const adminMenu = [
     path: '/admin/campus-slot', 
     label: 'Campus & Slot Management'
   },
+  // Quản lý Storage
+  { 
+    path: '/admin/storage', 
+    label: 'Storage Management'
+  },
 ];
 
 export default adminMenu;

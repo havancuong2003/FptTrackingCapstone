@@ -15,9 +15,11 @@ export default function Sidebar() {
     try {
       const normalizedRole = String(user.role || '').toUpperCase();
       if (normalizedRole === 'STUDENT' && path === '/student/tasks') {
-        const groupId = localStorage.getItem('student_group_id') || '1';
-        const url = `/student/tasks?groupId=${encodeURIComponent(groupId)}`;
-        return url;
+        const groupId = localStorage.getItem('student_group_id');
+        if (!groupId) {
+          return '/student/tasks'; // if group Id is not found, return '/student/tasks'
+        }
+        return `/student/tasks?groupId=${encodeURIComponent(groupId)}`;
       }
     } catch {}
     return path;
