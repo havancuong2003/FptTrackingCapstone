@@ -7,8 +7,16 @@ import DataTable from "../../../components/DataTable/DataTable";
 import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from "../../../auth/auth";
 import { getCapstoneGroupDetail } from "../../../api/staff/groups";
 import { getDeliverablesByGroup } from "../../../api/deliverables";
-import { getEvaluationsByMentorDeliverable, getPenaltyCardsByMilestone, createEvaluation, updateEvaluation as updateEvaluationAPI } from "../../../api/evaluation";
+import {
+  getEvaluationsByMentorDeliverable,
+  getPenaltyCardsByMilestone,
+  createEvaluation,
+  updateEvaluation as updateEvaluationAPI,
+  getStudentEvaluationDetail,
+  getStudentEvaluationStatistics
+} from "../../../api/evaluation";
 import SupervisorGroupFilter from "../../../components/SupervisorGroupFilter/SupervisorGroupFilter";
+import axiosClient from "../../../utils/axiosClient";
 
 // API endpoints - using axiosClient
 
@@ -36,49 +44,45 @@ export default function SupervisorEvaluation() {
     notes: "",
   });
 
-  // Feedback statements (theo mức độ giảm dần)
+  // Feedback statements (3 mức: Above Normal, Normal, Below Normal)
   const feedbackStatements = [
     { 
-      value: "exceeds", 
-      text: "Exceeds requirements",
+      value: "above_normal", 
+      text: "Above Normal",
       shortValue: "excellent",  // Giá trị gửi lên backend
       level: 1
     },
     { 
-      value: "fully_meets", 
-      text: "Fully meets requirements",
+      value: "normal", 
+      text: "Normal",
       shortValue: "good",  // Giá trị gửi lên backend
       level: 2
     },
     { 
-      value: "mostly_meets", 
-      text: "Mostly meets requirements",
-      shortValue: "fair",  // Giá trị gửi lên backend
-      level: 3
-    },
-    { 
-      value: "basic", 
-      text: "Meets basics, lacks detail",
-      shortValue: "average",  // Giá trị gửi lên backend
-      level: 4
-    },
-    { 
-      value: "below_standard", 
-      text: "Below standard",
+      value: "below_normal", 
+      text: "Below Normal",
       shortValue: "poor",  // Giá trị gửi lên backend
-      level: 5
+      level: 3
     }
   ];
   const [evaluations, setEvaluations] = React.useState([]);
   const [loadingEvaluations, setLoadingEvaluations] = React.useState(false);
   const [penaltyCards, setPenaltyCards] = React.useState([]);
   const [loadingPenaltyCards, setLoadingPenaltyCards] = React.useState(false);
-  const [refreshTrigger, setRefreshTrigger] = React.useState(0);
   const [studentStatistics, setStudentStatistics] = React.useState(null);
   const [loadingStatistics, setLoadingStatistics] = React.useState(false);
   const [semesters, setSemesters] = React.useState([]);
   const [selectedSemesterId, setSelectedSemesterId] = React.useState(null);
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
+
+  // State cho bảng thống kê nhóm (matrix sinh viên x milestone)
+  const [taskModal, setTaskModal] = React.useState(false);
+  const [selectedCellStudent, setSelectedCellStudent] = React.useState(null);
+  const [selectedCellMilestone, setSelectedCellMilestone] = React.useState(null);
+  const [cellTasks, setCellTasks] = React.useState([]);
+  const [loadingCellTasks, setLoadingCellTasks] = React.useState(false);
+  const [statisticsTab, setStatisticsTab] = React.useState("overview"); // 'overview' | 'history'
+  const [evaluationTab, setEvaluationTab] = React.useState("tasks"); // 'tasks' | 'evaluation'
 
   // ------------------ Fetch Evaluations ------------------
   const fetchEvaluationsRef = React.useRef(false);
@@ -159,7 +163,6 @@ export default function SupervisorEvaluation() {
       setEvaluations([]);
     } finally {
       setLoadingEvaluations(false);
-      setRefreshTrigger(prev => prev + 1);
     }
   };
   
@@ -431,124 +434,6 @@ export default function SupervisorEvaluation() {
     if (byText) return str;
     return str;
   };
-  const columns = [
-    {
-      key: 'name',
-      title: 'Name',
-      render: (student) => student.name
-    },
-    {
-      key: 'studentId',
-      title: 'Student ID',
-      render: (student) => student.id
-    },
-    {
-      key: 'role',
-      title: 'Role',
-      render: (student) => {
-        const roleMap = {
-          'Leader': 'Leader',
-          'Secretary': 'Secretary',
-          'Member': 'Member',
-          'Student': 'Member'
-        };
-        return roleMap[student.role] || student.role;
-      }
-    },
-    {
-      key: 'type-feedback',
-      title: 'Feedback',
-      headerStyle: { width: '250px', minWidth: '250px' },
-      cellStyle: { width: '250px', minWidth: '250px' },
-      render: (student) => {
-        // Lấy evaluation mới nhất theo milestone đang chọn
-        const studentEvaluation = getLatestEvaluationForStudent(student);
-        
-        
-        if (studentEvaluation) {
-          // Hiển thị text của TYPE; fallback map từ feedback nếu thiếu type
-          const displayText = mapFeedbackToText(studentEvaluation.type || studentEvaluation.feedback || '');
-          return (
-            <div className={styles.feedbackContent}>
-              <span className={styles.feedbackText}>{displayText}</span>
-            </div>
-          );
-        }
-        
-        return <span className={styles.noComment}>No feedback yet</span>;
-      }
-    },
-    {
-      key: 'notes',
-      title: 'Notes',
-      headerStyle: { width: '300px', minWidth: '300px' },
-      cellStyle: { width: '300px', minWidth: '300px' },
-      render: (student) => {
-        const studentEvaluation = getLatestEvaluationForStudent(student);
-      // Ưu tiên notes; fallback feedback. Ẩn nếu trùng text type
-      const raw = studentEvaluation
-        ? (String(studentEvaluation.notes || '').trim() || String(studentEvaluation.feedback || '').trim())
-        : '';
-      const isTypeText = raw
-        ? feedbackStatements.some(s => s.text.toLowerCase() === raw.toLowerCase())
-        : false;
-      const notesText = raw && !isTypeText ? raw : '';
-      if (studentEvaluation && notesText) {
-          return (
-            <div className={styles.commentPreview}>
-              {notesText}
-            </div>
-          );
-        }
-        return <span className={styles.noComment}>No notes</span>;
-      }
-    },
-    {
-      key: 'actions',
-      title: 'Actions',
-      render: (student) => {
-        // Lấy evaluation mới nhất theo milestone đang chọn
-        const studentEvaluation = getLatestEvaluationForStudent(student);
-        
-        // Chặn đánh giá khi chưa chọn milestone cụ thể
-        const isMilestoneSelected = selectedMilestone && selectedMilestone !== "all";
-
-        return (
-          <div className={styles.actions}>
-            {!studentEvaluation ? (
-              <Button 
-                variant="primary"
-                size="small"
-                onClick={() => openEvaluateModal(student)}
-                disabled={!isMilestoneSelected}
-                title={!isMilestoneSelected ? "Vui lòng chọn milestone cụ thể để đánh giá" : ""}
-              >
-                Evaluate
-              </Button>
-            ) : (
-              <Button 
-                variant="secondary"
-                size="small"
-                onClick={() => openEditModal(student, studentEvaluation)}
-                disabled={!isMilestoneSelected}
-                title={!isMilestoneSelected ? "Vui lòng chọn milestone cụ thể để chỉnh sửa" : ""}
-              >
-                Edit
-              </Button>
-            )}
-            <Button 
-              variant="ghost"
-              size="small"
-              onClick={() => openStatisticsModal(student)}
-              title="Xem thống kê đánh giá"
-            >
-              Thống kê
-            </Button>
-          </div>
-        );
-      }
-    }
-  ];
 
   // ------------------ Fetch Penalty Cards ------------------
   const fetchPenaltyCards = async () => {
@@ -584,17 +469,30 @@ export default function SupervisorEvaluation() {
 
 
   // ------------------ Modal Logic ------------------
-  const openEvaluateModal = async (student) => {
-    // Chặn mở modal nếu chưa chọn milestone cụ thể
-    if (!selectedMilestone || selectedMilestone === "all") {
-      alert("Vui lòng chọn milestone cụ thể để đánh giá sinh viên.");
-      return;
+  const openEvaluateModal = async (student, milestone = null) => {
+    // Xác định milestone tương ứng với ô được click
+    let effectiveMilestone = milestone;
+    if (!effectiveMilestone && selectedGroupData?.milestones) {
+      effectiveMilestone =
+        selectedGroupData.milestones.find(m => m.id === selectedMilestone) || null;
     }
-    
+
     setSelectedStudent(student);
+    setSelectedCellStudent(student);
+    setSelectedCellMilestone(effectiveMilestone);
+    setSelectedEvaluation(null);
+    setEvaluationTab("tasks");
+
+    // Load tasks cho ô hiện tại
+    if (effectiveMilestone) {
+      fetchCellTasks(student, effectiveMilestone);
+    } else {
+      setCellTasks([]);
+    }
+
     setNewEvaluation({
       studentId: student.studentId, // Sử dụng studentId để gọi API
-      milestoneId: selectedMilestoneData?.id || "",
+      milestoneId: effectiveMilestone?.id?.toString?.() || "",
       feedback: "",
       notes: "",
     });
@@ -602,12 +500,6 @@ export default function SupervisorEvaluation() {
   };
 
   const openEditModal = async (student, evaluation) => {
-    // Chặn mở modal nếu chưa chọn milestone cụ thể
-    if (!selectedMilestone || selectedMilestone === "all") {
-      alert("Vui lòng chọn milestone cụ thể để chỉnh sửa đánh giá.");
-      return;
-    }
-    
     setSelectedStudent(student);
     setSelectedEvaluation(evaluation);
     
@@ -683,6 +575,27 @@ export default function SupervisorEvaluation() {
       return byText ? byText.value : '';
     })();
 
+    // Tìm milestone object tương ứng để hiển thị + load tasks
+    let effectiveMilestone = null;
+    if (resolvedMilestoneId && Array.isArray(selectedGroupData?.milestones)) {
+      effectiveMilestone =
+        selectedGroupData.milestones.find(m => m.id === resolvedMilestoneId) || null;
+    }
+    if (!effectiveMilestone && evaluation.deliverableName && Array.isArray(selectedGroupData?.milestones)) {
+      effectiveMilestone =
+        selectedGroupData.milestones.find(m => m.name === evaluation.deliverableName) || null;
+    }
+
+    setSelectedCellStudent(student);
+    setSelectedCellMilestone(effectiveMilestone);
+    setEvaluationTab("tasks");
+
+    if (effectiveMilestone) {
+      fetchCellTasks(student, effectiveMilestone);
+    } else {
+      setCellTasks([]);
+    }
+
     setEditEvaluation({
       id: evaluationId?.toString?.() || "",
       studentId: student.studentId, // Đã là string từ API
@@ -691,6 +604,132 @@ export default function SupervisorEvaluation() {
       notes: evaluation.feedback || evaluation.notes || evaluation.comment || "", // Notes lấy từ feedback text của API
     });
     setEditModal(true);
+  };
+
+  // Khi click vào ô (student x milestone): nếu đã có evaluation thì mở Edit, chưa có thì mở Evaluate
+  const handleMatrixCellClick = (student, milestone) => {
+    const cellStats = getCellTaskStats(student, milestone);
+    if (cellStats.hasEvaluation) {
+      openEditModal(student, cellStats.evaluation);
+    } else {
+      openEvaluateModal(student, milestone);
+    }
+  };
+
+  // Render danh sách task cho ô (student x milestone) dùng chung cho Evaluate/Edit modal
+  const renderCellTasksSection = () => {
+    if (!selectedCellStudent || !selectedCellMilestone) {
+      return (
+        <div className={styles.noStatistics}>
+          <p>No milestone selected.</p>
+        </div>
+      );
+    }
+
+    // Cột hiển thị task, tái sử dụng style giống trang Student Tasks
+    const taskColumns = [
+      {
+        key: 'title',
+        title: 'Task',
+        render: (task) => (
+          <div>
+            <div className={styles.taskName}>
+              {task.name || task.title || 'Unnamed Task'}
+            </div>
+            {task.description && (
+              <div className={styles.taskDescription}>
+                {task.description.length > 80
+                  ? `${task.description.substring(0, 80)}...`
+                  : task.description}
+              </div>
+            )}
+          </div>
+        )
+      },
+      {
+        key: 'assignee',
+        title: 'Assignee',
+        render: (task) => task.assigneeName || task.assignee || '—'
+      },
+      {
+        key: 'milestone',
+        title: 'Milestone',
+        render: (task) =>
+          task.deliverableName || task.milestoneName || task.milestone?.name || '—'
+      },
+      {
+        key: 'priority',
+        title: 'Priority',
+        render: (task) => (task.priority || '').toString().toUpperCase() || '—'
+      },
+      {
+        key: 'status',
+        title: 'Status',
+        render: (task) => (
+          <span
+            className={`${styles.taskStatus} ${styles[`status${(task.status || '').replace(/\s/g, '')}`]}`}
+          >
+            {task.status || 'Unknown'}
+          </span>
+        )
+      },
+      {
+        key: 'reviewer',
+        title: 'Reviewer',
+        render: (task) => task.reviewerName || '—'
+      },
+      {
+        key: 'deadline',
+        title: 'Deadline',
+        render: (task) =>
+          task.deadline
+            ? new Date(task.deadline).toLocaleDateString('vi-VN')
+            : '—'
+      }
+    ];
+
+    // Status mapping: chỉ có 'ToDo' / 'InProgress' / 'Done' (hoặc biến thể chữ thường)
+    const normalizedStatus = (status) => {
+      const s = (status || '').toString().toLowerCase();
+      if (s === 'todo') return 'todo';
+      if (s === 'inprogress') return 'inProgress';
+      if (s === 'done' || s === 'completed') return 'done';
+      return s;
+    };
+
+    const completedCount = cellTasks.filter(
+      (t) => normalizedStatus(t.status) === 'done'
+    ).length;
+    const todoCount = cellTasks.filter(
+      (t) => normalizedStatus(t.status) === 'todo'
+    ).length;
+    const inProgressCount = cellTasks.filter(
+      (t) => normalizedStatus(t.status) === 'inProgress'
+    ).length;
+    const pendingCount = todoCount + inProgressCount;
+
+    return (
+      <div className={styles.taskListContainer}>
+        <div className={styles.taskSummary}>
+          <span>Total: {cellTasks.length} tasks</span>
+          <span className={styles.completedCount}>Done: {completedCount}</span>
+          <span className={styles.pendingCount}>Todo/In Progress: {pendingCount}</span>
+        </div>
+
+        <DataTable
+          columns={taskColumns}
+          data={cellTasks}
+          loading={loadingCellTasks}
+          emptyMessage="No tasks found for this student in this milestone"
+          showIndex={true}
+          indexTitle="No"
+          onRowClick={(task) => {
+            if (!task?.id) return;
+            window.open(`/student/tasks?taskId=${task.id}`, '_blank');
+          }}
+        />
+      </div>
+    );
   };
 
   const openStatisticsModal = async (student) => {
@@ -703,197 +742,39 @@ export default function SupervisorEvaluation() {
     await fetchStudentStatistics(student);
   };
 
-  // Fetch thống kê task từ API
-  const fetchTaskStatistics = async (studentId, deliverableId = null) => {
-    try {
-      const params = {
-        assigneeId: parseInt(studentId)
-      };
-      
-      // Nếu có milestone được chọn, thêm deliverableId
-      if (deliverableId && deliverableId !== "all") {
-        params.deliverableId = parseInt(deliverableId);
-      }
-      
-      const response = await axiosClient.get('/task/statistic/assignee', { params });
-      
-      // Xử lý nhiều format response khác nhau
-      if (response.data) {
-        // Format 1: { status: 200, data: {...} }
-        if (response.data.status === 200 && response.data.data) {
-          return response.data.data;
-        }
-        // Format 2: { totalTasks, completedTasks, uncompletedTasks } trực tiếp
-        if (response.data.totalTasks !== undefined) {
-          return response.data;
-        }
-        // Format 3: data trực tiếp trong response.data
-        if (response.data.data && typeof response.data.data === 'object') {
-          return response.data.data;
-        }
-      }
-      
-      // Fallback: trả về response.data nếu có
-      return response.data || null;
-    } catch (error) {
-      console.error('Error fetching task statistics:', error);
-      return null;
-    }
-  };
-
-  // Fetch meetings và đếm số buổi họp tham gia/vắng mặt
-  const fetchMeetingAttendance = async (groupId, studentName, studentId) => {
-    try {
-      // Lấy danh sách meetings của group
-      const meetingsResponse = await axiosClient.get(`/Student/Meeting/group/${groupId}/schedule-dates`);
-      
-      console.log('Meeting response:', meetingsResponse.data);
-      
-      if (meetingsResponse.data.status !== 200) {
-        console.log('Meeting response status not 200:', meetingsResponse.data.status);
-        return { 
-          totalMeetings: 0, 
-          totalMeetingsHeld: 0,
-          attendedMeetings: 0, 
-          absentMeetings: 0,
-          absences: []
-        };
-      }
-      
-      const meetings = meetingsResponse.data.data || [];
-      const totalMeetings = meetings.length;
-      let totalMeetingsHeld = 0; // Tổng số buổi họp đã diễn ra (isMeeting === true)
-      let attendedMeetings = 0;
-      let absentMeetings = 0;
-      const absences = [];
-      
-      console.log('Total meetings:', totalMeetings);
-      console.log('Student info:', { studentName, studentId });
-      if (meetings.length > 0) {
-        console.log('First meeting sample:', meetings[0]);
-        console.log('Meeting keys:', Object.keys(meetings[0]));
-        console.log('isMeeting value:', meetings[0].isMeeting, 'type:', typeof meetings[0].isMeeting);
-      }
-      
-      // Đếm số buổi họp tham gia và vắng mặt
-      for (const meeting of meetings) {
-        // Kiểm tra buổi họp đã diễn ra - xử lý nhiều format khác nhau
-        const isMeetingHeld = meeting.isMeeting === true || 
-                              meeting.isMeeting === 1 || 
-                              meeting.isMeeting === 'true' ||
-                              String(meeting.isMeeting || '').toLowerCase() === 'true';
-        
-        // Đếm tổng số buổi họp đã diễn ra
-        if (isMeetingHeld) {
-          totalMeetingsHeld++;
-          console.log('Meeting held:', meeting.id, meeting.description, 'isMinute:', meeting.isMinute, 'isMeeting:', meeting.isMeeting);
-          
-          // Chỉ kiểm tra có mặt/vắng mặt nếu có biên bản
-          const hasMinute = meeting.isMinute === true || 
-                           meeting.isMinute === 1 || 
-                           meeting.isMinute === 'true' ||
-                           String(meeting.isMinute).toLowerCase() === 'true';
-          
-          if (hasMinute) {
-            try {
-              const minuteResponse = await axiosClient.get(`/MeetingMinute?meetingDateId=${meeting.id}`);
-              if (minuteResponse.data.status === 200 && minuteResponse.data.data) {
-                const minuteData = minuteResponse.data.data;
-                const attendance = minuteData.attendance || '';
-                
-                console.log('Meeting minute attendance:', attendance);
-                
-                // Kiểm tra nếu tên hoặc MSSV của sinh viên có trong danh sách tham gia
-                const attendanceLower = attendance.toLowerCase();
-                const studentNameLower = studentName.toLowerCase();
-                const isAttended = attendance && (
-                  attendanceLower.includes(studentNameLower) ||
-                  attendance.includes(studentId) ||
-                  attendance.includes(String(studentId))
-                );
-                
-                console.log('Is attended:', isAttended);
-                
-                if (isAttended) {
-                  attendedMeetings++;
-                } else {
-                  // Vắng mặt: buổi họp đã diễn ra nhưng không có trong danh sách tham gia
-                  absentMeetings++;
-                  absences.push({
-                    meetingId: meeting.id,
-                    meetingDate: meeting.meetingDate,
-                    meetingDescription: meeting.description || 'N/A',
-                    reason: minuteData.other || minuteData.issue || 'Không có lý do'
-                  });
-                }
-              }
-            } catch (err) {
-              // Bỏ qua nếu không lấy được biên bản
-              console.error('Error fetching meeting minute:', err);
-            }
-          }
-        }
-      }
-      
-      const result = { 
-        totalMeetings, 
-        totalMeetingsHeld, // Tổng số buổi họp đã diễn ra
-        attendedMeetings, 
-        absentMeetings,
-        absences
-      };
-      
-      console.log('Meeting stats result:', result);
-      
-      return result;
-    } catch (error) {
-      console.error('Error fetching meeting attendance:', error);
-      return { 
-        totalMeetings: 0, 
-        totalMeetingsHeld: 0,
-        attendedMeetings: 0, 
-        absentMeetings: 0,
-        absences: []
-      };
-    }
-  };
-
   // Fetch toàn bộ thống kê của sinh viên
   const fetchStudentStatistics = async (student) => {
     try {
       setLoadingStatistics(true);
       console.log('Fetching statistics for student:', student);
       
-      const deliverableId = selectedMilestone && selectedMilestone !== "all" ? selectedMilestone : null;
+      const deliverableId = selectedMilestone && selectedMilestone !== "all"
+        ? parseInt(selectedMilestone, 10)
+        : undefined;
+
+      // Gọi API mới: thống kê task + history evaluation
+      const statsResponse = await getStudentEvaluationStatistics({
+        groupId: parseInt(selectedGroup, 10),
+        studentId: parseInt(student.studentId, 10),
+        deliverableId
+      });
+
+      const statsData = statsResponse?.data || statsResponse || {};
+      const taskStats = statsData.taskStats || {
+        totalTasks: 0,
+        completedTasks: 0,
+        uncompletedTasks: 0,
+      };
       
-      // Fetch thống kê task
-      const taskStats = await fetchTaskStatistics(student.studentId, deliverableId);
-      console.log('Task stats:', taskStats);
-      
-      // Fetch thống kê meeting
-      const meetingStats = selectedGroup 
-        ? await fetchMeetingAttendance(selectedGroup, student.name, student.id)
-        : { totalMeetings: 0, totalMeetingsHeld: 0, attendedMeetings: 0, absentMeetings: 0, absences: [] };
-      
-      console.log('Meeting stats:', meetingStats);
-      
-      // Tổng hợp thống kê
+      // Tổng hợp thống kê (chỉ giữ thông tin cơ bản + task, bỏ meeting)
       const statistics = {
-        // Thông tin cơ bản
         basicInfo: {
           name: student.name,
           studentId: student.id,
           role: student.role || 'Member',
           email: student.email || 'N/A'
         },
-        // Thống kê task
-        taskStats: taskStats || {
-          totalTasks: 0,
-          completedTasks: 0,
-          uncompletedTasks: 0
-        },
-        // Thống kê meeting
-        meetingStats: meetingStats
+        taskStats
       };
       
       console.log('Final statistics:', statistics);
@@ -906,6 +787,55 @@ export default function SupervisorEvaluation() {
     }
   };
 
+  // ------------------ Fetch Tasks for Cell (Student x Milestone) ------------------
+  const fetchCellTasks = async (student, milestone) => {
+    setLoadingCellTasks(true);
+    setCellTasks([]);
+    try {
+      const response = await getStudentEvaluationDetail({
+        groupId: parseInt(selectedGroup, 10),
+        studentId: parseInt(student.studentId, 10),
+        deliverableId: parseInt(milestone.id, 10)
+      });
+
+      const data = response?.data || response || {};
+      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+
+      setCellTasks(tasks);
+    } catch (error) {
+      console.error('Error fetching cell tasks:', error);
+      setCellTasks([]);
+    } finally {
+      setLoadingCellTasks(false);
+    }
+  };
+
+  // Mở modal hiển thị tasks của sinh viên trong milestone
+  const openTaskModal = (student, milestone) => {
+    setSelectedCellStudent(student);
+    setSelectedCellMilestone(milestone);
+    setTaskModal(true);
+    fetchCellTasks(student, milestone);
+  };
+
+  // Tính toán thống kê task cho từng ô (student x milestone)
+  const getCellTaskStats = (student, milestone) => {
+    // Lọc evaluations theo student và milestone
+    const studentEvaluations = evaluations.filter(e => 
+      e.receiverId === parseInt(student.studentId) &&
+      (e.deliverableId === parseInt(milestone.id) || e.deliverableName === milestone.name)
+    );
+    
+    const latestEval = studentEvaluations.length > 0 
+      ? studentEvaluations.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0]
+      : null;
+    
+    return {
+      hasEvaluation: !!latestEval,
+      evaluation: latestEval
+    };
+  };
+
   const submitEvaluation = async () => {
     if (!newEvaluation.feedback) {
       alert("Please select a feedback level before submitting.");
@@ -913,55 +843,32 @@ export default function SupervisorEvaluation() {
     }
 
     try {
-      // Xử lý deliverableId - thử lấy milestone thật từ API nếu có
-      let deliverableId = null;
-      if (newEvaluation.milestoneId && newEvaluation.milestoneId !== "all") {
-        const parsedId = parseInt(newEvaluation.milestoneId);
-        if (!isNaN(parsedId)) {
-          deliverableId = parsedId;
-        }
-      } else if (newEvaluation.milestoneId === "all") {
-        // Khi chọn "all", thử lấy milestone đầu tiên từ API thật
-        try {
-          const milestoneRes = await getDeliverablesByGroup(selectedGroup);
-          const milestoneData = milestoneRes?.data || milestoneRes;
-          if (Array.isArray(milestoneData) && milestoneData.length > 0) {
-            deliverableId = milestoneData[0].id;
-          }
-        } catch (err) {
-        }
+      // Xử lý deliverableId - luôn lấy trực tiếp từ milestoneId đang mở trong modal
+      const deliverableId = parseInt(newEvaluation.milestoneId, 10);
+      if (!deliverableId || Number.isNaN(deliverableId)) {
+        alert("Error: Invalid deliverable (milestone) ID");
+        return;
       }
 
       // Lấy shortValue (type) từ lựa chọn feedback
       const feedbackShortValue = feedbackStatements.find(s => s.value === newEvaluation.feedback)?.shortValue || newEvaluation.feedback;
       
-      // Thử các format payload khác nhau
-      let payload;
-      if (deliverableId !== null) {
-        payload = {
-          receiverId: parseInt(newEvaluation.studentId),
-          feedback: newEvaluation.notes || "", // API yêu cầu feedback = Notes
-          type: feedbackShortValue,             // API yêu cầu type = shortValue
-          groupId: parseInt(selectedGroup),
-          deliverableId: deliverableId
-        };
-      } else {
-        // Không gửi deliverableId nếu không có
-        payload = {
-          receiverId: parseInt(newEvaluation.studentId),
-          feedback: newEvaluation.notes || "", // API yêu cầu feedback = Notes
-          type: feedbackShortValue,             // API yêu cầu type = shortValue
-          groupId: parseInt(selectedGroup)
-        };
-      }
+      // Payload gửi lên backend: chỉ sử dụng đúng các field cần thiết
+      const payload = {
+        receiverId: parseInt(newEvaluation.studentId, 10),
+        groupId: parseInt(selectedGroup, 10),
+        deliverableId,
+        type: feedbackShortValue,         // "excellent" | "good" | "poor"
+        feedback: newEvaluation.notes || "" // ghi chú chi tiết
+      };
 
 
       // Validation trước khi gửi
-      if (!payload.receiverId || isNaN(payload.receiverId)) {
+      if (!payload.receiverId || Number.isNaN(payload.receiverId)) {
         alert('Error: Invalid student ID');
         return;
       }
-      if (!payload.groupId || isNaN(payload.groupId)) {
+      if (!payload.groupId || Number.isNaN(payload.groupId)) {
         alert('Error: Invalid group ID');
         return;
       }
@@ -999,9 +906,6 @@ export default function SupervisorEvaluation() {
           setEvaluations(prevEvaluations => [newEvaluationData, ...prevEvaluations]);
           
         }
-        
-        // Trigger refresh cho DataTable
-        setRefreshTrigger(prev => prev + 1);
         
         // // Gửi email thông báo SAU KHI submit thành công (đã tắt theo yêu cầu)
         // try {
@@ -1251,39 +1155,95 @@ export default function SupervisorEvaluation() {
             groupSelectPlaceholder="Select group"
             loading={loading}
           />
-          <div className={styles.controlGroup} style={{ marginTop: '10px' }}>
-            <label>Deliverables:</label>
-            <select
-              value={selectedMilestone || ""}
-              onChange={(e) => {
-                setSelectedMilestone(e.target.value);
-              }}
-              className={styles.select}
-            >
-              {/* <option value="">Chọn milestone</option> */}
-              <option value="all">Select Milestone</option>
-              {selectedGroupData?.milestones?.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
 
+        {/* ------------------ Group Overview Matrix (Student x Milestone) ------------------ */}
         <div className={sharedLayout.contentSection}>
-          <h2>Student evaluation table</h2>
-          <div className={styles.tableContainer}>
-            <DataTable
-              key={`evaluation-table-${refreshTrigger}`}
-              columns={columns}
-              data={studentsToEvaluate}
-              loading={loading}
-              emptyMessage="No students found for evaluation"
-            />
+          <h2>Group Evaluation Overview</h2>
+          <p className={styles.matrixDescription}>
+            Click on a cell to view all tasks for that student in the milestone
+          </p>
+          <div className={styles.matrixContainer}>
+            {selectedGroupData?.milestones?.length > 0 && studentsToEvaluate.length > 0 ? (
+              <DataTable
+                className={styles.matrixDataTable}
+                columns={[
+                  {
+                    key: 'student',
+                    title: 'Student',
+                    headerClassName: styles.matrixHeaderStudent,
+                    cellClassName: styles.matrixStudentCell,
+                    render: (student) => (
+                      <div className={styles.studentCellInfo}>
+                        <strong>{student.name}</strong>
+                        <span className={styles.studentCellId}>{student.id}</span>
+                      </div>
+                    )
+                  },
+                  ...selectedGroupData.milestones.map((milestone) => ({
+                    key: `milestone-${milestone.id}`,
+                    title: milestone.name,
+                    headerClassName: styles.matrixHeaderMilestone,
+                    cellClassName: styles.matrixCell,
+                    render: (student) => {
+                      const cellStats = getCellTaskStats(student, milestone);
+                      return (
+                        <div
+                          className={`${styles.matrixCellContent} ${cellStats.hasEvaluation ? styles.matrixCellEvaluated : styles.matrixCellPending}`}
+                          onClick={() => handleMatrixCellClick(student, milestone)}
+                          title={`Click để đánh giá/chỉnh sửa đánh giá cho ${student.name} ở ${milestone.name}`}
+                        >
+                          {cellStats.hasEvaluation ? (
+                            <span className={styles.evaluationBadge}>
+                              {mapFeedbackToText(
+                                cellStats.evaluation?.type || cellStats.evaluation?.feedback
+                              )}
+                            </span>
+                          ) : (
+                            <span className={styles.pendingBadge}>Not evaluated</span>
+                          )}
+                        </div>
+                      );
+                    }
+                  })),
+                  {
+                    key: 'actions',
+                    title: 'Actions',
+                    headerClassName: styles.matrixHeaderActions,
+                    cellClassName: styles.matrixActionsCell,
+                    render: (student) => {
+                      return (
+                        <div className={styles.actions}>
+                          <Button
+                            variant="ghost"
+                            size="small"
+                            onClick={() => {
+                              setStatisticsTab("overview");
+                              openStatisticsModal(student);
+                            }}
+                            title="Xem thống kê đánh giá"
+                          >
+                            Thống kê
+                          </Button>
+                        </div>
+                      );
+                    }
+                  }
+                ]}
+                data={studentsToEvaluate}
+                loading={loading}
+                emptyMessage="No students found for evaluation"
+                showIndex={false}
+              />
+            ) : (
+              <div className={styles.noMatrixData}>
+                {!selectedGroupData?.milestones?.length
+                  ? "No milestones found for this group"
+                  : "No students found for evaluation"}
+              </div>
+            )}
           </div>
         </div>
-
 
       </div>
 
@@ -1296,53 +1256,80 @@ export default function SupervisorEvaluation() {
             <div className={styles.studentInfo}>
               <h3>{selectedStudent.name}</h3>
               <p className={styles.studentCode}>Student ID: {selectedStudent.id}</p>
-              <p>Milestone: {selectedMilestoneData?.name}</p>
+              <p>
+                Milestone:{" "}
+                {selectedCellMilestone?.name || selectedMilestoneData?.name || "N/A"}
+              </p>
             </div>
 
-            <div className={styles.formGroup}>
-              <label>Feedback *</label>
-              <div className={styles.feedbackOptions}>
-                {feedbackStatements.map((statement, index) => (
-                  <label key={statement.value} className={styles.feedbackOption}>
-                    <input
-                      type="radio"
-                      name="feedback"
-                      value={statement.value}
-                      checked={newEvaluation.feedback === statement.value}
-                      onChange={(e) =>
-                        setNewEvaluation({ ...newEvaluation, feedback: e.target.value })
-                      }
-                      className={styles.radioInput}
-                      required
-                    />
-                    <span className={styles.feedbackText}>{statement.text}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className={styles.formGroup}>
-              <label>Notes</label>
-              <textarea
-                value={newEvaluation.notes}
-                onChange={(e) =>
-                  setNewEvaluation({ ...newEvaluation, notes: e.target.value })
-                }
-                placeholder="Provide notes for the student..."
-                rows={4}
-                className={styles.textarea}
-              />
-            </div>
-
-            <div className={styles.modalActions}>
-              <Button
-                variant="secondary"
-                onClick={() => setEvaluateModal(false)}
+            {/* Tabs: Tasks | Evaluation */}
+            <div className={styles.evaluationTabs}>
+              <button
+                type="button"
+                className={`${styles.evaluationTabButton} ${evaluationTab === "tasks" ? styles.evaluationTabActive : ""}`}
+                onClick={() => setEvaluationTab("tasks")}
               >
-                Cancel
-              </Button>
-              <Button onClick={submitEvaluation}>Submit Evaluation</Button>
+                Tasks
+              </button>
+              <button
+                type="button"
+                className={`${styles.evaluationTabButton} ${evaluationTab === "evaluation" ? styles.evaluationTabActive : ""}`}
+                onClick={() => setEvaluationTab("evaluation")}
+              >
+                Evaluation
+              </button>
             </div>
+
+            {evaluationTab === "tasks" ? (
+              renderCellTasksSection()
+            ) : (
+              <>
+                <div className={styles.formGroup}>
+                  <label>Feedback *</label>
+                  <div className={styles.feedbackOptions}>
+                    {feedbackStatements.map((statement) => (
+                      <label key={statement.value} className={styles.feedbackOption}>
+                        <input
+                          type="radio"
+                          name="feedback"
+                          value={statement.value}
+                          checked={newEvaluation.feedback === statement.value}
+                          onChange={(e) =>
+                            setNewEvaluation({ ...newEvaluation, feedback: e.target.value })
+                          }
+                          className={styles.radioInput}
+                          required
+                        />
+                        <span className={styles.feedbackText}>{statement.text}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Notes</label>
+                  <textarea
+                    value={newEvaluation.notes}
+                    onChange={(e) =>
+                      setNewEvaluation({ ...newEvaluation, notes: e.target.value })
+                    }
+                    placeholder="Provide notes for the student..."
+                    rows={4}
+                    className={styles.textarea}
+                  />
+                </div>
+
+                <div className={styles.modalActions}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setEvaluateModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={submitEvaluation}>Submit Evaluation</Button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </Modal>
@@ -1356,53 +1343,80 @@ export default function SupervisorEvaluation() {
             <div className={styles.studentInfo}>
               <h3>{selectedStudent.name}</h3>
               <p className={styles.studentCode}>Student ID: {selectedStudent.id}</p>
-              <p>Milestone: {selectedMilestoneData?.name}</p>
+              <p>
+                Milestone:{" "}
+                {selectedCellMilestone?.name || selectedMilestoneData?.name || "N/A"}
+              </p>
             </div>
 
-            <div className={styles.formGroup}>
-              <label>Feedback *</label>
-              <div className={styles.feedbackOptions}>
-                {feedbackStatements.map((statement, index) => (
-                  <label key={statement.value} className={styles.feedbackOption}>
-                    <input
-                      type="radio"
-                      name="feedback-edit"
-                      value={statement.value}
-                      checked={editEvaluation.feedback === statement.value}
-                      onChange={(e) =>
-                        setEditEvaluation({ ...editEvaluation, feedback: e.target.value })
-                      }
-                      className={styles.radioInput}
-                      required
-                    />
-                    <span className={styles.feedbackText}>{statement.text}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            <div className={styles.formGroup}>
-              <label>Notes</label>
-              <textarea
-                value={editEvaluation.notes}
-                onChange={(e) =>
-                  setEditEvaluation({ ...editEvaluation, notes: e.target.value })
-                }
-                placeholder="Provide notes for the student..."
-                rows={4}
-                className={styles.textarea}
-              />
-            </div>
-
-            <div className={styles.modalActions}>
-              <Button
-                variant="secondary"
-                onClick={() => setEditModal(false)}
+            {/* Tabs: Tasks | Evaluation */}
+            <div className={styles.evaluationTabs}>
+              <button
+                type="button"
+                className={`${styles.evaluationTabButton} ${evaluationTab === "tasks" ? styles.evaluationTabActive : ""}`}
+                onClick={() => setEvaluationTab("tasks")}
               >
-                Cancel
-              </Button>
-              <Button onClick={updateEvaluation}>Update Evaluation</Button>
+                Tasks
+              </button>
+              <button
+                type="button"
+                className={`${styles.evaluationTabButton} ${evaluationTab === "evaluation" ? styles.evaluationTabActive : ""}`}
+                onClick={() => setEvaluationTab("evaluation")}
+              >
+                Evaluation
+              </button>
             </div>
+
+            {evaluationTab === "tasks" ? (
+              renderCellTasksSection()
+            ) : (
+              <>
+                <div className={styles.formGroup}>
+                  <label>Feedback *</label>
+                  <div className={styles.feedbackOptions}>
+                    {feedbackStatements.map((statement) => (
+                      <label key={statement.value} className={styles.feedbackOption}>
+                        <input
+                          type="radio"
+                          name="feedback-edit"
+                          value={statement.value}
+                          checked={editEvaluation.feedback === statement.value}
+                          onChange={(e) =>
+                            setEditEvaluation({ ...editEvaluation, feedback: e.target.value })
+                          }
+                          className={styles.radioInput}
+                          required
+                        />
+                        <span className={styles.feedbackText}>{statement.text}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Notes</label>
+                  <textarea
+                    value={editEvaluation.notes}
+                    onChange={(e) =>
+                      setEditEvaluation({ ...editEvaluation, notes: e.target.value })
+                    }
+                    placeholder="Provide notes for the student..."
+                    rows={4}
+                    className={styles.textarea}
+                  />
+                </div>
+
+                <div className={styles.modalActions}>
+                  <Button
+                    variant="secondary"
+                    onClick={() => setEditModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={updateEvaluation}>Update Evaluation</Button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </Modal>
@@ -1413,168 +1427,272 @@ export default function SupervisorEvaluation() {
           <div className={styles.evaluateModal}>
             <h2>Báo cáo tổng hợp</h2>
             
-            {loadingStatistics ? (
-              <div className={styles.loadingStatistics}>
-                <p>Đang tải thống kê...</p>
+            <div className={styles.statisticsContent}>
+              {/* Tabs luôn hiển thị */}
+              <div style={{ display: 'flex', marginBottom: '16px', borderBottom: '1px solid #eee' }}>
+                <button
+                  type="button"
+                  onClick={() => setStatisticsTab("overview")}
+                  style={{
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderBottom: statisticsTab === "overview" ? '2px solid #007bff' : '2px solid transparent',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    fontWeight: statisticsTab === "overview" ? '600' : '400'
+                  }}
+                >
+                  Tổng quan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatisticsTab("history")}
+                  style={{
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderBottom: statisticsTab === "history" ? '2px solid #007bff' : '2px solid transparent',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    fontWeight: statisticsTab === "history" ? '600' : '400'
+                  }}
+                >
+                  Lịch sử đánh giá
+                </button>
               </div>
-            ) : studentStatistics ? (
-              <div className={styles.statisticsContent}>
-                {/* Thông tin cơ bản */}
-                <div className={styles.statisticsSection}>
-                  <h3 className={styles.sectionTitle}>Thông tin cơ bản</h3>
-                  <div className={styles.statisticsGrid}>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Tên</span>
-                      <span className={styles.statValue}>{studentStatistics.basicInfo.name}</span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>MSSV</span>
-                      <span className={styles.statValue}>{studentStatistics.basicInfo.studentId}</span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Vai trò</span>
-                      <span className={styles.statValue}>
-                        {studentStatistics.basicInfo.role === 'Leader' ? 'Leader' :
-                         studentStatistics.basicInfo.role === 'Secretary' ? 'Secretary' :
-                         'Member'}
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Email</span>
-                      <span className={styles.statValue}>{studentStatistics.basicInfo.email}</span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Số buổi meeting tham gia</span>
-                      <span className={styles.statValue}>{studentStatistics.meetingStats.attendedMeetings}</span>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Đóng góp tổng quan */}
-                <div className={styles.statisticsSection}>
-                  <h3 className={styles.sectionTitle}>Đóng góp tổng quan</h3>
-                  <div className={styles.statisticsGrid}>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Tổng số task được giao</span>
-                      <span className={styles.statValue}>{studentStatistics.taskStats.totalTasks || 0}</span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Số task đã hoàn thành</span>
-                      <span className={`${styles.statValue} ${styles.successValue}`}>
-                        {studentStatistics.taskStats.completedTasks || 0}
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Số task chưa hoàn thành</span>
-                      <span className={`${styles.statValue} ${styles.warningValue}`}>
-                        {studentStatistics.taskStats.uncompletedTasks || 0}
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Tỷ lệ hoàn thành</span>
-                      <span className={`${styles.statValue} ${styles.percentageValue}`}>
-                        {studentStatistics.taskStats.totalTasks > 0
-                          ? ((studentStatistics.taskStats.completedTasks / studentStatistics.taskStats.totalTasks) * 100).toFixed(1)
-                          : 0}%
-                      </span>
-                    </div>
-                  </div>
+              {loadingStatistics ? (
+                <div className={styles.loadingStatistics}>
+                  <p>Đang tải thống kê...</p>
                 </div>
+              ) : !studentStatistics ? (
+                <div className={styles.noStatistics}>
+                  <p>Không thể tải thống kê. Vui lòng thử lại.</p>
+                </div>
+              ) : (
+                <>
+                  {statisticsTab === "overview" && (
+                    <>
+                      {/* Thông tin cơ bản */}
+                      <div className={styles.statisticsSection}>
+                        <h3 className={styles.sectionTitle}>Thông tin cơ bản</h3>
+                        <div className={styles.statisticsGrid}>
+                          <div className={styles.statItem}>
+                            <span className={styles.statLabel}>Tên</span>
+                            <span className={styles.statValue}>{studentStatistics.basicInfo.name}</span>
+                          </div>
+                          <div className={styles.statItem}>
+                            <span className={styles.statLabel}>MSSV</span>
+                            <span className={styles.statValue}>{studentStatistics.basicInfo.studentId}</span>
+                          </div>
+                          <div className={styles.statItem}>
+                            <span className={styles.statLabel}>Vai trò</span>
+                            <span className={styles.statValue}>
+                              {studentStatistics.basicInfo.role === 'Leader' ? 'Leader' :
+                               studentStatistics.basicInfo.role === 'Secretary' ? 'Secretary' :
+                               'Member'}
+                            </span>
+                          </div>
+                          <div className={styles.statItem}>
+                            <span className={styles.statLabel}>Email</span>
+                            <span className={styles.statValue}>{studentStatistics.basicInfo.email}</span>
+                          </div>
+                        </div>
+                      </div>
 
-                {/* Tham gia họp */}
-                <div className={styles.statisticsSection}>
-                  <h3 className={styles.sectionTitle}>Tham gia họp</h3>
-                  <div className={styles.statisticsGrid}>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Số buổi họp có mặt</span>
-                      <span className={`${styles.statValue} ${styles.successValue}`}>
-                        {studentStatistics.meetingStats.attendedMeetings}
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Số buổi họp vắng mặt</span>
-                      <span className={`${styles.statValue} ${styles.errorValue}`}>
-                        {studentStatistics.meetingStats.absentMeetings || 0}
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Tổng buổi meeting đã diễn ra</span>
-                      <span className={styles.statValue}>
-                        {(() => {
-                          const totalHeld = studentStatistics.meetingStats?.totalMeetingsHeld;
-                          if (totalHeld !== undefined && totalHeld !== null) {
-                            return totalHeld;
-                          }
-                          const attended = studentStatistics.meetingStats?.attendedMeetings || 0;
-                          const absent = studentStatistics.meetingStats?.absentMeetings || 0;
-                          return attended + absent;
-                        })()}
-                      </span>
-                    </div>
-                    <div className={styles.statItem}>
-                      <span className={styles.statLabel}>Tỷ lệ tham gia</span>
-                      <span className={`${styles.statValue} ${styles.percentageValue}`}>
-                        {(() => {
-                          const totalHeld = studentStatistics.meetingStats?.totalMeetingsHeld;
-                          const total = totalHeld !== undefined && totalHeld !== null 
-                            ? totalHeld 
-                            : ((studentStatistics.meetingStats?.attendedMeetings || 0) + (studentStatistics.meetingStats?.absentMeetings || 0));
-                          const attended = studentStatistics.meetingStats?.attendedMeetings || 0;
-                          return total > 0 ? ((attended / total) * 100).toFixed(1) : 0;
-                        })()}%
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {/* Danh sách buổi vắng mặt với lý do */}
-                  {studentStatistics.meetingStats.absences && studentStatistics.meetingStats.absences.length > 0 && (
-                    <div className={styles.absencesList}>
-                      <h4 className={styles.absencesTitle}>Danh sách buổi vắng mặt ({studentStatistics.meetingStats.absences.length})</h4>
-                      {studentStatistics.meetingStats.absences.map((absence, index) => {
-                        const meetingDate = absence.meetingDate 
-                          ? new Date(absence.meetingDate).toLocaleDateString('vi-VN', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric'
-                            })
-                          : 'Ngày không xác định';
-                        
+                      {/* Overall contribution */}
+                      <div className={styles.statisticsSection}>
+                        <h3 className={styles.sectionTitle}>Overall contribution</h3>
+                        <div className={styles.statisticsGrid}>
+                          <div className={styles.statItem}>
+                            <span className={styles.statLabel}>Tổng số task được giao</span>
+                            <span className={styles.statValue}>{studentStatistics.taskStats.totalTasks || 0}</span>
+                          </div>
+                          <div className={styles.statItem}>
+                            <span className={styles.statLabel}>Số task đã hoàn thành</span>
+                            <span className={`${styles.statValue} ${styles.successValue}`}>
+                              {studentStatistics.taskStats.completedTasks || 0}
+                            </span>
+                          </div>
+                          <div className={styles.statItem}>
+                            <span className={styles.statLabel}>Số task chưa hoàn thành</span>
+                            <span className={`${styles.statValue} ${styles.warningValue}`}>
+                              {studentStatistics.taskStats.uncompletedTasks || 0}
+                            </span>
+                          </div>
+                          <div className={styles.statItem}>
+                            <span className={styles.statLabel}>Tỷ lệ hoàn thành</span>
+                            <span className={`${styles.statValue} ${styles.percentageValue}`}>
+                              {studentStatistics.taskStats.totalTasks > 0
+                                ? ((studentStatistics.taskStats.completedTasks / studentStatistics.taskStats.totalTasks) * 100).toFixed(1)
+                                : 0}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Milestone hiện tại (nếu có) */}
+                      {selectedMilestone && selectedMilestone !== "all" && selectedMilestoneData && (
+                        <div className={styles.milestoneInfo}>
+                          <p><em>Thống kê được lọc theo milestone: <strong>{selectedMilestoneData.name}</strong></em></p>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {statisticsTab === "history" && (
+                    <div className={styles.statisticsSection}>
+                      <h3 className={styles.sectionTitle}>Lịch sử đánh giá</h3>
+                      {(() => {
+                        const history = evaluations
+                          .filter(e => 
+                            e.receiverId === parseInt(selectedStudent.studentId) &&
+                            isEvaluationInSelectedMilestone(e)
+                          )
+                          .sort((a, b) => new Date(b.createAt) - new Date(a.createAt));
+
+                        if (!history.length) {
+                          return (
+                            <div className={styles.noStatistics}>
+                              <p>Chưa có đánh giá nào cho sinh viên này.</p>
+                            </div>
+                          );
+                        }
+
                         return (
-                          <div key={absence.meetingId || index} className={styles.absenceItem}>
-                            <div className={styles.absenceHeader}>
-                              <span className={styles.absenceDate}>{meetingDate}</span>
-                              <span className={styles.absenceDescription}>{absence.meetingDescription}</span>
-                            </div>
-                            <div className={styles.absenceReason}>
-                              <strong>Lý do:</strong> {absence.reason}
-                            </div>
+                          <div className={styles.evaluationHistory}>
+                            {history.map((ev, idx) => (
+                              <div key={ev.evaluationId || ev.id || idx} className={styles.evaluationHistoryItem}>
+                                <div className={styles.evaluationHistoryHeader}>
+                                  <span className={styles.evaluationHistoryMilestone}>
+                                    {ev.deliverableName || selectedMilestoneData?.name || 'Milestone không xác định'}
+                                  </span>
+                                  <span className={styles.evaluationHistoryDate}>
+                                    {ev.createAt ? new Date(ev.createAt).toLocaleString('vi-VN') : ''}
+                                  </span>
+                                </div>
+                                <div className={styles.evaluationHistoryBody}>
+                                  <div>
+                                    <span className={styles.statLabel}>Feedback:</span>{' '}
+                                    <span className={styles.statValue}>
+                                      {mapFeedbackToText(ev.type || ev.feedback)}
+                                    </span>
+                                  </div>
+                                  {ev.feedback && (
+                                    <div>
+                                      <span className={styles.statLabel}>Notes:</span>{' '}
+                                      <span className={styles.statValue}>
+                                        {ev.feedback}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         );
-                      })}
+                      })()}
                     </div>
                   )}
-                </div>
+                </>
+              )}
+            </div>
 
-                {/* Milestone hiện tại (nếu có) */}
-                {selectedMilestone && selectedMilestone !== "all" && selectedMilestoneData && (
-                  <div className={styles.milestoneInfo}>
-                    <p><em>Thống kê được lọc theo milestone: <strong>{selectedMilestoneData.name}</strong></em></p>
-                  </div>
-                )}
+            <div className={styles.statisticsModalActions}>
+              <Button
+                variant="secondary"
+                onClick={() => setStatisticsModal(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ------------------ Task List Modal (Click on Matrix Cell) ------------------ */}
+      <Modal open={taskModal} onClose={() => setTaskModal(false)}>
+        {selectedCellStudent && selectedCellMilestone && (
+          <div className={styles.evaluateModal}>
+            <h2>Tasks Overview</h2>
+            
+            <div className={styles.studentInfo}>
+              <h3>{selectedCellStudent.name}</h3>
+              <p className={styles.studentCode}>Student ID: {selectedCellStudent.id}</p>
+              <p>Milestone: {selectedCellMilestone.name}</p>
+            </div>
+
+            {loadingCellTasks ? (
+              <div className={styles.loadingStatistics}>
+                <p>Loading tasks...</p>
+              </div>
+            ) : cellTasks.length > 0 ? (
+              <div className={styles.taskListContainer}>
+                <div className={styles.taskSummary}>
+                  <span>Total: {cellTasks.length} tasks</span>
+                  <span className={styles.completedCount}>
+                    Completed: {cellTasks.filter(t => t.status === 'Done' || t.status === 'Completed').length}
+                  </span>
+                  <span className={styles.pendingCount}>
+                    Pending: {cellTasks.filter(t => t.status !== 'Done' && t.status !== 'Completed').length}
+                  </span>
+                </div>
+                <div className={styles.taskList}>
+                  {cellTasks.map((task, index) => (
+                    <div 
+                      key={task.id || index} 
+                      className={`${styles.taskItem} ${task.status === 'Done' || task.status === 'Completed' ? styles.taskCompleted : styles.taskPending}`}
+                      onClick={() => {
+                        // Navigate to task tracking page
+                        window.open(`/student/tasks?taskId=${task.id}`, '_blank');
+                      }}
+                      title="Click to view task details"
+                    >
+                      <div className={styles.taskHeader}>
+                        <span className={styles.taskName}>{task.name || task.title || 'Unnamed Task'}</span>
+                        <span className={`${styles.taskStatus} ${styles[`status${task.status?.replace(/\s/g, '')}`]}`}>
+                          {task.status || 'Unknown'}
+                        </span>
+                      </div>
+                      <div className={styles.taskDetails}>
+                        {task.deadline && (
+                          <span className={styles.taskDeadline}>
+                            Deadline: {new Date(task.deadline).toLocaleDateString('vi-VN')}
+                          </span>
+                        )}
+                        {task.progress !== undefined && (
+                          <span className={styles.taskProgress}>
+                            Progress: {task.progress}%
+                          </span>
+                        )}
+                        {task.assignerName && (
+                          <span className={styles.taskAssigner}>
+                            Assigned by: {task.assignerName}
+                          </span>
+                        )}
+                      </div>
+                      {task.description && (
+                        <div className={styles.taskDescription}>
+                          {task.description.length > 100 
+                            ? `${task.description.substring(0, 100)}...` 
+                            : task.description}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className={styles.noStatistics}>
-                <p>Không thể tải thống kê. Vui lòng thử lại.</p>
+                <p>No tasks found for this student in this milestone.</p>
               </div>
             )}
 
             <div className={styles.modalActions}>
               <Button
                 variant="secondary"
-                onClick={() => setStatisticsModal(false)}
+                onClick={() => setTaskModal(false)}
               >
-                Đóng
+                Close
               </Button>
             </div>
           </div>

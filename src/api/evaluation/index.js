@@ -117,6 +117,59 @@ export async function updatePenaltyCard(cardId, payload) {
   }
 }
 
+/**
+ * =============================
+ * Supervisor Evaluation – New APIs
+ * =============================
+ *
+ * Các hàm dưới đây implement 2 API đã mô tả trong
+ * `API_Supervisor_Evaluation_Endpoints.md`.
+ */
+
+// API 1: Get student evaluation detail by milestone (tasks + current evaluation)
+export async function getStudentEvaluationDetail({ groupId, studentId, deliverableId }) {
+  try {
+    const params = {
+      groupId,
+      studentId,
+      deliverableId
+    };
+
+    const response = await client.get('/supervisor/evaluation/student-detail', {
+      params
+    });
+
+    // Trả về toàn bộ response.data để component tự xử lý
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching student evaluation detail:', error);
+    throw error;
+  }
+}
+
+// API 2: Get student evaluation statistics & history
+export async function getStudentEvaluationStatistics({ groupId, studentId, deliverableId }) {
+  try {
+    const params = {
+      groupId,
+      studentId
+    };
+
+    if (deliverableId) {
+      params.deliverableId = deliverableId;
+    }
+
+    const response = await client.get('/supervisor/evaluation/student-statistics', {
+      params
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching student evaluation statistics:', error);
+    throw error;
+  }
+}
+
 // Email functions exported separately if needed
 // export {
 //     sendEvaluationNotification,

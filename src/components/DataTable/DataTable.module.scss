@@ -205,6 +205,21 @@
   }
 }
 
+.tableContainer {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+  .table {
+    max-width: 100%;
+    min-width: 820px; // keep columns a bit wider on mobile; user can scroll
+    
+    th, td {
+      padding: 8px 6px;
+      font-size: 12px;
+    }
+  }
 // Responsive design
 @media (max-width: 768px) {
   .tableContainer {

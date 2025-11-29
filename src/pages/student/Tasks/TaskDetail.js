@@ -19,18 +19,27 @@ export default function TaskDetail() {
   const taskId = query.get('taskId');
   const navigate = useNavigate();
   
-  // Lấy thông tin user từ localStorage
+  // Lấy thông tin user từ localStorage và getUserInfo
   const getCurrentUser = () => {
     try {
       const authUser = localStorage.getItem('auth_user');
-      if (authUser) {
-        return JSON.parse(authUser);
-      }
-      //return { id: 26, name: "Lê Duy Hải" }; // fallback
+      const userInfo = getUserInfo();
+      
+      // Merge thông tin từ cả hai nguồn
+      const parsedAuth = authUser ? JSON.parse(authUser) : {};
+      return {
+        ...parsedAuth,
+        ...userInfo,
+        // Ưu tiên rollNumber từ userInfo, fallback về parsedAuth
+        rollNumber: userInfo?.rollNumber || parsedAuth?.rollNumber || userInfo?.studentId || parsedAuth?.studentId,
+        studentId: userInfo?.studentId || parsedAuth?.studentId || userInfo?.rollNumber || parsedAuth?.rollNumber,
+        id: userInfo?.id || parsedAuth?.id,
+        name: userInfo?.name || parsedAuth?.name,
+        role: userInfo?.role || parsedAuth?.role
+      };
     } catch (error) {
       console.error('Error parsing auth_user:', error);
-     // return { id: 26, name: "Lê Duy Hải" }; // fallback
-     return null;
+      return getUserInfo() || null;
     }
   };
   
@@ -49,6 +58,16 @@ export default function TaskDetail() {
   const [showUnsavedModal, setShowUnsavedModal] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState('details'); // 'details' or 'history'
+  const [historyActionFilter, setHistoryActionFilter] = React.useState('');
+  const [historyUserFilter, setHistoryUserFilter] = React.useState('');
+  const [expandedHistoryItems, setExpandedHistoryItems] = React.useState({});
+  const [descriptionExpanded, setDescriptionExpanded] = React.useState(false);
+  const [titleExpanded, setTitleExpanded] = React.useState(false);
+  const [editingCommentId, setEditingCommentId] = React.useState(null);
+  const [editingCommentText, setEditingCommentText] = React.useState('');
+  const [openCommentMenuId, setOpenCommentMenuId] = React.useState(null);
+  const [showAddComment, setShowAddComment] = React.useState(false);
   
   const toDateTimeLocal = React.useCallback((dateString) => {
     if (!dateString) return '';
@@ -197,6 +216,25 @@ export default function TaskDetail() {
   React.useEffect(() => {
     resetEditValues();
   }, [resetEditValues]);
+
+  // Close comment menu when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (openCommentMenuId) {
+        const menuElement = event.target.closest('[data-comment-menu]');
+        if (!menuElement) {
+          setOpenCommentMenuId(null);
+        }
+      }
+    };
+
+    if (openCommentMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [openCommentMenuId]);
 
   React.useEffect(() => {
     if (!groupId) return;
@@ -414,6 +452,10 @@ export default function TaskDetail() {
       alert('Title cannot be empty.');
       return;
     }
+    if (trimmedTitle.length > 1000) {
+      alert('Title cannot exceed 1000 characters.');
+      return;
+    }
     if (!trimmedDescription) {
       alert('Description cannot be empty.');
       return;
@@ -463,18 +505,42 @@ export default function TaskDetail() {
       if (response.data.status === 200) {
         const assigneeOption = assigneeOptions.find(opt => opt.value === editValues.assignee);
         const reviewerOption = reviewerOptions.find(opt => opt.value === editValues.reviewer);
+        const oldAssigneeOption = assigneeOptions.find(opt => opt.value === String(task.assignee));
+        const oldReviewerOption = reviewerOptions.find(opt => opt.value === String(task.reviewerId));
         const nowIso = new Date().toISOString();
-        const changedFields = [];
-        if (assignmentChanged) changedFields.push('assignee');
-        if (reviewerChanged) changedFields.push('reviewer');
-        if (statusChanged) changedFields.push('status');
-        if (priorityChanged) changedFields.push('priority');
-        if (deadlineChanged) changedFields.push('deadline');
-        if (task.description !== trimmedDescription) changedFields.push('description');
-        if (task.title !== trimmedTitle) changedFields.push('title');
+        
+        // Build detailed change log
+        const changeDetails = [];
+        if (task.title !== trimmedTitle) {
+          changeDetails.push(`Title: "${task.title}" → "${trimmedTitle}"`);
+        }
+        if (task.description !== trimmedDescription) {
+          changeDetails.push(`Description: "${task.description || ''}" → "${trimmedDescription}"`);
+        }
+        if (statusChanged) {
+          changeDetails.push(`Status: "${getStatusText(task.status)}" → "${getStatusText(editValues.status)}"`);
+        }
+        if (priorityChanged) {
+          changeDetails.push(`Priority: "${task.priority}" → "${editValues.priority}"`);
+        }
+        if (assignmentChanged) {
+          const oldName = oldAssigneeOption?.label || task.assigneeName || 'None';
+          const newName = assigneeOption?.label || 'None';
+          changeDetails.push(`Assignee: "${oldName}" → "${newName}"`);
+        }
+        if (reviewerChanged) {
+          const oldName = oldReviewerOption?.label || task.reviewerName || 'None';
+          const newName = reviewerOption?.label || 'None';
+          changeDetails.push(`Reviewer: "${oldName}" → "${newName}"`);
+        }
+        if (deadlineChanged) {
+          const oldDeadline = task.deadline ? formatDate(task.deadline) : 'None';
+          const newDeadline = editValues.deadline ? formatDate(new Date(editValues.deadline).toISOString()) : 'None';
+          changeDetails.push(`Deadline: "${oldDeadline}" → "${newDeadline}"`);
+        }
 
-        const historyDetail = changedFields.length > 0
-          ? `Updated ${changedFields.join(', ')}`
+        const historyDetail = changeDetails.length > 0
+          ? changeDetails.join('\n')
           : 'Updated task information';
 
         const newHistoryItem = {
@@ -483,7 +549,7 @@ export default function TaskDetail() {
           detail: historyDetail,
           at: nowIso,
           user: currentUser?.name || currentUser?.id || 'User',
-          action: 'Updated'
+          action: 'UPDATE'
         };
 
         setTask(prev => ({
@@ -616,39 +682,149 @@ export default function TaskDetail() {
       const response = await axiosClient.post('/Student/Comment/create', commentData);
       
       if (response.data.status === 200) {
-        // Tạo comment object mới với thông tin từ API
-        const nowIso = new Date().toISOString();
+        // Tạo comment object mới từ response data, map theo cấu trúc từ API task
+        const commentResponse = response.data.data;
+        const userRollNumber = currentUser?.rollNumber || currentUser?.studentId || String(currentUser?.id);
         const newCommentObj = {
-          id: response.data.data.id, // API có thể trả về ID thực tế
-          author: currentUser?.id,
-          authorName: currentUser?.name,
-          content: response.data.data.feedback,
-          timestamp: response.data.data.createdAt
+          id: commentResponse.id,
+          author: userRollNumber, // author là rollNumber theo cấu trúc API
+          authorName: currentUser?.name || 'Unknown',
+          content: commentResponse.feedback,
+          timestamp: commentResponse.createAt
         };
 
-        const newHistoryItem = {
-          id: Date.now() + 1,
-          type: 'comment',
-          detail: `Added comment: ${newComment.trim().substring(0, 50)}...`,
-          at: nowIso,
-          // user get from localStorage
-          user: currentUser?.id,
-          action: 'Commented'
-        };
-
-        // Cập nhật state
+        // Cập nhật state trực tiếp - chỉ thêm comment, không thêm vào history
         setTask(prev => ({
           ...prev,
-          comments: [...(prev.comments || []), newCommentObj],
-          history: [...(prev.history || []), newHistoryItem]
+          comments: [...(prev.comments || []), newCommentObj]
         }));
 
         setNewComment('');
+        setShowAddComment(false);
       } else {
         console.error('Error creating comment:', response.data.message);
+        alert(response.data.message || 'Failed to create comment');
       }
     } catch (error) {
       console.error('Error creating comment:', error);
+    }
+  };
+
+  // Check if user can edit comment (only author)
+  const canEditComment = (comment) => {
+    if (!currentUser || !comment || !comment.author) return false;
+    
+    // Get all possible user identifiers
+    const userRollNumber = currentUser?.rollNumber || currentUser?.studentId || currentUser?.studentCode;
+    const userId = currentUser?.id;
+    const userName = currentUser?.name;
+    const commentAuthor = String(comment.author).trim();
+    
+    // Compare with comment.author (could be rollNumber string like "SE170005")
+    const authorMatch = 
+      commentAuthor === String(userRollNumber) ||
+      commentAuthor === String(userId) ||
+      (userName && commentAuthor === String(userName)) ||
+      (comment.authorName && comment.authorName === userName);
+    
+    return authorMatch;
+  };
+
+  // Check if user can delete comment (author, secretary, or supervisor)
+  const canDeleteComment = (comment) => {
+    if (!currentUser || !comment || !comment.author) return false;
+    
+    // Get all possible user identifiers
+    const userRollNumber = currentUser?.rollNumber || currentUser?.studentId || currentUser?.studentCode;
+    const userId = currentUser?.id;
+    const userName = currentUser?.name;
+    const commentAuthor = String(comment.author).trim();
+    
+    // Check if user is author
+    const isAuthor = 
+      commentAuthor === String(userRollNumber) ||
+      commentAuthor === String(userId) ||
+      (userName && commentAuthor === String(userName)) ||
+      (comment.authorName && comment.authorName === userName);
+    
+    // Check role
+    const userRole = (currentUser?.role || '').toLowerCase();
+    const isSecretary = userRole === 'secretary';
+    const isSupervisor = userRole === 'supervisor' || userRole === 'mentor';
+    
+    return isAuthor || isSecretary || isSupervisor;
+  };
+
+  const startEditComment = (comment) => {
+    setEditingCommentId(comment.id);
+    setEditingCommentText(comment.content || '');
+  };
+
+  const cancelEditComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentText('');
+  };
+
+  const saveEditComment = async (commentId) => {
+    if (!editingCommentText.trim()) {
+      alert('Comment cannot be empty');
+      return;
+    }
+
+    try {
+      const response = await axiosClient.put(
+        `/Student/Comment/task/${taskId}/comment/${commentId}`,
+        { feedback: editingCommentText.trim() }
+      );
+
+      if (response.data.status === 200) {
+        // Update comment trong state với cấu trúc từ API
+        setTask(prev => ({
+          ...prev,
+          comments: (prev.comments || []).map(c => 
+            c.id === commentId 
+              ? { 
+                  ...c, 
+                  content: editingCommentText.trim() 
+                }
+              : c
+          )
+        }));
+        setEditingCommentId(null);
+        setEditingCommentText('');
+      } else {
+        alert(response.data.message || 'Failed to update comment');
+      }
+    } catch (error) {
+      console.error('Error updating comment:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Error updating comment. Please try again.';
+      alert(errorMessage);
+    }
+  };
+
+  const deleteComment = async (commentId) => {
+    if (!window.confirm('Are you sure you want to delete this comment?')) {
+      return;
+    }
+
+    try {
+      const response = await axiosClient.delete(
+        `/Student/Comment/task/${taskId}/comment/${commentId}`
+      );
+
+      if (response.data.status === 200) {
+        // Remove comment khỏi state
+        setTask(prev => ({
+          ...prev,
+          comments: (prev.comments || []).filter(c => c.id !== commentId)
+        }));
+      } else {
+        alert(response.data.message || 'Failed to delete comment');
+      }
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Error deleting comment. Please try again.';
+      alert(errorMessage);
     }
   };
 
@@ -780,9 +956,22 @@ export default function TaskDetail() {
               value={editValues?.title ?? task.title ?? ''}
               onChange={(e) => handleFieldChange('title', e.target.value)}
               placeholder="Enter task title"
+              maxLength={1000}
             />
           ) : (
-            <h1>{task.title}</h1>
+            <div className={styles.titleWrapper}>
+              <h1 className={`${styles.titleText} ${!titleExpanded && (task.title || '').length > 80 ? styles.titleCollapsed : ''}`}>
+                {task.title}
+              </h1>
+              {(task.title || '').length > 80 && (
+                <button 
+                  className={styles.toggleBtn}
+                  onClick={() => setTitleExpanded(!titleExpanded)}
+                >
+                  {titleExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+                </button>
+              )}
+            </div>
           )}
         </div>
         {permissions.canEditTask && (
@@ -822,20 +1011,65 @@ export default function TaskDetail() {
       </div>
       <TaskPermissionNotice permissions={permissions} groupName={task.groupName || groupInfo?.name} />
 
+      {/* Tab Navigation */}
+      <div className={styles.tabNav}>
+        <button 
+          className={`${styles.tabButton} ${activeTab === 'details' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('details')}
+        >
+          Task Details
+        </button>
+        <button 
+          className={`${styles.tabButton} ${activeTab === 'comments' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('comments')}
+        >
+          Comments ({(task.comments || []).length})
+        </button>
+        <button 
+          className={`${styles.tabButton} ${activeTab === 'history' ? styles.tabActive : ''}`}
+          onClick={() => setActiveTab('history')}
+        >
+          History ({(task.history || []).length})
+        </button>
+      </div>
+
       <div className={styles.content}>
+        {activeTab === 'details' && (
         <div className={styles.mainContent}>
           <div className={styles.section}>
             <h2>Description</h2>
             {permissions.canEditTask && isEditing ? (
               <textarea
                 className={styles.descriptionEditor}
-                rows={6}
+                rows={Math.max(6, ((editValues?.description ?? task.description ?? '').match(/\n/g) || []).length + 3)}
                 value={editValues?.description ?? task.description ?? ''}
-                onChange={(e) => handleFieldChange('description', e.target.value)}
+                onChange={(e) => {
+                  handleFieldChange('description', e.target.value);
+                  // Auto resize
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
+                onFocus={(e) => {
+                  // Auto resize on focus
+                  e.target.style.height = 'auto';
+                  e.target.style.height = e.target.scrollHeight + 'px';
+                }}
                 placeholder="Add task description..."
               />
             ) : (
-              <p className={styles.description}>{task.description}</p>
+              <div className={styles.descriptionWrapper}>
+                <p className={`${styles.description} ${!descriptionExpanded && (task.description || '').length > 300 ? styles.descriptionCollapsed : ''}`}>
+                  {task.description}
+                </p>
+                {(task.description || '').length > 300 && (
+                  <button 
+                    className={styles.toggleBtn}
+                    onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                  >
+                    {descriptionExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -961,43 +1195,6 @@ export default function TaskDetail() {
                 </div>
               )}
             </div>
-          </div>
-
-          <div className={styles.section}>
-            <h2>Comments</h2>
-            <div className={styles.commentsList}>
-              {(task.comments || []).length === 0 && (
-                <div className={styles.emptyState}>No comments yet.</div>
-              )}
-              {(task.comments || []).map(comment => (
-                <div key={comment.id} className={styles.comment}>
-                  <div className={styles.commentHeader}>
-                    <span className={styles.commentAuthor}>{comment.authorName}</span>
-                    <span className={styles.commentTime}>{formatDate(comment.timestamp)}</span>
-                  </div>
-                  <div className={styles.commentContent}>{comment.content}</div>
-                </div>
-              ))}
-            </div>
-            
-            {permissions.canComment ? (
-              <div className={styles.addComment}>
-                <textarea
-                  className={styles.commentTextarea}
-                  placeholder="Add a comment..."
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  rows={4}
-                />
-                <Button onClick={addComment} className={styles.addButton}>
-                  Add Comment
-                </Button>
-              </div>
-            ) : (
-              <div className={styles.readOnlyMessage}>
-                This group is expired, so you cannot add new comments.
-              </div>
-            )}
           </div>
 
           <div className={styles.section}>
@@ -1173,30 +1370,243 @@ export default function TaskDetail() {
             )}
           </div>
         </div>
+        )}
 
-        <div className={styles.sidebar}>
+        {activeTab === 'comments' && (
+        <div className={styles.commentsTab}>
           <div className={styles.section}>
-            <h2>History</h2>
-            <div className={styles.historyList}>
-              {(task.history || []).length === 0 && (
-                <div className={styles.emptyState}>Chưa có lịch sử thay đổi.</div>
-              )}
-              {(task.history || []).map(item => (
-                <div key={item.id} className={styles.historyItem}>
-                  <div className={styles.historyDot} />
-                  <div className={styles.historyContent}>
-                    <div className={styles.historyTitle}>{item.detail}</div>
-                    <div className={styles.historyMeta}>
-                      <span className={styles.historyUser}>{item.user}</span>
-                      <span className={styles.historyAction}>{item.action}</span>
-                      <span className={styles.historyTime}>{formatDate(item.at)}</span>
+            <h2>Comments</h2>
+            
+            {permissions.canComment && (
+              <div className={styles.addComment}>
+                {!showAddComment ? (
+                  <Button 
+                    onClick={() => setShowAddComment(true)} 
+                    className={styles.addCommentButton}
+                    variant="primary"
+                  >
+                    Add Comment
+                  </Button>
+                ) : (
+                  <div className={styles.addCommentForm}>
+                    <textarea
+                      className={styles.commentTextarea}
+                      placeholder="Add a comment..."
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      rows={4}
+                      autoFocus
+                    />
+                    <div className={styles.addCommentActions}>
+                      <Button 
+                        onClick={addComment} 
+                        className={styles.addButton}
+                        variant="primary"
+                      >
+                        Post
+                      </Button>
+                      <Button 
+                        onClick={() => {
+                          setShowAddComment(false);
+                          setNewComment('');
+                        }} 
+                        className={styles.cancelButton}
+                        variant="secondary"
+                      >
+                        Cancel
+                      </Button>
                     </div>
                   </div>
-                </div>
-              ))}
+                )}
+              </div>
+            )}
+
+            <div className={styles.commentsList}>
+              {(task.comments || []).length === 0 ? (
+                <div className={styles.emptyState}>No comments yet.</div>
+              ) : (
+                <>
+                  {(task.comments || []).map(comment => {
+                    const isEditing = editingCommentId === comment.id;
+                    const canEdit = canEditComment(comment);
+                    const canDelete = canDeleteComment(comment);
+
+                    return (
+                      <div key={comment.id} className={styles.commentItem}>
+                        <div className={styles.commentItemHeader}>
+                          <div className={styles.commentAuthor}>{comment.authorName || 'Unknown'}</div>
+                          <div className={styles.commentTime}>{formatDate(comment.timestamp)}</div>
+                          {(canEdit || canDelete) && !isEditing && (
+                            <div className={styles.commentMenu} data-comment-menu>
+                              <button 
+                                className={styles.commentMenuButton}
+                                onClick={() => setOpenCommentMenuId(openCommentMenuId === comment.id ? null : comment.id)}
+                              >
+                                <span className={styles.commentMenuDots}>⋮</span>
+                              </button>
+                              {openCommentMenuId === comment.id && (
+                                <div className={styles.commentMenuDropdown} data-comment-menu>
+                                  {canEdit && (
+                                    <button
+                                      className={styles.commentMenuItem}
+                                      onClick={() => {
+                                        startEditComment(comment);
+                                        setOpenCommentMenuId(null);
+                                      }}
+                                    >
+                                      Edit
+                                    </button>
+                                  )}
+                                  {canDelete && (
+                                    <button
+                                      className={`${styles.commentMenuItem} ${styles.commentMenuItemDanger}`}
+                                      onClick={() => {
+                                        deleteComment(comment.id);
+                                        setOpenCommentMenuId(null);
+                                      }}
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className={styles.commentContent}>
+                          {isEditing ? (
+                            <>
+                              <textarea
+                                className={styles.commentEditTextarea}
+                                value={editingCommentText}
+                                onChange={(e) => setEditingCommentText(e.target.value)}
+                                rows={3}
+                              />
+                              <div className={styles.commentEditActions}>
+                                <Button
+                                  size="small"
+                                  variant="primary"
+                                  onClick={() => saveEditComment(comment.id)}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant="secondary"
+                                  onClick={cancelEditComment}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <div className={styles.commentText}>{comment.content}</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
           </div>
         </div>
+        )}
+
+        {activeTab === 'history' && (
+        <div className={styles.historyMain}>
+            <div className={styles.section}>
+              <h2>Change History</h2>
+              
+              {/* Filters */}
+              <div className={styles.historyFilters}>
+                <label>Phân loại</label>
+                <select 
+                  value={historyActionFilter || ''} 
+                  onChange={(e) => setHistoryActionFilter(e.target.value)}
+                >
+                  <option value="">Chọn tiêu chí...</option>
+                  {[...new Set((task.history || []).map(h => h.action).filter(Boolean))].map(action => (
+                    <option key={action} value={action}>{action}</option>
+                  ))}
+                </select>
+                
+                <label>Cập nhật bởi</label>
+                <select 
+                  value={historyUserFilter || ''} 
+                  onChange={(e) => setHistoryUserFilter(e.target.value)}
+                >
+                  <option value="">Chọn tiêu chí...</option>
+                  {[...new Set((task.history || []).map(h => h.user).filter(Boolean))].map(user => (
+                    <option key={user} value={user}>{user}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={styles.historyList}>
+                {(task.history || []).length === 0 ? (
+                  <div className={styles.emptyState}>No change history yet.</div>
+                ) : (
+                  <>
+                    {(task.history || [])
+                      .filter(item => {
+                        if (historyActionFilter && item.action !== historyActionFilter) return false;
+                        if (historyUserFilter && item.user !== historyUserFilter) return false;
+                        return true;
+                      })
+                      .map(item => {
+                      const getActionClass = (action) => {
+                        const a = (action || '').toLowerCase();
+                        if (a.includes('creat')) return styles.historyActionCreated;
+                        if (a.includes('updat')) return styles.historyActionUpdated;
+                        if (a.includes('comment')) return styles.historyActionCommented;
+                        if (a.includes('delet')) return styles.historyActionDeleted;
+                        return styles.historyActionUpdated;
+                      };
+
+                      const isLongContent = (item.detail || '').length > 150 || (item.detail || '').split('\n').length > 3;
+                      const isExpanded = expandedHistoryItems[item.id];
+
+                      return (
+                <div key={item.id} className={styles.historyItem}>
+                          <div className={styles.historyItemHeader}>
+                            <div className={styles.historyTime}>{formatDate(item.at)}</div>
+                  <div className={styles.historyDot} />
+                            <div className={styles.historyUser}>
+                              <span>{item.user || 'Hệ thống'}</span>
+                            </div>
+                            <span className={`${styles.historyAction} ${getActionClass(item.action)}`}>
+                              {item.action || 'UPDATE'}
+                            </span>
+                          </div>
+                  <div className={styles.historyContent}>
+                            <div className={styles.historyTitle}>
+                              <span className={styles.historyTitleIcon}>📄</span>
+                              <span className={`${styles.historyTitleText} ${isLongContent && !isExpanded ? styles.historyTitleCollapsed : styles.historyTitleExpanded}`}>
+                                {item.detail}
+                              </span>
+                              {isLongContent && (
+                                <button 
+                                  className={styles.historyToggleBtn}
+                                  onClick={() => setExpandedHistoryItems(prev => ({
+                                    ...prev,
+                                    [item.id]: !prev[item.id]
+                                  }))}
+                                >
+                                  {isExpanded ? 'Ẩn bớt' : 'Xem thêm'}
+                                </button>
+                              )}
+                    </div>
+                  </div>
+                </div>
+                      );
+                    })}
+                  </>
+                )}
+            </div>
+          </div>
+        </div>
+        )}
       </div>
       <UnsavedChangesPrompt
         open={showUnsavedModal}
