@@ -169,6 +169,15 @@ export default function StudentDocuments() {
       )
     },
     {
+      key: 'description',
+      title: 'Description',
+      render: (row) => (
+        <div style={{ maxWidth: '300px', wordBreak: 'break-word' }}>
+          {row.description || '—'}
+        </div>
+      )
+    },
+    {
       key: 'userName',
       title: 'Uploaded By',
       render: (row) => row.userName || '—'
