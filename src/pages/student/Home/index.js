@@ -6,6 +6,7 @@ import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
 import { getUserInfo } from '../../../auth/auth';
+import { getMeetingScheduleByGroupId } from '../../../api/schedule';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -33,6 +34,7 @@ export default function StudentHome() {
   const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
   const [meetingGroupInfo, setMeetingGroupInfo] = React.useState(null);
   const [hasSelectedFreeTime, setHasSelectedFreeTime] = React.useState(true); // Kiểm tra xem sinh viên đã chọn lịch rảnh chưa
+  const [hasSchedule, setHasSchedule] = React.useState(false); // Kiểm tra xem nhóm đã chốt lịch họp chưa
   const [groupIssues, setGroupIssues] = React.useState([]); // Issues của nhóm (chỉ hiển thị cho leader)
 
   // Load user info
@@ -248,6 +250,49 @@ export default function StudentHome() {
       }
     }
     loadGroupIssues();
+    return () => { mounted = false; };
+  }, [userInfo?.groups]);
+
+  // Kiểm tra xem nhóm đã chốt lịch họp chưa
+  React.useEffect(() => {
+    let mounted = true;
+    async function checkSchedule() {
+      if (!userInfo?.groups || userInfo.groups.length === 0) {
+        setHasSchedule(false);
+        return;
+      }
+      try {
+        const groupId = userInfo.groups[0];
+        const response = await getMeetingScheduleByGroupId(groupId);
+        // API có thể trả về { status: 200, data: {...}, message: "..." } hoặc throw error
+        if (response && response.status === 200) {
+          const data = response.data;
+          // Kiểm tra nếu message là "Schedule not found." hoặc data.id === 0 hoặc không có thông tin hợp lệ
+          if (response.message === "Schedule not found." || 
+              !data || 
+              !data.id || 
+              data.id === 0 || 
+              !data.isActive || 
+              !data.meetingLink || 
+              !data.slot || 
+              !data.dayOfWeek) {
+            if (!mounted) return;
+            setHasSchedule(false);
+          } else {
+            if (!mounted) return;
+            setHasSchedule(true);
+          }
+        } else {
+          if (!mounted) return;
+          setHasSchedule(false);
+        }
+      } catch (error) {
+        console.error('Error checking schedule:', error);
+        if (!mounted) return;
+        setHasSchedule(false);
+      }
+    }
+    checkSchedule();
     return () => { mounted = false; };
   }, [userInfo?.groups]);
 
@@ -1013,13 +1058,19 @@ export default function StudentHome() {
       return;
     }
     
+    // Check if semesterId is available
+    if (!groupInfo?.semesterId) {
+      alert('Semester information is not available. Please try again later.');
+      return;
+    }
+    
     setUploading(true);
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
       
       const res = await client.post(
-        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}`,
+        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}&semester=${groupInfo.semesterId}`,
         formData,
         {
           headers: {
@@ -1191,8 +1242,8 @@ export default function StudentHome() {
         </div>
       )}
 
-      {/* Warning if student hasn't selected free time */}
-      {!hasSelectedFreeTime && (
+      {/* Warning if student hasn't selected free time and group hasn't finalized schedule */}
+      {!hasSchedule && !hasSelectedFreeTime && (
         <div style={{ 
           background: '#fef3c7', 
           border: '2px solid #f59e0b', 

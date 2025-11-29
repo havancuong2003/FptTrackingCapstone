@@ -574,7 +574,7 @@ export default function SupervisorTracking() {
           groupSelectPlaceholder="Select group"
           loading={loading}
         />
-        {groupInfo && (
+        {/* {groupInfo && (
           <div style={{ 
             fontSize: 14, 
             color: '#64748b',
@@ -584,7 +584,7 @@ export default function SupervisorTracking() {
           }}>
             Group: {groupInfo.projectName}
           </div>
-        )}
+        )} */}
       </div>
       
       {/* Supervisors Info - Responsive */}
