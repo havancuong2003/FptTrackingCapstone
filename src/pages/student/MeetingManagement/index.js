@@ -1273,7 +1273,6 @@ export default function StudentMeetingManagement() {
         body: emailBody
       });
 
-      console.log('Email notification sent successfully');
     } catch (error) {
       console.error('Error sending email notification:', error);
     }

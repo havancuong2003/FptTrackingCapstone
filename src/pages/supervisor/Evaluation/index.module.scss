@@ -996,6 +996,11 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  
+  button {
+    white-space: nowrap;
+    min-width: fit-content;
+  }
 }
 
 // ------------------ Penalty Modal Styles ------------------
@@ -1074,7 +1079,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 24px;
+  margin-top: auto;
   padding-top: 24px;
   border-top: 1px solid #e2e8f0;
 }
@@ -1618,6 +1623,21 @@
   min-width: 140px;
 }
 
+.matrixHeaderActions {
+  min-width: 100px;
+  white-space: nowrap;
+}
+
+.matrixActionsCell {
+  min-width: 100px;
+  white-space: nowrap;
+  
+  button {
+    white-space: nowrap;
+    word-break: keep-all;
+  }
+}
+
 .matrixStudentCell {
   background: #f8fafc;
   text-align: left !important;
@@ -1657,7 +1677,7 @@
 }
 
 .matrixCellPending {
-  background: #fefce8;
+  background: transparent;
 }
 
 .matrixCellContent {
@@ -1697,6 +1717,10 @@
 .taskListContainer {
   margin: 0 -16px;
   padding: 0 16px;
+  width: calc(100% + 32px);
+  overflow-x: hidden;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .taskSummary {

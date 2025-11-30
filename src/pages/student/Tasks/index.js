@@ -196,7 +196,6 @@ export default function StudentTasks() {
       if (response.status === 200) {
         const apiData = response.data;
         const tasksData = Array.isArray(apiData) ? apiData : [];
-        console.log('Tasks from API:', tasksData); // Debug: xem API có trả về reviewerId không
         const mappedTasks = tasksData.map(task => {
           // Map status giống như TaskDetail.js - dùng toLowerCase() để so sánh
           const mappedStatus = task.status?.toLowerCase() === 'todo' ? 'todo' : 
@@ -823,12 +822,7 @@ export default function StudentTasks() {
     
     // Debug log để kiểm tra
     if (myTasksOnly && task.reviewerId && !isAssignee) {
-      console.log('Task reviewer check:', { 
-        taskId: task.id, 
-        reviewerId: task.reviewerId, 
-        currentUserId: currentUser?.id,
-        isReviewer 
-      });
+ 
     }
     // Filter theo trạng thái active
     let activeTaskMatch = true;
