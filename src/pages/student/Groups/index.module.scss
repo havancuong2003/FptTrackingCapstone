@@ -2,9 +2,11 @@
 /* GLOBAL CONTAINER & LAYOUT */
 /* ======================================= */
 .container {
-  padding: 40px; 
-  max-width: 1800px;
+  padding: 24px;
+  max-width: 1400px;
   margin: 0 auto;
+  background: #f5f7fa;
+  min-height: calc(100vh - 80px);
 }
 
 .loading {
@@ -13,22 +15,26 @@
   justify-content: center;
   align-items: center;
   min-height: 400px;
-  font-size: 20px;
-  color: #4b5563;
+  font-size: 18px;
+  color: #64748b;
+  font-weight: 500;
 }
 
 h1 {
-  color: #1f2937;
+  color: #1a202c;
   font-size: 32px;
-  margin-bottom: 10px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
 }
 
 .subtitle {
-  color: #6b7280;
-  margin-bottom: 40px;
-  font-size: 18px;
-  border-bottom: 1px solid #f3f4f6;
+  color: #718096;
+  margin-bottom: 28px;
+  font-size: 15px;
+  font-weight: 400;
   padding-bottom: 20px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 /* ======================================= */
@@ -37,87 +43,57 @@ h1 {
 
 .groupsList {
   display: grid;
-  grid-template-columns: 1fr; 
-  gap: 40px;
+  grid-template-columns: 1fr;
+  gap: 24px;
   max-width: 100%;
 }
 
 .groupCard {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  padding: 40px;
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.08);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
   display: flex;
   flex-direction: column;
   width: 100%;
-
-  &:hover {
-    box-shadow: 0 18px 30px rgba(0, 0, 0, 0.15); 
-    transform: translateY(-5px);
-  }
 }
 
 .groupHeader {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 30px;
+  align-items: flex-start;
+  margin-bottom: 28px;
   padding-bottom: 20px;
-  border-bottom: 2px solid #f3f4f6;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.groupInfo {
+  flex: 1;
 }
 
 .groupInfo h3 {
-  margin: 0 0 6px 0;
-  color: #1f2937;
-  font-size: 26px;
+  margin: 0 0 10px 0;
+  color: #2d3748;
+  font-size: 24px;
   font-weight: 700;
+  letter-spacing: -0.2px;
 }
 
 .projectName {
   margin: 0 0 6px 0;
-  color: #4b5563;
-  font-size: 17px;
+  color: #4a5568;
+  font-size: 16px;
   font-weight: 500;
+  line-height: 1.5;
 }
 
 .projectCode {
-  margin: 0;
-  color: #9ca3af;
-  font-size: 15px;
+  margin: 0 0 6px 0;
+  color: #a0aec0;
+  font-size: 13px;
   font-weight: 400;
-}
-
-.groupProgress {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  min-width: 110px;
-}
-
-.progressCircle {
-  width: 90px;
-  height: 90px;
-  border-radius: 50%;
-  border: 4px solid #e5e7eb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #f9fafb;
-}
-
-.progressValue {
-  font-size: 24px;
-  font-weight: 700;
-}
-
-.progressText {
-  font-size: 15px;
-  font-weight: 600;
-  text-align: center;
-  margin-top: 6px;
 }
 
 /* ======================================= */
@@ -128,74 +104,152 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 32px;
-  margin-bottom: 30px;
+  margin-bottom: 0;
   flex-grow: 1;
+}
+
+.detailSection {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  border: none;
 }
 
 .detailSection h4 {
   margin: 0 0 16px 0;
-  color: #374151;
+  color: #2d3748;
   font-size: 16px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   padding-bottom: 8px;
-  border-bottom: 3px solid #eef2ff;
+  border-bottom: 2px solid #3182ce;
+  display: block;
+  width: 100%;
 }
 
 .membersList {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 16px;
 }
 
 .memberItem {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px 18px;
-  background: #f4f7fa;
-  border-radius: 10px;
-  border: 1px solid #dbeafe;
+  flex-direction: column;
+  padding: 18px 20px;
+  background: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  min-height: 100px;
+}
+
+.memberItem:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-color: #cbd5e1;
 }
 
 .memberInfo {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+
+.memberNameRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.memberNameRow > button {
+  flex-shrink: 0;
+  margin: 0;
 }
 
 .memberName {
-  color: #1f2937;
+  color: #1a202c;
   font-weight: 600;
-  font-size: 16px;
+  font-size: 15px;
+  line-height: 1.4;
 }
 
 .memberEmail {
-  color: #6b7280;
-  font-size: 14px;
+  color: #718096;
+  font-size: 13px;
   font-weight: 400;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
-.memberRoleTag { 
-  background: #dbeafe; 
-  color: #1e40af; 
-  padding: 4px 12px;
-  border-radius: 16px; 
-  font-size: 12px;
+.memberRoleTag {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 6px;
+  width: fit-content;
+  color: #ffffff !important;
+  
+  // Leader - red/pink background
+  &[style*="background-color: rgb(254, 226, 226)"],
+  &[style*="background-color: #fee2e2"] {
+    background: #f56565 !important;
+    color: #ffffff !important;
+  }
+  
+  // Secretary - green background
+  &[style*="background-color: rgb(209, 250, 229)"],
+  &[style*="background-color: #d1fae5"] {
+    background: #48bb78 !important;
+    color: #ffffff !important;
+  }
+  
+  // Member - blue background
+  &[style*="background-color: rgb(219, 234, 254)"],
+  &[style*="background-color: #dbeafe"] {
+    background: #4299e1 !important;
+    color: #ffffff !important;
+  }
 }
 
+// Supervisor tag - green with white text
+.memberItem .memberRoleTag[style*="background-color: rgb(16, 185, 129)"],
+.memberItem .memberRoleTag[style*="background-color: #10b981"] {
+  background: #48bb78 !important;
+  color: #ffffff !important;
+}
 
 .emptyState {
   text-align: center;
-  padding: 80px;
-  color: #6b7280;
-  font-size: 20px;
-  border: 2px dashed #d1d5db;
-  border-radius: 16px;
-  margin-top: 30px;
+  padding: 48px 32px;
+  color: #a0aec0;
+  font-size: 15px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 12px;
+  margin-top: 0;
+  background: #f7fafc;
+}
+
+.emptyTitle {
+  font-size: 18px;
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 8px;
+}
+
+.emptyMessage {
+  font-size: 14px;
+  color: #a0aec0;
 }
 
 /* ======================================= */
@@ -203,241 +257,295 @@ h1 {
 /* ======================================= */
 
 .groupDetailModal {
-    padding: 30px;
-    max-width: 1200px;
-    width: 90vw;
+  padding: 32px;
+  max-width: 1200px;
+  width: 90vw;
 }
 
 .groupDetailModal h2 {
-    font-size: 28px;
-    color: #1f2937;
-    margin-bottom: 28px;
-    border-bottom: 3px solid #e5e7eb;
-    padding-bottom: 15px;
+  font-size: 28px;
+  color: #1a202c;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 16px;
+  font-weight: 700;
 }
 
 .groupSummary {
-    background: #eef2ff;
-    padding: 20px;
-    border-radius: 12px;
-    margin-bottom: 30px;
-    border: 1px solid #c7d2fe;
+  background: #ebf8ff;
+  padding: 24px;
+  border-radius: 12px;
+  margin-bottom: 32px;
+  border: 1px solid #bee3f8;
 }
 
 .groupSummary h3 {
-    font-size: 20px;
-    margin: 0 0 8px 0;
-    color: #1f2937;
-    font-weight: 700;
+  font-size: 20px;
+  margin: 0 0 12px 0;
+  color: #1a202c;
+  font-weight: 700;
 }
 
 .groupSummary p {
-    margin: 0 0 4px 0;
-    font-size: 15px;
-    color: #4b5563;
+  margin: 0 0 6px 0;
+  font-size: 15px;
+  color: #4a5568;
 }
 
 .membersSection_Role h4 {
-    margin: 0 0 20px 0;
-    color: #374151;
-    font-size: 18px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-bottom: 1px solid #e5e7eb;
-    padding-bottom: 8px;
+  margin: 0 0 24px 0;
+  color: #2d3748;
+  font-size: 20px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 12px;
 }
 
 .membersList_Role {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-    gap: 24px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
 }
 
 .memberCard_Role {
-    border: 1px solid #d1d5db;
-    border-radius: 10px;
-    padding: 20px;
-    background: #fff;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-    display: flex;
-    flex-direction: column;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  background: #ffffff;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+}
+
+.memberCard_Role:hover {
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+  border-color: #cbd5e1;
 }
 
 .memberInfo_Role {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    margin-bottom: 15px;
-    padding-bottom: 15px;
-    border-bottom: 1px solid #f3f4f6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #f1f5f9;
 }
 
 .memberName_Role h4 {
-    margin: 0 0 2px 0;
-    font-size: 18px;
-    color: #1f2937;
-    font-weight: 600;
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  color: #1a202c;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .studentCode {
-    font-size: 13px;
-    color: #059669;
-    font-weight: 600;
-    background: #ecfdf5;
-    padding: 2px 8px;
-    border-radius: 4px;
-    display: inline-block;
-    margin-bottom: 8px;
+  font-size: 12px;
+  color: #059669;
+  font-weight: 600;
+  background: #d1fae5;
+  padding: 4px 10px;
+  border-radius: 6px;
+  display: inline-block;
+  margin-bottom: 8px;
+  letter-spacing: 0.3px;
 }
 
 .memberEmail_Role {
-    font-size: 14px;
-    color: #6b7280;
-    margin-bottom: 10px;
+  font-size: 13px;
+  color: #718096;
+  margin-bottom: 12px;
+  word-break: break-word;
 }
 
 .memberRole_Role {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 700;
-    font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
 }
 
 .roleIcon_Role {
-    font-size: 20px;
+  font-size: 20px;
 }
 
 .roleText_Role {
-    text-transform: uppercase;
-    font-size: 12px;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: #f1f5f9;
+  color: #475569;
 }
 
-/* role history styles removed */
-
 .memberActions_Role {
-    margin-top: auto;
-    padding-top: 15px;
-    border-top: 1px dashed #e5e7eb;
-    text-align: right;
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px dashed #e2e8f0;
+  text-align: right;
 }
 
 .noPermission {
-    font-size: 12px;
-    color: #9ca3af;
-    font-style: italic;
-    padding: 8px 12px;
-    background: #f9fafb;
-    border-radius: 6px;
-    display: inline-block;
+  font-size: 12px;
+  color: #a0aec0;
+  font-style: italic;
+  padding: 8px 12px;
+  background: #f7fafc;
+  border-radius: 8px;
+  display: inline-block;
 }
 
 .roleModal {
-    padding: 30px;
-    max-width: 600px;
-    width: 80vw;
+  padding: 32px;
+  max-width: 600px;
+  width: 85vw;
 }
 
 .roleModal h2 {
-    font-size: 24px;
-    color: #1f2937;
-    margin-bottom: 16px;
+  font-size: 26px;
+  color: #1a202c;
+  margin-bottom: 16px;
+  font-weight: 700;
 }
 
 .roleModal p {
-    color: #4b5563;
-    margin-bottom: 24px;
-    font-size: 16px;
+  color: #4a5568;
+  margin-bottom: 24px;
+  font-size: 16px;
+  line-height: 1.6;
 }
 
 .roleInfo {
-    background: #f0f9ff;
-    border: 1px solid #0ea5e9;
-    border-radius: 8px;
-    padding: 12px;
-    margin-bottom: 20px;
-    
-    p {
-        margin: 0;
-        color: #0c4a6e;
-        font-size: 14px;
-        line-height: 1.4;
-    }
+  background: #ebf8ff;
+  border: 1px solid #90cdf4;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 24px;
+  
+  p {
+    margin: 0;
+    color: #2c5282;
+    font-size: 14px;
+    line-height: 1.6;
+    font-weight: 500;
+  }
 }
 
 .roleOptions {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 28px;
 }
 
 .roleOption {
-    display: flex;
-    align-items: flex-start;
-    gap: 15px;
-    padding: 15px;
-    border: 2px solid #e5e7eb;
-    border-radius: 10px;
-    transition: all 0.2s ease;
-    cursor: pointer;
-    background: #f9fafb;
-    position: relative;
-}
-
-.roleOption input[type="radio"]:checked + .roleLabel {
-    border-color: #3b82f6;
-    background: #eff6ff;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  background: #ffffff;
+  position: relative;
 }
 
 .roleOption:hover {
-    border-color: #93c5fd;
+  border-color: #90cdf4;
+  background: #f7fafc;
+}
+
+.roleOption input[type="radio"]:checked ~ .roleLabel,
+.roleOption:has(input[type="radio"]:checked) {
+  border-color: #4299e1;
+  background: #ebf8ff;
+  box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
 }
 
 .roleOption input[type="radio"] {
-    margin-top: 5px;
-    min-width: 18px;
-    min-height: 18px;
-    accent-color: #3b82f6;
-    position: absolute;
-    top: 15px;
-    left: 15px;
+  margin-top: 4px;
+  min-width: 20px;
+  min-height: 20px;
+  accent-color: #4299e1;
+  cursor: pointer;
+  position: absolute;
+  top: 20px;
+  left: 20px;
 }
 
 .roleLabel {
-    flex-grow: 1;
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding-left: 28px;
-    cursor: pointer;
+  flex-grow: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding-left: 32px;
+  cursor: pointer;
 }
 
 .roleLabel > div {
-    flex-grow: 1;
+  flex-grow: 1;
 }
 
 .roleLabel strong {
-    font-size: 18px;
-    color: #1f2937;
-    font-weight: 700;
-    display: block;
-    margin-bottom: 2px;
+  font-size: 18px;
+  color: #1a202c;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 4px;
 }
 
 .roleLabel p {
-    margin: 0;
-    font-size: 13px;
-    color: #6b7280;
+  margin: 0;
+  font-size: 14px;
+  color: #718096;
+  line-height: 1.5;
 }
 
 .modalActions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding-top: 25px;
-    border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 24px;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* ======================================= */
+/* EXPIRE DATE STYLES */
+/* ======================================= */
+.expireDate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 14px;
+}
+
+.expireDateLabel {
+  color: #718096;
+  font-weight: 500;
+}
+
+.expireDate .expired {
+  color: #e53e3e;
+  font-weight: 600;
+  padding: 4px 10px;
+  background: #fed7d7;
+  border-radius: 6px;
+}
+
+.expireDate .active {
+  color: #38a169;
+  font-weight: 600;
+  padding: 4px 10px;
+  background: #c6f6d5;
+  border-radius: 6px;
 }
 
 /* ======================================= */
@@ -447,44 +555,47 @@ h1 {
 /* Large screens (1200px and up) */
 @media (min-width: 1200px) {
   .container {
-    padding: 50px;
+    padding: 32px;
   }
   
   .groupsList {
-    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-    gap: 50px;
+    gap: 32px;
+  }
+  
+  .groupCard {
+    padding: 32px;
+  }
+  
+  .membersList {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   }
 }
 
 /* Medium screens (768px to 1199px) */
 @media (max-width: 1199px) {
   .container {
-    padding: 30px;
-  }
-  
-  .groupsList {
-    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-    gap: 30px;
+    padding: 24px 20px;
   }
   
   .groupCard {
-    padding: 30px;
+    padding: 24px;
   }
   
   .groupDetails {
-    gap: 25px;
+    gap: 28px;
   }
   
   .membersList {
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
   }
 }
 
 /* Small screens (576px to 767px) */
 @media (max-width: 767px) {
   .container {
-    padding: 20px;
+    padding: 20px 16px;
+    background: #ffffff;
   }
   
   h1 {
@@ -492,96 +603,26 @@ h1 {
   }
   
   .subtitle {
-    font-size: 16px;
-    margin-bottom: 30px;
+    font-size: 14px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
   }
   
   .groupsList {
-    grid-template-columns: 1fr;
-    gap: 25px;
+    gap: 20px;
   }
   
   .groupCard {
-    padding: 25px;
+    padding: 20px;
+    border-radius: 10px;
   }
   
   .groupHeader {
     flex-direction: column;
     align-items: flex-start;
-    gap: 15px;
-  }
-  
-  .groupProgress {
-    align-self: flex-end;
-    min-width: auto;
-  }
-  
-  .groupDetails {
-    gap: 20px;
-  }
-  
-  .membersList {
-    grid-template-columns: 1fr;
     gap: 12px;
-  }
-  
-  .memberItem {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 15px;
-  }
-  
-  .memberInfo {
-    width: 100%;
-  }
-  
-  
-  .membersList_Role {
-    grid-template-columns: 1fr;
-    gap: 20px;
-  }
-  
-  .memberCard_Role {
-    padding: 15px;
-  }
-  
-  .roleModal {
-    padding: 20px;
-    width: 95vw;
-  }
-  
-  .roleOptions {
-    gap: 12px;
-  }
-  
-  .roleOption {
-    padding: 12px;
-  }
-  
-  .modalActions {
-    flex-direction: column;
-    gap: 10px;
-  }
-}
-
-/* Extra small screens (below 576px) */
-@media (max-width: 575px) {
-  .container {
-    padding: 15px;
-  }
-  
-  h1 {
-    font-size: 24px;
-  }
-  
-  .subtitle {
-    font-size: 14px;
     margin-bottom: 20px;
-  }
-  
-  .groupCard {
-    padding: 20px;
+    padding-bottom: 16px;
   }
   
   .groupInfo h3 {
@@ -592,34 +633,137 @@ h1 {
     font-size: 15px;
   }
   
-  .projectCode {
-    font-size: 13px;
+  .groupDetails {
+    gap: 24px;
   }
   
-  .progressCircle {
-    width: 70px;
-    height: 70px;
+  .detailSection h4 {
+    font-size: 15px;
+    margin-bottom: 14px;
   }
   
-  .progressValue {
-    font-size: 20px;
+  .membersList {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
   
   .memberItem {
-    padding: 12px;
+    padding: 16px;
+    min-height: auto;
+  }
+  
+  .memberNameRow {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  
+  .memberNameRow > button {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  
+  .memberInfo {
+    width: 100%;
+  }
+  
+  .membersList_Role {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .memberCard_Role {
+    padding: 20px;
+  }
+  
+  .roleModal {
+    padding: 24px;
+    width: 95vw;
+  }
+  
+  .roleOptions {
+    gap: 12px;
+  }
+  
+  .roleOption {
+    padding: 16px;
+  }
+  
+  .modalActions {
+    flex-direction: column;
+    gap: 10px;
+    
+    button {
+      width: 100%;
+    }
+  }
+}
+
+/* Extra small screens (below 576px) */
+@media (max-width: 575px) {
+  .container {
+    padding: 16px 12px;
+  }
+  
+  h1 {
+    font-size: 24px;
+  }
+  
+  .subtitle {
+    font-size: 13px;
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+  }
+  
+  .groupCard {
+    padding: 16px;
+    border-radius: 8px;
+  }
+  
+  .groupInfo h3 {
+    font-size: 20px;
+  }
+  
+  .projectName {
+    font-size: 14px;
+  }
+  
+  .projectCode {
+    font-size: 12px;
+  }
+  
+  .detailSection h4 {
+    font-size: 14px;
+    margin-bottom: 12px;
+  }
+  
+  .memberItem {
+    padding: 14px;
+  }
+  
+  .memberNameRow {
+    gap: 6px;
+  }
+  
+  .memberNameRow > button {
+    font-size: 11px;
+    padding: 5px 10px;
   }
   
   .memberName {
     font-size: 14px;
   }
   
+  .memberEmail {
+    font-size: 12px;
+  }
+  
   .memberRoleTag {
-    font-size: 11px;
-    padding: 3px 8px;
+    font-size: 10px;
+    padding: 4px 12px;
   }
   
   .memberCard_Role {
-    padding: 12px;
+    padding: 16px;
   }
   
   .memberName_Role h4 {
@@ -628,7 +772,7 @@ h1 {
   
   .studentCode {
     font-size: 11px;
-    padding: 2px 6px;
+    padding: 3px 8px;
   }
   
   .memberEmail_Role {
@@ -636,12 +780,12 @@ h1 {
   }
   
   .roleModal {
-    padding: 15px;
+    padding: 20px;
     width: 98vw;
   }
   
   .roleModal h2 {
-    font-size: 20px;
+    font-size: 22px;
   }
   
   .roleModal p {
@@ -653,46 +797,6 @@ h1 {
   }
   
   .roleLabel p {
-    font-size: 12px;
+    font-size: 13px;
   }
-}
-
-/* Landscape orientation for mobile */
-@media (max-width: 767px) and (orientation: landscape) {
-  .container {
-    padding: 15px;
-  }
-  
-  .groupCard {
-    padding: 20px;
-  }
-  
-  .groupDetails {
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-  }
-}
-
-/* Expire Date Styles */
-.expireDate {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-  font-size: 14px;
-}
-
-.expireDateLabel {
-  color: #64748b;
-  font-weight: 500;
-}
-
-.expireDate .expired {
-  color: #dc2626;
-  font-weight: 600;
-}
-
-.expireDate .active {
-  color: #059669;
-  font-weight: 600;
 }

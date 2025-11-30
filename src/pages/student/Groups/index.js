@@ -271,7 +271,7 @@ export default function StudentGroups() {
                                                     <div className={styles.memberInfo}>
                                                         <span className={styles.memberName}>{supervisor.name || supervisor.fullName}</span>
                                                         <span className={styles.memberEmail}>{supervisor.email}</span>
-                                                        <span className={styles.memberRoleTag} style={{ backgroundColor: '#10b981', color: 'white' }}>Supervisor</span>
+                                                        <span className={styles.memberRoleTag} style={{ backgroundColor: '#48bb78', color: '#ffffff' }}>SUPERVISOR</span>
                                                     </div>
                                                 </div>
                                             ))
@@ -286,21 +286,33 @@ export default function StudentGroups() {
                                     <div className={styles.membersList}>
                                         {group.members.map((member) => {
                                             const canChange = canChangeRole(member);
+                                            const roleInfo = getRoleInfo(member.currentRole === 'Student' ? 'Member' : (member.currentRole || 'Member'));
                                             return (
                                                 <div key={member.id} className={styles.memberItem}>
                                                     <div className={styles.memberInfo}>
-                                                        <span className={styles.memberName}>{member.name}</span>
+                                                        <div className={styles.memberNameRow}>
+                                                            <span className={styles.memberName}>{member.name}</span>
+                                                            {canChange && (
+                                                                <Button 
+                                                                    size="sm"
+                                                                    onClick={() => openRoleChangeModal(member)}
+                                                                >
+                                                                    Change Role
+                                                                </Button>
+                                                            )}
+                                                        </div>
                                                         <span className={styles.memberEmail}>{member.email}</span>
-                                                        <span className={styles.memberRoleTag}>{member.currentRole === 'Student' ? 'Member' : (member.currentRole || 'Member')}</span>
-                                                    </div>
-                                                    {canChange && (
-                                                        <Button 
-                                                            size="sm"
-                                                            onClick={() => openRoleChangeModal(member)}
+                                                        <span 
+                                                            className={styles.memberRoleTag}
+                                                            style={{ 
+                                                                backgroundColor: roleInfo.color === '#dc2626' ? '#f56565' : 
+                                                                                roleInfo.color === '#059669' ? '#48bb78' : '#4299e1',
+                                                                color: '#ffffff'
+                                                            }}
                                                         >
-                                                            Change Role
-                                                        </Button>
-                                                    )}
+                                                            {roleInfo.text.toUpperCase()}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             );
                                         })}
