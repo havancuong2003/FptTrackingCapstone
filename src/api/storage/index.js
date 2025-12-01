@@ -88,3 +88,19 @@ export async function unzipArchive(archiveFileName, deleteArchiveAfter = true) {
   }
 }
 
+/**
+ * Get storage size detail for a specific group
+ * @param {string} semesterName - Name of the semester
+ * @param {string} groupName - Name of the group
+ * @returns {Promise} Response with group storage size detail
+ */
+export async function getGroupSizeDetail(semesterName, groupName) {
+  try {
+    const response = await client.get(`/admin/storage/${semesterName}/${groupName}/size`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching group size detail:', error);
+    throw error;
+  }
+}
+
