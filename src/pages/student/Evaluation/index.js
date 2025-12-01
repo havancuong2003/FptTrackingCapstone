@@ -4,86 +4,32 @@ import Button from "../../../components/Button/Button";
 import Card from "../../../components/Card/Card";
 import DataTable from "../../../components/DataTable/DataTable";
 import { getGroupId } from "../../../auth/auth";
-import { getDeliverablesByGroup } from "../../../api/deliverables";
 import { getEvaluationsByStudent, getGeneralPenaltyCardsByStudent } from "../../../api/evaluation";
 
 export default function StudentEvaluation() {
   const [evaluations, setEvaluations] = React.useState([]);
-  const [milestones, setMilestones] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
-  const [selectedMilestone, setSelectedMilestone] = React.useState("all");
   const [penaltyCardsGeneral, setPenaltyCardsGeneral] = React.useState([]);
   const [loadingPenaltyCards, setLoadingPenaltyCards] = React.useState(false);
 
-  // ------------------ Fetch Milestones ------------------
-  React.useEffect(() => {
-    const fetchMilestones = async () => {
-      setLoading(true);
-      try {
-        // Prioritize getting milestones by student's current group
-        const gid = getGroupId() || localStorage.getItem('student_group_id');
-        let response;
-        if (gid) {
-          response = await getDeliverablesByGroup(gid);
-        } else {
-          // Fallback to student milestone endpoint if no group
-          // Note: This endpoint may need to be added to API
-          setMilestones([]);
-          return;
-        }
-        
-        // Check if response.data is array directly
-        if (Array.isArray(response.data)) {
-          const normalized = response.data.map(m => ({ id: String(m.id || m.ID || m.value || m), name: m.name || m.label || m.title || m.toString() }));
-          setMilestones(normalized);
-        } else if (response.status === 200) {
-          const milestonesData = (response.data || []).map(m => ({ id: String(m.id || m.ID || m.value), name: m.name || m.label || m.title }));
-          setMilestones(milestonesData);
-        } else {
-          console.error('Failed to fetch milestones:', response.message);
-          console.error('Full response:', response);
-          setMilestones([]);
-        }
-      } catch (err) {
-        console.error('Error fetching milestones:', err);
-        console.error('Error details:', err.response?.data);
-        console.error('Error status:', err.response?.status);
-        
-        // Don't use mock data, return empty array
-        setMilestones([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchMilestones();
-  }, []);
 
   // ------------------ Fetch All Evaluations ------------------
-  const [allEvaluations, setAllEvaluations] = React.useState([]);
-  
   const fetchAllEvaluations = async () => {
     setLoading(true);
     try {
+      // API trả về mảng trực tiếp: [{evaluationId: 2, feedback: "...", deliverableName: "...", ...}]
       const response = await getEvaluationsByStudent();
       
-      // Check if response.data is array directly
-      if (Array.isArray(response.data)) {
-        setAllEvaluations(response.data);
-        setEvaluations(response.data);
-      } else if (response.status === 200) {
-        const evaluationsData = response.data || [];
-        setAllEvaluations(evaluationsData);
-        setEvaluations(evaluationsData);
+      // response đã là mảng từ API (getEvaluationsByStudent trả về response.data)
+      if (Array.isArray(response)) {
+        setEvaluations(response);
       } else {
-        console.error('Failed to fetch evaluations:', response.message);
-        setAllEvaluations([]);
+        console.error('Unexpected response format:', response);
         setEvaluations([]);
       }
     } catch (err) {
       console.error('Error fetching evaluations:', err);
       console.error('Error details:', err.response?.data);
-      setAllEvaluations([]);
       setEvaluations([]);
     } finally {
       setLoading(false);
@@ -100,14 +46,14 @@ export default function StudentEvaluation() {
     const fetchGeneralPenaltyCards = async () => {
       setLoadingPenaltyCards(true);
       try {
+        // API trả về mảng trực tiếp: [{name: "vắng họp", type: "Warning", description: "...", ...}]
         const response = await getGeneralPenaltyCardsByStudent();
 
-        // API can return array directly or in format { status, data }
-        if (Array.isArray(response.data)) {
-          setPenaltyCardsGeneral(response.data);
-        } else if (response.status === 200) {
-          setPenaltyCardsGeneral(response.data || []);
+        // response đã là mảng từ API (getGeneralPenaltyCardsByStudent trả về response.data)
+        if (Array.isArray(response)) {
+          setPenaltyCardsGeneral(response);
         } else {
+          console.error('Unexpected response format:', response);
           setPenaltyCardsGeneral([]);
         }
       } catch (err) {
@@ -121,25 +67,6 @@ export default function StudentEvaluation() {
     fetchGeneralPenaltyCards();
   }, []);
 
-  // ------------------ Filter Evaluations when milestone changes ------------------
-  React.useEffect(() => {
-    if (selectedMilestone === "all") {
-      setEvaluations(allEvaluations);
-    } else {
-      // Find milestone name from milestones array
-      const selectedMilestoneData = milestones.find(m => m.id === selectedMilestone);
-      const milestoneName = selectedMilestoneData?.name;
-      
-      if (milestoneName) {
-        const filteredEvaluations = allEvaluations.filter(evaluation => 
-          evaluation.deliverableName === milestoneName
-        );
-        setEvaluations(filteredEvaluations);
-      } else {
-        setEvaluations(allEvaluations);
-      }
-    }
-  }, [selectedMilestone, allEvaluations, milestones]);
 
   // ------------------ Table Columns ------------------
   const mapTypeToText = (type) => {
@@ -169,6 +96,13 @@ export default function StudentEvaluation() {
       key: 'stt',
       title: 'No',
       render: (_, index) => index + 1
+    },
+    {
+      key: 'milestone',
+      title: 'Milestone',
+      render: (evaluation) => (
+        <span>{evaluation.deliverableName || '-'}</span>
+      )
     },
     {
       key: 'type',
@@ -265,28 +199,8 @@ export default function StudentEvaluation() {
       <div className={styles.header}>
         <h1>Mentor Evaluations</h1>
         <p className={styles.subtitle}>
-          View mentor feedback and penalty cards by milestone
+          View all mentor feedback and penalty cards
         </p>
-      </div>
-
-      {/* ------------------ Controls ------------------ */}
-      <div className={styles.controls}>
-        <div className={styles.controlGroup}>
-          <label>Select Milestone:</label>
-          <select
-            value={selectedMilestone}
-            onChange={(e) => setSelectedMilestone(e.target.value)}
-            className={styles.select}
-          >
-            <option value="all">All milestones</option>
-            {milestones.map((milestone) => (
-              <option key={milestone.id} value={milestone.id}>
-                {milestone.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        
       </div>
 
       {/* ------------------ Summary Cards ------------------ */}
@@ -310,22 +224,13 @@ export default function StudentEvaluation() {
       <div className={styles.evaluationsSection}>
         <h2>Student evaluation table</h2>
         <div className={styles.tableContainer}>
-          {selectedMilestone === "all" ? (
-            <div className={styles.noSelection}>
-              <div className={styles.noSelectionContent}>
-                <h3>Select a milestone to view evaluations</h3>
-                <p>Please choose a specific milestone to view mentor feedback.</p>
-              </div>
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={evaluations}
-              loading={loading}
-              emptyMessage="No evaluations for this milestone"
-              showIndex={false}
-            />
-          )}
+          <DataTable
+            columns={columns}
+            data={evaluations}
+            loading={loading}
+            emptyMessage="No evaluations available"
+            showIndex={false}
+          />
         </div>
       </div>
 

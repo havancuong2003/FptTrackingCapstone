@@ -25,7 +25,6 @@ export default function SupervisorDocuments() {
   const [uploadModalOpen, setUploadModalOpen] = React.useState(false);
   const [uploadDescription, setUploadDescription] = React.useState('');
   const [selectedFile, setSelectedFile] = React.useState(null);
-  console.log('selectedSemesterId', selectedSemesterId);
   // Load semesters and set default to current semester
   React.useEffect(() => {
     function loadSemesters() {
@@ -34,11 +33,9 @@ export default function SupervisorDocuments() {
       
       // Luôn ưu tiên kì hiện tại khi lần đầu render
       const currentSemesterId = getCurrentSemesterId();
-      console.log('currentSemesterId', currentSemesterId);
       if (currentSemesterId) {
         // Kiểm tra xem currentSemesterId có trong danh sách không
         const existsInList = uniqueSemesters.some(s => s.id === currentSemesterId);
-        console.log('existsInList', existsInList);
         if (existsInList) {
           setSelectedSemesterId(currentSemesterId);
         } else if (uniqueSemesters.length > 0) {

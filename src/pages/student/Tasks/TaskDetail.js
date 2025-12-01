@@ -244,7 +244,6 @@ export default function TaskDetail() {
       try {
         setPeopleLoading(true);
         const response = await getCapstoneGroupDetail(groupId);
-        console.log(response.data);
         if (response.status === 200 && response.data && active) {
           const groupData = response.data;
           const students = Array.isArray(groupData.students) ? groupData.students : [];

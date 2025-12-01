@@ -16,11 +16,32 @@ export async function sendGroupEmail(emailData) {
 // Update student role in group
 export async function updateStudentRoleInGroup(groupId, studentId, roleData) {
   try {
-    const response = await client.put(`/Staff/update-role?groupId=${parseInt(groupId)}&studentId=${studentId}`, roleData);
-    return response.data;
+    // API expects a JSON string (e.g., "Leader" or "Member"), not an object
+    // Axios will automatically serialize the string to JSON format
+    const roleString = typeof roleData === 'string' ? roleData : String(roleData);
+    
+    const res = await client.put(
+      `/Staff/update-role?groupId=${parseInt(groupId)}&studentId=${studentId}`, 
+      roleString,
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    const payload = res.data;
+    return {
+      data: payload.data,
+      status: payload.status ?? res.status,
+      message: payload.message || 'Role updated successfully',
+    };
   } catch (error) {
     console.error('Error updating student role:', error);
-    throw error;
+    return {
+      data: null,
+      status: error.response?.data?.status ?? error.response?.status ?? 500,
+      message: error.response?.data?.message || error.message || 'Error updating student role',
+    };
   }
 }
 
