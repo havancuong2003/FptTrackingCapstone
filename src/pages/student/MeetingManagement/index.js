@@ -53,7 +53,8 @@ export default function StudentMeetingManagement() {
   const [showPreviousMinuteModal, setShowPreviousMinuteModal] = React.useState(false); // Modal for previous meeting minutes
   const [previousMinuteIssues, setPreviousMinuteIssues] = React.useState([]); // Issues from previous meeting
   const [currentPage, setCurrentPage] = React.useState(1); // Pagination
-  const ITEMS_PER_PAGE = 7;
+  const ITEMS_PER_PAGE = 5;
+  const [isMobile, setIsMobile] = React.useState(window.innerWidth < 768);
   const [showEditScheduleModal, setShowEditScheduleModal] = React.useState(false);
   const [editingMeeting, setEditingMeeting] = React.useState(null);
   const [scheduleForm, setScheduleForm] = React.useState({
@@ -70,6 +71,13 @@ export default function StudentMeetingManagement() {
   React.useEffect(() => {
     // Lấy thông tin user và meetings
     fetchUserInfo();
+    
+    // Handle window resize for responsive
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const fetchUserInfo = async () => {
@@ -1265,7 +1273,6 @@ export default function StudentMeetingManagement() {
         body: emailBody
       });
 
-      console.log('Email notification sent successfully');
     } catch (error) {
       console.error('Error sending email notification:', error);
     }
@@ -1391,15 +1398,15 @@ export default function StudentMeetingManagement() {
     <div className={styles.container}>
       <div className={styles.header} style={{
         background: 'white',
-        padding: '24px',
+        padding: isMobile ? '16px' : '24px',
         borderRadius: '8px',
-        marginBottom: '20px',
+        marginBottom: isMobile ? '12px' : '20px',
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
         border: '1px solid #e5e7eb'
       }}>
         <h1 style={{ 
           margin: '0 0 8px 0', 
-          fontSize: '24px', 
+          fontSize: isMobile ? '18px' : '24px', 
           fontWeight: '600',
           color: '#1f2937'
         }}>
@@ -1407,7 +1414,7 @@ export default function StudentMeetingManagement() {
         </h1>
         <p style={{ 
           margin: '0 0 16px 0', 
-          fontSize: '14px', 
+          fontSize: isMobile ? '12px' : '14px', 
           color: '#6b7280'
         }}>
           Manage group meetings
@@ -1416,16 +1423,17 @@ export default function StudentMeetingManagement() {
         {userInfo && (
           <div className={styles.userInfo} style={{
             display: 'flex',
-            gap: '16px',
-            flexWrap: 'wrap'
+            gap: isMobile ? '8px' : '16px',
+            flexWrap: 'wrap',
+            flexDirection: isMobile ? 'column' : 'row'
           }}>
-            <span style={{ fontSize: '14px', color: '#374151' }}>
+            <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#374151' }}>
               <strong>User:</strong> {userInfo.name}
             </span>
-            <span style={{ fontSize: '14px', color: '#374151' }}>
+            <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#374151' }}>
               <strong>Role:</strong> {userInfo.roleInGroup || userInfo.role}
             </span>
-            <span style={{ fontSize: '14px', color: '#374151' }}>
+            <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#374151' }}>
               <strong>Group:</strong> {userInfo.groups && userInfo.groups.length > 0 ? userInfo.groups[0] : 'N/A'}
             </span>
           </div>
@@ -1437,11 +1445,13 @@ export default function StudentMeetingManagement() {
         background: '#fff',
         border: '1px solid #e5e7eb',
         borderRadius: 8,
-        overflow: 'hidden',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        overflow: isMobile ? 'auto' : 'hidden',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        width: '100%'
       }}>
         <DataTable
-          columns={[
+          columns={(() => {
+            const allColumns = [
             {
               key: 'description',
               title: 'Meeting',
@@ -1456,13 +1466,15 @@ export default function StudentMeetingManagement() {
                           color: '#3b82f6',
                           cursor: 'pointer',
                           textDecoration: 'underline',
-                          fontWeight: 500
+                          fontWeight: 500,
+                          fontSize: isMobile ? '12px' : '14px',
+                          wordBreak: 'break-word'
                         }}
                       >
                         {row.description}
                       </span>
                     ) : (
-                      <span style={{ fontWeight: 500, color: '#1f2937' }}>
+                      <span style={{ fontWeight: 500, color: '#1f2937', fontSize: isMobile ? '12px' : '14px', wordBreak: 'break-word' }}>
                         {row.description}
                       </span>
                     )}
@@ -1475,13 +1487,21 @@ export default function StudentMeetingManagement() {
               title: 'Date',
               render: (row) => {
                 const date = new Date(row.meetingDate);
-                return date.toLocaleDateString('vi-VN', {
-                  weekday: 'short',
-                  day: '2-digit',
-                  month: '2-digit',
-                  year: 'numeric'
-                });
-              }
+                return (
+                  <span style={{ fontSize: isMobile ? '11px' : '13px', whiteSpace: isMobile ? 'nowrap' : 'normal' }}>
+                    {isMobile 
+                      ? date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+                      : date.toLocaleDateString('vi-VN', {
+                          weekday: 'short',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric'
+                        })
+                    }
+                  </span>
+                );
+              },
+              hidden: isMobile && window.innerWidth < 640
             },
             {
               key: 'time',
@@ -1494,7 +1514,11 @@ export default function StudentMeetingManagement() {
                 };
                 const startTime = formatTime(row.startAt);
                 const endTime = formatTime(row.endAt);
-                return startTime && endTime ? `${startTime} - ${endTime}` : (row.time || 'N/A');
+                return (
+                  <span style={{ fontSize: isMobile ? '11px' : '13px', whiteSpace: 'nowrap' }}>
+                    {startTime && endTime ? `${startTime} - ${endTime}` : (row.time || 'N/A')}
+                  </span>
+                );
               }
             },
             {
@@ -1507,11 +1531,12 @@ export default function StudentMeetingManagement() {
                     backgroundColor: row.isMeeting === true ? '#10b981' : 
                                    status === 'Upcoming' ? '#f59e0b' : '#6b7280',
                     color: 'white',
-                    padding: '4px 8px',
+                    padding: isMobile ? '2px 6px' : '4px 8px',
                     borderRadius: '12px',
-                    fontSize: '11px',
+                    fontSize: isMobile ? '9px' : '11px',
                     fontWeight: '600',
-                    textTransform: 'uppercase'
+                    textTransform: 'uppercase',
+                    whiteSpace: 'nowrap'
                   }}>
                     {getMeetingStatusText(status)}
                   </span>
@@ -1525,11 +1550,12 @@ export default function StudentMeetingManagement() {
                 <span style={{
                   color: row.isMinute === true ? '#059669' : '#9ca3af',
                   fontWeight: 500,
-                  fontSize: '12px'
+                  fontSize: isMobile ? '10px' : '12px'
                 }}>
-                  {row.isMinute === true ? '✓ Available' : '✗ Not Available'}
+                  {row.isMinute === true ? (isMobile ? '✓' : '✓ Available') : (isMobile ? '✗' : '✗ Not Available')}
                 </span>
-              )
+              ),
+              hidden: isMobile && window.innerWidth < 640
             },
             {
               key: 'isMeeting',
@@ -1540,9 +1566,9 @@ export default function StudentMeetingManagement() {
                     <span style={{
                       color: row.isMeeting === true ? '#059669' : '#9ca3af',
                       fontWeight: 500,
-                      fontSize: '12px'
+                      fontSize: isMobile ? '10px' : '12px'
                     }}>
-                      {row.isMeeting === true ? '✓ Completed' : '✗ Not Yet'}
+                      {row.isMeeting === true ? (isMobile ? '✓' : '✓ Completed') : (isMobile ? '✗' : '✗ Not Yet')}
                     </span>
                   );
                 }
@@ -1550,8 +1576,8 @@ export default function StudentMeetingManagement() {
                   <label style={{ 
                     position: 'relative', 
                     display: 'inline-block', 
-                    width: '36px', 
-                    height: '20px',
+                    width: isMobile ? '32px' : '36px', 
+                    height: isMobile ? '18px' : '20px',
                     cursor: 'pointer'
                   }}>
                     <input
@@ -1572,9 +1598,9 @@ export default function StudentMeetingManagement() {
                     }}>
                       <span style={{
                         position: 'absolute',
-                        height: '16px',
-                        width: '16px',
-                        left: row.isMeeting === true ? '18px' : '2px',
+                        height: isMobile ? '14px' : '16px',
+                        width: isMobile ? '14px' : '16px',
+                        left: row.isMeeting === true ? (isMobile ? '16px' : '18px') : '2px',
                         bottom: '2px',
                         backgroundColor: 'white',
                         borderRadius: '50%',
@@ -1583,7 +1609,8 @@ export default function StudentMeetingManagement() {
                     </span>
                   </label>
                 );
-              }
+              },
+              hidden: isMobile && window.innerWidth < 640
             },
             {
               key: 'actions',
@@ -1593,7 +1620,7 @@ export default function StudentMeetingManagement() {
                 const hasMinute = row.isMinute === true;
                 
                 return (
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: isMobile ? '4px' : '6px', flexWrap: 'wrap' }}>
                     {/* Nút tham gia họp - chỉ hiển thị khi chưa họp */}
                     {!isMeetingCompleted && (
                       <Button
@@ -1602,14 +1629,15 @@ export default function StudentMeetingManagement() {
                           backgroundColor: '#3b82f6',
                           color: 'white',
                           border: 'none',
-                          padding: '4px 10px',
+                          padding: isMobile ? '3px 8px' : '4px 10px',
                           borderRadius: '4px',
-                          fontSize: '12px',
+                          fontSize: isMobile ? '10px' : '12px',
                           fontWeight: '500',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
                         }}
                       >
-                        Join
+                        {isMobile ? 'Join' : 'Join'}
                       </Button>
                     )}
                     
@@ -1621,14 +1649,15 @@ export default function StudentMeetingManagement() {
                           backgroundColor: '#8b5cf6',
                           color: 'white',
                           border: 'none',
-                          padding: '4px 10px',
+                          padding: isMobile ? '3px 8px' : '4px 10px',
                           borderRadius: '4px',
-                          fontSize: '12px',
+                          fontSize: isMobile ? '10px' : '12px',
                           fontWeight: '500',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
                         }}
                       >
-                        Edit Time
+                        {isMobile ? 'Edit' : 'Edit Time'}
                       </Button>
                     )}
                     
@@ -1640,21 +1669,25 @@ export default function StudentMeetingManagement() {
                           backgroundColor: '#f59e0b',
                           color: 'white',
                           border: 'none',
-                          padding: '4px 10px',
+                          padding: isMobile ? '3px 8px' : '4px 10px',
                           borderRadius: '4px',
-                          fontSize: '12px',
+                          fontSize: isMobile ? '10px' : '12px',
                           fontWeight: '500',
-                          cursor: 'pointer'
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap'
                         }}
                       >
-                        Create Minutes
+                        {isMobile ? 'Create' : 'Create Minutes'}
                       </Button>
                     )}
                   </div>
                 );
               }
             }
-          ]}
+            ];
+            // Filter out hidden columns
+            return allColumns.filter(col => !col.hidden);
+          })()}
           data={meetings.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)}
           loading={loading}
           emptyMessage="No meetings available"
@@ -1669,65 +1702,90 @@ export default function StudentMeetingManagement() {
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            gap: '8px',
-            padding: '16px',
-            borderTop: '1px solid #e5e7eb'
+            gap: isMobile ? '4px' : '8px',
+            padding: isMobile ? '12px 8px' : '16px',
+            borderTop: '1px solid #e5e7eb',
+            flexWrap: 'wrap'
           }}>
             <button
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
               style={{
-                padding: '6px 12px',
+                padding: isMobile ? '4px 8px' : '6px 12px',
                 border: '1px solid #d1d5db',
                 borderRadius: '4px',
                 background: currentPage === 1 ? '#f3f4f6' : 'white',
                 color: currentPage === 1 ? '#9ca3af' : '#374151',
                 cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
-                fontSize: '13px'
+                fontSize: isMobile ? '11px' : '13px'
               }}
             >
-              ← Previous
+              {isMobile ? '←' : '← Previous'}
             </button>
             
-            {Array.from({ length: Math.ceil(meetings.length / ITEMS_PER_PAGE) }, (_, i) => i + 1).map(page => (
-              <button
-                key={page}
-                onClick={() => setCurrentPage(page)}
-                style={{
-                  padding: '6px 12px',
-                  border: '1px solid',
-                  borderColor: currentPage === page ? '#3b82f6' : '#d1d5db',
-                  borderRadius: '4px',
-                  background: currentPage === page ? '#3b82f6' : 'white',
-                  color: currentPage === page ? 'white' : '#374151',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  fontWeight: currentPage === page ? '600' : '400'
-                }}
-              >
-                {page}
-              </button>
-            ))}
+            {Array.from({ length: Math.ceil(meetings.length / ITEMS_PER_PAGE) }, (_, i) => i + 1)
+              .filter(page => {
+                // Trên mobile chỉ hiển thị 3 trang gần current page
+                if (isMobile) {
+                  return Math.abs(page - currentPage) <= 1 || page === 1 || page === Math.ceil(meetings.length / ITEMS_PER_PAGE);
+                }
+                return true;
+              })
+              .map((page, idx, arr) => {
+                // Thêm ellipsis nếu có khoảng trống
+                const showEllipsisBefore = idx > 0 && page - arr[idx - 1] > 1;
+                return (
+                  <React.Fragment key={page}>
+                    {showEllipsisBefore && (
+                      <span style={{ padding: '0 4px', fontSize: isMobile ? '11px' : '13px', color: '#6b7280' }}>...</span>
+                    )}
+                    <button
+                      onClick={() => setCurrentPage(page)}
+                      style={{
+                        padding: isMobile ? '4px 8px' : '6px 12px',
+                        border: '1px solid',
+                        borderColor: currentPage === page ? '#3b82f6' : '#d1d5db',
+                        borderRadius: '4px',
+                        background: currentPage === page ? '#3b82f6' : 'white',
+                        color: currentPage === page ? 'white' : '#374151',
+                        cursor: 'pointer',
+                        fontSize: isMobile ? '11px' : '13px',
+                        fontWeight: currentPage === page ? '600' : '400',
+                        minWidth: isMobile ? '28px' : '36px'
+                      }}
+                    >
+                      {page}
+                    </button>
+                  </React.Fragment>
+                );
+              })}
             
             <button
               onClick={() => setCurrentPage(prev => Math.min(Math.ceil(meetings.length / ITEMS_PER_PAGE), prev + 1))}
               disabled={currentPage === Math.ceil(meetings.length / ITEMS_PER_PAGE)}
               style={{
-                padding: '6px 12px',
+                padding: isMobile ? '4px 8px' : '6px 12px',
                 border: '1px solid #d1d5db',
                 borderRadius: '4px',
                 background: currentPage === Math.ceil(meetings.length / ITEMS_PER_PAGE) ? '#f3f4f6' : 'white',
                 color: currentPage === Math.ceil(meetings.length / ITEMS_PER_PAGE) ? '#9ca3af' : '#374151',
                 cursor: currentPage === Math.ceil(meetings.length / ITEMS_PER_PAGE) ? 'not-allowed' : 'pointer',
-                fontSize: '13px'
+                fontSize: isMobile ? '11px' : '13px'
               }}
             >
-              Next →
+              {isMobile ? '→' : 'Next →'}
             </button>
             
-            <span style={{ marginLeft: '12px', fontSize: '13px', color: '#6b7280' }}>
-              Page {currentPage} of {Math.ceil(meetings.length / ITEMS_PER_PAGE)} ({meetings.length} meetings)
-            </span>
+            {!isMobile && (
+              <span style={{ marginLeft: '12px', fontSize: '13px', color: '#6b7280' }}>
+                Page {currentPage} of {Math.ceil(meetings.length / ITEMS_PER_PAGE)} ({meetings.length} meetings)
+              </span>
+            )}
+            {isMobile && (
+              <span style={{ marginLeft: '8px', fontSize: '11px', color: '#6b7280', width: '100%', textAlign: 'center', marginTop: '8px' }}>
+                {currentPage}/{Math.ceil(meetings.length / ITEMS_PER_PAGE)} ({meetings.length} meetings)
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -1756,14 +1814,14 @@ export default function StudentMeetingManagement() {
             style={{
               backgroundColor: 'white',
               borderRadius: '8px',
-              padding: '24px',
-              maxWidth: showPreviousMinuteModal ? '55%' : '1000px',
-              width: showPreviousMinuteModal ? '55%' : '90%',
+              padding: isMobile ? '16px' : '24px',
+              maxWidth: isMobile ? '95%' : (showPreviousMinuteModal ? '55%' : '1000px'),
+              width: isMobile ? '95%' : (showPreviousMinuteModal ? '55%' : '90%'),
               maxHeight: '90vh',
               overflow: 'auto',
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
               transition: 'all 0.3s ease',
-              marginRight: showPreviousMinuteModal ? '20px' : '0'
+              marginRight: showPreviousMinuteModal && !isMobile ? '20px' : '0'
             }}
           >
             <div className={styles.modalHeader}>
@@ -2070,12 +2128,19 @@ export default function StudentMeetingManagement() {
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
             backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: isMobile ? '10px' : '20px'
           }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
             className={styles.taskModal}
+            style={{
+              maxWidth: isMobile ? '95%' : '600px',
+              width: isMobile ? '95%' : '90%',
+              maxHeight: isMobile ? '90vh' : 'auto',
+              overflow: 'auto'
+            }}
           >
             <h3>Create Meeting Issue</h3>
             <div className={styles.formGroup}>
@@ -2261,7 +2326,8 @@ export default function StudentMeetingManagement() {
           style={{
             position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
             backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 10000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: isMobile ? '10px' : '20px'
           }}
         >
           <div
@@ -2269,9 +2335,11 @@ export default function StudentMeetingManagement() {
             style={{
               backgroundColor: 'white',
               borderRadius: '8px',
-              padding: '24px',
-              maxWidth: '600px',
-              width: '90%',
+              padding: isMobile ? '16px' : '24px',
+              maxWidth: isMobile ? '95%' : '600px',
+              width: isMobile ? '95%' : '90%',
+              maxHeight: '90vh',
+              overflow: 'auto',
               boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
             }}
           >
@@ -2321,9 +2389,14 @@ export default function StudentMeetingManagement() {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', 
+              gap: '16px', 
+              marginBottom: '20px' 
+            }}>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: isMobile ? '12px' : '14px', fontWeight: '500' }}>
                   Start Time <span style={{ color: '#dc2626' }}>*</span>
                 </label>
                 <Input
@@ -2334,7 +2407,7 @@ export default function StudentMeetingManagement() {
                 />
               </div>
               <div>
-                <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500' }}>
+                <label style={{ display: 'block', marginBottom: '8px', fontSize: isMobile ? '12px' : '14px', fontWeight: '500' }}>
                   End Time <span style={{ color: '#dc2626' }}>*</span>
                 </label>
                 <Input
@@ -2373,15 +2446,16 @@ export default function StudentMeetingManagement() {
           onClick={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
-            top: '50%',
-            left: '20px',
-            transform: 'translateY(-50%)',
+            top: isMobile ? '10px' : '50%',
+            left: isMobile ? '10px' : '20px',
+            right: isMobile ? '10px' : 'auto',
+            transform: isMobile ? 'none' : 'translateY(-50%)',
             backgroundColor: 'white',
             borderRadius: '8px',
-            padding: '24px',
-            width: '40%',
-            maxWidth: '550px',
-            maxHeight: '90vh',
+            padding: isMobile ? '16px' : '24px',
+            width: isMobile ? 'calc(100% - 20px)' : '40%',
+            maxWidth: isMobile ? 'none' : '550px',
+            maxHeight: isMobile ? 'calc(100vh - 20px)' : '90vh',
             overflow: 'auto',
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
             zIndex: 10001

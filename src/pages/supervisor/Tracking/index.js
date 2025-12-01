@@ -352,7 +352,6 @@ export default function SupervisorTracking() {
         body: emailBody
       });
 
-      console.log('Email notification sent successfully');
     } catch (error) {
       console.error('Error sending email notification:', error);
       // Don't throw - email failure shouldn't block the main action
@@ -574,7 +573,7 @@ export default function SupervisorTracking() {
           groupSelectPlaceholder="Select group"
           loading={loading}
         />
-        {groupInfo && (
+        {/* {groupInfo && (
           <div style={{ 
             fontSize: 14, 
             color: '#64748b',
@@ -584,7 +583,7 @@ export default function SupervisorTracking() {
           }}>
             Group: {groupInfo.projectName}
           </div>
-        )}
+        )} */}
       </div>
       
       {/* Supervisors Info - Responsive */}

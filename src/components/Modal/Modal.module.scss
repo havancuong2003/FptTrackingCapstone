@@ -9,7 +9,9 @@
   max-width: 95vw; 
   // width: 95vw; 
   max-height: 90vh; 
-  overflow: auto; 
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 .close { position: absolute; top: 8px; right: 8px; }

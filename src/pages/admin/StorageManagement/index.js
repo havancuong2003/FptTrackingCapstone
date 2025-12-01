@@ -4,7 +4,8 @@ import {
   getStorageSemesters, 
   getSemesterGroups, 
   zipFolder, 
-  unzipArchive 
+  unzipArchive,
+  getGroupSizeDetail
 } from '../../../api/storage';
 import Button from '../../../components/Button/Button';
 import DataTable from '../../../components/DataTable/DataTable';
@@ -24,8 +25,10 @@ export default function StorageManagement() {
     totalPages: 1,
     totalCount: 0
   });
-  const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
-  const [selectedPdfUrl, setSelectedPdfUrl] = useState('');
+  const [groupDetailModalOpen, setGroupDetailModalOpen] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groupDetail, setGroupDetail] = useState(null);
+  const [loadingGroupDetail, setLoadingGroupDetail] = useState(false);
 
   // Load semesters list
   useEffect(() => {
@@ -130,30 +133,72 @@ export default function StorageManagement() {
     }
   };
 
-  // Handle PDF view
+  // Handle PDF view - open in new tab
   const handleViewPdf = (pdfFilePath) => {
     if (!pdfFilePath) {
       alert('PDF file not available');
       return;
     }
-    
-    // Construct full URL
+
+    // Construct full URL for PDF
     // pdfFilePath from API is like: /uploads/Fall2025/Group11/Fall2025_Group11.pdf
-    // We need to combine with baseURL from axiosClient
-    const baseUrl = axiosClient.defaults.baseURL || '';
+    // PDF files are served directly, not through /api/v1 endpoint
     let pdfUrl;
     
     if (pdfFilePath.startsWith('http://') || pdfFilePath.startsWith('https://')) {
       pdfUrl = pdfFilePath;
     } else {
-      // Remove leading slash if baseURL already ends with one, or add if needed
+      // Get base URL from axiosClient (e.g., https://160.30.21.113:5000/api/v1)
+      const apiBaseUrl = axiosClient.defaults.baseURL || '';
+      
+      // Remove /api/v1 from base URL to get server root
+      // If baseUrl is like "https://domain.com/api/v1", we want "https://domain.com"
+      let serverBaseUrl;
+      if (apiBaseUrl.includes('/api/v1')) {
+        serverBaseUrl = apiBaseUrl.replace(/\/api\/v1\/?$/, '');
+      } else if (apiBaseUrl) {
+        // If baseURL doesn't have /api/v1, use it as is
+        serverBaseUrl = apiBaseUrl.replace(/\/+$/, '');
+      } else {
+        // Fallback: use current origin
+        serverBaseUrl = window.location.origin;
+      }
+      
+      // Ensure pdfFilePath starts with /
       const cleanPath = pdfFilePath.startsWith('/') ? pdfFilePath : `/${pdfFilePath}`;
-      const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-      pdfUrl = `${cleanBase}${cleanPath}`;
+      pdfUrl = `${serverBaseUrl}${cleanPath}`;
     }
-    
-    setSelectedPdfUrl(pdfUrl);
-    setPdfViewerOpen(true);
+
+    // Open PDF in new tab
+    window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  // Handle group detail view
+  const handleViewGroupDetail = async (group) => {
+    if (!group || !selectedSemester) {
+      return;
+    }
+
+    setSelectedGroup(group);
+    setGroupDetailModalOpen(true);
+    setLoadingGroupDetail(true);
+    setGroupDetail(null);
+
+    try {
+      const response = await getGroupSizeDetail(selectedSemester.name, group.groupName);
+      if (response?.status === 200 && response.data) {
+        setGroupDetail(response.data);
+      } else if (response?.data) {
+        setGroupDetail(response.data);
+      } else {
+        alert(response?.message || 'Không thể tải thông tin chi tiết nhóm');
+      }
+    } catch (error) {
+      console.error('Error loading group detail:', error);
+      alert(error.response?.data?.message || 'Không thể tải thông tin chi tiết nhóm');
+    } finally {
+      setLoadingGroupDetail(false);
+    }
   };
 
   // Semester columns
@@ -291,6 +336,21 @@ export default function StorageManagement() {
           </Button>
         );
       }
+    },
+    {
+      key: 'actions',
+      title: 'Actions',
+      render: (group) => (
+        <div className={styles.actionButtons}>
+          <Button
+            variant="primary"
+            size="small"
+            onClick={() => handleViewGroupDetail(group)}
+          >
+            View Detail
+          </Button>
+        </div>
+      )
     }
   ];
 
@@ -360,20 +420,39 @@ export default function StorageManagement() {
         </div>
       </Modal>
 
-      {/* PDF Viewer Modal */}
-      <Modal open={pdfViewerOpen} onClose={() => setPdfViewerOpen(false)}>
-        <div className={styles.pdfViewer}>
-          <h2>PDF Viewer</h2>
-          <div className={styles.pdfContainer}>
-            <iframe
-              src={selectedPdfUrl}
-              title="PDF Viewer"
-              className={styles.pdfIframe}
-            />
-          </div>
+      {/* Group Detail Modal */}
+      <Modal open={groupDetailModalOpen} onClose={() => setGroupDetailModalOpen(false)}>
+        <div className={styles.groupDetailModal}>
+          <h2>Chi tiết nhóm: {selectedGroup?.groupName}</h2>
+          
+          {loadingGroupDetail ? (
+            <div className={styles.loading}>Đang tải...</div>
+          ) : groupDetail ? (
+            <div className={styles.groupDetailContent}>
+              <div className={styles.detailRow}>
+                <span className={styles.detailLabel}>Semester:</span>
+                <span className={styles.detailValue}>{groupDetail.semesterName}</span>
+              </div>
+              <div className={styles.detailRow}>
+                <span className={styles.detailLabel}>Group Name:</span>
+                <span className={styles.detailValue}>{groupDetail.groupName}</span>
+              </div>
+              <div className={styles.detailRow}>
+                <span className={styles.detailLabel}>Size (Bytes):</span>
+                <span className={styles.detailValue}>{groupDetail.sizeBytes?.toLocaleString('vi-VN') || 'N/A'}</span>
+              </div>
+              <div className={styles.detailRow}>
+                <span className={styles.detailLabel}>Size (Formatted):</span>
+                <span className={styles.detailValue}><strong>{groupDetail.sizeFormatted || 'N/A'}</strong></span>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.error}>Không có dữ liệu</div>
+          )}
+
           <div className={styles.modalActions}>
-            <Button variant="secondary" onClick={() => setPdfViewerOpen(false)}>
-              Close
+            <Button variant="secondary" onClick={() => setGroupDetailModalOpen(false)}>
+              Đóng
             </Button>
           </div>
         </div>
