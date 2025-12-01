@@ -68,7 +68,7 @@ const SupervisorSchedule = React.lazy(() => import("../pages/supervisor/Schedule
 const SupervisorMeetingManagement = React.lazy(() => import("../pages/supervisor/MeetingManagement"));
 const SupervisorCalendar = React.lazy(() => import("../pages/supervisor/Calendar"));
 const CampusSlotManagement = React.lazy(() => import("../pages/admin/CampusSlotManagement"));
-const StorageManagement = React.lazy(() => import("../pages/admin/StorageManagement"));
+const StorageManagement = React.lazy(() => import("../pages/admin/StorageManagement/index"));
 export const routes = [
   {
     path: "/",
