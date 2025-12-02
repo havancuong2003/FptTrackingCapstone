@@ -392,6 +392,35 @@ export default function SupervisorEvaluation() {
   } else {
     studentsToEvaluate = selectedMilestoneData?.students || [];
   }
+  
+  // Tự động load lại thống kê khi đổi group (nếu statistics đang mở)
+  React.useEffect(() => {
+    if (selectedGroup && showStatistics && selectedGroupData?.milestones) {
+      // Tính toán studentsToEvaluate
+      let studentsToEvaluateForStats = [];
+      if (!selectedMilestone || selectedMilestone === "all") {
+        const allStudents = new Map();
+        selectedGroupData.milestones.forEach(milestone => {
+          if (milestone.students) {
+            milestone.students.forEach(student => {
+              if (!allStudents.has(student.studentId)) {
+                allStudents.set(student.studentId, student);
+              }
+            });
+          }
+        });
+        studentsToEvaluateForStats = Array.from(allStudents.values());
+      } else {
+        studentsToEvaluateForStats = selectedMilestoneData?.students || [];
+      }
+      
+      if (studentsToEvaluateForStats.length > 0) {
+        fetchAllStudentsStatistics(studentsToEvaluateForStats);
+      } else {
+        setAllStudentsStatistics([]);
+      }
+    }
+  }, [selectedGroup, showStatistics]);
 
 
 
