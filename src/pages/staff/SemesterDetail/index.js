@@ -248,6 +248,12 @@ const SemesterDetail = () => {
                 name="startAt"
                 value={editData.startAt}
                 onChange={handleEditChange}
+                disabled
+                style={{ 
+                  backgroundColor: '#f3f4f6', 
+                  cursor: 'not-allowed',
+                  opacity: 0.6
+                }}
               />
             </div>
             <div className={styles.formGroup}>
@@ -257,6 +263,12 @@ const SemesterDetail = () => {
                 name="endAt"
                 value={editData.endAt}
                 onChange={handleEditChange}
+                disabled
+                style={{ 
+                  backgroundColor: '#f3f4f6', 
+                  cursor: 'not-allowed',
+                  opacity: 0.6
+                }}
               />
             </div>
             <div className={styles.formGroup}>

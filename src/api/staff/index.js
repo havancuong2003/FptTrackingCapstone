@@ -56,3 +56,44 @@ export async function sendEmails(emailData) {
   }
 }
 
+// ================== Course Management ==================
+
+// Get all courses with pagination
+// params: { page?: number, pageSize?: number }
+export async function getAllCourses(params = {}) {
+  try {
+    const page = params.page || 1;
+    const pageSize = params.pageSize || 10;
+    
+    const url = `/Staff/getAllCodeCourse?page=${page}&pageSize=${pageSize}`;
+    
+    const response = await client.get(url);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting all courses:', error);
+    throw error;
+  }
+}
+
+// Get course by ID
+export async function getCourseById(id) {
+  try {
+    const response = await client.get(`/Staff/GetCourseBy/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting course by ID:', error);
+    throw error;
+  }
+}
+
+// Update course
+export async function updateCourse(id, courseData) {
+  try {
+    const response = await client.post(`/Staff/updateCourse/${id}`, courseData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating course:', error);
+    throw error;
+  }
+}
+
