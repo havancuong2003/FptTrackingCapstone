@@ -7,7 +7,14 @@ import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
 import styles from './index.module.scss';
 
-const ITEMS_PER_PAGE = 3;
+const DEFAULT_ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE_OPTIONS = [
+  { value: 5, label: '5' },
+  { value: 10, label: '10' },
+  { value: 20, label: '20' },
+  { value: 50, label: '50' },
+  { value: 100, label: '100' }
+];
 
 export default function CourseSizeConfig() {
   const [loading, setLoading] = useState(false);
@@ -16,6 +23,7 @@ export default function CourseSizeConfig() {
   const [allCourses, setAllCourses] = useState([]); // Lưu tất cả courses để filter client-side
   const [totalItems, setTotalItems] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
   const [searchTerm, setSearchTerm] = useState('');
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState(null);
@@ -29,35 +37,52 @@ export default function CourseSizeConfig() {
   const [errors, setErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState('');
 
-  // Load courses khi component mount hoặc khi page thay đổi
+  // Load courses khi component mount hoặc khi page/itemsPerPage thay đổi
   useEffect(() => {
     loadCourses();
-  }, [currentPage]);
+  }, [currentPage, itemsPerPage]);
 
   const loadCourses = async () => {
     setLoading(true);
+    // Clear courses immediately to avoid showing stale data
+    setCourses([]);
+    setAllCourses([]);
+    
     try {
       const response = await getAllCourses({
         page: currentPage,
-        pageSize: ITEMS_PER_PAGE
+        pageSize: itemsPerPage
+      });
+      
+      console.log('API Response:', {
+        page: currentPage,
+        pageSize: itemsPerPage,
+        response: response.data,
+        itemsCount: response.data?.items?.length || response.data?.length || 0
       });
       
       if (response.status === 200) {
         // Nếu API trả về dạng paginated response
         if (response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
-          // Có thể có cấu trúc: { data: [], total: number, page: number, pageSize: number }
-          const coursesList = Array.isArray(response.data.data) ? response.data.data : [];
+          // Cấu trúc: { items: [], total: number, page: number, pageSize: number }
+          const coursesList = Array.isArray(response.data.items) ? response.data.items : [];
           const total = response.data.total || response.data.totalItems || coursesList.length;
+          
+          // Set data - API should return exactly itemsPerPage items (or less if last page)
           setAllCourses(coursesList);
           setTotalItems(total);
+          // Set courses directly - no need to filter if no search
+          setCourses(coursesList);
         } else if (Array.isArray(response.data)) {
           // Nếu API vẫn trả về array (backward compatibility)
           const coursesList = response.data;
           setAllCourses(coursesList);
           setTotalItems(coursesList.length);
+          setCourses(coursesList);
         } else {
           setAllCourses([]);
           setTotalItems(0);
+          setCourses([]);
         }
       }
     } catch (error) {
@@ -65,6 +90,7 @@ export default function CourseSizeConfig() {
       alert('Không thể tải danh sách môn học. Vui lòng thử lại.');
       setAllCourses([]);
       setTotalItems(0);
+      setCourses([]);
     } finally {
       setLoading(false);
     }
@@ -206,17 +232,23 @@ export default function CourseSizeConfig() {
   };
 
   // Filter courses based on search term (client-side)
+  // Note: Only filter if search term exists, otherwise show allCourses directly from API
   useEffect(() => {
     if (!searchTerm.trim()) {
+      // No search - show exactly what API returns (already paginated)
       setCourses(allCourses);
     } else {
+      // Has search - filter client-side on current page data
       const filtered = allCourses.filter(course => 
         course.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
         course.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setCourses(filtered);
     }
-    setCurrentPage(1); // Reset về trang đầu khi search
+    // Don't reset page when allCourses changes (only when search changes)
+    if (searchTerm.trim()) {
+      setCurrentPage(1);
+    }
   }, [searchTerm, allCourses]);
 
   // Pagination handlers
@@ -229,7 +261,14 @@ export default function CourseSizeConfig() {
   };
 
   // Pagination calculations
-  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  
+  // Handle items per page change
+  const handleItemsPerPageChange = (e) => {
+    const newValue = parseInt(e.target.value);
+    setItemsPerPage(newValue);
+    setCurrentPage(1); // Reset về trang đầu khi thay đổi items per page
+  };
 
   // Render pagination
   const renderPagination = () => {
@@ -368,15 +407,31 @@ export default function CourseSizeConfig() {
       </div>
 
       <div className={styles.content}>
-        {/* Search Bar */}
-        <div className={styles.searchBar}>
-          <Input
-            type="text"
-            placeholder="Tìm kiếm theo mã môn học hoặc tên môn học..."
-            value={searchTerm}
-            onChange={handleSearchChange}
-            style={{ maxWidth: '400px' }}
-          />
+        {/* Search Bar and Items Per Page */}
+        <div className={styles.toolbar}>
+          <div className={styles.searchBar}>
+            <Input
+              type="text"
+              placeholder="Tìm kiếm theo mã môn học hoặc tên môn học..."
+              value={searchTerm}
+              onChange={handleSearchChange}
+              style={{ maxWidth: '400px' }}
+            />
+          </div>
+          <div className={styles.itemsPerPageSelector}>
+            <label>Items per page:</label>
+            <select
+              value={itemsPerPage}
+              onChange={handleItemsPerPageChange}
+              className={styles.select}
+            >
+              {ITEMS_PER_PAGE_OPTIONS.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Courses Table */}
