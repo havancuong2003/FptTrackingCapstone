@@ -130,18 +130,32 @@ const SemesterDetail = () => {
   const isWeekInVacation = (week) => {
     if (!vacationPeriods || vacationPeriods.length === 0) return false;
     
-    const weekStart = new Date(week.startAt);
-    const weekEnd = new Date(week.endAt);
+    // Normalize dates to start of day (remove time component) for accurate date comparison
+    const normalizeDate = (dateString) => {
+      if (!dateString) return null;
+      const date = new Date(dateString);
+      // Set to UTC midnight to avoid timezone issues
+      return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    };
+    
+    const weekStart = normalizeDate(week.startAt);
+    const weekEnd = normalizeDate(week.endAt);
+    
+    if (!weekStart || !weekEnd) return false;
     
     return vacationPeriods.some(period => {
       if (!period.startDate || !period.endDate) return false;
       
-      const vacationStart = new Date(period.startDate);
-      const vacationEnd = new Date(period.endDate);
+      const vacationStart = normalizeDate(period.startDate);
+      const vacationEnd = normalizeDate(period.endDate);
+      
+      if (!vacationStart || !vacationEnd) return false;
       
       // Check if week overlaps with vacation period
-      // Week overlaps if: weekStart <= vacationEnd && weekEnd >= vacationStart
-      return weekStart <= vacationEnd && weekEnd >= vacationStart;
+      // Week overlaps if any day in the week falls within vacation period
+      // This means: weekStart <= vacationEnd && weekEnd >= vacationStart
+      // Using getTime() for accurate numeric comparison
+      return weekStart.getTime() <= vacationEnd.getTime() && weekEnd.getTime() >= vacationStart.getTime();
     });
   };
 
