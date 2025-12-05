@@ -7,6 +7,7 @@ import {
   updateVacationPeriods
 } from '../../../api/semester';
 import BackButton from '../../common/BackButton';
+import DataTable from '../../../components/DataTable/DataTable';
 import styles from './index.module.scss';
 
 const SemesterDetail = () => {
@@ -123,6 +124,25 @@ const SemesterDetail = () => {
     } catch (error) {
       return 'Invalid Date';
     }
+  };
+
+  // Check if a week overlaps with any vacation period
+  const isWeekInVacation = (week) => {
+    if (!vacationPeriods || vacationPeriods.length === 0) return false;
+    
+    const weekStart = new Date(week.startAt);
+    const weekEnd = new Date(week.endAt);
+    
+    return vacationPeriods.some(period => {
+      if (!period.startDate || !period.endDate) return false;
+      
+      const vacationStart = new Date(period.startDate);
+      const vacationEnd = new Date(period.endDate);
+      
+      // Check if week overlaps with vacation period
+      // Week overlaps if: weekStart <= vacationEnd && weekEnd >= vacationStart
+      return weekStart <= vacationEnd && weekEnd >= vacationStart;
+    });
   };
 
   // Load vacation periods from API
@@ -336,25 +356,74 @@ const SemesterDetail = () => {
       <div className={styles.weeksSection}>
         <h2>Study Weeks</h2>
         
-        <div className={styles.weeksGrid}>
-          {weeks.map((week) => (
-            <div key={week.weekNumber} className={styles.weekCard}>
-              <div className={styles.weekNumber}>Week {week.weekNumber}</div>
-              <div className={styles.weekDates}>
-                <div className={styles.dateRow}>
-                  <span className={styles.dateLabel}>Start:</span>
-                  <span className={styles.solarDate}>{formatDate(week.startAt)}</span>
-                  <span className={styles.lunarDate}>({formatDate(week.startAtLunar)})</span>
+        <DataTable
+          data={weeks.map(week => ({
+            ...week,
+            _rowClassName: isWeekInVacation(week) ? styles.vacationWeekRow : ''
+          }))}
+          columns={[
+            {
+              key: 'weekNumber',
+              title: 'Week',
+              render: (week) => {
+                const isVacation = isWeekInVacation(week);
+                return (
+                  <div style={{ 
+                    fontWeight: 600, 
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <span>Week {week.weekNumber}</span>
+                    {isVacation && (
+                      <span style={{
+                        background: '#dc3545',
+                        color: 'white',
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: 600
+                      }}>
+                        Vacation
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+            },
+            {
+              key: 'startDate',
+              title: 'Start Date',
+              render: (week) => (
+                <div style={{ fontSize: '14px' }}>
+                  <div style={{ fontWeight: 500, color: '#333', marginBottom: '4px' }}>
+                    Solar: {formatDate(week.startAt)}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6c757d' }}>
+                    Lunar: {formatDate(week.startAtLunar)}
+                  </div>
                 </div>
-                <div className={styles.dateRow}>
-                  <span className={styles.dateLabel}>End:</span>
-                  <span className={styles.solarDate}>{formatDate(week.endAt)}</span>
-                  <span className={styles.lunarDate}>({formatDate(week.endAtLunar)})</span>
+              )
+            },
+            {
+              key: 'endDate',
+              title: 'End Date',
+              render: (week) => (
+                <div style={{ fontSize: '14px' }}>
+                  <div style={{ fontWeight: 500, color: '#333', marginBottom: '4px' }}>
+                    Solar: {formatDate(week.endAt)}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6c757d' }}>
+                    Lunar: {formatDate(week.endAtLunar)}
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              )
+            }
+          ]}
+          loading={false}
+          emptyMessage="No study weeks found"
+        />
       </div>
 
       {/* Vacation Periods Management */}

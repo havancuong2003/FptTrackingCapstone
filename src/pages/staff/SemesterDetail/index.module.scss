@@ -562,3 +562,12 @@
     font-style: italic;
   }
 }
+
+.vacationWeekRow {
+  background-color: #fff5f5 !important;
+  border-left: 4px solid #dc3545 !important;
+  
+  &:hover {
+    background-color: #ffe5e5 !important;
+  }
+}

@@ -67,10 +67,16 @@ const DataTable = ({
               </td>
             </tr>
           ) : (
-            data.map((row, rowIndex) => (
+            data.map((row, rowIndex) => {
+              const dynamicRowClassName = typeof rowClassName === 'function' 
+                ? rowClassName(row, rowIndex) 
+                : rowClassName;
+              const finalRowClassName = row._rowClassName || dynamicRowClassName;
+              
+              return (
               <tr 
                 key={row.id || rowIndex}
-                className={`${styles.tableRow} ${rowClassName} ${onRowClick ? styles.clickableRow : ''}`}
+                className={`${styles.tableRow} ${finalRowClassName || ''} ${onRowClick ? styles.clickableRow : ''}`}
                 onClick={() => handleRowClick(row, rowIndex)}
               >
                 {showIndex && (
@@ -86,7 +92,8 @@ const DataTable = ({
                   </td>
                 ))}
               </tr>
-            ))
+            );
+            })
           )}
         </tbody>
       </table>
