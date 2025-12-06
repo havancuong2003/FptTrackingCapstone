@@ -25,9 +25,6 @@ export default function SupervisorEvaluation() {
   const [selectedGroup, setSelectedGroup] = React.useState(null);
   const [selectedMilestone, setSelectedMilestone] = React.useState("all");
   const [loading, setLoading] = React.useState(true);
-  const [evaluateModal, setEvaluateModal] = React.useState(false);
-  const [editModal, setEditModal] = React.useState(false);
-  const [statisticsModal, setStatisticsModal] = React.useState(false);
   const [selectedStudent, setSelectedStudent] = React.useState(null);
   const [selectedEvaluation, setSelectedEvaluation] = React.useState(null);
   const [newEvaluation, setNewEvaluation] = React.useState({
@@ -84,6 +81,14 @@ export default function SupervisorEvaluation() {
   const [currentEvaluation, setCurrentEvaluation] = React.useState(null); // Lưu currentEvaluation từ API
   const [statisticsTab, setStatisticsTab] = React.useState("overview"); // 'overview' | 'history'
   const [evaluationTab, setEvaluationTab] = React.useState("tasks"); // 'tasks' | 'evaluation'
+  const [selectedOverviewMilestone, setSelectedOverviewMilestone] = React.useState(null); // Milestone được chọn trong overview
+  const [studentDetailModal, setStudentDetailModal] = React.useState(false); // Modal tổng hợp tasks và evaluate
+  const [studentDetailTab, setStudentDetailTab] = React.useState("tasks"); // Tab trong student detail modal
+  const [showStatistics, setShowStatistics] = React.useState(false); // Ẩn thống kê mặc định
+  const [allStudentsStatistics, setAllStudentsStatistics] = React.useState([]); // Thống kê tất cả students
+  const [loadingAllStatistics, setLoadingAllStatistics] = React.useState(false);
+  const [evaluationHistoryModal, setEvaluationHistoryModal] = React.useState(false); // Modal hiển thị lịch sử đánh giá
+  const [selectedStudentForHistory, setSelectedStudentForHistory] = React.useState(null); // Student được chọn để xem lịch sử
 
   // ------------------ Fetch Evaluations ------------------
   const fetchEvaluationsRef = React.useRef(false);
@@ -258,8 +263,6 @@ export default function SupervisorEvaluation() {
     });
   }, [selectedSemesterId, groupExpireFilter]);
 
-
-
   // ------------------ Fetch Milestones & Students ------------------
   React.useEffect(() => {
     if (!selectedGroup) return;
@@ -390,6 +393,34 @@ export default function SupervisorEvaluation() {
     studentsToEvaluate = selectedMilestoneData?.students || [];
   }
   
+  // Tự động load lại thống kê khi đổi group (nếu statistics đang mở)
+  React.useEffect(() => {
+    if (selectedGroup && showStatistics && selectedGroupData?.milestones) {
+      // Tính toán studentsToEvaluate
+      let studentsToEvaluateForStats = [];
+      if (!selectedMilestone || selectedMilestone === "all") {
+        const allStudents = new Map();
+        selectedGroupData.milestones.forEach(milestone => {
+          if (milestone.students) {
+            milestone.students.forEach(student => {
+              if (!allStudents.has(student.studentId)) {
+                allStudents.set(student.studentId, student);
+              }
+            });
+          }
+        });
+        studentsToEvaluateForStats = Array.from(allStudents.values());
+      } else {
+        studentsToEvaluateForStats = selectedMilestoneData?.students || [];
+      }
+      
+      if (studentsToEvaluateForStats.length > 0) {
+        fetchAllStudentsStatistics(studentsToEvaluateForStats);
+      } else {
+        setAllStudentsStatistics([]);
+      }
+    }
+  }, [selectedGroup, showStatistics]);
 
 
 
@@ -484,7 +515,7 @@ export default function SupervisorEvaluation() {
   };
 
   // ------------------ Modal Logic ------------------
-  const openEvaluateModal = async (student, milestone = null) => {
+  const openStudentDetailModal = async (student, milestone = null) => {
     // Xác định milestone tương ứng với ô được click
     let effectiveMilestone = milestone;
     if (!effectiveMilestone && selectedGroupData?.milestones) {
@@ -496,7 +527,7 @@ export default function SupervisorEvaluation() {
     setSelectedCellStudent(student);
     setSelectedCellMilestone(effectiveMilestone);
     setSelectedEvaluation(null);
-    setEvaluationTab("tasks");
+    setStudentDetailTab("tasks");
 
     // Load tasks và currentEvaluation cho ô hiện tại
     let evaluationData = null;
@@ -526,124 +557,13 @@ export default function SupervisorEvaluation() {
       });
     }
     
-    setEvaluateModal(true);
+    setStudentDetailModal(true);
   };
 
-  const openEditModal = async (student, evaluation) => {
-    setSelectedStudent(student);
-    setSelectedEvaluation(evaluation);
-    
-    // Lấy đúng evaluationId từ bản ghi đánh giá để gọi API update
-    // Ưu tiên evaluationId mới từ API, sau đó là id, cuối cùng là receiverId
-    const evaluationId = (
-      evaluation?.evaluationId ?? evaluation?.id ?? evaluation?.receiverId ?? null
-    );
-    
-    // Xác định deliverableId đã được dùng trước đó cho evaluation này
-    // 1) Ưu tiên lấy trực tiếp từ evaluation nếu có
-    let resolvedMilestoneId = evaluation.deliverableId?.toString?.() || evaluation.deliverableID?.toString?.() || "";
-    // 2) Nếu không có, map từ deliverableName sang id trong danh sách milestones của nhóm
-    if (!resolvedMilestoneId && evaluation.deliverableName && Array.isArray(selectedGroupData?.milestones)) {
-      const matchedMilestone = selectedGroupData.milestones.find(m => m.name === evaluation.deliverableName);
-      if (matchedMilestone?.id) {
-        resolvedMilestoneId = matchedMilestone.id;
-      }
-    }
-    // 3) Fallback cuối cùng: dùng milestone đang chọn trên UI nếu có
-    if (!resolvedMilestoneId && selectedMilestoneData?.id) {
-      resolvedMilestoneId = selectedMilestoneData.id;
-    }
-    
-    
-    // Map feedback từ API sang value (tìm theo text, value, hoặc shortValue)
-    const getFeedbackValue = (feedback) => {
-      if (!feedback) return "";
-      const feedbackStr = feedback.toString().trim();
-      const feedbackLower = feedbackStr.toLowerCase();
-      
-      // Tìm theo shortValue (excellent, good, fair, average, poor) - ưu tiên cho giá trị mới từ backend
-      const matchedByShortValue = feedbackStatements.find(statement => 
-        statement.shortValue === feedbackLower || 
-        statement.shortValue === feedbackStr
-      );
-      if (matchedByShortValue) return matchedByShortValue.value;
-      
-      // Tìm theo text đầy đủ
-      const matchedStatement = feedbackStatements.find(statement => 
-        statement.text === feedbackStr || 
-        feedbackStr.includes(statement.text) ||
-        statement.value === feedbackStr
-      );
-      
-      if (matchedStatement) return matchedStatement.value;
-      
-      // Tìm theo từ khóa tiếng Anh
-      if (feedbackLower.includes("comprehensive") || feedbackLower.includes("exceeding")) return "exceeds";
-      if (feedbackLower.includes("strong understanding") || (feedbackLower.includes("fully meets") && feedbackLower.includes("requirements"))) return "fully_meets";
-      if (feedbackLower.includes("most") && feedbackLower.includes("requirements")) return "mostly_meets";
-      if (feedbackLower.includes("basic") && (feedbackLower.includes("lacks") || feedbackLower.includes("detail"))) return "basic";
-      if (feedbackLower.includes("does not meet") || feedbackLower.includes("minimum requirements")) return "below_standard";
-      
-      // Tìm theo từ khóa tiếng Việt (backward compatibility)
-      if (feedbackLower.includes("toàn diện") || feedbackLower.includes("vượt yêu cầu")) return "exceeds";
-      if (feedbackLower.includes("nắm vững") && feedbackLower.includes("đầy đủ")) return "fully_meets";
-      if (feedbackLower.includes("phần lớn")) return "mostly_meets";
-      if (feedbackLower.includes("cơ bản") || feedbackLower.includes("thiếu chi tiết")) return "basic";
-      if (feedbackLower.includes("chưa đạt")) return "below_standard";
-      if (feedbackLower.includes("hoàn thành đầy đủ") || feedbackLower.includes("chính xác")) return "fully_meets";
-      
-      return feedbackStr; // Giữ nguyên nếu không match
-    };
 
-    // Ưu tiên map theo TYPE từ API; fallback map từ feedback text
-    const feedbackValueFromType = (() => {
-      const t = (evaluation?.type || '').toString().trim().toLowerCase();
-      if (!t) return '';
-      const byShort = feedbackStatements.find(s => s.shortValue === t);
-      if (byShort) return byShort.value;
-      const byText = feedbackStatements.find(s => s.text.toLowerCase() === t);
-      return byText ? byText.value : '';
-    })();
-
-    // Tìm milestone object tương ứng để hiển thị + load tasks
-    let effectiveMilestone = null;
-    if (resolvedMilestoneId && Array.isArray(selectedGroupData?.milestones)) {
-      effectiveMilestone =
-        selectedGroupData.milestones.find(m => m.id === resolvedMilestoneId) || null;
-    }
-    if (!effectiveMilestone && evaluation.deliverableName && Array.isArray(selectedGroupData?.milestones)) {
-      effectiveMilestone =
-        selectedGroupData.milestones.find(m => m.name === evaluation.deliverableName) || null;
-    }
-
-    setSelectedCellStudent(student);
-    setSelectedCellMilestone(effectiveMilestone);
-    setEvaluationTab("evaluation"); // Mở tab Evaluation thay vì Tasks
-
-    if (effectiveMilestone) {
-      fetchCellTasks(student, effectiveMilestone);
-    } else {
-      setCellTasks([]);
-    }
-
-    setEditEvaluation({
-      id: evaluationId?.toString?.() || "",
-      studentId: student.studentId, // Đã là string từ API
-      milestoneId: resolvedMilestoneId || "",
-      feedback: feedbackValueFromType || getFeedbackValue(evaluation.feedback || ""),
-      notes: evaluation.feedback || evaluation.notes || evaluation.comment || "", // Notes lấy từ feedback text của API
-    });
-    setEditModal(true);
-  };
-
-  // Khi click vào ô (student x milestone): nếu đã có evaluation thì mở Edit, chưa có thì mở Evaluate
+  // Khi click vào ô (student x milestone): mở Student Detail Modal
   const handleMatrixCellClick = (student, milestone) => {
-    const cellStats = getCellTaskStats(student, milestone);
-    if (cellStats.hasEvaluation) {
-      openEditModal(student, cellStats.evaluation);
-    } else {
-      openEvaluateModal(student, milestone);
-    }
+    openStudentDetailModal(student, milestone);
   };
 
   // Render danh sách task cho ô (student x milestone) dùng chung cho Evaluate/Edit modal
@@ -762,30 +682,16 @@ export default function SupervisorEvaluation() {
     );
   };
 
-  const openStatisticsModal = async (student) => {
-    setSelectedStudent(student);
-    setStatisticsModal(true);
-    setLoadingStatistics(true);
-    setStudentStatistics(null);
-    
-    // Fetch statistics khi mở modal
-    await fetchStudentStatistics(student);
-  };
 
   // Fetch toàn bộ thống kê của sinh viên
   const fetchStudentStatistics = async (student) => {
     try {
       setLoadingStatistics(true);
       
-      const deliverableId = selectedMilestone && selectedMilestone !== "all"
-        ? parseInt(selectedMilestone, 10)
-        : undefined;
-
-      // Gọi API mới: thống kê task + history evaluation
+      // Không filter theo milestone - lấy tất cả
       const statsResponse = await getStudentEvaluationStatistics({
         groupId: parseInt(selectedGroup, 10),
-        studentId: parseInt(student.studentId, 10),
-        deliverableId
+        studentId: parseInt(student.studentId, 10)
       });
 
       const statsData = statsResponse?.data || statsResponse || {};
@@ -816,6 +722,61 @@ export default function SupervisorEvaluation() {
       setStudentStatistics(null);
     } finally {
       setLoadingStatistics(false);
+    }
+  };
+
+  // Fetch thống kê cho tất cả students trong group
+  const fetchAllStudentsStatistics = async (studentsList) => {
+    if (!selectedGroup || !studentsList || !studentsList.length) return;
+    
+    setLoadingAllStatistics(true);
+    try {
+      const statsPromises = studentsList.map(student => 
+        getStudentEvaluationStatistics({
+          groupId: parseInt(selectedGroup, 10),
+          studentId: parseInt(student.studentId, 10)
+        }).then(response => {
+          const statsData = response?.data || response || {};
+          return {
+            student: {
+              id: student.id,
+              name: student.name,
+              role: student.role || 'Member',
+              email: student.email || 'N/A'
+            },
+            taskStats: statsData.taskStats || {
+              totalTasks: 0,
+              completedTasks: 0,
+              uncompletedTasks: 0,
+            },
+            evaluations: Array.isArray(statsData.evaluations) ? statsData.evaluations : []
+          };
+        }).catch(error => {
+          console.error(`Error fetching stats for student ${student.id}:`, error);
+          return {
+            student: {
+              id: student.id,
+              name: student.name,
+              role: student.role || 'Member',
+              email: student.email || 'N/A'
+            },
+            taskStats: {
+              totalTasks: 0,
+              completedTasks: 0,
+              uncompletedTasks: 0,
+            },
+            evaluations: []
+          };
+        })
+      );
+
+      const allStats = await Promise.all(statsPromises);
+      setAllStudentsStatistics(allStats);
+    } catch (error) {
+      console.error('Error fetching all students statistics:', error);
+      setAllStudentsStatistics([]);
+    } finally {
+      setLoadingAllStatistics(false);
     }
   };
 
@@ -937,7 +898,7 @@ export default function SupervisorEvaluation() {
 
           // Đóng modal và hiển thị thông báo
           alert("Evaluation updated successfully!");
-          setEvaluateModal(false);
+          setStudentDetailModal(false);
           return;
         } else {
           alert(`Error: ${response?.data?.message || response?.message || 'Unable to update evaluation'}`);
@@ -1021,7 +982,8 @@ export default function SupervisorEvaluation() {
         //   // Không hiển thị lỗi email cho user, chỉ log
         // }
         
-        setEvaluateModal(false);
+        setStudentDetailModal(false);
+        setStudentDetailModal(false);
         alert("Evaluation submitted successfully!");
       } else {
         alert(`Error: ${response?.data?.message || response?.message || 'Unable to create evaluation'}`);
@@ -1087,7 +1049,7 @@ export default function SupervisorEvaluation() {
       // Check if response is successful
       if (response?.status === 200 || !response?.error) {
         // Close modal first
-        setEditModal(false);
+        setStudentDetailModal(false);
         
         // Cập nhật state evaluations trực tiếp để UI refresh ngay lập tức
         const updatedData = response?.data || response || {};
@@ -1248,159 +1210,329 @@ export default function SupervisorEvaluation() {
           />
         </div>
 
-        {/* ------------------ Group Overview Matrix (Student x Milestone) ------------------ */}
+        {/* ------------------ Group Overview: Milestone List ------------------ */}
         <div className={sharedLayout.contentSection}>
           <h2>Group Evaluation Overview</h2>
           <p className={styles.matrixDescription}>
-            Click on a cell to view all tasks for that student in the milestone
+            Click on a milestone to view and evaluate students
           </p>
-          <div className={styles.matrixContainer}>
-            {selectedGroupData?.milestones?.length > 0 && studentsToEvaluate.length > 0 ? (
-              <DataTable
-                className={styles.matrixDataTable}
-                columns={[
-                  {
-                    key: 'student',
-                    title: 'Student',
-                    headerClassName: styles.matrixHeaderStudent,
-                    cellClassName: styles.matrixStudentCell,
-                    render: (student) => (
-                      <div className={styles.studentCellInfo}>
-                        <strong>{student.name}</strong>
-                        <span className={styles.studentCellId}>{student.id}</span>
-                      </div>
-                    )
-                  },
-                  ...selectedGroupData.milestones.map((milestone) => ({
-                    key: `milestone-${milestone.id}`,
-                    title: milestone.name,
-                    headerClassName: styles.matrixHeaderMilestone,
-                    cellClassName: styles.matrixCell,
-                    render: (student) => {
-                      const cellStats = getCellTaskStats(student, milestone);
+          
+          {/* Milestone List */}
+          {!selectedOverviewMilestone ? (
+            <div className={styles.milestoneListContainer}>
+              {selectedGroupData?.milestones?.length > 0 ? (
+                <div className={styles.milestoneGrid}>
+                  {selectedGroupData.milestones.map((milestone) => (
+                    <div
+                      key={milestone.id}
+                      className={styles.milestoneCard}
+                      onClick={() => setSelectedOverviewMilestone(milestone)}
+                      style={{
+                        cursor: 'pointer',
+                        padding: '16px',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        background: '#fff',
+                        transition: 'all 0.2s',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = '#3b82f6';
+                        e.currentTarget.style.boxShadow = '0 4px 6px rgba(59, 130, 246, 0.2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                        e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                      }}
+                    >
+                      <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600', color: '#1e293b' }}>
+                        {milestone.name}
+                      </h3>
+                      <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
+                        Click to view students
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className={styles.noMatrixData}>
+                  No milestones found for this group
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Students List for Selected Milestone */
+            <div>
+              <div className={styles.milestoneHeader}>
+                <button
+                  onClick={() => setSelectedOverviewMilestone(null)}
+                  className={styles.backButton}
+                >
+                  ← Back to Milestones
+                </button>
+                <h3 className={styles.milestoneTitle}>
+                  {selectedOverviewMilestone.name}
+                </h3>
+              </div>
+              
+              {studentsToEvaluate.length > 0 ? (
+                <div className={styles.studentListCompact}>
+                  {studentsToEvaluate.map((student) => {
+                    const cellStats = getCellTaskStats(student, selectedOverviewMilestone);
                       return (
-                        <div
-                          className={`${styles.matrixCellContent} ${cellStats.hasEvaluation ? styles.matrixCellEvaluated : styles.matrixCellPending}`}
-                          onClick={() => handleMatrixCellClick(student, milestone)}
-                          title={`Click để đánh giá/chỉnh sửa đánh giá cho ${student.name} ở ${milestone.name}`}
-                        >
-                          {cellStats.hasEvaluation ? (
-                            <span className={styles.evaluationBadge}>
-                              {mapFeedbackToText(
-                                cellStats.evaluation?.type || cellStats.evaluation?.feedback
-                              )}
-                            </span>
-                          ) : (
-                            <span className={styles.viewLink} style={{ 
-                              cursor: 'pointer', 
-                              color: '#3b82f6', 
-                              fontSize: '12px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: '500',
-                              textDecoration: 'underline'
-                            }}>
-                              Task & Evaluate
-                            </span>
-                          )}
+                      <div
+                        key={student.studentId}
+                        className={styles.studentItemCompact}
+                        onClick={async () => {
+                          // Load tasks và evaluation data
+                          await openStudentDetailModal(student, selectedOverviewMilestone);
+                        }}
+                        title="Click to view tasks, evaluation and statistics"
+                      >
+                        <div className={styles.studentNameCompact}>
+                          <strong>{student.name}</strong>
+                          <span className={styles.studentIdCompact}>({student.id})</span>
+                        </div>
+                        {cellStats.hasEvaluation && (
+                          <span className={styles.evaluationBadgeCompact}>
+                            {mapFeedbackToText(
+                              cellStats.evaluation?.type || cellStats.evaluation?.feedback
+                            )}
+                          </span>
+                        )}
                         </div>
                       );
-                    }
-                  })),
-                  {
-                    key: 'actions',
-                    title: 'Actions',
-                    headerClassName: styles.matrixHeaderActions,
-                    cellClassName: styles.matrixActionsCell,
-                    render: (student) => {
-                      return (
-                        <div className={styles.actions}>
-                          <Button
-                            variant="ghost"
-                            size="small"
-                            onClick={() => {
-                              setStatisticsTab("overview");
-                              openStatisticsModal(student);
-                            }}
-                            title="Xem thống kê đánh giá"
-                          >
-                            Thống kê
-                          </Button>
-                        </div>
-                      );
-                    }
-                  }
-                ]}
-                data={studentsToEvaluate}
-                loading={loading}
-                emptyMessage="No students found for evaluation"
-                showIndex={false}
-              />
+                  })}
+                </div>
             ) : (
               <div className={styles.noMatrixData}>
-                {!selectedGroupData?.milestones?.length
-                  ? "No milestones found for this group"
-                  : "No students found for evaluation"}
+                  No students found for evaluation
               </div>
             )}
           </div>
+          )}
         </div>
+
+        {/* ------------------ Group Statistics Section ------------------ */}
+        {selectedGroup && (
+          <div className={sharedLayout.contentSection}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2>Group Statistics</h2>
+              <Button
+                variant="ghost"
+                size="small"
+                onClick={async () => {
+                  if (!showStatistics) {
+                    // Tính toán studentsToEvaluate khi click
+                    let studentsToEvaluateForStats = [];
+                    if (!selectedMilestone || selectedMilestone === "all") {
+                      if (selectedGroupData?.milestones) {
+                        const allStudents = new Map();
+                        selectedGroupData.milestones.forEach(milestone => {
+                          if (milestone.students) {
+                            milestone.students.forEach(student => {
+                              if (!allStudents.has(student.studentId)) {
+                                allStudents.set(student.studentId, student);
+                              }
+                            });
+                          }
+                        });
+                        studentsToEvaluateForStats = Array.from(allStudents.values());
+                      }
+                    } else {
+                      studentsToEvaluateForStats = selectedMilestoneData?.students || [];
+                    }
+                    
+                    if (studentsToEvaluateForStats.length > 0) {
+                      await fetchAllStudentsStatistics(studentsToEvaluateForStats);
+                    }
+                  }
+                  setShowStatistics(!showStatistics);
+                }}
+              >
+                {showStatistics ? 'Hide Statistics' : 'Show Statistics'}
+              </Button>
+      </div>
+
+            {showStatistics && (
+              <div className={styles.statisticsContainer}>
+                {loadingAllStatistics ? (
+                  <div className={styles.loadingStatistics}>
+                    <p>Loading statistics...</p>
+            </div>
+                ) : allStudentsStatistics.length === 0 ? (
+                  <div className={styles.noStatistics}>
+                    <p>No statistics data available.</p>
+              </div>
+                ) : (
+                  <>
+                    {/* Summary Overview */}
+                    <div className={styles.statisticsSummary}>
+                      <div className={styles.summaryCard}>
+                        <div className={styles.summaryContent}>
+                          <div className={styles.summaryValue}>{allStudentsStatistics.length}</div>
+                          <div className={styles.summaryLabel}>Total Students</div>
+                      </div>
+                    </div>
+                      <div className={styles.summaryCard}>
+                        <div className={styles.summaryContent}>
+                          <div className={styles.summaryValue}>
+                            {allStudentsStatistics.reduce((sum, stat) => sum + (stat.taskStats.completedTasks || 0), 0)}
+                    </div>
+                          <div className={styles.summaryLabel}>Completed Tasks</div>
+                        </div>
+                      </div>
+                      <div className={styles.summaryCard}>
+                        <div className={styles.summaryContent}>
+                          <div className={styles.summaryValue}>
+                            {(() => {
+                              const total = allStudentsStatistics.reduce((sum, stat) => sum + (stat.taskStats.totalTasks || 0), 0);
+                              const completed = allStudentsStatistics.reduce((sum, stat) => sum + (stat.taskStats.completedTasks || 0), 0);
+                              return total > 0 ? ((completed / total) * 100).toFixed(1) : 0;
+                            })()}%
+                          </div>
+                          <div className={styles.summaryLabel}>Overall Completion</div>
+                        </div>
+                      </div>
+                      <div className={styles.summaryCard}>
+                        <div className={styles.summaryContent}>
+                          <div className={styles.summaryValue}>
+                            {allStudentsStatistics.reduce((sum, stat) => sum + stat.evaluations.length, 0)}
+                          </div>
+                          <div className={styles.summaryLabel}>Total Evaluations</div>
+                        </div>
+              </div>
+            </div>
+
+                    {/* Students Statistics Table */}
+                    <div className={styles.statisticsTableWrapper}>
+                      <table className={styles.statisticsTable}>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '20%' }}>Student</th>
+                            <th style={{ width: '12%' }}>Total Tasks</th>
+                            <th style={{ width: '12%' }}>Completed</th>
+                            <th style={{ width: '12%' }}>Pending</th>
+                            <th style={{ width: '16%' }}>Completion Rate</th>
+                            <th style={{ width: '28%' }}>Number of Evaluations</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {allStudentsStatistics.map((stat, index) => {
+                            const percentage = stat.taskStats.totalTasks > 0
+                              ? ((stat.taskStats.completedTasks / stat.taskStats.totalTasks) * 100)
+                              : 0;
+                            
+                            return (
+                              <tr key={stat.student.id || index}>
+                                <td style={{ textAlign: 'center' }}>
+                                  <div className={styles.studentInfoCellInline}>
+                                    <span className={styles.studentNameWithId}>
+                                      {stat.student.name} ({stat.student.id})
+                                    </span>
+                                    <span className={`${styles.roleBadge} ${
+                                      stat.student.role === 'Leader' ? styles.roleLeader :
+                                      stat.student.role === 'Secretary' ? styles.roleSecretary :
+                                      styles.roleMember
+                                    }`}>
+                                      {stat.student.role === 'Leader' ? 'Leader' :
+                                       stat.student.role === 'Secretary' ? 'Secretary' :
+                                       'Member'}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className={styles.numberCell}>{stat.taskStats.totalTasks || 0}</td>
+                                <td className={`${styles.numberCell} ${styles.successValue}`}>
+                                  {stat.taskStats.completedTasks || 0}
+                                </td>
+                                <td className={`${styles.numberCell} ${styles.warningValue}`}>
+                                  {stat.taskStats.uncompletedTasks || 0}
+                                </td>
+                                <td className={styles.numberCell}>
+                                  <span className={styles.percentageText}>{percentage.toFixed(1)}%</span>
+                                </td>
+                                <td className={styles.numberCell}>
+                                  {stat.evaluations.length > 0 ? (
+                                    <span 
+                                      className={styles.clickableEvaluationCount}
+                                      onClick={() => {
+                                        setSelectedStudentForHistory(stat);
+                                        setEvaluationHistoryModal(true);
+                                      }}
+                                    >
+                                      {stat.evaluations.length}
+                                    </span>
+                                  ) : (
+                                    <span className={styles.noData}>—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+            </div>
+                  </>
+              )}
+          </div>
+        )}
+          </div>
+        )}
 
       </div>
 
-      {/* ------------------ Evaluate Modal ------------------ */}
-      <Modal open={evaluateModal} onClose={() => setEvaluateModal(false)}>
+      {/* ------------------ Student Detail Modal (Tasks & Evaluation) ------------------ */}
+      <Modal open={studentDetailModal} onClose={() => setStudentDetailModal(false)}>
         {selectedStudent && (
           <div className={styles.evaluateModal}>
-            <h2>Evaluate Student</h2>
+            <h2>Student Details</h2>
             
             <div className={styles.studentInfo}>
               <h3>{selectedStudent.name}</h3>
               <p className={styles.studentCode}>Student ID: {selectedStudent.id}</p>
               <p>
                 Milestone:{" "}
-                {selectedCellMilestone?.name || selectedMilestoneData?.name || "N/A"}
+                {selectedCellMilestone?.name || selectedOverviewMilestone?.name || "N/A"}
               </p>
             </div>
 
             {/* Content wrapper with flex: 1 and overflow */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {/* Tabs: Tasks | Evaluation */}
-              <div className={styles.evaluationTabs}>
-                <button
-                  type="button"
-                  className={`${styles.evaluationTabButton} ${evaluationTab === "tasks" ? styles.evaluationTabActive : ""}`}
-                  onClick={() => setEvaluationTab("tasks")}
-                >
-                  Tasks
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.evaluationTabButton} ${evaluationTab === "evaluation" ? styles.evaluationTabActive : ""}`}
-                  onClick={() => setEvaluationTab("evaluation")}
-                >
-                  Evaluation
-                </button>
+            <div style={{ 
+              flex: '1 1 auto', 
+              display: 'flex', 
+              flexDirection: 'column', 
+              overflow: 'hidden',
+              minHeight: 0,
+              maxHeight: 'calc(90vh - 250px)'
+            }}>
+              <div style={{ 
+                flex: '1 1 auto',
+                overflowY: 'auto', 
+                overflowX: 'hidden', 
+                width: '100%',
+                minHeight: 0
+              }}>
+                {/* Tasks Section */}
+                <div style={{ marginBottom: '24px' }}>
+                  <h3 style={{ marginBottom: '12px', fontSize: '16px', fontWeight: '600' }}>Tasks</h3>
+                  {renderCellTasksSection()}
               </div>
 
-              <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minHeight: 0 }}>
-                {evaluationTab === "tasks" ? (
-                  renderCellTasksSection()
-                ) : (
-                  <>
+                {/* Evaluation Section - Below Tasks */}
+                <div className={styles.evaluationSection}>
+                  <h3 className={styles.evaluationTitle}>Evaluation</h3>
                     <div className={styles.formGroup}>
-                      <label>Feedback *</label>
+                    <label className={styles.formLabel}>Feedback *</label>
                       <div className={styles.feedbackOptions}>
                         {feedbackStatements.map((statement) => (
                           <label key={statement.value} className={styles.feedbackOption}>
                             <input
                               type="radio"
-                              name="feedback"
+                            name="feedback"
                               value={statement.value}
-                              checked={newEvaluation.feedback === statement.value}
+                            checked={newEvaluation.feedback === statement.value}
                               onChange={(e) =>
-                                setNewEvaluation({ ...newEvaluation, feedback: e.target.value })
+                              setNewEvaluation({ ...newEvaluation, feedback: e.target.value })
                               }
                               className={styles.radioInput}
                               required
@@ -1412,19 +1544,18 @@ export default function SupervisorEvaluation() {
                     </div>
 
                     <div className={styles.formGroup}>
-                      <label>Notes</label>
+                    <label className={styles.formLabel}>Notes</label>
                       <textarea
-                        value={newEvaluation.notes}
+                      value={newEvaluation.notes}
                         onChange={(e) =>
-                          setNewEvaluation({ ...newEvaluation, notes: e.target.value })
+                        setNewEvaluation({ ...newEvaluation, notes: e.target.value })
                         }
                         placeholder="Provide notes for the student..."
                         rows={4}
                         className={styles.textarea}
                       />
                     </div>
-                  </>
-                )}
+                </div>
               </div>
             </div>
 
@@ -1432,334 +1563,12 @@ export default function SupervisorEvaluation() {
             <div className={styles.modalActions}>
               <Button
                 variant="secondary"
-                onClick={() => setEvaluateModal(false)}
+                onClick={() => setStudentDetailModal(false)}
               >
                 Close
               </Button>
-              {evaluationTab === "evaluation" && (
-                <Button onClick={submitEvaluation}>
-                  {currentEvaluation ? "Save" : "Submit Evaluation"}
-                </Button>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* ------------------ Edit Modal ------------------ */}
-      <Modal open={editModal} onClose={() => setEditModal(false)}>
-        {selectedStudent && selectedEvaluation && (
-          <div className={styles.evaluateModal}>
-            <h2>Edit Evaluation</h2>
-            
-            <div className={styles.studentInfo}>
-              <h3>{selectedStudent.name}</h3>
-              <p className={styles.studentCode}>Student ID: {selectedStudent.id}</p>
-              <p>
-                Milestone:{" "}
-                {selectedCellMilestone?.name || selectedMilestoneData?.name || "N/A"}
-              </p>
-            </div>
-
-            {/* Content wrapper with flex: 1 and overflow */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              {/* Tabs: Tasks | Evaluation */}
-              <div className={styles.evaluationTabs}>
-                <button
-                  type="button"
-                  className={`${styles.evaluationTabButton} ${evaluationTab === "tasks" ? styles.evaluationTabActive : ""}`}
-                  onClick={() => setEvaluationTab("tasks")}
-                >
-                  Tasks
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.evaluationTabButton} ${evaluationTab === "evaluation" ? styles.evaluationTabActive : ""}`}
-                  onClick={() => setEvaluationTab("evaluation")}
-                >
-                  Evaluation
-                </button>
-              </div>
-
-              <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', width: '100%', minHeight: 0 }}>
-                {evaluationTab === "tasks" ? (
-                  renderCellTasksSection()
-                ) : (
-                  <>
-                    <div className={styles.formGroup}>
-                      <label>Feedback *</label>
-                      <div className={styles.feedbackOptions}>
-                        {feedbackStatements.map((statement) => (
-                          <label key={statement.value} className={styles.feedbackOption}>
-                            <input
-                              type="radio"
-                              name="feedback-edit"
-                              value={statement.value}
-                              checked={editEvaluation.feedback === statement.value}
-                              onChange={(e) =>
-                                setEditEvaluation({ ...editEvaluation, feedback: e.target.value })
-                              }
-                              className={styles.radioInput}
-                              required
-                            />
-                            <span className={styles.feedbackText}>{statement.text}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className={styles.formGroup}>
-                      <label>Notes</label>
-                      <textarea
-                        value={editEvaluation.notes}
-                        onChange={(e) =>
-                          setEditEvaluation({ ...editEvaluation, notes: e.target.value })
-                        }
-                        placeholder="Provide notes for the student..."
-                        rows={4}
-                        className={styles.textarea}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {/* Modal Actions - Always at bottom */}
-            <div className={styles.modalActions}>
-              <Button
-                variant="secondary"
-                onClick={() => setEditModal(false)}
-              >
-                Close
-              </Button>
-              {evaluationTab === "evaluation" && (
-                <Button onClick={updateEvaluation}>Update Evaluation</Button>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* ------------------ Statistics Modal ------------------ */}
-      <Modal open={statisticsModal} onClose={() => setStatisticsModal(false)}>
-        {selectedStudent && (
-          <div className={styles.evaluateModal}>
-            <h2>Báo cáo tổng hợp</h2>
-            
-            <div className={styles.statisticsContent}>
-              {/* Tabs luôn hiển thị */}
-              <div style={{ display: 'flex', marginBottom: '16px', borderBottom: '1px solid #eee' }}>
-                <button
-                  type="button"
-                  onClick={() => setStatisticsTab("overview")}
-                  style={{
-                    padding: '8px 16px',
-                    border: 'none',
-                    borderBottom: statisticsTab === "overview" ? '2px solid #007bff' : '2px solid transparent',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    fontWeight: statisticsTab === "overview" ? '600' : '400'
-                  }}
-                >
-                  Tổng quan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatisticsTab("history")}
-                  style={{
-                    padding: '8px 16px',
-                    border: 'none',
-                    borderBottom: statisticsTab === "history" ? '2px solid #007bff' : '2px solid transparent',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    fontWeight: statisticsTab === "history" ? '600' : '400'
-                  }}
-                >
-                  Lịch sử đánh giá
-                </button>
-              </div>
-
-              {loadingStatistics ? (
-                <div className={styles.loadingStatistics}>
-                  <p>Đang tải thống kê...</p>
-                </div>
-              ) : !studentStatistics ? (
-                <div className={styles.noStatistics}>
-                  <p>Không thể tải thống kê. Vui lòng thử lại.</p>
-                </div>
-              ) : (
-                <>
-                  {statisticsTab === "overview" && (
-                    <>
-                      {/* Thông tin cơ bản */}
-                      <div className={styles.statisticsSection}>
-                        <h3 className={styles.sectionTitle}>Thông tin cơ bản</h3>
-                        <div className={styles.statisticsGrid}>
-                          <div className={styles.statItem}>
-                            <span className={styles.statLabel}>Tên</span>
-                            <span className={styles.statValue}>{studentStatistics.basicInfo.name}</span>
-                          </div>
-                          <div className={styles.statItem}>
-                            <span className={styles.statLabel}>MSSV</span>
-                            <span className={styles.statValue}>{studentStatistics.basicInfo.studentId}</span>
-                          </div>
-                          <div className={styles.statItem}>
-                            <span className={styles.statLabel}>Vai trò</span>
-                            <span className={styles.statValue}>
-                              {studentStatistics.basicInfo.role === 'Leader' ? 'Leader' :
-                               studentStatistics.basicInfo.role === 'Secretary' ? 'Secretary' :
-                               'Member'}
-                            </span>
-                          </div>
-                          <div className={styles.statItem}>
-                            <span className={styles.statLabel}>Email</span>
-                            <span className={styles.statValue}>{studentStatistics.basicInfo.email}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Overall contribution */}
-                      <div className={styles.statisticsSection}>
-                        <h3 className={styles.sectionTitle}>Overall contribution</h3>
-                        <div className={styles.statisticsGrid}>
-                          <div className={styles.statItem}>
-                            <span className={styles.statLabel}>Tổng số task được giao</span>
-                            <span className={styles.statValue}>{studentStatistics.taskStats.totalTasks || 0}</span>
-                          </div>
-                          <div className={styles.statItem}>
-                            <span className={styles.statLabel}>Số task đã hoàn thành</span>
-                            <span className={`${styles.statValue} ${styles.successValue}`}>
-                              {studentStatistics.taskStats.completedTasks || 0}
-                            </span>
-                          </div>
-                          <div className={styles.statItem}>
-                            <span className={styles.statLabel}>Số task chưa hoàn thành</span>
-                            <span className={`${styles.statValue} ${styles.warningValue}`}>
-                              {studentStatistics.taskStats.uncompletedTasks || 0}
-                            </span>
-                          </div>
-                          <div className={styles.statItem}>
-                            <span className={styles.statLabel}>Tỷ lệ hoàn thành</span>
-                            <span className={`${styles.statValue} ${styles.percentageValue}`}>
-                              {studentStatistics.taskStats.totalTasks > 0
-                                ? ((studentStatistics.taskStats.completedTasks / studentStatistics.taskStats.totalTasks) * 100).toFixed(1)
-                                : 0}%
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Milestone hiện tại (nếu có) */}
-                      {selectedMilestone && selectedMilestone !== "all" && selectedMilestoneData && (
-                        <div className={styles.milestoneInfo}>
-                          <p><em>Thống kê được lọc theo milestone: <strong>{selectedMilestoneData.name}</strong></em></p>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {statisticsTab === "history" && (
-                    <div className={styles.statisticsSection}>
-                      <h3 className={styles.sectionTitle}>Lịch sử đánh giá</h3>
-                      {(() => {
-                        // Sử dụng evaluations từ statistics (từ API) thay vì từ state
-                        const historyEvaluations = studentStatistics?.evaluations || [];
-                        
-                        // Sắp xếp theo thời gian (mới nhất trước)
-                        const history = [...historyEvaluations].sort((a, b) => {
-                          const dateA = new Date(a.createAt || a.updateAt || 0);
-                          const dateB = new Date(b.createAt || b.updateAt || 0);
-                          return dateB - dateA;
-                        });
-
-
-                        if (!history.length) {
-                          return (
-                            <div className={styles.noStatistics}>
-                              <p>Chưa có đánh giá nào cho sinh viên này.</p>
-                            </div>
-                          );
-                        }
-
-                        // Định nghĩa columns cho DataTable
-                        const historyColumns = [
-                          {
-                            key: 'milestone',
-                            title: 'Milestone',
-                            render: (ev) => ev.deliverableName || 'N/A'
-                          },
-                          {
-                            key: 'feedback',
-                            title: 'Feedback',
-                            render: (ev) => (
-                              <span style={{ fontWeight: '500' }}>
-                                {mapFeedbackToText(ev.type || ev.feedback)}
-                              </span>
-                            )
-                          },
-                          {
-                            key: 'notes',
-                            title: 'Notes',
-                            render: (ev) => ev.feedback || '—'
-                          },
-                          {
-                            key: 'evaluator',
-                            title: 'Evaluator',
-                            render: (ev) => ev.evaluatorName || '—'
-                          },
-                          {
-                            key: 'createAt',
-                            title: 'Ngày đánh giá',
-                            render: (ev) => ev.createAt 
-                              ? new Date(ev.createAt).toLocaleString('vi-VN', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })
-                              : '—'
-                          },
-                          {
-                            key: 'updateAt',
-                            title: 'Cập nhật lần cuối',
-                            render: (ev) => {
-                              if (!ev.updateAt || ev.updateAt === ev.createAt) return '—';
-                              return new Date(ev.updateAt).toLocaleString('vi-VN', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              });
-                            }
-                          }
-                        ];
-
-                        return (
-                          <DataTable
-                            columns={historyColumns}
-                            data={history}
-                            loading={false}
-                            emptyMessage="Chưa có đánh giá nào cho sinh viên này"
-                            showIndex={true}
-                            indexTitle="STT"
-                          />
-                        );
-                      })()}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-
-            <div className={styles.statisticsModalActions}>
-              <Button
-                variant="secondary"
-                onClick={() => setStatisticsModal(false)}
-              >
-                Close
+              <Button onClick={submitEvaluation}>
+                {currentEvaluation ? "Save" : "Submit Evaluation"}
               </Button>
             </div>
           </div>
@@ -1849,6 +1658,71 @@ export default function SupervisorEvaluation() {
               <Button
                 variant="secondary"
                 onClick={() => setTaskModal(false)}
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ------------------ Evaluation History Modal ------------------ */}
+      <Modal open={evaluationHistoryModal} onClose={() => setEvaluationHistoryModal(false)}>
+        {selectedStudentForHistory && (
+          <div className={styles.evaluateModal}>
+            <h2>Evaluation History</h2>
+            
+            <div className={styles.studentInfo}>
+              <h3>{selectedStudentForHistory.student.name}</h3>
+              <p className={styles.studentCode}>Student ID: {selectedStudentForHistory.student.id}</p>
+            </div>
+
+            <div className={styles.evaluationHistoryContent}>
+              {selectedStudentForHistory.evaluations.length === 0 ? (
+                <div className={styles.noStatistics}>
+                  <p>No evaluations found for this student.</p>
+                </div>
+              ) : (
+                <div className={styles.evaluationHistoryList}>
+                  {selectedStudentForHistory.evaluations
+                    .sort((a, b) => new Date(b.createAt || 0) - new Date(a.createAt || 0))
+                    .map((evalItem, idx) => (
+                      <div key={idx} className={styles.evaluationHistoryItem}>
+                        <div className={styles.evalItemHeader}>
+                          <span className={styles.evalMilestone}>{evalItem.deliverableName || 'N/A'}</span>
+                          <span className={styles.evalFeedbackBadge}>
+                            {mapFeedbackToText(evalItem.type || evalItem.feedback)}
+                          </span>
+                        </div>
+                        {evalItem.feedback && (
+                          <div className={styles.evalNotes}>{evalItem.feedback}</div>
+                        )}
+                        <div className={styles.evalMeta}>
+                          <span className={styles.evalDate}>
+                            {evalItem.createAt 
+                              ? new Date(evalItem.createAt).toLocaleString('en-US', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
+                              : '—'}
+                          </span>
+                          {evalItem.evaluatorName && (
+                            <span className={styles.evalEvaluator}>by {evalItem.evaluatorName}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            <div className={styles.modalActions}>
+              <Button
+                variant="secondary"
+                onClick={() => setEvaluationHistoryModal(false)}
               >
                 Close
               </Button>

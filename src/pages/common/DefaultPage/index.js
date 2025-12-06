@@ -1,7 +1,39 @@
 import React from 'react';
+import { Navigate } from 'react-router-dom';
+import { useAuth } from '../../../auth/authProvider';
 import styles from './index.module.scss';
 
 export default function DefaultPage() {
+  const { user, status } = useAuth();
+
+  // Nếu đang loading, hiển thị loading
+  if (status === 'loading') {
+    return (
+      <div className={styles.container}>
+        <div className={styles.content}>
+          <div>Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Nếu chưa đăng nhập, redirect về login
+  if (status !== 'authenticated' || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // Redirect dựa trên role
+  const userRole = user.role?.toUpperCase();
+  
+  if (userRole === 'STUDENT') {
+    return <Navigate to="/student/home" replace />;
+  }
+  
+  if (userRole === 'SUPERVISOR') {
+    return <Navigate to="/supervisor/calendar" replace />;
+  }
+
+  // Các role khác giữ nguyên trang mặc định
   return (
     <div className={styles.container}>
       <div className={styles.content}>

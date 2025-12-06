@@ -338,6 +338,26 @@
   vertical-align: top;
   min-width: 100px;
   text-align: center;
+  transition: all 0.2s ease;
+  
+  &.clickableCell {
+    cursor: pointer;
+    
+    &:hover {
+      background-color: rgba(59, 130, 246, 0.1);
+      border-radius: 4px;
+      transform: scale(1.02);
+      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+    }
+    
+    &:active {
+      transform: scale(0.98);
+    }
+  }
+  
+  &:not(.clickableCell):hover {
+    background-color: rgba(0, 0, 0, 0.02);
+  }
 }
 
 .studentsList {

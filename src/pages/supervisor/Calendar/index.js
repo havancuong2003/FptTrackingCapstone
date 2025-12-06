@@ -1146,28 +1146,29 @@ export default function SupervisorCalendar() {
                   background: hasNoSchedule ? '#fef3c7' : '#f9fafb',
                   border: hasNoSchedule ? '2px solid #f59e0b' : '1px solid #e5e7eb',
                   borderRadius: 8,
-                  padding: 12,
-                  position: 'relative'
+                  padding: 12
                 }}>
-                  {hasNoSchedule && (
-                    <div style={{
-                      position: 'absolute',
-                      top: 8,
-                      right: 8,
-                      background: '#f59e0b',
-                      color: '#fff',
-                      padding: '4px 8px',
-                      borderRadius: 4,
-                      fontSize: 10,
-                      fontWeight: 600
-                    }}>
-                      ⚠ Meeting schedule not finalized
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>
-                      {group.projectName}
-                    </div>
+                  {/* Header row: Warning + View Tracking button */}
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    marginBottom: 8
+                  }}>
+                    {hasNoSchedule ? (
+                      <div style={{
+                        background: '#f59e0b',
+                        color: '#fff',
+                        padding: '4px 8px',
+                        borderRadius: 4,
+                        fontSize: 10,
+                        fontWeight: 600
+                      }}>
+                        ⚠ Meeting schedule not finalized
+                      </div>
+                    ) : (
+                      <div></div>
+                    )}
                     <button
                       onClick={() => navigate(`/supervisor/tracking?groupId=${group.id}`)}
                       style={{
@@ -1183,6 +1184,15 @@ export default function SupervisorCalendar() {
                     >
                       View Tracking →
                     </button>
+                  </div>
+                  
+                  {/* Project name */}
+                  <div style={{ 
+                    fontWeight: 600, 
+                    fontSize: 14,
+                    marginBottom: 4
+                  }}>
+                    {group.projectName}
                   </div>
                   <div style={{ fontSize: 12, color: '#64748b' }}>
                     <div>Group Code: {group.groupCode || 'N/A'}</div>

@@ -4,25 +4,25 @@ const adminMenu = [
     path: '/dashboard', 
     label: 'Dashboard'
   },
-  // Quản lý người dùng
-  { 
-    path: '/users', 
-    label: 'User Management'
+  // Management menu với submenu
+  {
+    path: '/management',
+    label: 'Management',
+    hasSubmenu: true,
+    children: [
+      { path: '/admin/campus-slot', label: 'Campus & Slot' },
+      { path: '/admin/storage', label: 'Storage' },
+    ],
   },
-  // Quản lý hệ thống
-  { 
-    path: '/system', 
-    label: 'System Management'
-  },
-  // Quản lý Campus và Slot
-  { 
-    path: '/admin/campus-slot', 
-    label: 'Campus & Slot Management'
-  },
-  // Quản lý Storage
-  { 
-    path: '/admin/storage', 
-    label: 'Storage Management'
+  // Config menu với submenu
+  {
+    path: '/config',
+    label: 'Config',
+    hasSubmenu: true,
+    children: [
+      { path: '/system', label: 'Email Config' },
+      { path: '/admin/course-size-config', label: 'Course Size Config' },
+    ],
   },
 ];
 
