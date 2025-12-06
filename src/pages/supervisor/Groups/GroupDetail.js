@@ -148,6 +148,7 @@ export default function GroupDetail() {
                 alert('Expire date updated successfully!');
                 setShowExpireDateModal(false);
             } else {
+                console.error('Error updating expire date 1:', response);
                 alert(`Error: ${response.message}`);
             }
         } catch (error) {

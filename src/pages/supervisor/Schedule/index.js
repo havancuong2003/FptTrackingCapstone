@@ -62,6 +62,9 @@ export default function SupervisorSchedule() {
   // State for sending reminder email
   const [sendingReminder, setSendingReminder] = React.useState(false);
 
+  // Ref for meeting section to scroll to
+  const meetingSectionRef = React.useRef(null);
+
   // Days of the week
   const daysOfWeek = [
     { id: 1, name: 'Monday', value: 'monday' },
@@ -448,6 +451,28 @@ export default function SupervisorSchedule() {
     });
   };
 
+  // Handle click on calendar cell - scroll to form and fill data
+  const handleCellClick = (dayValue, slot) => {
+    if (!slot || !slot.id) return;
+    
+    // Fill meeting data
+    setMeetingData(prev => ({
+      ...prev,
+      day: dayValue,
+      slotId: String(slot.id)
+    }));
+    
+    // Scroll to meeting section
+    if (meetingSectionRef.current) {
+      setTimeout(() => {
+        meetingSectionRef.current.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }, 100);
+    }
+  };
+
   // Send reminder email to students who haven't confirmed
   const handleSendReminderEmail = async () => {
     const studentsNotConfirmed = getStudentsNotConfirmed();
@@ -817,8 +842,13 @@ export default function SupervisorSchedule() {
                   title: day.name,
                   render: (row) => {
                     const availableStudents = row[day.value] || [];
+                    const slot = row.timeSlot;
+                    const isClickable = availableStudents.length > 0;
                     return (
-                      <div className={styles.calendarCell}>
+                      <div 
+                        className={`${styles.calendarCell} ${isClickable ? styles.clickableCell : ''}`}
+                        onClick={() => isClickable && handleCellClick(day.value, slot)}
+                      >
                         {availableStudents.length > 0 ? (
                           <div className={styles.studentsList}>
                             {availableStudents.map((student, idx) => (
@@ -853,7 +883,7 @@ export default function SupervisorSchedule() {
 
           {/* Meeting Finalization/Update Form - Only show when not finalized */}
           {!isFinalized && (
-            <div className={styles.meetingSection}>
+            <div className={styles.meetingSection} ref={meetingSectionRef}>
               <h2>Confirm Meeting Schedule</h2>
               
               <div className={styles.meetingForm}>

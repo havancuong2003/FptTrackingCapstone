@@ -162,6 +162,7 @@ export async function updateGroupExpireDate(groupId, expireDate) {
     const res = await client.put(`/group/${groupId}/expire-date`, {
       expireDate: expireDate
     });
+    
     const payload = res.data;
     return {
       data: payload.data,
@@ -169,11 +170,7 @@ export async function updateGroupExpireDate(groupId, expireDate) {
       message: payload.message || 'Expire date updated successfully',
     };
   } catch (error) {
-    console.error('Error updating expire date:', error);
-    return {
-      data: null,
-      status: 500,
-      message: error.response?.data?.message || 'Error updating expire date',
-    };
+  
+    return { data: null, status: 400, message: error || 'Error updating expire date' };
   }
 }
