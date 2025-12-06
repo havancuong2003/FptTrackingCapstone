@@ -59,7 +59,8 @@ export async function login({ username, password }) {
         campusId: me.campusId || null,
         expireDate: me.expireDate || null,
         groups: me.groups || [],
-        groupsInfo: me.groupsInfo || [] // Save groupsInfo for supervisor
+        groupsInfo: me.groupsInfo || [], // Save groupsInfo for supervisor
+        majorCategory: me.majorCategory || null // Save majorCategory with size limit
       };
       localStorage.setItem(USER_INFO_KEY, JSON.stringify(userData));
 
@@ -141,7 +142,8 @@ export async function refreshUserInfo() {
         campusId: me.campusId || null,
         expireDate: me.expireDate || null,
         groups: me.groups || [],
-        groupsInfo: me.groupsInfo || []
+        groupsInfo: me.groupsInfo || [],
+        majorCategory: me.majorCategory || null // Save majorCategory with size limit
       };
       localStorage.setItem(USER_INFO_KEY, JSON.stringify(userData));
 
@@ -187,7 +189,8 @@ export function getUserInfo() {
       campusId: parsed.campusId,
       expireDate: parsed.expireDate,
       groups: parsed.groups || [],
-      groupsInfo: parsed.groupsInfo || [] // Include groupsInfo for supervisor
+      groupsInfo: parsed.groupsInfo || [], // Include groupsInfo for supervisor
+      majorCategory: parsed.majorCategory || null // Include majorCategory with size limit
     };
   } catch {
     return null;
@@ -279,4 +282,83 @@ export function getCampusId() {
   } catch {
     return null;
   }
+}
+
+// Helper function để parse size limit từ majorCategory
+// size có thể là số (MB) hoặc chuỗi với đơn vị (ví dụ: "10MB", "10GB")
+// Trả về size limit tính bằng bytes
+export function parseSizeLimit(size) {
+  if (!size) return null;
+  
+  // Nếu là số, mặc định là MB
+  if (typeof size === 'number') {
+    return size * 1024 * 1024; // Convert MB to bytes
+  }
+  
+  // Nếu là chuỗi, parse đơn vị
+  if (typeof size === 'string') {
+    const trimmed = size.trim().toUpperCase();
+    const match = trimmed.match(/^([\d.]+)\s*(MB|GB|KB|B)?$/);
+    
+    if (match) {
+      const value = parseFloat(match[1]);
+      const unit = match[2] || 'MB'; // Mặc định là MB nếu không có đơn vị
+      
+      switch (unit) {
+        case 'GB':
+          return value * 1024 * 1024 * 1024; // Convert GB to bytes
+        case 'MB':
+          return value * 1024 * 1024; // Convert MB to bytes
+        case 'KB':
+          return value * 1024; // Convert KB to bytes
+        case 'B':
+          return value; // Already in bytes
+        default:
+          return value * 1024 * 1024; // Default to MB
+      }
+    }
+  }
+  
+  return null;
+}
+
+// Helper function để lấy size limit từ majorCategory trong localStorage
+// Trả về size limit tính bằng bytes, hoặc null nếu không có
+export function getFileSizeLimit() {
+  try {
+    const userInfo = getUserInfo();
+    if (!userInfo || !userInfo.majorCategory || !userInfo.majorCategory.size) {
+      return null;
+    }
+    return parseSizeLimit(userInfo.majorCategory.size);
+  } catch {
+    return null;
+  }
+}
+
+// Helper function để format size limit để hiển thị cho người dùng
+// Trả về chuỗi như "10 MB" hoặc "1 GB"
+export function formatSizeLimit(size) {
+  if (!size) return null;
+  
+  // Nếu là số, mặc định là MB
+  if (typeof size === 'number') {
+    return `${size} MB`;
+  }
+  
+  // Nếu là chuỗi, giữ nguyên format nhưng chuẩn hóa
+  if (typeof size === 'string') {
+    const trimmed = size.trim();
+    const match = trimmed.match(/^([\d.]+)\s*(MB|GB|KB|B)?$/i);
+    
+    if (match) {
+      const value = match[1];
+      const unit = match[2] || 'MB';
+      return `${value} ${unit.toUpperCase()}`;
+    }
+    
+    return trimmed; // Trả về nguyên bản nếu không match
+  }
+  
+  return null;
 } 

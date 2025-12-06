@@ -615,7 +615,7 @@ export default function SupervisorTracking() {
         marginTop: isMobile ? 16 : 24 
       }}>
         
-        {/* Group Members Table - Responsive */}
+        {/* Group Members Table - Responsive
         {groupInfo?.students && (
           <div style={{ 
             flex: 1, 
@@ -680,7 +680,7 @@ export default function SupervisorTracking() {
               </table>
             </div>
           </div>
-        )}
+        )} */}
       </div>
       
       {/* Milestones Summary Table - Using DataTable */}
