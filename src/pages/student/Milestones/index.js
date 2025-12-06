@@ -5,6 +5,7 @@ import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
 import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
+import { getFileSizeLimit, formatSizeLimit, getUserInfo } from '../../../auth/auth';
 
 
 export default function StudentMilestones() {
@@ -60,6 +61,22 @@ export default function StudentMilestones() {
         const user = res?.data?.data || null;
         if (!mounted) return;
         setUserInfo(user);
+        
+        // Cập nhật majorCategory vào localStorage nếu có
+        if (user && user.majorCategory) {
+          try {
+            const existingUserInfo = getUserInfo();
+            if (existingUserInfo) {
+              const updatedUserInfo = {
+                ...existingUserInfo,
+                majorCategory: user.majorCategory
+              };
+              localStorage.setItem('auth_user', JSON.stringify(updatedUserInfo));
+            }
+          } catch (e) {
+            console.error('Error updating majorCategory in localStorage:', e);
+          }
+        }
       } catch {
         if (!mounted) return;
         setUserInfo(null);
@@ -185,6 +202,18 @@ export default function StudentMilestones() {
         event.target.value = '';
         return;
       }
+      
+      // Kiểm tra kích thước file
+      const sizeLimit = getFileSizeLimit();
+      if (sizeLimit && file.size > sizeLimit) {
+        const userInfo = getUserInfo();
+        const sizeLimitText = formatSizeLimit(userInfo?.majorCategory?.size) || 'the limit';
+        alert(`File size exceeds the limit. Maximum allowed: ${sizeLimitText}. Your file: ${(file.size / (1024 * 1024)).toFixed(2)} MB`);
+        // Reset input
+        event.target.value = '';
+        return;
+      }
+      
       setSelectedFiles(prev => ({ ...prev, [itemId]: file }));
     }
   };
@@ -196,6 +225,21 @@ export default function StudentMilestones() {
     // Validate file type trước khi upload
     if (!isValidFileType(fileToUpload.name)) {
       alert('Invalid file type. Only images, PDF, ZIP, 7ZIP, and RAR files are allowed.');
+      // Clear invalid file
+      setSelectedFiles(prev => {
+        const newFiles = { ...prev };
+        delete newFiles[deliveryItemId];
+        return newFiles;
+      });
+      return;
+    }
+    
+    // Validate file size trước khi upload
+    const sizeLimit = getFileSizeLimit();
+    if (sizeLimit && fileToUpload.size > sizeLimit) {
+      const userInfoData = getUserInfo();
+      const sizeLimitText = formatSizeLimit(userInfoData?.majorCategory?.size) || 'the limit';
+      alert(`File size exceeds the limit. Maximum allowed: ${sizeLimitText}. Your file: ${(fileToUpload.size / (1024 * 1024)).toFixed(2)} MB`);
       // Clear invalid file
       setSelectedFiles(prev => {
         const newFiles = { ...prev };
@@ -675,7 +719,7 @@ export default function StudentMilestones() {
                       
                       {/* Upload Section */}
                       <div style={{ marginBottom: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
                           <input
                             type="file"
                             id={`file-${item.id}`}
@@ -697,6 +741,27 @@ export default function StudentMilestones() {
                           >
                             Choose File
                           </label>
+                          {(() => {
+                            const userInfoData = getUserInfo();
+                            const majorCategory = userInfoData?.majorCategory;
+                            const sizeLimitText = formatSizeLimit(majorCategory?.size);
+                            
+                            // Debug: Log để kiểm tra
+                            if (process.env.NODE_ENV === 'development') {
+                              console.log('UserInfo from localStorage:', userInfoData);
+                              console.log('MajorCategory:', majorCategory);
+                              console.log('Size limit text:', sizeLimitText);
+                            }
+                            
+                            if (sizeLimitText) {
+                              return (
+                                <span style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic' }}>
+                                  Max size: {sizeLimitText}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                           {selectedFiles[item.id] && (
                             <Button
                               onClick={() => handleUpload(item.id)}

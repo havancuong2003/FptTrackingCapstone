@@ -5,7 +5,7 @@ import { formatDate } from '../../../utils/date';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
-import { getUserInfo } from '../../../auth/auth';
+import { getUserInfo, getFileSizeLimit, formatSizeLimit } from '../../../auth/auth';
 import { getMeetingScheduleByGroupId } from '../../../api/schedule';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -46,6 +46,22 @@ export default function StudentHome() {
         const user = res?.data?.data || null;
         if (!mounted) return;
         setUserInfo(user);
+        
+        // Cập nhật majorCategory vào localStorage nếu có
+        if (user && user.majorCategory) {
+          try {
+            const existingUserInfo = getUserInfo();
+            if (existingUserInfo) {
+              const updatedUserInfo = {
+                ...existingUserInfo,
+                majorCategory: user.majorCategory
+              };
+              localStorage.setItem('auth_user', JSON.stringify(updatedUserInfo));
+            }
+          } catch (e) {
+            console.error('Error updating majorCategory in localStorage:', e);
+          }
+        }
       } catch {
         if (!mounted) return;
         setUserInfo(null);
@@ -618,6 +634,8 @@ export default function StudentHome() {
         return '#059669'; // Green
       case 'InReview':
         return '#3b82f6'; // Blue
+      case 'Review':
+        return '#f59e0b'; // Orange/Yellow
       default:
         return '#64748b'; // Gray
     }
@@ -635,8 +653,19 @@ export default function StudentHome() {
         return '✅ Done';
       case 'InReview':
         return '👀 In Review';
+      case 'Review':
+        return '👀 In Review';
       default:
         return '❓ Unknown';
+    }
+  };
+
+  const getTaskPriorityColor = (priority) => {
+    switch (priority) {
+      case 'High': return '#dc2626';
+      case 'Medium': return '#f59e0b';
+      case 'Low': return '#6b7280';
+      default: return '#6b7280';
     }
   };
 
@@ -771,7 +800,11 @@ export default function StudentHome() {
         description: t.description,
         deadline: t.deadline,
         isActive: t.isActive,
-        groupId: t.groupId || userInfo?.groups?.[0]
+        groupId: t.groupId || userInfo?.groups?.[0],
+        status: t.status,
+        priority: t.priority,
+        assigneeId: t.assigneeId,
+        assignedToName: t.assignedToName || t.assigneeName
       }));
     } catch (e) {
       return [];
@@ -780,28 +813,86 @@ export default function StudentHome() {
 
   const formatDateTime = (dateString) => {
     try {
-      return new Date(dateString).toLocaleString('vi-VN');
+      // API trả về thời gian đã là múi giờ VN nhưng không có timezone info
+      // Nên cần cộng thêm 7 tiếng để hiển thị đúng
+      const date = new Date(dateString);
+      // Thêm 7 tiếng (7 * 60 * 60 * 1000 ms)
+      const vnDate = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+      return vnDate.toLocaleString('vi-VN');
     } catch { return dateString; }
   };
 
   const meetingIssueColumns = [
-    { key: 'name', title: 'Issue' },
-    { key: 'deadline', title: 'Deadline', render: (row) => formatDateTime(row.deadline) },
-    {
-      key: 'actions',
-      title: '',
+    { 
+      key: 'name', 
+      title: 'Issue',
       render: (row) => (
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/student/task-detail/${row.groupId}?taskId=${row.id}`);
-            }}
-            style={{
-              background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
-            }}
-          >Details</button>
-        </div>
+        <span
+          onClick={() => navigate(`/student/task-detail/${row.groupId}?taskId=${row.id}`)}
+          style={{
+            color: '#3b82f6',
+            cursor: 'pointer',
+            textDecoration: 'underline',
+            fontWeight: 500
+          }}
+        >
+          {row.name}
+        </span>
+      )
+    },
+    { 
+      key: 'assignee', 
+      title: 'Assignee', 
+      render: (row) => (
+        <span style={{ fontSize: '12px', color: '#374151' }}>
+          {row.assignedToName || row.assigneeName || row.assignedUserId || 'N/A'}
+        </span>
+      )
+    },
+    { 
+      key: 'priority', 
+      title: 'Priority', 
+      render: (row) => (
+        <span style={{
+          padding: '4px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: '500',
+          backgroundColor: getTaskPriorityColor(row.priority) + '20',
+          color: getTaskPriorityColor(row.priority)
+        }}>
+          {row.priority || 'N/A'}
+        </span>
+      )
+    },
+    { 
+      key: 'isActive', 
+      title: 'Active', 
+      render: (row) => (
+        <span style={{
+          color: row.isActive === true ? '#059669' : '#9ca3af',
+          fontWeight: 500,
+          fontSize: '12px'
+        }}>
+          {row.isActive === true ? '✓ Active' : '✗ Inactive'}
+        </span>
+      )
+    },
+    { key: 'deadline', title: 'Deadline', render: (row) => formatDateTime(row.deadline) },
+    { 
+      key: 'status', 
+      title: 'Status', 
+      render: (row) => (
+        <span style={{
+          padding: '4px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: '500',
+          backgroundColor: getTaskStatusColor(row.status) + '20',
+          color: getTaskStatusColor(row.status)
+        }}>
+          {getTaskStatusText(row.status)}
+        </span>
       )
     }
   ];
@@ -1044,6 +1135,18 @@ export default function StudentHome() {
         event.target.value = '';
         return;
       }
+      
+      // Kiểm tra kích thước file
+      const sizeLimit = getFileSizeLimit();
+      if (sizeLimit && file.size > sizeLimit) {
+        const userInfoData = getUserInfo();
+        const sizeLimitText = formatSizeLimit(userInfoData?.majorCategory?.size) || 'the limit';
+        alert(`File size exceeds the limit. Maximum allowed: ${sizeLimitText}. Your file: ${(file.size / (1024 * 1024)).toFixed(2)} MB`);
+        // Reset input
+        event.target.value = '';
+        return;
+      }
+      
       setSelectedFile(file);
     }
   };
@@ -1054,6 +1157,16 @@ export default function StudentHome() {
     // Validate file type trước khi upload
     if (!isValidFileType(selectedFile.name)) {
       alert('Invalid file type. Only images, PDF, ZIP, 7ZIP, and RAR files are allowed.');
+      setSelectedFile(null);
+      return;
+    }
+    
+    // Validate file size trước khi upload
+    const sizeLimit = getFileSizeLimit();
+    if (sizeLimit && selectedFile.size > sizeLimit) {
+      const userInfoData = getUserInfo();
+      const sizeLimitText = formatSizeLimit(userInfoData?.majorCategory?.size) || 'the limit';
+      alert(`File size exceeds the limit. Maximum allowed: ${sizeLimitText}. Your file: ${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB`);
       setSelectedFile(null);
       return;
     }
@@ -1941,7 +2054,7 @@ export default function StudentHome() {
                       
                       {/* Upload Section */}
                       <div style={{ marginBottom: 12 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
                           <input
                             type="file"
                             id={`file-${item.id}`}
@@ -1963,6 +2076,27 @@ export default function StudentHome() {
                           >
                             Choose File
                           </label>
+                          {(() => {
+                            const userInfoData = getUserInfo();
+                            const majorCategory = userInfoData?.majorCategory;
+                            const sizeLimitText = formatSizeLimit(majorCategory?.size);
+                            
+                            // Debug: Log để kiểm tra
+                            if (process.env.NODE_ENV === 'development') {
+                              console.log('UserInfo from localStorage:', userInfoData);
+                              console.log('MajorCategory:', majorCategory);
+                              console.log('Size limit text:', sizeLimitText);
+                            }
+                            
+                            if (sizeLimitText) {
+                              return (
+                                <span style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic' }}>
+                                  Max size: {sizeLimitText}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                           {selectedFile && (
                             <Button
                               onClick={() => handleUpload(item.id)}
@@ -2210,7 +2344,7 @@ export default function StudentHome() {
                       <strong>Created by:</strong> {minuteData.createBy}
                     </div>
                     <div style={{ fontSize: 13, color: '#065f46' }}>
-                      <strong>Created at:</strong> {formatDate(minuteData.createAt, 'DD/MM/YYYY HH:mm')}
+                      <strong>Created at:</strong> {formatDateTime(minuteData.createAt)}
                     </div>
                   </div>
                   
@@ -2218,15 +2352,20 @@ export default function StudentHome() {
                     <div>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Time</h4>
                       <div style={{ fontSize: 13, color: '#374151' }}>
-                        {selectedMeeting?.startAt && selectedMeeting?.endAt ? (
+                        {minuteData?.startAt && minuteData?.endAt ? (
                           <>
-                            <div><strong>Start:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('en-US')}</div>
-                            <div><strong>End:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('en-US')}</div>
+                            <div><strong>Start:</strong> {formatDateTime(minuteData.startAt)}</div>
+                            <div><strong>End:</strong> {formatDateTime(minuteData.endAt)}</div>
+                          </>
+                        ) : selectedMeeting?.startAt && selectedMeeting?.endAt ? (
+                          <>
+                            <div><strong>Start:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
+                            <div><strong>End:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
                           </>
                         ) : (
                           <>
-                            <div><strong>Start:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('en-US') : 'N/A'}</div>
-                            <div><strong>End:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('en-US') : 'N/A'}</div>
+                            <div><strong>Start:</strong> N/A</div>
+                            <div><strong>End:</strong> N/A</div>
                           </>
                         )}
                       </div>
@@ -2234,62 +2373,57 @@ export default function StudentHome() {
                     
                     <div>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Attendance List</h4>
-                      {attendanceList.length > 0 ? (
-                        <div style={{
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          padding: '8px',
-                          backgroundColor: 'rgba(255,255,255,0.5)'
-                        }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Member</th>
-                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Attended</th>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Absence Reason</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {attendanceList.map((item) => (
-                                <tr key={item.studentId} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                  <td style={{ padding: '6px 8px' }}>
-                                    <div style={{ fontSize: '13px', fontWeight: '500', color: '#1f2937' }}>
-                                      {item.name}
-                                    </div>
-                                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '1px' }}>
-                                      {item.rollNumber} {item.role && `- ${item.role}`}
-                                    </div>
-                                  </td>
-                                  <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                                    <span style={{
-                                      padding: '4px 8px',
-                                      borderRadius: '4px',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      backgroundColor: item.attended ? '#d1fae5' : '#fee2e2',
-                                      color: item.attended ? '#065f46' : '#991b1b'
-                                    }}>
-                                      {item.attended ? 'Yes' : 'No'}
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '6px 8px', fontSize: '12px', color: '#6b7280' }}>
-                                    {item.reason || '-'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
+                      {attendanceList.length > 0 ? (() => {
+                        const attended = attendanceList.filter(item => item.attended);
+                        const absent = attendanceList.filter(item => !item.attended);
+                        
+                        if (absent.length === 0) {
+                          return (
+                            <div style={{
+                              border: '1px solid #d1d5db',
+                              borderRadius: '6px',
+                              padding: '12px',
+                              backgroundColor: '#f3f4f6',
+                              fontSize: '13px',
+                              color: '#374151'
+                            }}>
+                              <div style={{ color: '#059669', fontWeight: 500 }}>
+                                ✓ All members attended ({attendanceList.length} members): {attended.map(m => m.name).join(', ')}
+                              </div>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <div style={{
+                              border: '1px solid #d1d5db',
+                              borderRadius: '6px',
+                              padding: '12px',
+                              backgroundColor: '#f3f4f6',
+                              fontSize: '13px',
+                              color: '#374151'
+                            }}>
+                              <div style={{ marginBottom: 8 }}>
+                                <strong style={{ color: '#059669' }}>✓ Attended ({attended.length}):</strong>{' '}
+                                {attended.map(m => m.name).join(', ') || 'None'}
+                              </div>
+                              <div>
+                                <strong style={{ color: '#dc2626' }}>✗ Absent ({absent.length}):</strong>{' '}
+                                {absent.map(m => `${m.name} (${m.reason || 'No reason'})`).join('; ')}
+                              </div>
+                            </div>
+                          );
+                        }
+                      })() : (
                         <div style={{ 
                           fontSize: 13, 
                           color: '#6b7280', 
                           padding: '12px',
-                          background: 'rgba(255,255,255,0.5)',
+                          background: '#f3f4f6',
                           borderRadius: '4px',
-                          border: '1px solid rgba(0,0,0,0.1)'
+                          border: '1px solid #d1d5db',
+                          fontStyle: 'italic'
                         }}>
-                          {minuteData?.attendance || 'No attendance information available'}
+                          No attendance data
                         </div>
                       )}
                     </div>
@@ -2307,19 +2441,19 @@ export default function StudentHome() {
                         border: '1px solid rgba(0,0,0,0.1)',
                         minHeight: '120px'
                       }}>
-                        {minuteData.meetingContent || 'N/A'}
+                        {minuteData.meetingContent || 'No content available'}
                       </div>
                     </div>
                     
-                    {/* Meeting Issues table thay cho phần vấn đề cần giải quyết */}
+                    {/* Meeting Issues table */}
                     <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Issues</h4>
+                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Issues</h4>
                       <div style={{ marginTop: 8, maxWidth: '100%', overflowX: 'hidden' }}>
                         <DataTable
                           columns={meetingIssueColumns}
                           data={meetingIssues}
                           loading={loading}
-                          emptyMessage="No issues available"
+                          emptyMessage="No issues yet"
                         />
                       </div>
                     </div>
