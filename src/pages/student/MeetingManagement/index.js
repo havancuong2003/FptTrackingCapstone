@@ -15,6 +15,7 @@ export default function StudentMeetingManagement() {
   const [meetings, setMeetings] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [selectedMeeting, setSelectedMeeting] = React.useState(null);
+  const [attendanceData, setAttendanceData] = React.useState({}); // { meetingScheduleDateId: { attendance: string } }
   const [userRole, setUserRole] = React.useState('Student'); // Student, Secretary, Supervisor
   const [showMinuteModal, setShowMinuteModal] = React.useState(false);
   const [minuteData, setMinuteData] = React.useState(null);
@@ -64,9 +65,49 @@ export default function StudentMeetingManagement() {
     description: ''
   });
   const [weekDays, setWeekDays] = React.useState([]);
+  const autoSaveIntervalRef = React.useRef(null); // Auto save interval ref
+  const [lastSaveTime, setLastSaveTime] = React.useState(null); // Track last save time
+  const visibilityChangeHandlerRef = React.useRef(null); // Ref để lưu visibility change handler
+  const lastAutoSaveTimeRef = React.useRef(null); // Ref để track thời gian auto-save cuối cùng
+  const formDataRef = React.useRef(formData); // Ref để lưu formData mới nhất
+  const attendanceListRef = React.useRef(attendanceList); // Ref để lưu attendanceList mới nhất
+  const selectedMeetingRef = React.useRef(selectedMeeting); // Ref để lưu selectedMeeting mới nhất
+  const minuteDataRef = React.useRef(minuteData); // Ref để lưu minuteData mới nhất
+  const isEditingRef = React.useRef(isEditing); // Ref để lưu isEditing mới nhất
+  const pendingIssuesRef = React.useRef(pendingIssues); // Ref để lưu pendingIssues mới nhất
+  const groupInfoRef = React.useRef(groupInfo); // Ref để lưu groupInfo mới nhất
 
   // API Base URL
   const API_BASE_URL = 'https://160.30.21.113:5000/api/v1';
+
+  // Cập nhật refs khi state thay đổi
+  React.useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+  
+  React.useEffect(() => {
+    attendanceListRef.current = attendanceList;
+  }, [attendanceList]);
+  
+  React.useEffect(() => {
+    selectedMeetingRef.current = selectedMeeting;
+  }, [selectedMeeting]);
+  
+  React.useEffect(() => {
+    minuteDataRef.current = minuteData;
+  }, [minuteData]);
+  
+  React.useEffect(() => {
+    isEditingRef.current = isEditing;
+  }, [isEditing]);
+  
+  React.useEffect(() => {
+    pendingIssuesRef.current = pendingIssues;
+  }, [pendingIssues]);
+  
+  React.useEffect(() => {
+    groupInfoRef.current = groupInfo;
+  }, [groupInfo]);
 
   React.useEffect(() => {
     // Lấy thông tin user và meetings
@@ -77,7 +118,13 @@ export default function StudentMeetingManagement() {
       setIsMobile(window.innerWidth < 768);
     };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      // Cleanup auto save interval
+      if (autoSaveIntervalRef.current) {
+        clearInterval(autoSaveIntervalRef.current);
+      }
+    };
   }, []);
 
   const fetchUserInfo = async () => {
@@ -138,6 +185,23 @@ export default function StudentMeetingManagement() {
     } catch {}
   };
 
+  // Fetch attendance data for all meetings
+  const fetchAttendanceData = async (groupId) => {
+    try {
+      const response = await client.get(`${API_BASE_URL}/MeetingMinute/attendance?groupId=${groupId}`);
+      if (response.data.status === 200) {
+        const data = response.data.data || [];
+        const attendanceMap = {};
+        data.forEach(item => {
+          attendanceMap[item.meetingScheduleDateId] = item.attendance;
+        });
+        setAttendanceData(attendanceMap);
+      }
+    } catch (error) {
+      console.error('Error fetching attendance data:', error);
+    }
+  };
+
   // Lấy danh sách meetings
   const fetchMeetings = async (groupId) => {
     try {
@@ -145,6 +209,9 @@ export default function StudentMeetingManagement() {
       
       if (response.data.status === 200) {
         const meetingsData = response.data.data;
+        
+        // Fetch attendance data
+        await fetchAttendanceData(groupId);
         
         if (meetingsData && meetingsData.length > 0) {
           // API đã trả về isMinute, không cần gọi API để check nữa
@@ -447,6 +514,89 @@ export default function StudentMeetingManagement() {
     return '#e5e7eb';
   };
 
+  // Hàm kiểm tra xem có đang trong ngày họp không
+  const isWithinMeetingDay = (meeting) => {
+    if (!meeting || !meeting.meetingDate) return false;
+    const now = new Date();
+    const meetingDate = new Date(meeting.meetingDate);
+    
+    // So sánh chỉ ngày, không so sánh giờ
+    const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const meetingDateOnly = new Date(meetingDate.getFullYear(), meetingDate.getMonth(), meetingDate.getDate());
+    
+    return nowDate.getTime() === meetingDateOnly.getTime();
+  };
+
+  // Hàm kiểm tra quyền edit biên bản
+  // Nếu đã có biên bản rồi thì chỉ được edit trong ngày họp (từ 00:00 đến 23:59:59)
+  // Nếu chưa có biên bản thì có thể tạo bình thường
+  const canEditMinute = () => {
+    // Nếu đang edit biên bản đã có (isEditing && minuteData)
+    if (isEditing && minuteData) {
+      // Cho phép edit trong cả ngày họp (từ 00:00 đến 23:59:59)
+      if (!selectedMeeting || !selectedMeeting.meetingDate) return false;
+      const now = new Date();
+      const meetingDate = new Date(selectedMeeting.meetingDate);
+      
+      // So sánh chỉ ngày, không so sánh giờ
+      const nowDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const meetingDateOnly = new Date(meetingDate.getFullYear(), meetingDate.getMonth(), meetingDate.getDate());
+      
+      // Cho phép edit nếu đang trong ngày họp hoặc chưa đến hết ngày họp
+      // (nghĩa là nếu hôm nay là ngày họp hoặc chưa qua ngày họp)
+      return nowDate.getTime() <= meetingDateOnly.getTime();
+    }
+    // Nếu chưa có biên bản (tạo mới) thì luôn cho phép
+    return true;
+  };
+
+  // Hàm kiểm tra attendance của user hiện tại
+  const getUserAttendanceStatus = (meeting) => {
+    // Nếu meeting chưa diễn ra (isMeeting !== true hoặc meetingDate > now)
+    const now = new Date();
+    const meetingDate = new Date(meeting.meetingDate);
+    if (meeting.isMeeting !== true || meetingDate > now) {
+      return '-';
+    }
+    
+    // Nếu đã diễn ra, kiểm tra attendance
+    // Key trong attendanceData là meetingScheduleDateId (number)
+    // Thử cả meetingScheduleDateId và meeting.id, và convert sang number để đảm bảo khớp
+    const meetingKey = meeting.meetingScheduleDateId || meeting.id;
+    // console.log('meetingKey', meetingKey);
+    // Thử cả number và string key
+    const attendanceText = attendanceData[meetingKey] || 
+                          attendanceData[Number(meetingKey)] || 
+                          attendanceData[String(meetingKey)];
+    if (!attendanceText || !userInfo?.name) {
+      return '-';
+    }
+    // console.log('attendanceText', attendanceText);
+    // Parse attendance text để tìm user
+    // Format: "Name (RollNumber): Status" hoặc "Name (RollNumber): Nghỉ - Lý do"
+    const lines = attendanceText.split('\n').filter(line => line.trim());
+    const userName = (userInfo.name || '').trim();
+    const userRollNumber = (userInfo.rollNumber || userInfo.studentId || userInfo.studentNumber || '').trim();
+    
+    for (const line of lines) {
+      // Kiểm tra theo tên hoặc rollNumber
+      // So sánh đơn giản: tên hoặc rollNumber có trong dòng
+      const matchesName = userName && line.includes(userName);
+      const matchesRollNumber = userRollNumber && line.includes(userRollNumber);
+      
+      if (matchesName || matchesRollNumber) {
+        // Tìm status trong dòng
+        if (line.includes('Tham gia')) {
+          return 'Attended';
+        } else if (line.includes('Nghỉ') || line.toLowerCase().includes('vắng')) {
+          return 'Absent';
+        }
+      }
+    }
+    
+    return '-';
+  };
+
   // Hàm xác định trạng thái meeting
   const getMeetingStatus = (meeting) => {
     const now = new Date();
@@ -522,6 +672,13 @@ export default function StudentMeetingManagement() {
     setFormErrors({});
     setLoadingMinuteModal(true);
     setShowMinuteModal(true);
+    setLastSaveTime(null);
+    
+    // Clear existing auto save interval if any
+    if (autoSaveIntervalRef.current) {
+      clearInterval(autoSaveIntervalRef.current);
+      autoSaveIntervalRef.current = null;
+    }
     
     try {
       // Fetch group info
@@ -637,11 +794,56 @@ export default function StudentMeetingManagement() {
       }
     } finally {
       setLoadingMinuteModal(false);
+      
+      // Bắt đầu auto save mỗi 5 phút (300000 ms) nếu là secretary
+      // Auto-save luôn chạy để lưu vào database, không phụ thuộc vào việc đã có biên bản hay chưa
+      // Lưu ý: setInterval vẫn chạy khi tab không active, nhưng browser có thể throttle (giảm tốc độ)
+      // Để đảm bảo auto-save hoạt động tốt, sẽ auto-save ngay khi tab trở lại active nếu đã bỏ lỡ
+      if (isSecretary) {
+        lastAutoSaveTimeRef.current = Date.now();
+        
+        const interval = setInterval(() => {
+          // Gọi auto save sử dụng ref để đọc state mới nhất
+          // Hàm này sẽ tự động kiểm tra và update nếu đã có biên bản, hoặc create nếu chưa có
+          autoSaveMeetingMinute();
+          lastAutoSaveTimeRef.current = Date.now();
+        }, 5 * 60 * 1000); // 5 phút = 300000 ms
+        autoSaveIntervalRef.current = interval;
+        
+        // Auto-save ngay khi tab trở lại active nếu đã quá 5 phút kể từ lần save cuối
+        const handleVisibilityChange = () => {
+          if (!document.hidden && showMinuteModal) {
+            const timeSinceLastSave = Date.now() - (lastAutoSaveTimeRef.current || Date.now());
+            // Nếu đã quá 5 phút kể từ lần save cuối, auto-save ngay
+            if (timeSinceLastSave >= 5 * 60 * 1000) {
+              autoSaveMeetingMinute();
+              lastAutoSaveTimeRef.current = Date.now();
+            }
+          }
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        visibilityChangeHandlerRef.current = handleVisibilityChange;
+        
+        console.log('Auto-save interval started: will save every 5 minutes (works even when tab is inactive)');
+      }
     }
   };
 
   // Hàm đóng modal
   const closeMinuteModal = () => {
+    // Clear auto save interval
+    if (autoSaveIntervalRef.current) {
+      clearInterval(autoSaveIntervalRef.current);
+      autoSaveIntervalRef.current = null;
+    }
+    
+    // Remove visibility change listener
+    if (visibilityChangeHandlerRef.current) {
+      document.removeEventListener('visibilitychange', visibilityChangeHandlerRef.current);
+      visibilityChangeHandlerRef.current = null;
+    }
+    
     setShowMinuteModal(false);
     setSelectedMeeting(null);
     setMinuteData(null);
@@ -653,6 +855,7 @@ export default function StudentMeetingManagement() {
     setPreviousMinuteData(null); // Reset biên bản trước đó
     setShowPreviousMinuteModal(false); // Reset previous minute modal
     setPreviousMinuteIssues([]); // Reset previous minute issues
+    setLastSaveTime(null);
     setFormData({
       startAt: '',
       endAt: '',
@@ -730,13 +933,119 @@ export default function StudentMeetingManagement() {
     return Object.keys(errors).length === 0;
   };
 
-  // Hàm lưu biên bản họp
-  const saveMeetingMinute = async () => {
+  // Hàm auto save sử dụng ref để đọc state mới nhất - LUÔN LƯU VÀO DATABASE
+  const autoSaveMeetingMinute = async () => {
+    const currentFormData = formDataRef.current;
+    const currentAttendanceList = attendanceListRef.current;
+    const currentSelectedMeeting = selectedMeetingRef.current;
+    const currentMinuteData = minuteDataRef.current;
+    const currentIsEditing = isEditingRef.current;
+    
+    // Kiểm tra có meeting được chọn không
+    if (!currentSelectedMeeting) {
+      return;
+    }
+    
+    // Chỉ auto save nếu có dữ liệu đã nhập (ít nhất startAt, endAt, meetingContent)
+    if (!currentFormData.startAt || !currentFormData.endAt || !currentFormData.meetingContent) {
+      return;
+    }
+    
+    // Format attendance từ attendanceList thành text
+    const attendanceText = formatAttendance(currentAttendanceList);
+    
+    try {
+      let meetingMinuteId;
+      
+      // Kiểm tra xem đã có biên bản chưa (qua minuteData hoặc fetch từ API)
+      if (currentMinuteData && currentMinuteData.id) {
+        // ĐÃ CÓ BIÊN BẢN - UPDATE vào database
+        const data = {
+          id: currentMinuteData.id,
+          startAt: new Date(currentFormData.startAt).toISOString(),
+          endAt: new Date(currentFormData.endAt).toISOString(),
+          attendance: attendanceText,
+          issue: '',
+          meetingContent: currentFormData.meetingContent,
+          other: currentFormData.other || ''
+        };
+        await updateMeetingMinute(data);
+        meetingMinuteId = currentMinuteData.id;
+        console.log('Auto-saved: Updated meeting minute to database');
+      } else {
+        // CHƯA CÓ BIÊN BẢN - Tạo mới và lưu vào database
+        const data = {
+          meetingDateId: currentSelectedMeeting.id,
+          startAt: new Date(currentFormData.startAt).toISOString(),
+          endAt: new Date(currentFormData.endAt).toISOString(),
+          attendance: attendanceText,
+          issue: '',
+          meetingContent: currentFormData.meetingContent,
+          other: currentFormData.other || ''
+        };
+        const response = await createMeetingMinute(data);
+        meetingMinuteId = response?.data?.id || response?.data?.data?.id;
+        
+        // Nếu không có id trong response, fetch lại từ API
+        if (!meetingMinuteId) {
+          const meetingMinute = await fetchMeetingMinute(currentSelectedMeeting.id);
+          meetingMinuteId = meetingMinute?.id;
+          
+          // Cập nhật minuteData nếu tìm thấy
+          if (meetingMinute && meetingMinute.id) {
+            minuteDataRef.current = meetingMinute;
+            setMinuteData(meetingMinute);
+            setIsEditing(true);
+          }
+        } else {
+          // Cập nhật minuteData sau khi tạo thành công
+          const newMinuteData = await fetchMeetingMinute(currentSelectedMeeting.id);
+          if (newMinuteData) {
+            minuteDataRef.current = newMinuteData;
+            setMinuteData(newMinuteData);
+            setIsEditing(true);
+          }
+        }
+        
+        // Auto mark isMeeting = true khi tạo biên bản mới
+        if (meetingMinuteId && currentSelectedMeeting && !currentSelectedMeeting.isMeeting) {
+          try {
+            await client.put(
+              `${API_BASE_URL}/Student/Meeting/update-is-meeting/${currentSelectedMeeting.id}`,
+              true,
+              {
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+          } catch (error) {
+            console.error('Error marking meeting as completed:', error);
+          }
+        }
+        console.log('Auto-saved: Created new meeting minute in database');
+      }
+      
+      // Update last save time
+      setLastSaveTime(new Date());
+    } catch (error) {
+      console.error('Error auto saving meeting minute to database:', error);
+    }
+  };
+
+  // Hàm lưu biên bản họp (dùng cho cả manual save và auto save)
+  const saveMeetingMinute = async (isAutoSave = false) => {
     // Format attendance từ attendanceList thành text trước khi validate
     const attendanceText = formatAttendance(attendanceList);
     setFormData(prev => ({ ...prev, attendance: attendanceText }));
     
-    if (!validateForm()) {
+    // Auto save không cần validate đầy đủ, chỉ cần có dữ liệu cơ bản
+    if (!isAutoSave && !validateForm()) {
+      return;
+    }
+    
+    // Nếu auto save và không có dữ liệu gì thì không lưu
+    if (isAutoSave && (!formData.startAt || !formData.endAt || !formData.meetingContent)) {
       return;
     }
     
@@ -756,7 +1065,9 @@ export default function StudentMeetingManagement() {
         };
         const response = await updateMeetingMinute(data);
         meetingMinuteId = minuteData.id;
-        alert('Meeting minutes updated successfully!');
+        if (!isAutoSave) {
+          alert('Meeting minutes updated successfully!');
+        }
       } else {
         // Tạo biên bản họp mới
         const data = {
@@ -776,11 +1087,38 @@ export default function StudentMeetingManagement() {
           const meetingMinute = await fetchMeetingMinute(selectedMeeting.id);
           meetingMinuteId = meetingMinute?.id;
         }
-        alert('Meeting minutes created successfully!');
+        
+        // Auto mark isMeeting = true khi tạo biên bản mới
+        if (meetingMinuteId && selectedMeeting && !selectedMeeting.isMeeting) {
+          try {
+            await client.put(
+              `${API_BASE_URL}/Student/Meeting/update-is-meeting/${selectedMeeting.id}`,
+              true,
+              {
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+              }
+            );
+            // Update local state
+            setMeetings(prevMeetings => 
+              prevMeetings.map(m => 
+                m.id === selectedMeeting.id ? { ...m, isMeeting: true } : m
+              )
+            );
+            setSelectedMeeting(prev => prev ? { ...prev, isMeeting: true } : null);
+          } catch (error) {
+            console.error('Error marking meeting as completed:', error);
+          }
+        }
+        
+        if (!isAutoSave) {
+          alert('Meeting minutes created successfully!');
+        }
       }
       
-      // Tạo các issue tạm sau khi có meeting minute id
-      if (meetingMinuteId && pendingIssues.length > 0) {
+      // Tạo các issue tạm sau khi có meeting minute id (chỉ khi manual save)
+      if (!isAutoSave && meetingMinuteId && pendingIssues.length > 0) {
         try {
           await createPendingIssues(meetingMinuteId);
           // Refresh danh sách issues sau khi tạo
@@ -792,14 +1130,21 @@ export default function StudentMeetingManagement() {
         }
       }
       
-      // Refresh meetings data
-      if (userInfo?.groups && userInfo.groups.length > 0) {
+      // Refresh meetings data (chỉ khi manual save)
+      if (!isAutoSave && userInfo?.groups && userInfo.groups.length > 0) {
         await fetchMeetings(userInfo.groups[0]);
       }
       
-      closeMinuteModal();
+      // Update last save time
+      setLastSaveTime(new Date());
+      
+      if (!isAutoSave) {
+        closeMinuteModal();
+      }
     } catch (error) {
-      alert('Error saving meeting minutes!');
+      if (!isAutoSave) {
+        alert('Error saving meeting minutes!');
+      }
       console.error('Error saving meeting minute:', error);
     }
   };
@@ -817,7 +1162,10 @@ export default function StudentMeetingManagement() {
         deadline: t.deadline,
         isActive: t.isActive,
         groupId: t.groupId,
-        status: t.status
+        status: t.status,
+        priority: t.priority,
+        assigneeId: t.assigneeId,
+        assigneeName: t.assigneeName
       }));
       return mappedTasks;
     } catch (e) {
@@ -843,7 +1191,10 @@ export default function StudentMeetingManagement() {
         deadline: t.deadline,
         isActive: t.isActive,
         groupId: t.groupId,
-        status: t.status
+        status: t.status,
+        priority: t.priority,
+        assignedTo: t.assignedTo,
+        assignedToName: t.assignedToName
       }));
     } catch (e) {
       console.error('Error fetching incomplete tasks:', e);
@@ -882,6 +1233,15 @@ export default function StudentMeetingManagement() {
     }
   };
 
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'High': return '#dc2626';
+      case 'Medium': return '#f59e0b';
+      case 'Low': return '#6b7280';
+      default: return '#6b7280';
+    }
+  };
+
   const meetingIssueColumns = [
     { 
       key: 'name', 
@@ -916,6 +1276,44 @@ export default function StudentMeetingManagement() {
             </span>
           )}
         </div>
+      )
+    },
+    { 
+      key: 'assignee', 
+      title: 'Assignee', 
+      render: (row) => (
+        <span style={{ fontSize: '12px', color: '#374151' }}>
+          {row.assignedToName || row.assigneeName || row.assignedUserId || 'N/A'}
+        </span>
+      )
+    },
+    { 
+      key: 'priority', 
+      title: 'Priority', 
+      render: (row) => (
+        <span style={{
+          padding: '4px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: '500',
+          backgroundColor: getPriorityColor(row.priority) + '20',
+          color: getPriorityColor(row.priority)
+        }}>
+          {row.priority || 'N/A'}
+        </span>
+      )
+    },
+    { 
+      key: 'isActive', 
+      title: 'Active', 
+      render: (row) => (
+        <span style={{
+          color: row.isActive === true ? '#059669' : '#9ca3af',
+          fontWeight: 500,
+          fontSize: '12px'
+        }}>
+          {row.isActive === true ? '✓ Active' : '✗ Inactive'}
+        </span>
       )
     },
     { key: 'deadline', title: 'Deadline', render: (row) => formatDateTime(row.deadline) },
@@ -1149,6 +1547,31 @@ export default function StudentMeetingManagement() {
     
     try {
       await deleteMeetingMinute(minuteData.id);
+      
+      // Tắt isMeeting của buổi họp khi xóa biên bản
+      if (selectedMeeting && selectedMeeting.isMeeting) {
+        try {
+          await client.put(
+            `${API_BASE_URL}/Student/Meeting/update-is-meeting/${selectedMeeting.id}`,
+            false,
+            {
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+          // Update local state
+          setMeetings(prevMeetings => 
+            prevMeetings.map(m => 
+              m.id === selectedMeeting.id ? { ...m, isMeeting: false, isMinute: false } : m
+            )
+          );
+          setSelectedMeeting(prev => prev ? { ...prev, isMeeting: false, isMinute: false } : null);
+        } catch (error) {
+          console.error('Error updating isMeeting status:', error);
+        }
+      }
+      
       alert('Meeting minutes deleted successfully!');
       
       // Refresh meetings data
@@ -1402,42 +1825,116 @@ export default function StudentMeetingManagement() {
         borderRadius: '8px',
         marginBottom: isMobile ? '12px' : '20px',
         boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-        border: '1px solid #e5e7eb'
+        border: '1px solid #e5e7eb',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: isMobile ? '16px' : '20px'
       }}>
-        <h1 style={{ 
-          margin: '0 0 8px 0', 
-          fontSize: isMobile ? '18px' : '24px', 
-          fontWeight: '600',
-          color: '#1f2937'
-        }}>
-          Meeting Management
-        </h1>
-        <p style={{ 
-          margin: '0 0 16px 0', 
-          fontSize: isMobile ? '12px' : '14px', 
-          color: '#6b7280'
-        }}>
-          Manage group meetings
-        </p>
-        
-        {userInfo && (
-          <div className={styles.userInfo} style={{
-            display: 'flex',
-            gap: isMobile ? '8px' : '16px',
-            flexWrap: 'wrap',
-            flexDirection: isMobile ? 'column' : 'row'
+        {/* Text content */}
+        <div>
+          <h1 style={{ 
+            margin: '0 0 8px 0', 
+            fontSize: isMobile ? '18px' : '24px', 
+            fontWeight: '600',
+            color: '#1f2937'
           }}>
-            <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#374151' }}>
-              <strong>User:</strong> {userInfo.name}
-            </span>
-            <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#374151' }}>
-              <strong>Role:</strong> {userInfo.roleInGroup || userInfo.role}
-            </span>
-            <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#374151' }}>
-              <strong>Group:</strong> {userInfo.groups && userInfo.groups.length > 0 ? userInfo.groups[0] : 'N/A'}
-            </span>
+            Meeting Management
+          </h1>
+          <p style={{ 
+            margin: '0 0 16px 0', 
+            fontSize: isMobile ? '12px' : '14px', 
+            color: '#6b7280'
+          }}>
+            Manage group meetings
+          </p>
+          
+          {userInfo && (
+            <div className={styles.userInfo} style={{
+              display: 'flex',
+              gap: isMobile ? '8px' : '16px',
+              flexWrap: 'wrap',
+              flexDirection: isMobile ? 'column' : 'row'
+            }}>
+              <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#374151' }}>
+                <strong>User:</strong> {userInfo.name}
+              </span>
+              <span style={{ fontSize: isMobile ? '12px' : '14px', color: '#374151' }}>
+                <strong>Role:</strong> {userInfo.roleInGroup || userInfo.role}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Statistics section */}
+        {userInfo && meetings.length > 0 && (() => {
+        const now = new Date();
+        let totalMeetings = meetings.length;
+        let attendedCount = 0;
+        let absentCount = 0;
+        let upcomingCount = 0;
+
+        meetings.forEach(meeting => {
+          const meetingDate = new Date(meeting.meetingDate);
+          const hasHappened = meeting.isMeeting === true && meetingDate <= now;
+          // console.log(meeting);
+          if (!hasHappened) {
+            // Chưa diễn ra
+            upcomingCount++;
+          } else {
+            // Đã diễn ra, kiểm tra attendance
+            const attendanceStatus = getUserAttendanceStatus(meeting);
+            if (attendanceStatus === 'Attended') {
+              attendedCount++;
+            } else if (attendanceStatus === 'Absent') {
+              absentCount++;
+            }
+          }
+        });
+
+        return (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            width: '100%',
+            flexWrap: 'wrap',
+            gap: isMobile ? '12px' : '24px'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span style={{ fontSize: isMobile ? '11px' : '13px', color: '#6b7280' }}>Total:</span>
+              <span style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: '600', color: '#1f2937' }}>{totalMeetings}</span>
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span style={{ fontSize: isMobile ? '11px' : '13px', color: '#6b7280' }}>Attended:</span>
+              <span style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: '600', color: '#10b981' }}>{attendedCount}</span>
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span style={{ fontSize: isMobile ? '11px' : '13px', color: '#6b7280' }}>Absent:</span>
+              <span style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: '600', color: '#dc2626' }}>{absentCount}</span>
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span style={{ fontSize: isMobile ? '11px' : '13px', color: '#6b7280' }}>Upcoming:</span>
+              <span style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: '600', color: '#6b7280' }}>{upcomingCount}</span>
+            </div>
           </div>
-        )}
+        );
+      })()}
       </div>
 
       {/* Meetings Table */}
@@ -1558,59 +2055,21 @@ export default function StudentMeetingManagement() {
               hidden: isMobile && window.innerWidth < 640
             },
             {
-              key: 'isMeeting',
-              title: 'Completed',
+              key: 'attendance',
+              title: 'Attendance',
               render: (row) => {
-                if (!isSecretary) {
-                  return (
-                    <span style={{
-                      color: row.isMeeting === true ? '#059669' : '#9ca3af',
-                      fontWeight: 500,
-                      fontSize: isMobile ? '10px' : '12px'
-                    }}>
-                      {row.isMeeting === true ? (isMobile ? '✓' : '✓ Completed') : (isMobile ? '✗' : '✗ Not Yet')}
-                    </span>
-                  );
-                }
+                const attendanceStatus = getUserAttendanceStatus(row);
                 return (
-                  <label style={{ 
-                    position: 'relative', 
-                    display: 'inline-block', 
-                    width: isMobile ? '32px' : '36px', 
-                    height: isMobile ? '18px' : '20px',
-                    cursor: 'pointer'
+                  <span style={{
+                    color: attendanceStatus === 'Attended' ? '#059669' : 
+                           attendanceStatus === 'Absent' ? '#dc2626' : '#6b7280',
+                    fontWeight: 500,
+                    fontSize: isMobile ? '10px' : '12px'
                   }}>
-                    <input
-                      type="checkbox"
-                      checked={row.isMeeting === true}
-                      onChange={() => toggleMeetingStatus(row)}
-                      style={{ opacity: 0, width: 0, height: 0 }}
-                    />
-                    <span style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      backgroundColor: row.isMeeting === true ? '#10b981' : '#ccc',
-                      borderRadius: '20px',
-                      transition: '0.3s'
-                    }}>
-                      <span style={{
-                        position: 'absolute',
-                        height: isMobile ? '14px' : '16px',
-                        width: isMobile ? '14px' : '16px',
-                        left: row.isMeeting === true ? (isMobile ? '16px' : '18px') : '2px',
-                        bottom: '2px',
-                        backgroundColor: 'white',
-                        borderRadius: '50%',
-                        transition: '0.3s'
-                      }}></span>
-                    </span>
-                  </label>
+                    {attendanceStatus}
+                  </span>
                 );
-              },
-              hidden: isMobile && window.innerWidth < 640
+              }
             },
             {
               key: 'actions',
@@ -1661,8 +2120,8 @@ export default function StudentMeetingManagement() {
                       </Button>
                     )}
                     
-                    {/* Nút tạo biên bản - chỉ cho Secretary, chưa có biên bản và chưa họp xong */}
-                    {isSecretary && !hasMinute && !isMeetingCompleted && (
+                    {/* Nút tạo biên bản - chỉ cho Secretary và chưa có biên bản (có thể tạo trước khi họp) */}
+                    {isSecretary && !hasMinute && (
                       <Button
                         onClick={() => openMinuteModal(row)}
                         style={{
@@ -1860,8 +2319,10 @@ export default function StudentMeetingManagement() {
                       Previous meeting minutes available
                     </span>
                   </div>
-                  <button
-                    onClick={async () => {
+                  <a
+                    href="#"
+                    onClick={async (e) => {
+                      e.preventDefault();
                       setShowPreviousMinuteModal(true);
                       // Load issues for previous minute
                       if (previousMinuteData?.id) {
@@ -1874,50 +2335,47 @@ export default function StudentMeetingManagement() {
                       }
                     }}
                     style={{
-                      background: '#0ea5e9',
-                      color: 'white',
-                      border: 'none',
-                      padding: '6px 12px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
+                      color: '#0ea5e9',
+                      textDecoration: 'underline',
                       fontSize: 13,
-                      fontWeight: 500
+                      fontWeight: 500,
+                      cursor: 'pointer'
                     }}
                   >
                     View Previous Minutes →
-                  </button>
+                  </a>
                 </div>
               )}
               
               <div className={styles.formRow}>
                 <div className={styles.formGroup}>
-                  <label>Start Time {isSecretary && selectedMeeting?.isMeeting !== true && '*'}</label>
+                  <label>Start Time {isSecretary && canEditMinute() && '*'}</label>
                   <Input
                     type="datetime-local"
                     value={formData.startAt}
                     onChange={(e) => handleInputChange('startAt', e.target.value)}
                     error={formErrors.startAt}
-                    disabled={!isSecretary || selectedMeeting?.isMeeting === true}
-                    style={(!isSecretary || selectedMeeting?.isMeeting === true) ? { backgroundColor: '#f3f4f6' } : {}}
+                    disabled={!isSecretary || !canEditMinute()}
+                    style={(!isSecretary || !canEditMinute()) ? { backgroundColor: '#f3f4f6' } : {}}
                   />
                 </div>
                 <div className={styles.formGroup}>
-                  <label>End Time {isSecretary && selectedMeeting?.isMeeting !== true && '*'}</label>
+                  <label>End Time {isSecretary && canEditMinute() && '*'}</label>
                   <Input
                     type="datetime-local"
                     value={formData.endAt}
                     onChange={(e) => handleInputChange('endAt', e.target.value)}
                     error={formErrors.endAt}
-                    disabled={!isSecretary || selectedMeeting?.isMeeting === true}
-                    style={(!isSecretary || selectedMeeting?.isMeeting === true) ? { backgroundColor: '#f3f4f6' } : {}}
+                    disabled={!isSecretary || !canEditMinute()}
+                    style={(!isSecretary || !canEditMinute()) ? { backgroundColor: '#f3f4f6' } : {}}
                   />
                 </div>
               </div>
 
               <div className={styles.formGroup}>
-                <label>Attendance List {isSecretary && selectedMeeting?.isMeeting !== true && '*'}</label>
-                {/* View mode (completed meeting OR not secretary) - show as read-only input */}
-                {(selectedMeeting?.isMeeting === true || !isSecretary) ? (
+                <label>Attendance List {isSecretary && canEditMinute() && '*'}</label>
+                {/* View mode (cannot edit OR not secretary) - show as read-only input */}
+                {(!canEditMinute() || !isSecretary) ? (
                   <div style={{
                     border: '1px solid #d1d5db',
                     borderRadius: '6px',
@@ -2018,7 +2476,7 @@ export default function StudentMeetingManagement() {
                     Loading member list...
                   </div>
                 )}
-                {formErrors.attendance && isSecretary && selectedMeeting?.isMeeting !== true && (
+                {formErrors.attendance && isSecretary && canEditMinute() && (
                   <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
                     {formErrors.attendance}
                   </div>
@@ -2026,7 +2484,7 @@ export default function StudentMeetingManagement() {
               </div>
 
               <div className={styles.formGroup}>
-                <label>Meeting Content {isSecretary && selectedMeeting?.isMeeting !== true && '*'}</label>
+                <label>Meeting Content {isSecretary && canEditMinute() && '*'}</label>
                 <Textarea
                   value={formData.meetingContent}
                   onChange={(e) => handleInputChange('meetingContent', e.target.value)}
@@ -2034,11 +2492,11 @@ export default function StudentMeetingManagement() {
                   rows={6}
                   style={{
                     ...(formErrors.meetingContent ? { borderColor: '#dc2626' } : {}),
-                    ...((!isSecretary || selectedMeeting?.isMeeting === true) ? { backgroundColor: '#f3f4f6' } : {})
+                    ...((!isSecretary || !canEditMinute()) ? { backgroundColor: '#f3f4f6' } : {})
                   }}
-                  disabled={!isSecretary || selectedMeeting?.isMeeting === true}
+                  disabled={!isSecretary || !canEditMinute()}
                 />
-                {formErrors.meetingContent && isSecretary && selectedMeeting?.isMeeting !== true && (
+                {formErrors.meetingContent && isSecretary && canEditMinute() && (
                   <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
                     {formErrors.meetingContent}
                   </div>
@@ -2047,14 +2505,7 @@ export default function StudentMeetingManagement() {
 
               <div className={styles.formGroup}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label style={{ margin: 0 }}>Meeting Issues</label>
-                  {/* Chỉ cho phép thêm issue nếu cuộc họp chưa kết thúc */}
-                  {isSecretary && selectedMeeting?.isMeeting !== true && (
-                    <button
-                      onClick={openCreateIssueModal}
-                      style={{ background: '#10B981', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}
-                    >Add Issue</button>
-                  )}
+                  <label style={{ margin: 0 }}>Issues</label>
                 </div>
                 <div style={{ marginTop: 8, maxWidth: '100%', overflowX: 'hidden' }}>
                   <DataTable
@@ -2065,6 +2516,15 @@ export default function StudentMeetingManagement() {
                     className={styles.compactTable || ''}
                   />
                 </div>
+                {/* Nút Add Issue xuống dưới bảng */}
+                {isSecretary && canEditMinute() && (
+                  <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={openCreateIssueModal}
+                      style={{ background: '#10B981', color: '#fff', border: 'none', padding: '6px 10px', borderRadius: 6, cursor: 'pointer' }}
+                    >Add Issue</button>
+                  </div>
+                )}
               </div>
 
               <div className={styles.formGroup}>
@@ -2074,8 +2534,8 @@ export default function StudentMeetingManagement() {
                   onChange={(e) => handleInputChange('other', e.target.value)}
                   placeholder="Any other notes from the meeting..."
                   rows={3}
-                  disabled={!isSecretary || selectedMeeting?.isMeeting === true}
-                  style={(!isSecretary || selectedMeeting?.isMeeting === true) ? { backgroundColor: '#f3f4f6' } : {}}
+                  disabled={!isSecretary || !canEditMinute()}
+                  style={(!isSecretary || !canEditMinute()) ? { backgroundColor: '#f3f4f6' } : {}}
                 />
               </div>
             </div>
@@ -2083,8 +2543,8 @@ export default function StudentMeetingManagement() {
 
             {!loadingMinuteModal && (
             <div className={styles.modalFooter}>
-              {/* Chỉ cho phép sửa/tạo biên bản nếu cuộc họp chưa kết thúc (isMeeting !== true) */}
-              {isSecretary && selectedMeeting?.isMeeting !== true && (
+              {/* Cho phép tạo biên bản bất cứ lúc nào, nhưng chỉ cho phép sửa biên bản đã có trong ngày họp */}
+              {isSecretary && canEditMinute() && (
                 <>
                   {isEditing && minuteData && (
                     <Button 
@@ -2096,24 +2556,29 @@ export default function StudentMeetingManagement() {
                     </Button>
                   )}
                   <Button 
-                    onClick={saveMeetingMinute}
+                    onClick={() => saveMeetingMinute(false)}
                     className={styles.saveButton}
                   >
-                    {isEditing ? 'Update' : 'Create Minutes'}
+                    {isEditing ? 'Update' : 'Save'}
                   </Button>
                 </>
               )}
-              {/* Display message if meeting is completed */}
-              {selectedMeeting?.isMeeting === true && isSecretary && (
+              {/* Display message if cannot edit (only when editing existing minutes) */}
+              {!canEditMinute() && isSecretary && isEditing && minuteData && (
                 <span style={{ color: '#6b7280', fontSize: '13px', marginRight: 'auto' }}>
-                  Meeting completed, cannot edit minutes
+                  Can only edit minutes on the meeting day
+                </span>
+              )}
+              {lastSaveTime && (
+                <span style={{ color: '#6b7280', fontSize: '12px', marginRight: 'auto' }}>
+                  Last auto-saved: {lastSaveTime.toLocaleTimeString('vi-VN')}
                 </span>
               )}
               <Button 
                 variant="secondary"
                 onClick={closeMinuteModal}
               >
-                {isSecretary && selectedMeeting?.isMeeting !== true ? 'Cancel' : 'Close'}
+                {isSecretary && canEditMinute() ? 'Cancel' : 'Close'}
               </Button>
             </div>
             )}
@@ -2313,7 +2778,7 @@ export default function StudentMeetingManagement() {
               >
                 Cancel
               </button>
-              <button className={`${styles.modalButton} ${styles.primary}`} onClick={createMeetingIssue}>Create Issue</button>
+              <button className={`${styles.modalButton} ${styles.primary}`} onClick={createMeetingIssue}>Save</button>
             </div>
           </div>
         </div>
@@ -2545,7 +3010,7 @@ export default function StudentMeetingManagement() {
 
           {/* Meeting Issues */}
           <div style={{ marginBottom: 16 }}>
-            <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Issues</h4>
+            <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Issues</h4>
             {previousMinuteIssues.length > 0 ? (
               <div style={{
                 background: 'rgba(255,255,255,0.5)',
