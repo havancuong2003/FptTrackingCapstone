@@ -84,6 +84,13 @@
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.campusActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .campusSelect {
@@ -477,18 +484,55 @@
 }
 
 .modalContent {
-  padding: 20px 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 500px;
+  max-width: 600px;
+}
+
+.modalHeader {
+  padding: 24px 28px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.modalBody {
+  padding: 28px;
+}
+
+.modalInput {
+  width: 100%;
 }
 
 .formGroup {
-  margin-bottom: 20px;
+  margin-bottom: 0;
 }
 
-.formGroup label {
+.formLabel {
   display: block;
   margin-bottom: 8px;
   color: #374151;
   font-size: 14px;
+  font-weight: 500;
+}
+
+.required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.errorMessage {
+  margin-top: 8px;
+  color: #ef4444;
+  font-size: 13px;
   font-weight: 500;
 }
 
@@ -517,9 +561,9 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: 24px;
-  padding-top: 20px;
+  padding: 20px 28px;
   border-top: 1px solid #e5e7eb;
+  background: #f9fafb;
 }
 
 .cancelButton {

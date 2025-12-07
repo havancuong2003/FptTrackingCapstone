@@ -54,7 +54,7 @@ export default function System() {
       }
     } catch (error) {
       console.error('Error loading mail settings:', error);
-      alert('Không thể tải cài đặt email. Vui lòng thử lại.');
+      alert('Unable to load email settings. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -101,18 +101,18 @@ export default function System() {
     const newErrors = {};
     
     if (!mailSettings.mail || !mailSettings.mail.trim()) {
-      newErrors.mail = 'Email không được để trống';
+      newErrors.mail = 'Email is required';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailSettings.mail)) {
-      newErrors.mail = 'Email không hợp lệ';
+      newErrors.mail = 'Invalid email format';
     }
 
     if (!mailSettings.displayName || !mailSettings.displayName.trim()) {
-      newErrors.displayName = 'Tên hiển thị không được để trống';
+      newErrors.displayName = 'Display name is required';
     }
 
     // Password chỉ validate khi có giá trị (cho phép để trống nếu không muốn đổi)
     if (mailSettings.password && mailSettings.password.length < 6) {
-      newErrors.password = 'Mật khẩu phải có ít nhất 6 ký tự';
+      newErrors.password = 'Password must be at least 6 characters';
     }
 
     setErrors(newErrors);
@@ -142,7 +142,7 @@ export default function System() {
       const response = await updateMailSettings(payload);
       
       if (response.status === 200) {
-        setSuccessMessage('Cập nhật cài đặt email thành công!');
+        setSuccessMessage('Email settings updated successfully!');
         // Clear password field sau khi lưu thành công
         setMailSettings(prev => ({
           ...prev,
@@ -155,11 +155,11 @@ export default function System() {
           loadMailSettings();
         }, 500);
       } else {
-        alert(response.message || 'Có lỗi xảy ra khi cập nhật cài đặt email');
+        alert(response.message || 'Error updating email settings');
       }
     } catch (error) {
       console.error('Error updating mail settings:', error);
-      alert(error.message || 'Không thể cập nhật cài đặt email. Vui lòng thử lại.');
+      alert(error.message || 'Unable to update email settings. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -170,12 +170,12 @@ export default function System() {
     
     // Validate email
     if (!testEmailAddress || !testEmailAddress.trim()) {
-      setTestError('Email không được để trống');
+      setTestError('Email is required');
       return;
     }
     
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(testEmailAddress.trim())) {
-      setTestError('Email không hợp lệ');
+      setTestError('Invalid email format');
       return;
     }
 
@@ -187,17 +187,17 @@ export default function System() {
       const response = await testEmail(testEmailAddress.trim());
       
       if (response.status === 200) {
-        setTestSuccess(`Email test đã được gửi thành công đến ${testEmailAddress.trim()}. Vui lòng kiểm tra hộp thư đến.`);
+        setTestSuccess(`Test email sent successfully to ${testEmailAddress.trim()}. Please check your inbox.`);
         // Clear email sau 3 giây
         setTimeout(() => {
           setTestEmailAddress('');
         }, 3000);
       } else {
-        setTestError(response.message || 'Không thể gửi email test. Vui lòng kiểm tra lại cài đặt.');
+        setTestError(response.message || 'Unable to send test email. Please check your settings.');
       }
     } catch (error) {
       console.error('Error testing email:', error);
-      setTestError(error.message || 'Không thể gửi email test. Vui lòng kiểm tra lại cài đặt email.');
+      setTestError(error.message || 'Unable to send test email. Please check your email settings.');
     } finally {
       setTesting(false);
     }
@@ -206,7 +206,7 @@ export default function System() {
   if (loading) {
     return (
       <div className={styles.wrap}>
-        <div className={styles.loading}>Đang tải...</div>
+        <div className={styles.loading}>Loading...</div>
       </div>
     );
   }
@@ -214,42 +214,42 @@ export default function System() {
   return (
     <div className={styles.wrap}>
       <div className={styles.header}>
-        <h1>Quản lý hệ thống</h1>
-        <p>Quản lý cài đặt hệ thống: email, bảo trì, backup, xử lý sự cố.</p>
+        <h1>System Management</h1>
+        <p>Manage system settings: email, maintenance, backup, troubleshooting.</p>
       </div>
 
       <div className={styles.content}>
         <div className={styles.emailCard}>
           <div className={styles.cardHeader}>
-            <h2 className={styles.cardTitle}>Cài đặt Email</h2>
+            <h2 className={styles.cardTitle}>Email Settings</h2>
           </div>
           <div className={styles.cardBody}>
             <form onSubmit={handleSubmit} className={styles.form}>
               <FormField 
                 label="Email" 
                 error={errors.mail}
-                hint="Email dùng để gửi thông báo (ví dụ: gioidmhe171512@fpt.edu.vn)"
+                hint="Email address used to send notifications (e.g., example@fpt.edu.vn)"
               >
                 <Input
                   type="email"
                   value={mailSettings.mail}
                   onChange={(e) => handleInputChange('mail', e.target.value)}
-                  placeholder="Nhập địa chỉ email"
+                  placeholder="Enter email address"
                   disabled={!isEditing || saving}
                   readOnly={!isEditing}
                 />
               </FormField>
 
               <FormField 
-                label="Tên hiển thị" 
+                label="Display Name" 
                 error={errors.displayName}
-                hint="Tên hiển thị trong email gửi đi (ví dụ: FPTTrackingSystem)"
+                hint="Display name in sent emails (e.g., FPTTrackingSystem)"
               >
                 <Input
                   type="text"
                   value={mailSettings.displayName}
                   onChange={(e) => handleInputChange('displayName', e.target.value)}
-                  placeholder="Nhập tên hiển thị"
+                  placeholder="Enter display name"
                   disabled={!isEditing || saving}
                   readOnly={!isEditing}
                 />
@@ -257,15 +257,15 @@ export default function System() {
 
               {isEditing && (
                 <FormField 
-                  label="Mật khẩu" 
+                  label="Password" 
                   error={errors.password}
-                  hint="Nhập mật khẩu mới nếu muốn thay đổi (để trống nếu giữ nguyên)"
+                  hint="Enter new password if you want to change it (leave blank to keep current)"
                 >
                   <Input
                     type="password"
                     value={mailSettings.password}
                     onChange={(e) => handleInputChange('password', e.target.value)}
-                    placeholder="Nhập mật khẩu mới (nếu muốn thay đổi)"
+                    placeholder="Enter new password (if changing)"
                     disabled={saving}
                   />
                 </FormField>
@@ -293,7 +293,7 @@ export default function System() {
                     onClick={handleEdit}
                     disabled={saving}
                   >
-                    Chỉnh sửa
+                    Edit
                   </Button>
                 ) : (
                   <>
@@ -303,7 +303,7 @@ export default function System() {
                       onClick={handleCancel}
                       disabled={saving}
                     >
-                      Hủy
+                      Cancel
                     </Button>
                     <Button 
                       type="submit" 
@@ -311,7 +311,7 @@ export default function System() {
                       loading={saving}
                       disabled={saving}
                     >
-                      Lưu cài đặt
+                      Save Settings
                     </Button>
                   </>
                 )}
@@ -331,14 +331,14 @@ export default function System() {
         <div className={styles.testModal}>
           <h2 className={styles.testModalTitle}>Test Email</h2>
           <p className={styles.testModalDescription}>
-            Nhập địa chỉ email để kiểm tra xem cài đặt email có hoạt động không.
+            Enter an email address to test if email settings are working correctly.
           </p>
           
           <form onSubmit={handleTestEmail} className={styles.testForm}>
             <FormField 
-              label="Email nhận test" 
+              label="Test Email Address" 
               error={testError}
-              hint="Nhập địa chỉ email để nhận email test"
+              hint="Enter email address to receive test email"
             >
               <Input
                 type="email"
@@ -372,7 +372,7 @@ export default function System() {
                 }}
                 disabled={testing}
               >
-                Hủy
+                Cancel
               </Button>
               <Button 
                 type="submit" 
@@ -380,7 +380,7 @@ export default function System() {
                 loading={testing}
                 disabled={testing || !testEmailAddress.trim()}
               >
-                Gửi Email Test
+                Send Test Email
               </Button>
             </div>
           </form>

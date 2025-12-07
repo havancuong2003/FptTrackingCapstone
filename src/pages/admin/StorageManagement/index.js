@@ -191,11 +191,11 @@ export default function StorageManagement() {
       } else if (response?.data) {
         setGroupDetail(response.data);
       } else {
-        alert(response?.message || 'Không thể tải thông tin chi tiết nhóm');
+        alert(response?.message || 'Unable to load group details');
       }
     } catch (error) {
       console.error('Error loading group detail:', error);
-      alert(error.response?.data?.message || 'Không thể tải thông tin chi tiết nhóm');
+      alert(error.response?.data?.message || 'Unable to load group details');
     } finally {
       setLoadingGroupDetail(false);
     }
@@ -423,10 +423,10 @@ export default function StorageManagement() {
       {/* Group Detail Modal */}
       <Modal open={groupDetailModalOpen} onClose={() => setGroupDetailModalOpen(false)}>
         <div className={styles.groupDetailModal}>
-          <h2>Chi tiết nhóm: {selectedGroup?.groupName}</h2>
+          <h2>Group Details: {selectedGroup?.groupName}</h2>
           
           {loadingGroupDetail ? (
-            <div className={styles.loading}>Đang tải...</div>
+            <div className={styles.loading}>Loading...</div>
           ) : groupDetail ? (
             <div className={styles.groupDetailContent}>
               <div className={styles.detailRow}>
@@ -447,12 +447,12 @@ export default function StorageManagement() {
               </div>
             </div>
           ) : (
-            <div className={styles.error}>Không có dữ liệu</div>
+            <div className={styles.error}>No data available</div>
           )}
 
           <div className={styles.modalActions}>
             <Button variant="secondary" onClick={() => setGroupDetailModalOpen(false)}>
-              Đóng
+              Close
             </Button>
           </div>
         </div>

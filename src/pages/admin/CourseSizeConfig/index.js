@@ -87,7 +87,7 @@ export default function CourseSizeConfig() {
       }
     } catch (error) {
       console.error('Error loading courses:', error);
-      alert('Không thể tải danh sách môn học. Vui lòng thử lại.');
+      alert('Unable to load courses list. Please try again.');
       setAllCourses([]);
       setTotalItems(0);
       setCourses([]);
@@ -170,16 +170,16 @@ export default function CourseSizeConfig() {
     const newErrors = {};
     
     if (!formData.code || !formData.code.trim()) {
-      newErrors.code = 'Mã môn học không được để trống';
+      newErrors.code = 'Course code is required';
     }
 
     if (!formData.name || !formData.name.trim()) {
-      newErrors.name = 'Tên môn học không được để trống';
+      newErrors.name = 'Course name is required';
     }
 
     if (formData.size !== null && formData.size !== undefined) {
       if (isNaN(formData.size) || formData.size < 0) {
-        newErrors.size = 'Dung lượng phải là số dương (MB)';
+        newErrors.size = 'Size must be a positive number (MB)';
       }
     }
 
@@ -207,18 +207,18 @@ export default function CourseSizeConfig() {
       const response = await updateCourse(selectedCourse.id, payload);
       
       if (response.status === 200) {
-        setSuccessMessage('Cập nhật cấu hình dung lượng thành công!');
+        setSuccessMessage('Upload size configuration updated successfully!');
         setEditModalOpen(false);
         // Reload danh sách - giữ nguyên trang hiện tại
         setTimeout(() => {
           loadCourses();
         }, 500);
       } else {
-        alert(response.message || 'Có lỗi xảy ra khi cập nhật cấu hình');
+        alert(response.message || 'Error updating configuration');
       }
     } catch (error) {
       console.error('Error updating course:', error);
-      alert(error.response?.data?.message || 'Không thể cập nhật cấu hình. Vui lòng thử lại.');
+      alert(error.response?.data?.message || 'Unable to update configuration. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -311,7 +311,7 @@ export default function CourseSizeConfig() {
             cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
           }}
         >
-          Trước
+          Previous
         </button>
         {pages}
         <button
@@ -324,7 +324,7 @@ export default function CourseSizeConfig() {
             cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
           }}
         >
-          Sau
+          Next
         </button>
       </div>
     );
@@ -334,7 +334,7 @@ export default function CourseSizeConfig() {
   const columns = [
     {
       key: 'code',
-      title: 'Mã môn học',
+      title: 'Course Code',
       render: (course) => (
         <div 
           style={{ 
@@ -355,7 +355,7 @@ export default function CourseSizeConfig() {
     },
     {
       key: 'name',
-      title: 'Tên môn học',
+      title: 'Course Name',
       render: (course) => (
         <div style={{ fontSize: '14px' }}>
           {course.name}
@@ -364,18 +364,18 @@ export default function CourseSizeConfig() {
     },
     {
       key: 'size',
-      title: 'Dung lượng (MB)',
+      title: 'Size (MB)',
       render: (course) => (
         <div style={{ fontSize: '14px', fontWeight: 500 }}>
           {course.size !== null && course.size !== undefined 
             ? `${course.size} MB` 
-            : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Chưa cấu hình</span>}
+            : <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Not configured</span>}
         </div>
       )
     },
     {
       key: 'status',
-      title: 'Trạng thái',
+      title: 'Status',
       render: (course) => (
         <span style={{
           background: course.isActive ? '#dcfce7' : '#fee2e2',
@@ -385,7 +385,7 @@ export default function CourseSizeConfig() {
           fontSize: '12px',
           fontWeight: 600
         }}>
-          {course.isActive ? 'Hoạt động' : 'Không hoạt động'}
+          {course.isActive ? 'Active' : 'Inactive'}
         </span>
       )
     }
@@ -394,7 +394,7 @@ export default function CourseSizeConfig() {
   if (loading && courses.length === 0) {
     return (
       <div className={styles.wrap}>
-        <div className={styles.loading}>Đang tải...</div>
+        <div className={styles.loading}>Loading...</div>
       </div>
     );
   }
@@ -402,8 +402,8 @@ export default function CourseSizeConfig() {
   return (
     <div className={styles.wrap}>
       <div className={styles.header}>
-        <h1>Cấu hình dung lượng upload</h1>
-        <p>Quản lý dung lượng upload (MB) cho từng mã môn học trong hệ thống.</p>
+        <h1>Upload Size Configuration</h1>
+        <p>Manage upload size limit (MB) for each course code in the system.</p>
       </div>
 
       <div className={styles.content}>
@@ -412,7 +412,7 @@ export default function CourseSizeConfig() {
           <div className={styles.searchBar}>
             <Input
               type="text"
-              placeholder="Tìm kiếm theo mã môn học hoặc tên môn học..."
+              placeholder="Search by course code or name..."
               value={searchTerm}
               onChange={handleSearchChange}
               style={{ maxWidth: '400px' }}
@@ -440,7 +440,7 @@ export default function CourseSizeConfig() {
             data={courses}
             columns={columns}
             loading={loading}
-            emptyMessage={searchTerm ? 'Không tìm thấy môn học nào phù hợp' : 'Không có môn học nào'}
+            emptyMessage={searchTerm ? 'No courses found matching your search' : 'No courses available'}
           />
         </div>
 
@@ -451,50 +451,50 @@ export default function CourseSizeConfig() {
       {/* Edit Course Size Modal */}
       <Modal open={editModalOpen} onClose={handleCloseModal}>
         <div className={styles.modalContent}>
-          <h2 className={styles.modalTitle}>Cấu hình dung lượng upload</h2>
+          <h2 className={styles.modalTitle}>Upload Size Configuration</h2>
           <p className={styles.modalDescription}>
-            Cấu hình dung lượng upload (MB) cho môn học: <strong>{formData.code}</strong>
+            Configure upload size limit (MB) for course: <strong>{formData.code}</strong>
           </p>
           
           <form onSubmit={handleSubmit} className={styles.form}>
             <FormField 
-              label="Mã môn học" 
+              label="Course Code" 
               error={errors.code}
             >
               <Input
                 type="text"
                 value={formData.code}
                 onChange={(e) => handleInputChange('code', e.target.value)}
-                placeholder="Mã môn học"
+                placeholder="Course code"
                 disabled={saving}
                 readOnly
               />
             </FormField>
 
             <FormField 
-              label="Tên môn học" 
+              label="Course Name" 
               error={errors.name}
             >
               <Input
                 type="text"
                 value={formData.name}
                 onChange={(e) => handleInputChange('name', e.target.value)}
-                placeholder="Tên môn học"
+                placeholder="Course name"
                 disabled={saving}
                 readOnly
               />
             </FormField>
 
             <FormField 
-              label="Dung lượng upload (MB)" 
+              label="Upload Size (MB)" 
               error={errors.size}
-              hint="Nhập số MB cho phép upload. Để trống nếu không giới hạn."
+              hint="Enter allowed upload size in MB. Leave blank for unlimited."
             >
               <Input
                 type="number"
                 value={formData.size !== null && formData.size !== undefined ? formData.size : ''}
                 onChange={(e) => handleInputChange('size', e.target.value)}
-                placeholder="Ví dụ: 100"
+                placeholder="e.g., 100"
                 disabled={saving}
                 min="0"
                 step="1"
@@ -514,7 +514,7 @@ export default function CourseSizeConfig() {
                 onClick={handleCloseModal}
                 disabled={saving}
               >
-                Hủy
+                Cancel
               </Button>
               <Button 
                 type="submit" 
@@ -522,7 +522,7 @@ export default function CourseSizeConfig() {
                 loading={saving}
                 disabled={saving}
               >
-                Lưu cấu hình
+                Save Configuration
               </Button>
             </div>
           </form>
