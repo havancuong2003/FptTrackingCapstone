@@ -70,6 +70,7 @@ const SupervisorCalendar = React.lazy(() => import("../pages/supervisor/Calendar
 const CampusSlotManagement = React.lazy(() => import("../pages/admin/CampusSlotManagement"));
 const StorageManagement = React.lazy(() => import("../pages/admin/StorageManagement/index"));
 const CourseSizeConfig = React.lazy(() => import("../pages/admin/CourseSizeConfig"));
+const AISettings = React.lazy(() => import("../pages/admin/AISettings"));
 export const routes = [
   {
     path: "/",
@@ -222,6 +223,11 @@ export const routes = [
     path: "/admin/course-size-config",
     element: CourseSizeConfig,
     meta: { title: "Course Size Config", protected: true, roles: ["ADMIN"] },
+  },
+  {
+    path: "/admin/ai-settings",
+    element: AISettings,
+    meta: { title: "AI Settings", protected: true, roles: ["ADMIN"] },
   },
   {
     path: "/tracking",
