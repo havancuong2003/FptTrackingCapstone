@@ -15,6 +15,8 @@ import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/Sup
 import { sendEmail } from '../../../email/api';
 import { baseTemplate } from '../../../email/templates';
 import { formatDate } from '../../../utils/date';
+import { askAI, getAIResult } from '../../../api/ai';
+import Modal from '../../../components/Modal/Modal';
 
 export default function SupervisorMeetingManagement() {
   const navigate = useNavigate();
@@ -58,6 +60,17 @@ export default function SupervisorMeetingManagement() {
   const [previousMinuteData, setPreviousMinuteData] = React.useState(null); // Previous meeting minutes
   const [showPreviousMinuteModal, setShowPreviousMinuteModal] = React.useState(false); // Modal for previous meeting minutes
   const [previousMinuteIssues, setPreviousMinuteIssues] = React.useState([]); // Issues from previous meeting
+  
+  // AI states
+  const [showAIModal, setShowAIModal] = React.useState(false);
+  const [aiPrompt, setAiPrompt] = React.useState('');
+  const [aiTaskId, setAiTaskId] = React.useState(null);
+  const [aiResult, setAiResult] = React.useState(null);
+  const [aiLoading, setAiLoading] = React.useState(false);
+  const [aiPolling, setAiPolling] = React.useState(false);
+  const [aiError, setAiError] = React.useState('');
+  const pollingTimeoutRef = React.useRef(null);
+  const isPollingActiveRef = React.useRef(false);
 
   React.useEffect(() => {
     fetchUserInfo();
@@ -862,6 +875,175 @@ export default function SupervisorMeetingManagement() {
     }
   };
 
+  // ========== AI Functions ==========
+  const handleOpenAIModal = () => {
+    if (!selectedGroupId) {
+      alert('Please select a group first');
+      return;
+    }
+    setShowAIModal(true);
+    setAiPrompt('');
+    setAiTaskId(null);
+    setAiResult(null);
+    setAiError('');
+  };
+
+  const handleCloseAIModal = () => {
+    // Cancel polling if active
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+    }
+    isPollingActiveRef.current = false;
+    
+    setShowAIModal(false);
+    setAiPrompt('');
+    setAiTaskId(null);
+    setAiResult(null);
+    setAiError('');
+    setAiPolling(false);
+  };
+
+  const handleCancelAI = () => {
+    // Cancel polling if active
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+    }
+    isPollingActiveRef.current = false;
+    
+    setAiTaskId(null);
+    setAiResult(null);
+    setAiError('');
+    setAiPolling(false);
+  };
+
+  const handleAskAI = async () => {
+    if (!aiPrompt || !aiPrompt.trim()) {
+      setAiError('Please enter a prompt');
+      return;
+    }
+
+    if (!selectedGroupId) {
+      setAiError('Please select a group first');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError('');
+    setAiResult(null);
+    setAiTaskId(null);
+
+    try {
+      const response = await askAI({
+        prompt: aiPrompt.trim(),
+        groupId: Number(selectedGroupId)
+      });
+
+      if (response.status === 200 && response.data) {
+        const taskId = response.data.taskId || response.data.id || response.data;
+        if (taskId) {
+          setAiTaskId(taskId);
+          setAiPolling(true);
+          // Start polling for result
+          pollAIResult(taskId);
+        } else {
+          setAiError('No task ID returned from server');
+        }
+      } else {
+        setAiError(response.message || 'Failed to submit AI request');
+      }
+    } catch (error) {
+      console.error('Error asking AI:', error);
+      setAiError(error.message || 'Failed to submit AI request');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const pollAIResult = async (taskId) => {
+    const maxAttempts = 60; // 60 attempts
+    const interval = 2000; // 2 seconds
+    let attempts = 0;
+    isPollingActiveRef.current = true;
+
+    const poll = async () => {
+      // Check if polling was cancelled
+      if (!isPollingActiveRef.current) {
+        return;
+      }
+
+      if (attempts >= maxAttempts) {
+        isPollingActiveRef.current = false;
+        setAiPolling(false);
+        setAiError('Timeout waiting for AI result. Please try again later.');
+        return;
+      }
+
+      try {
+        const response = await getAIResult(taskId);
+        
+        // Check again if polling was cancelled
+        if (!isPollingActiveRef.current) {
+          return;
+        }
+        
+        if (response.status === 200 && response.data) {
+          // Check if result is ready
+          if (response.data.status === 'completed' || response.data.result) {
+            setAiResult(response.data.result || response.data);
+            isPollingActiveRef.current = false;
+            setAiPolling(false);
+          } else if (response.data.status === 'processing' || response.data.status === 'pending') {
+            // Still processing, continue polling
+            attempts++;
+            pollingTimeoutRef.current = setTimeout(poll, interval);
+          } else if (response.data.status === 'failed' || response.data.status === 'error') {
+            isPollingActiveRef.current = false;
+            setAiPolling(false);
+            setAiError(response.data.message || 'AI processing failed');
+          } else {
+            // Assume completed if result exists
+            setAiResult(response.data.result || response.data);
+            isPollingActiveRef.current = false;
+            setAiPolling(false);
+          }
+        } else {
+          // If status is not 200, might still be processing
+          attempts++;
+          pollingTimeoutRef.current = setTimeout(poll, interval);
+        }
+      } catch (error) {
+        // Check again if polling was cancelled
+        if (!isPollingActiveRef.current) {
+          return;
+        }
+        
+        // If 404 or other error, might still be processing
+        if (error.status === 404 || error.status === 400) {
+          attempts++;
+          pollingTimeoutRef.current = setTimeout(poll, interval);
+        } else {
+          isPollingActiveRef.current = false;
+          setAiPolling(false);
+          setAiError(error.message || 'Failed to get AI result');
+        }
+      }
+    };
+
+    poll();
+  };
+
+  // Cleanup polling on unmount
+  React.useEffect(() => {
+    return () => {
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+      }
+      isPollingActiveRef.current = false;
+    };
+  }, []);
+
   // Function to update meeting schedule
   const updateMeetingSchedule = async () => {
     if (!editingMeeting) return;
@@ -950,18 +1132,40 @@ export default function SupervisorMeetingManagement() {
   return (
     <div className={sharedLayout.container}>
       <div className={sharedLayout.header}>
-        <h1>Meeting Management - Supervisor</h1>
-        <p>Manage group meetings</p>
-        {userInfo && (
-          <div style={{ marginTop: 12, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '14px', color: '#374151' }}>
-              <strong>User:</strong> {userInfo.name}
-            </span>
-            <span style={{ fontSize: '14px', color: '#374151' }}>
-              <strong>Role:</strong> {userInfo.roleInGroup || userInfo.role}
-            </span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+          <div>
+            <h1>Meeting Management - Supervisor</h1>
+            <p>Manage group meetings</p>
+            {userInfo && (
+              <div style={{ marginTop: 12, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '14px', color: '#374151' }}>
+                  <strong>User:</strong> {userInfo.name}
+                </span>
+                <span style={{ fontSize: '14px', color: '#374151' }}>
+                  <strong>Role:</strong> {userInfo.roleInGroup || userInfo.role}
+                </span>
+              </div>
+            )}
           </div>
-        )}
+          {selectedGroupId && (
+            <Button
+              onClick={handleOpenAIModal}
+              style={{
+                backgroundColor: '#8b5cf6',
+                color: 'white',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '6px',
+                fontSize: '14px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+            >
+              Ask AI
+            </Button>
+          )}
+        </div>
       </div>
 
       <SupervisorGroupFilter
@@ -1786,6 +1990,137 @@ export default function SupervisorMeetingManagement() {
           </div>
         </div>
       )}
+
+      {/* AI Modal */}
+      <Modal
+        open={showAIModal}
+        onClose={handleCloseAIModal}
+      >
+        <div style={{
+          padding: '32px',
+          minWidth: '900px',
+          maxWidth: '1200px',
+          width: '90vw',
+          maxHeight: '90vh',
+          overflow: 'auto'
+        }}>
+          <h2 style={{ margin: '0 0 24px 0', fontSize: '24px', fontWeight: '600', color: '#1f2937' }}>
+            Ask AI Assistant
+          </h2>
+          
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
+              Enter your question or prompt <span style={{ color: '#dc2626' }}>*</span>
+            </label>
+            <Textarea
+              value={aiPrompt}
+              onChange={(e) => {
+                setAiPrompt(e.target.value);
+                setAiError('');
+              }}
+              placeholder="E.g., Summarize the meeting minutes, suggest action items, analyze project progress..."
+              rows={6}
+              disabled={aiLoading || aiPolling}
+              style={{ width: '100%', resize: 'vertical' }}
+            />
+            {aiError && (
+              <div style={{ marginTop: '8px', color: '#ef4444', fontSize: '13px' }}>
+                {aiError}
+              </div>
+            )}
+          </div>
+
+          {aiTaskId && aiPolling && (
+            <div style={{
+              marginBottom: '20px',
+              padding: '16px',
+              background: '#f0f9ff',
+              border: '1px solid #0ea5e9',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '20px',
+                  height: '20px',
+                  border: '3px solid #0ea5e9',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }}></div>
+                <span style={{ color: '#0c4a6e', fontSize: '14px', fontWeight: '500' }}>
+                  Processing your request... Please wait.
+                </span>
+              </div>
+              <Button
+                variant="ghost"
+                size="small"
+                onClick={handleCancelAI}
+                style={{
+                  color: '#dc2626',
+                  borderColor: '#dc2626'
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
+
+          {aiResult && (
+            <div style={{
+              marginBottom: '20px',
+              padding: '16px',
+              background: '#f0fdf4',
+              border: '1px solid #10b981',
+              borderRadius: '8px'
+            }}>
+              <h3 style={{ margin: '0 0 12px 0', fontSize: '16px', fontWeight: '600', color: '#065f46' }}>
+                AI Response:
+              </h3>
+              <div style={{
+                color: '#374151',
+                fontSize: '14px',
+                lineHeight: '1.6',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word'
+              }}>
+                {typeof aiResult === 'string' ? aiResult : JSON.stringify(aiResult, null, 2)}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+            <Button
+              variant="secondary"
+              onClick={handleCloseAIModal}
+              disabled={aiPolling}
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleAskAI}
+              disabled={aiLoading || aiPolling || !aiPrompt.trim()}
+              loading={aiLoading || aiPolling}
+              style={{
+                backgroundColor: '#8b5cf6',
+                color: 'white'
+              }}
+            >
+              {aiPolling ? 'Processing...' : 'Ask AI'}
+            </Button>
+          </div>
+
+          <style>{`
+            @keyframes spin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      </Modal>
     </div>
   );
 }

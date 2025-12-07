@@ -22,6 +22,7 @@ const adminMenu = [
     children: [
       { path: '/system', label: 'Email Config' },
       { path: '/admin/course-size-config', label: 'Course Size Config' },
+      { path: '/admin/ai-settings', label: 'AI Settings' },
     ],
   },
 ];

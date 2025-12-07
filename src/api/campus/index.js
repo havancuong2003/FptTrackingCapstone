@@ -52,3 +52,34 @@ export async function softDeleteSlot(campusId, slotId) {
   }
 }
 
+// ========== Campus CRUD ==========
+// Create campus
+export async function createCampus(data) {
+  try {
+    const response = await client.post('/Campus', data);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Update campus
+export async function updateCampus(campusId, data) {
+  try {
+    const response = await client.put(`/Campus/${campusId}`, data);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
+// Delete campus
+export async function deleteCampus(campusId) {
+  try {
+    const response = await client.delete(`/Campus/${campusId}`);
+    return response.data;
+  } catch (error) {
+    throw error;
+  }
+}
+
