@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import styles from './index.module.scss';
-import { getAllCampuses, getCampusById, upsertSlots, softDeleteSlot } from '../../../api/campus';
+import { getAllCampuses, getCampusById, upsertSlots, softDeleteSlot, createCampus, updateCampus, deleteCampus } from '../../../api/campus';
 import Button from '../../../components/Button/Button';
 import DataTable from '../../../components/DataTable/DataTable';
+import Input from '../../../components/Input/Input';
+import Modal from '../../../components/Modal/Modal';
 
 export default function CampusSlotManagement() {
   const [loading, setLoading] = useState(false);
@@ -16,6 +18,12 @@ export default function CampusSlotManagement() {
   const [editingValues, setEditingValues] = useState({}); // Track giá trị đang nhập {slotId: {nameSlot, startAt, endAt}}
   const [validationErrors, setValidationErrors] = useState({}); // Track lỗi validation {slotId: {nameError, timeError}}
   const [hasChanges, setHasChanges] = useState(false); // Track xem có thay đổi chưa
+  
+  // Campus CRUD states
+  const [showCampusModal, setShowCampusModal] = useState(false);
+  const [editingCampus, setEditingCampus] = useState(null);
+  const [campusForm, setCampusForm] = useState({ name: '' });
+  const [campusFormError, setCampusFormError] = useState('');
 
   // Load all campuses
   const loadCampuses = async () => {
@@ -417,6 +425,99 @@ export default function CampusSlotManagement() {
     }
   };
 
+  // ========== Campus CRUD Functions ==========
+  const handleAddCampus = () => {
+    setEditingCampus(null);
+    setCampusForm({ name: '' });
+    setCampusFormError('');
+    setShowCampusModal(true);
+  };
+
+  const handleEditCampus = (campus) => {
+    setEditingCampus(campus);
+    setCampusForm({ name: campus.name || '' });
+    setCampusFormError('');
+    setShowCampusModal(true);
+  };
+
+  const handleDeleteCampus = async (campusId) => {
+    if (!window.confirm('Are you sure you want to delete this campus? This action cannot be undone.')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await deleteCampus(campusId);
+      if (response.status === 200) {
+        alert('Campus deleted successfully!');
+        // Clear selection if deleted campus was selected
+        if (selectedCampusId === campusId.toString()) {
+          setSelectedCampusId('');
+          setSelectedCampus(null);
+          setSlots([]);
+        }
+        await loadCampuses();
+      } else {
+        alert('Error deleting campus: ' + (response.data?.message || response.message || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error deleting campus:', error);
+      alert('Error deleting campus: ' + (error.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveCampus = async () => {
+    if (!campusForm.name || !campusForm.name.trim()) {
+      setCampusFormError('Campus name is required');
+      return;
+    }
+
+    setCampusFormError('');
+    setLoading(true);
+    try {
+      if (editingCampus) {
+        // Update campus
+        const response = await updateCampus(editingCampus.id, { name: campusForm.name.trim() });
+        if (response.status === 201) {
+          alert('Campus updated successfully!');
+          setShowCampusModal(false);
+          await loadCampuses();
+          // Reload slots if this campus was selected
+          if (selectedCampusId === editingCampus.id.toString()) {
+            await loadCampusSlots(editingCampus.id);
+          }
+        } else {
+          alert('Error updating campus: ' + (response.data?.message || response.message || 'Unknown error'));
+        }
+      } else {
+        // Create campus
+        const response = await createCampus({ name: campusForm.name.trim() });
+        console.log(response);
+        if (response.status === 201) {
+          alert('Campus created successfully!');
+          setShowCampusModal(false);
+          await loadCampuses();
+        } else {
+          alert('Error creating campus: ' + (response.data?.message || response.message || 'Unknown error'));
+        }
+      }
+    } catch (error) {
+      console.error('Error saving campus:', error);
+      alert('Error saving campus: ' + (error.message || 'Unknown error'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCloseCampusModal = () => {
+    setShowCampusModal(false);
+    setEditingCampus(null);
+    setCampusForm({ name: '' });
+    setCampusFormError('');
+  };
+
   useEffect(() => {
     loadCampuses();
   }, []);
@@ -429,9 +530,18 @@ export default function CampusSlotManagement() {
       </div>
 
       <div className={styles.content}>
-        {/* Campus Selection */}
+        {/* Campus Management */}
         <div className={styles.section}>
-          <h2>Select Campus</h2>
+          <div className={styles.sectionHeader}>
+            <h2>Campus Management</h2>
+            <Button
+              onClick={handleAddCampus}
+              className={styles.addButton}
+              disabled={loading}
+            >
+              + Add Campus
+            </Button>
+          </div>
           <div className={styles.campusSelector}>
             <select
               value={selectedCampusId}
@@ -446,6 +556,31 @@ export default function CampusSlotManagement() {
                 </option>
               ))}
             </select>
+            {selectedCampusId && (
+              <div className={styles.campusActions}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const campus = campuses.find(c => c.id.toString() === selectedCampusId);
+                    if (campus) handleEditCampus(campus);
+                  }}
+                  className={styles.editButton}
+                  disabled={loading}
+                  title="Edit Campus"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteCampus(selectedCampusId)}
+                  className={styles.deleteButton}
+                  disabled={loading}
+                  title="Delete Campus"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -678,6 +813,63 @@ export default function CampusSlotManagement() {
         )}
       </div>
 
+      {/* Campus Modal */}
+      <Modal
+        open={showCampusModal}
+        onClose={handleCloseCampusModal}
+      >
+        <div className={styles.modalContent}>
+          <div className={styles.modalHeader}>
+            <h3 className={styles.modalTitle}>
+              {editingCampus ? 'Edit Campus' : 'Add New Campus'}
+            </h3>
+          </div>
+          
+          <div className={styles.modalBody}>
+            <div className={styles.formGroup}>
+              <label className={styles.formLabel}>
+                Campus Name <span className={styles.required}>*</span>
+              </label>
+              <Input
+                type="text"
+                value={campusForm.name}
+                onChange={(e) => {
+                  setCampusForm({ name: e.target.value });
+                  setCampusFormError('');
+                }}
+                placeholder="Enter campus name"
+                disabled={loading}
+                className={styles.modalInput}
+              />
+              {campusFormError && (
+                <div className={styles.errorMessage}>
+                  {campusFormError}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className={styles.modalActions}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleCloseCampusModal}
+              disabled={loading}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={handleSaveCampus}
+              disabled={loading}
+              loading={loading}
+            >
+              {editingCampus ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
