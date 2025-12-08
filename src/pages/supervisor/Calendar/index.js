@@ -1,5 +1,5 @@
 import React from 'react';
-// import styles from './index.module.scss';
+import styles from './index.module.scss';
 import sharedLayout from '../sharedLayout.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
@@ -44,6 +44,7 @@ export default function SupervisorCalendar() {
   const [minuteData, setMinuteData] = React.useState(null);
   const [showMinuteModal, setShowMinuteModal] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
+  const [loadingMinuteModal, setLoadingMinuteModal] = React.useState(false);
   const [formData, setFormData] = React.useState({
     startAt: '',
     endAt: '',
@@ -626,28 +627,22 @@ export default function SupervisorCalendar() {
   // Get issue status color
   const getIssueStatusColor = (status) => {
     switch (status) {
-      case 'Done':
-        return '#059669'; // Green
-      case 'InProgress':
-        return '#d97706'; // Orange
-      case 'Todo':
-        return '#6b7280'; // Gray
-      default:
-        return '#6b7280';
+      case 'Todo': return '#6b7280';
+      case 'InProgress': return '#3b82f6';
+      case 'Done': return '#10b981';
+      case 'Review': return '#f59e0b';
+      default: return '#6b7280';
     }
   };
 
   // Get issue status text
   const getIssueStatusText = (status) => {
     switch (status) {
-      case 'Done':
-        return '✅ Done';
-      case 'InProgress':
-        return '🔄 In Progress';
-      case 'Todo':
-        return '📋 To Do';
-      default:
-        return '❓ Unknown';
+      case 'Todo': return 'To Do';
+      case 'InProgress': return 'In Progress';
+      case 'Done': return 'Done';
+      case 'Review': return 'Under Review';
+      default: return status || 'N/A';
     }
   };
 
@@ -860,7 +855,11 @@ export default function SupervisorCalendar() {
         description: t.description,
         deadline: t.deadline,
         isActive: t.isActive,
-        groupId: t.groupId
+        groupId: t.groupId,
+        status: t.status,
+        priority: t.priority,
+        assigneeId: t.assigneeId,
+        assigneeName: t.assigneeName
       }));
     } catch (e) {
       return [];
@@ -869,28 +868,135 @@ export default function SupervisorCalendar() {
 
   const formatDateTime = (dateString) => {
     try {
-      return new Date(dateString).toLocaleString('vi-VN');
+      // API returns time in Vietnam timezone but without timezone info
+      // Need to add 7 hours to display correctly
+      const date = new Date(dateString);
+      // Add 7 hours (7 * 60 * 60 * 1000 ms)
+      const vnDate = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+      return vnDate.toLocaleString('en-US');
     } catch { return dateString; }
   };
 
+  // Function to format datetime-local from meeting date and time
+  const formatDateTimeLocal = (meetingDate, timeString) => {
+    if (!meetingDate || !timeString) return '';
+    const date = new Date(meetingDate);
+    const [hours, minutes] = timeString.split(':');
+    date.setHours(parseInt(hours) || 0, parseInt(minutes) || 0, 0);
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hour = String(date.getHours()).padStart(2, '0');
+    const minute = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hour}:${minute}`;
+  };
+
+  // Function to convert API datetime (UTC+0) to datetime-local format (UTC+7)
+  const convertApiDateTimeToLocal = (dateTimeString) => {
+    if (!dateTimeString) return '';
+    const date = new Date(dateTimeString);
+    // Add 7 hours to convert to Vietnam timezone
+    const vnDate = new Date(date.getTime() + 7 * 60 * 60 * 1000);
+    
+    const year = vnDate.getFullYear();
+    const month = String(vnDate.getMonth() + 1).padStart(2, '0');
+    const day = String(vnDate.getDate()).padStart(2, '0');
+    const hour = String(vnDate.getHours()).padStart(2, '0');
+    const minute = String(vnDate.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hour}:${minute}`;
+  };
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'High': return '#dc2626';
+      case 'Medium': return '#f59e0b';
+      case 'Low': return '#6b7280';
+      default: return '#6b7280';
+    }
+  };
+
   const meetingIssueColumns = [
-    { key: 'name', title: 'Issue' },
-    { key: 'deadline', title: 'Hạn', render: (row) => formatDateTime(row.deadline) },
-    {
-      key: 'actions',
-      title: '',
+    { 
+      key: 'name', 
+      title: 'Issue',
       render: (row) => (
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/supervisor/task/group/${row.groupId}?taskId=${row.id}`);
-            }}
-            style={{
-              background: '#2563EB', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap'
-            }}
-          >Detail</button>
-        </div>
+        <span
+          onClick={() => navigate(`/supervisor/task/group/${row.groupId}?taskId=${row.id}`)}
+          style={{
+            color: '#3b82f6',
+            cursor: 'pointer',
+            textDecoration: 'underline',
+            fontWeight: 500
+          }}
+        >
+          {row.name}
+        </span>
+      )
+    },
+    {
+      key: 'assignee',
+      title: 'Assignee',
+      render: (row) => (
+        <span style={{ fontSize: '12px', color: '#374151' }}>
+          {row.assigneeName || 'N/A'}
+        </span>
+      )
+    },
+    {
+      key: 'priority',
+      title: 'Priority',
+      render: (row) => (
+        <span
+          style={{
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontWeight: '500',
+            backgroundColor: getPriorityColor(row.priority) + '20',
+            color: getPriorityColor(row.priority)
+          }}
+        >
+          {row.priority || 'N/A'}
+        </span>
+      )
+    },
+    {
+      key: 'isActive',
+      title: 'Active',
+      render: (row) => (
+        <span
+          style={{
+            color: row.isActive === true ? '#059669' : '#9ca3af',
+            fontWeight: 500,
+            fontSize: '12px'
+          }}
+        >
+          {row.isActive === true ? '✓ Active' : '✗ Inactive'}
+        </span>
+      )
+    },
+    { 
+      key: 'deadline', 
+      title: 'Deadline', 
+      render: (row) => formatDateTime(row.deadline) 
+    },
+    { 
+      key: 'status', 
+      title: 'Status', 
+      render: (row) => (
+        <span style={{
+          padding: '4px 8px',
+          borderRadius: '4px',
+          fontSize: '12px',
+          fontWeight: '500',
+          backgroundColor: getIssueStatusColor(row.status) + '20',
+          color: getIssueStatusColor(row.status)
+        }}>
+          {getIssueStatusText(row.status)}
+        </span>
       )
     }
   ];
@@ -902,6 +1008,7 @@ export default function SupervisorCalendar() {
     setMeetingIssues([]);
     setAttendanceList([]);
     setSelectedMeetingGroupInfo(null);
+    setLoadingMinuteModal(true);
     // Không hiện modal ngay, đợi load xong dữ liệu
     
     try {
@@ -926,10 +1033,10 @@ export default function SupervisorCalendar() {
             }
             
             setFormData({
-              startAt: response.data.startAt ? response.data.startAt.split('T')[0] + 'T' + response.data.startAt.split('T')[1].substring(0, 5) : '',
-              endAt: response.data.endAt ? response.data.endAt.split('T')[0] + 'T' + response.data.endAt.split('T')[1].substring(0, 5) : '',
+              startAt: response.data.startAt ? convertApiDateTimeToLocal(response.data.startAt) : formatDateTimeLocal(meeting.meetingDate, meeting.startAt),
+              endAt: response.data.endAt ? convertApiDateTimeToLocal(response.data.endAt) : formatDateTimeLocal(meeting.meetingDate, meeting.endAt),
               attendance: response.data.attendance || '',
-              issue: response.data.issue || '',
+              issue: '',
               meetingContent: response.data.meetingContent || '',
               other: response.data.other || ''
             });
@@ -955,7 +1062,11 @@ export default function SupervisorCalendar() {
       }
     } catch (error) {
       console.error('Error loading meeting data:', error);
+      setMinuteData(null);
+      setMeetingIssues([]);
+      setAttendanceList([]);
     } finally {
+      setLoadingMinuteModal(false);
       // Only show modal after all data is loaded
       setMeetingModal(true);
     }
@@ -996,6 +1107,7 @@ export default function SupervisorCalendar() {
     setIsEditing(false);
     setMeetingIssues([]);
     setAttendanceList([]);
+    setLoadingMinuteModal(false);
     setFormData({
       startAt: '',
       endAt: '',
@@ -1645,234 +1757,256 @@ export default function SupervisorCalendar() {
       {/* Meeting Modal */}
       <Modal open={meetingModal} onClose={closeMeetingModal}>
         {selectedMeeting && (
-          <div style={{ 
-            padding: 24, 
+          <div className={styles.minuteModal} style={{ 
             maxWidth: '95vw', 
-            width: '1200px', 
-            maxHeight: '90vh', 
-            overflow: 'auto',
-            display: 'flex',
-            flexDirection: 'column'
+            width: '1000px'
           }}>
-            <div style={{ marginBottom: 16 }}>
-              <h2 style={{ margin: '0 0 8px 0', fontSize: 20 }}>
-                {minuteData ? 'Xem biên bản họp' : 'Thông tin cuộc họp'} - {selectedMeeting.description}
-              </h2>
+            <div className={styles.modalHeader}>
+              <h3>
+                View Meeting Minutes - {selectedMeeting.description}
+              </h3>
               {minuteData && (
-                <div style={{ fontSize: 14, color: '#64748b' }}>
-                  <div><strong>Tạo bởi:</strong> {minuteData.createBy}</div>
-                  <div><strong>Ngày tạo:</strong> {formatDate(minuteData.createAt, 'YYYY-MM-DD HH:mm')}</div>
+                <div className={styles.minuteInfo}>
+                  <p>
+                    <strong>Created by:</strong> {minuteData.createBy}
+                  </p>
+                  <p>
+                    <strong>Created at:</strong> {formatDateTime(minuteData.createAt)}
+                  </p>
                 </div>
               )}
             </div>
 
-            <div style={{ 
-              display: 'flex', 
-              gap: 24, 
-              marginBottom: 20,
-              flexWrap: 'wrap'
-            }}>
-              <div style={{ 
-                flex: '1 1 300px',
-                minWidth: '300px'
-              }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Thông tin cuộc họp</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div><strong>Mô tả:</strong> {selectedMeeting.description}</div>
-                  <div><strong>Ngày:</strong> {formatDate(selectedMeeting.meetingDate, 'YYYY-MM-DD')}</div>
-                  <div><strong>Giờ:</strong> {selectedMeeting.startAt ? `${selectedMeeting.startAt.substring(0, 5)} - ${selectedMeeting.endAt ? selectedMeeting.endAt.substring(0, 5) : ''}` : (selectedMeeting.time || 'N/A')}</div>
-                  <div><strong>Thứ:</strong> {selectedMeeting.dayOfWeek}</div>
-                  <div><strong>Trạng thái:</strong> 
-                    <span style={{ 
-                      color: getMeetingStatusColor(selectedMeeting), 
-                      marginLeft: '8px',
-                      background: getMeetingStatusColor(selectedMeeting) === '#059669' ? '#ecfdf5' : '#fef3c7',
-                      padding: '2px 6px',
-                      borderRadius: 4,
-                      fontSize: 12
-                    }}>
-                      {getMeetingStatusText(selectedMeeting)}
-                    </span>
-                  </div>
-                  <div><strong>Nhóm:</strong> {selectedMeetingGroupInfo?.groupCode || `GRP${selectedMeeting.groupId}`} - {selectedMeetingGroupInfo?.projectName || 'N/A'}</div>
-                </div>
+            {loadingMinuteModal ? (
+              <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                <div>Loading data...</div>
               </div>
-              
-              <div style={{ 
-                flex: '1 1 300px',
-                minWidth: '300px'
-              }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: 16, color: '#374151' }}>Link cuộc họp</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <a 
-                    href={selectedMeeting.meetingLink} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
+            ) : (
+              <div className={styles.modalBody}>
+            {minuteData ? (
+              <>
+                <div className={styles.formRow}>
+                  <div className={styles.formGroup}>
+                    <label>Start Time</label>
+                    <Input
+                      type="datetime-local"
+                      value={formData.startAt}
+                      disabled={true}
+                      style={{ backgroundColor: '#f3f4f6' }}
+                    />
+                  </div>
+                  <div className={styles.formGroup}>
+                    <label>End Time</label>
+                    <Input
+                      type="datetime-local"
+                      value={formData.endAt}
+                      disabled={true}
+                      style={{ backgroundColor: '#f3f4f6' }}
+                    />
+                  </div>
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Attendance List</label>
+                  {attendanceList.length > 0 ? (
+                    <div
+                      style={{
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        padding: '8px',
+                        backgroundColor: '#f9fafb',
+                      }}
+                    >
+                      <table
+                        style={{
+                          width: '100%',
+                          borderCollapse: 'collapse',
+                        }}
+                      >
+                        <thead>
+                          <tr
+                            style={{
+                              borderBottom: '1px solid #e5e7eb',
+                            }}
+                          >
+                            <th
+                              style={{
+                                textAlign: 'left',
+                                padding: '6px 8px',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                color: '#374151',
+                              }}
+                            >
+                              Member
+                            </th>
+                            <th
+                              style={{
+                                textAlign: 'center',
+                                padding: '6px 8px',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                color: '#374151',
+                                width: '100px',
+                              }}
+                            >
+                              Attended
+                            </th>
+                            <th
+                              style={{
+                                textAlign: 'left',
+                                padding: '6px 8px',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                color: '#374151',
+                              }}
+                            >
+                              Absence Reason
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {attendanceList.map((item, index) => (
+                            <tr
+                              key={item.studentId}
+                              style={{
+                                borderBottom: '1px solid #f1f5f9',
+                              }}
+                            >
+                              <td
+                                style={{
+                                  padding: '6px 8px',
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontSize: '13px',
+                                    fontWeight: '500',
+                                    color: '#1f2937',
+                                  }}
+                                >
+                                  {item.name}
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: '11px',
+                                    color: '#6b7280',
+                                    marginTop: '1px',
+                                  }}
+                                >
+                                  {item.rollNumber} {item.role && `- ${item.role}`}
+                                </div>
+                              </td>
+                              <td
+                                style={{
+                                  padding: '6px 8px',
+                                  textAlign: 'center',
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={item.attended}
+                                  disabled={true}
+                                  style={{
+                                    width: '18px',
+                                    height: '18px',
+                                    cursor: 'not-allowed',
+                                  }}
+                                />
+                              </td>
+                              <td
+                                style={{
+                                  padding: '6px 8px',
+                                }}
+                              >
+                                <Input
+                                  type="text"
+                                  value={item.reason || ''}
+                                  disabled={true}
+                                  placeholder="No reason"
+                                  style={{
+                                    fontSize: '12px',
+                                    padding: '4px 8px',
+                                    width: '100%',
+                                    backgroundColor: '#f3f4f6',
+                                  }}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        padding: '12px',
+                        textAlign: 'center',
+                        color: '#6b7280',
+                        fontSize: '13px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        backgroundColor: '#f3f4f6',
+                      }}
+                    >
+                      No attendance data
+                    </div>
+                  )}
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Meeting Content</label>
+                  <Textarea
+                    value={formData.meetingContent || ''}
+                    disabled={true}
+                    placeholder="No content available"
+                    rows={6}
                     style={{
-                      color: '#3b82f6',
-                      textDecoration: 'none',
-                      fontSize: 14,
-                      fontWeight: 500,
-                      padding: '8px 16px',
-                      backgroundColor: '#dbeafe',
-                      borderRadius: 6,
-                      border: '1px solid #3b82f6'
+                      backgroundColor: '#f3f4f6',
+                    }}
+                  />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
                     }}
                   >
-                    Tham gia cuộc họp
-                  </a>
+                    <label style={{ margin: 0 }}>Issues</label>
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 8,
+                      maxWidth: '100%',
+                      overflowX: 'hidden',
+                    }}
+                  >
+                    <DataTable
+                      columns={meetingIssueColumns}
+                      data={meetingIssues}
+                      loading={loading}
+                      emptyMessage="No issues yet"
+                      className={styles.compactTable}
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Meeting Minute */}
-            {minuteData ? (
-              <div style={{ marginBottom: 20 }}>
-                <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#374151' }}>Biên bản họp</h3>
-                <div style={{ 
-                  background: '#f0fdf4', 
-                  border: '1px solid #bbf7d0', 
-                  borderRadius: 8, 
-                  padding: 16 
-                }}>
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, color: '#065f46', marginBottom: 4 }}>
-                      <strong>Tạo bởi:</strong> {minuteData.createBy}
-                    </div>
-                    <div style={{ fontSize: 13, color: '#065f46' }}>
-                      <strong>Ngày tạo:</strong> {formatDate(minuteData.createAt, 'DD/MM/YYYY HH:mm')}
-                    </div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Thời gian</h4>
-                      <div style={{ fontSize: 13, color: '#374151' }}>
-                        {selectedMeeting?.startAt && selectedMeeting?.endAt ? (
-                          <>
-                            <div><strong>Bắt đầu:</strong> {selectedMeeting.startAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
-                            <div><strong>Kết thúc:</strong> {selectedMeeting.endAt.substring(0, 5)} - {new Date(selectedMeeting.meetingDate).toLocaleDateString('vi-VN')}</div>
-                          </>
-                        ) : (
-                          <>
-                            <div><strong>Bắt đầu:</strong> {minuteData?.startAt ? new Date(minuteData.startAt).toLocaleString('vi-VN') : 'N/A'}</div>
-                            <div><strong>Kết thúc:</strong> {minuteData?.endAt ? new Date(minuteData.endAt).toLocaleString('vi-VN') : 'N/A'}</div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Danh sách tham gia</h4>
-                      {attendanceList.length > 0 ? (
-                        <div style={{
-                          border: '1px solid #d1d5db',
-                          borderRadius: '6px',
-                          padding: '8px',
-                          backgroundColor: 'rgba(255,255,255,0.5)'
-                        }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Thành viên</th>
-                                <th style={{ textAlign: 'center', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151', width: '100px' }}>Tham gia</th>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: '13px', fontWeight: '600', color: '#374151' }}>Lý do nghỉ</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {attendanceList.map((item) => (
-                                <tr key={item.studentId} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                  <td style={{ padding: '6px 8px' }}>
-                                    <div style={{ fontSize: '13px', fontWeight: '500', color: '#1f2937' }}>
-                                      {item.name}
-                                    </div>
-                                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '1px' }}>
-                                      {item.rollNumber} {item.role && `- ${item.role}`}
-                                    </div>
-                                  </td>
-                                  <td style={{ padding: '6px 8px', textAlign: 'center' }}>
-                                    <span style={{
-                                      padding: '4px 8px',
-                                      borderRadius: '4px',
-                                      fontSize: '12px',
-                                      fontWeight: '500',
-                                      backgroundColor: item.attended ? '#d1fae5' : '#fee2e2',
-                                      color: item.attended ? '#065f46' : '#991b1b'
-                                    }}>
-                                      {item.attended ? 'Có' : 'Không'}
-                                    </span>
-                                  </td>
-                                  <td style={{ padding: '6px 8px', fontSize: '12px', color: '#6b7280' }}>
-                                    {item.reason || '-'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      ) : (
-                        <div style={{ 
-                          fontSize: 13, 
-                          color: '#6b7280', 
-                          padding: '12px',
-                          background: 'rgba(255,255,255,0.5)',
-                          borderRadius: '4px',
-                          border: '1px solid rgba(0,0,0,0.1)'
-                        }}>
-                          {minuteData?.attendance || 'Chưa có thông tin điểm danh'}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Nội dung cuộc họp</h4>
-                      <div style={{ 
-                        fontSize: 13, 
-                        color: '#374151', 
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        padding: '12px',
-                        background: 'rgba(255,255,255,0.5)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        minHeight: '120px'
-                      }}>
-                        {minuteData.meetingContent || 'N/A'}
-                      </div>
-                    </div>
-                    
-                    {/* Meeting Issues table thay cho phần vấn đề cần giải quyết */}
-                    <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Issues</h4>
-                      <div style={{ marginTop: 8, maxWidth: '100%', overflowX: 'hidden' }}>
-                        <DataTable
-                          columns={meetingIssueColumns}
-                          data={meetingIssues}
-                          loading={loading}
-                          emptyMessage="Chưa có issue nào"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Ghi chú khác</h4>
-                      <div style={{ 
-                        fontSize: 13, 
-                        color: '#374151', 
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        padding: '12px',
-                        background: 'rgba(255,255,255,0.5)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        minHeight: '80px'
-                      }}>
-                        {minuteData.other || 'N/A'}
-                      </div>
-                    </div>
-                  </div>
+                <div className={styles.formGroup}>
+                  <label>Other Notes</label>
+                  <Textarea
+                    value={formData.other || ''}
+                    disabled={true}
+                    placeholder="No notes available"
+                    rows={3}
+                    style={{
+                      backgroundColor: '#f3f4f6',
+                    }}
+                  />
                 </div>
-              </div>
+              </>
             ) : (
               <div style={{ 
                 background: '#fef3c7', 
@@ -1882,14 +2016,16 @@ export default function SupervisorCalendar() {
                 marginBottom: 20
               }}>
                 <p style={{ margin: 0, fontSize: 14, color: '#92400e' }}>
-                  Chưa có biên bản họp cho cuộc họp này.
+                  No meeting minutes available for this meeting.
                 </p>
               </div>
             )}
+              </div>
+            )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24 }}>
-              <Button variant="ghost" onClick={closeMeetingModal}>
-                Đóng
+            <div className={styles.modalFooter}>
+              <Button variant="secondary" onClick={closeMeetingModal}>
+                Close
               </Button>
             </div>
           </div>

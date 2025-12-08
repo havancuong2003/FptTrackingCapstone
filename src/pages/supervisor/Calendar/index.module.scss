@@ -1,0 +1,150 @@
+/* Modal styles */
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.minuteModal {
+  background-color: white;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 1000px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.modalHeader {
+  padding: 0 0 24px 0;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 24px;
+  
+  h3 {
+    margin: 0 0 16px 0;
+    color: #1e293b;
+    font-size: 1.5rem;
+    font-weight: 600;
+  }
+}
+
+.minuteInfo {
+  background: #f8fafc;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  
+  p {
+    margin: 0 0 4px 0;
+    color: #64748b;
+    font-size: 0.875rem;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+    
+    strong {
+      color: #374151;
+    }
+  }
+}
+
+.modalBody {
+  padding: 0;
+}
+
+.formRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 20px;
+  
+  label {
+    margin-bottom: 8px;
+    color: #374151;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+}
+
+.modalFooter {
+  padding: 24px 0 0 0;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+/* Compact table overrides giống Student để bảng Meeting Issues đồng nhất */
+.compactTable {
+  overflow-x: hidden !important;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.compactTable table {
+  min-width: 100% !important;
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+}
+
+.compactTable thead th {
+  white-space: normal !important;
+  padding: 10px 8px !important;
+  border-right: 1px solid #e2e8f0;
+  background: #eef2ff;
+  color: #1f2937;
+}
+
+.compactTable tbody td {
+  padding: 10px 8px !important;
+  border-right: 1px solid #e2e8f0;
+}
+
+.compactTable tbody tr {
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.compactTable thead th:last-child,
+.compactTable tbody td:last-child {
+  border-right: none;
+}
+
+// Responsive for modal
+@media (max-width: 768px) {
+  .minuteModal {
+    max-width: 95%;
+    margin: 20px;
+  }
+  
+  .formRow {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .modalFooter {
+    flex-direction: column;
+    gap: 8px;
+    
+    button {
+      width: 100%;
+    }
+  }
+}

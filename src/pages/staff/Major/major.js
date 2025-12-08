@@ -36,7 +36,9 @@ export default function Major() {
             setLoading(true);
             try {
                 const res = await client.get("https://160.30.21.113:5000/api/v1/Staff/getAllCodeCourse");
+                console.log(res);
                 const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+                console.log(list);
                 if (!mounted) return;
                 setMajors(list);
                 setFilteredMajors(list);
