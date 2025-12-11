@@ -388,7 +388,7 @@ function Milestone() {
                 fontSize: "14px"
             }}>
                 <div style={{ color: "#64748b", fontWeight: "500" }}>
-                    Hiển thị {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} trong {filtered.length} milestones
+                    Display {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} in {filtered.length} milestones
                 </div>
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     <Button 
@@ -402,14 +402,14 @@ function Milestone() {
                             fontWeight: "500"
                         }}
                     >
-                        Trước
+                        Previous
                     </Button>
                     <span style={{ 
                         color: "#374151", 
                         fontWeight: "500",
                         padding: "0 8px"
                     }}>
-                        Trang {page} / {totalPages}
+                        Page {page} / {totalPages}
                     </span>
                     <Button 
                         variant="ghost" 
@@ -422,7 +422,7 @@ function Milestone() {
                             fontWeight: "500"
                         }}
                     >
-                        Tiếp
+                        Next
                     </Button>
                 </div>
             </div>
@@ -445,7 +445,7 @@ function Milestone() {
                         borderRadius: "8px"
                     }}
                 >
-                    + Tạo Milestone
+                    + Create Milestone
                 </Button>
             </div>
 

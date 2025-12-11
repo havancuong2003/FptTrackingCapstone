@@ -1,9 +1,9 @@
 const adminMenu = [
   // Trang chủ
-  { 
-    path: '/dashboard', 
-    label: 'Dashboard'
-  },
+  // { 
+  //   path: '/dashboard', 
+  //   label: 'Dashboard'
+  // },
   // Management menu với submenu
   {
     path: '/management',
