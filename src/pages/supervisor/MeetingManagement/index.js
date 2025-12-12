@@ -356,6 +356,15 @@ export default function SupervisorMeetingManagement() {
     }
   };
 
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'High': return '#dc2626';
+      case 'Medium': return '#f59e0b';
+      case 'Low': return '#6b7280';
+      default: return '#6b7280';
+    }
+  };
+
   const meetingIssueColumns = [
     { 
       key: 'name', 
@@ -374,7 +383,53 @@ export default function SupervisorMeetingManagement() {
         </span>
       )
     },
-    { key: 'deadline', title: 'Deadline', render: (row) => formatDateTime(row.deadline) },
+    {
+      key: 'assignee',
+      title: 'Assignee',
+      render: (row) => (
+        <span style={{ fontSize: '12px', color: '#374151' }}>
+          {row.assigneeName || 'N/A'}
+        </span>
+      )
+    },
+    {
+      key: 'priority',
+      title: 'Priority',
+      render: (row) => (
+        <span
+          style={{
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            fontWeight: '500',
+            backgroundColor: getPriorityColor(row.priority) + '20',
+            color: getPriorityColor(row.priority)
+          }}
+        >
+          {row.priority || 'N/A'}
+        </span>
+      )
+    },
+    {
+      key: 'isActive',
+      title: 'Active',
+      render: (row) => (
+        <span
+          style={{
+            color: row.isActive === true ? '#059669' : '#9ca3af',
+            fontWeight: 500,
+            fontSize: '12px'
+          }}
+        >
+          {row.isActive === true ? '✓ Active' : '✗ Inactive'}
+        </span>
+      )
+    },
+    { 
+      key: 'deadline', 
+      title: 'Deadline', 
+      render: (row) => formatDateTime(row.deadline) 
+    },
     { 
       key: 'status', 
       title: 'Status', 
@@ -419,7 +474,10 @@ export default function SupervisorMeetingManagement() {
         deadline: t.deadline,
         isActive: t.isActive,
         groupId: t.groupId,
-        status: t.status
+        status: t.status,
+        priority: t.priority,
+        assigneeId: t.assigneeId,
+        assigneeName: t.assigneeName
       }));
     } catch (e) {
       return [];
@@ -962,9 +1020,9 @@ export default function SupervisorMeetingManagement() {
   };
 
   const pollAIResult = async (taskId) => {
-    const maxAttempts = 60; // 60 attempts
+    const timeout = 60000; // 1 minute (60 seconds)
     const interval = 2000; // 2 seconds
-    let attempts = 0;
+    const startTime = Date.now();
     isPollingActiveRef.current = true;
 
     const poll = async () => {
@@ -973,10 +1031,12 @@ export default function SupervisorMeetingManagement() {
         return;
       }
 
-      if (attempts >= maxAttempts) {
+      // Check if timeout (1 minute) has been reached
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime >= timeout) {
         isPollingActiveRef.current = false;
         setAiPolling(false);
-        setAiError('Timeout waiting for AI result. Please try again later.');
+        setAiError('Timeout waiting for AI result (1 minute). Please try again later.');
         return;
       }
 
@@ -996,7 +1056,6 @@ export default function SupervisorMeetingManagement() {
             setAiPolling(false);
           } else if (response.data.status === 'processing' || response.data.status === 'pending') {
             // Still processing, continue polling
-            attempts++;
             pollingTimeoutRef.current = setTimeout(poll, interval);
           } else if (response.data.status === 'failed' || response.data.status === 'error') {
             isPollingActiveRef.current = false;
@@ -1010,7 +1069,6 @@ export default function SupervisorMeetingManagement() {
           }
         } else {
           // If status is not 200, might still be processing
-          attempts++;
           pollingTimeoutRef.current = setTimeout(poll, interval);
         }
       } catch (error) {
@@ -1021,7 +1079,6 @@ export default function SupervisorMeetingManagement() {
         
         // If 404 or other error, might still be processing
         if (error.status === 404 || error.status === 400) {
-          attempts++;
           pollingTimeoutRef.current = setTimeout(poll, interval);
         } else {
           isPollingActiveRef.current = false;
@@ -1461,14 +1518,15 @@ export default function SupervisorMeetingManagement() {
                 View Meeting Minutes - {selectedMeeting.description}
               </h3>
               {minuteData && (
-                <div style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>
-                  <div><strong>Created by:</strong> {minuteData.createBy}</div>
-                  <div><strong>Created at:</strong> {formatDateTime(minuteData.createAt)}</div>
+                <div className={styles.minuteInfo}>
+                  <p>
+                    <strong>Created by:</strong> {minuteData.createBy}
+                  </p>
+                  <p>
+                    <strong>Created at:</strong> {formatDateTime(minuteData.createAt)}
+                  </p>
                 </div>
               )}
-              <div style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>
-                <div><strong>Group:</strong> {selectedMeetingGroupInfo?.projectName || `Group ${selectedMeeting.groupId}`}</div>
-              </div>
             </div>
 
             {loadingMinuteModal ? (
@@ -1523,139 +1581,157 @@ export default function SupervisorMeetingManagement() {
                   </button>
                 </div>
               )}
+
               {minuteData ? (
-                <div style={{ 
-                  background: '#f0fdf4', 
-                  border: '1px solid #bbf7d0', 
-                  borderRadius: 8, 
-                  padding: 16,
-                  marginBottom: 20
-                }}>
-                  <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, color: '#065f46', marginBottom: 4 }}>
-                      <strong>Created by:</strong> {minuteData?.createBy || 'N/A'}
+                <>
+                  <div className={styles.formRow}>
+                    <div className={styles.formGroup}>
+                      <label>Start Time</label>
+                      <Input
+                        type="datetime-local"
+                        value={formData.startAt}
+                        disabled={true}
+                        style={{ backgroundColor: '#f3f4f6' }}
+                      />
                     </div>
-                    <div style={{ fontSize: 13, color: '#065f46' }}>
-                      <strong>Created at:</strong> {minuteData?.createAt ? formatDateTime(minuteData.createAt) : 'N/A'}
+                    <div className={styles.formGroup}>
+                      <label>End Time</label>
+                      <Input
+                        type="datetime-local"
+                        value={formData.endAt}
+                        disabled={true}
+                        style={{ backgroundColor: '#f3f4f6' }}
+                      />
                     </div>
                   </div>
-                  
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                    <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Time</h4>
-                      <div style={{ fontSize: 13, color: '#374151' }}>
-                        <div><strong>Start:</strong> {minuteData?.startAt ? formatDateTime(minuteData.startAt) : 'N/A'}</div>
-                        <div><strong>End:</strong> {minuteData?.endAt ? formatDateTime(minuteData.endAt) : 'N/A'}</div>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Attendance List</h4>
-                      {attendanceList.length > 0 ? (() => {
-                        const attended = attendanceList.filter(item => item.attended);
-                        const absent = attendanceList.filter(item => !item.attended);
-                        
-                        if (absent.length === 0) {
-                          return (
-                            <div style={{
-                              border: '1px solid #d1d5db',
-                              borderRadius: '6px',
-                              padding: '12px',
-                              backgroundColor: '#f3f4f6',
-                              fontSize: '13px',
-                              color: '#374151',
-                              minHeight: '60px'
-                            }}>
-                              <div style={{ color: '#059669', fontWeight: 500 }}>
-                                ✓ All members attended ({attendanceList.length} members): {attended.map(m => m.name).join(', ')}
+
+                  <div className={styles.formGroup}>
+                    <label>Attendance List</label>
+                    {/* View mode - show as read-only summary text */}
+                    <div
+                      style={{
+                        border: '1px solid #d1d5db',
+                        borderRadius: '6px',
+                        padding: '12px',
+                        backgroundColor: '#f3f4f6',
+                        fontSize: '13px',
+                        color: '#374151',
+                        minHeight: '60px',
+                      }}
+                    >
+                      {attendanceList.length > 0 ? (
+                        (() => {
+                          const attended = attendanceList.filter((item) => item.attended);
+                          const absent = attendanceList.filter((item) => !item.attended);
+
+                          if (absent.length === 0) {
+                            return (
+                              <div
+                                style={{
+                                  color: '#059669',
+                                  fontWeight: 500,
+                                }}
+                              >
+                                ✓ All members attended ({attendanceList.length} members): {attended.map((m) => m.name).join(', ')}
                               </div>
-                            </div>
-                          );
-                        } else {
-                          return (
-                            <div style={{
-                              border: '1px solid #d1d5db',
-                              borderRadius: '6px',
-                              padding: '12px',
-                              backgroundColor: '#f3f4f6',
-                              fontSize: '13px',
-                              color: '#374151',
-                              minHeight: '60px'
-                            }}>
-                              <div style={{ marginBottom: 8 }}>
-                                <strong style={{ color: '#059669' }}>✓ Attended ({attended.length}):</strong>{' '}
-                                {attended.map(m => m.name).join(', ') || 'None'}
-                              </div>
+                            );
+                          } else {
+                            return (
                               <div>
-                                <strong style={{ color: '#dc2626' }}>✗ Absent ({absent.length}):</strong>{' '}
-                                {absent.map(m => `${m.name} (${m.reason || 'No reason'})`).join('; ')}
+                                <div
+                                  style={{
+                                    marginBottom: 8,
+                                  }}
+                                >
+                                  <strong
+                                    style={{
+                                      color: '#059669',
+                                    }}
+                                  >
+                                    ✓ Attended ({attended.length}):
+                                  </strong>{' '}
+                                  {attended.map((m) => m.name).join(', ') || 'None'}
+                                </div>
+                                <div>
+                                  <strong
+                                    style={{
+                                      color: '#dc2626',
+                                    }}
+                                  >
+                                    ✗ Absent ({absent.length}):
+                                  </strong>{' '}
+                                  {absent.map((m) => `${m.name} (${m.reason || 'No reason'})`).join('; ')}
+                                </div>
                               </div>
-                            </div>
-                          );
-                        }
-                      })() : (
-                        <div style={{ 
-                          fontSize: 13, 
-                          color: '#6b7280', 
-                          padding: '12px',
-                          background: 'rgba(255,255,255,0.5)',
-                          borderRadius: '4px',
-                          border: '1px solid rgba(0,0,0,0.1)'
-                        }}>
+                            );
+                          }
+                        })()
+                      ) : (
+                        <span
+                          style={{
+                            color: '#9ca3af',
+                            fontStyle: 'italic',
+                          }}
+                        >
                           No attendance data
-                        </div>
+                        </span>
                       )}
                     </div>
-                    
-                    <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Content</h4>
-                      <div style={{ 
-                        fontSize: 13, 
-                        color: '#374151', 
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        padding: '12px',
-                        background: 'rgba(255,255,255,0.5)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        minHeight: '120px'
-                      }}>
-                        {minuteData?.meetingContent || 'N/A'}
-                      </div>
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label>Meeting Content</label>
+                    <Textarea
+                      value={formData.meetingContent || ''}
+                      disabled={true}
+                      placeholder="No content available"
+                      rows={6}
+                      style={{
+                        backgroundColor: '#f3f4f6',
+                      }}
+                    />
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <label style={{ margin: 0 }}>Issues</label>
                     </div>
-                    
-                    {/* Meeting Issues - table style */}
-                    <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Meeting Issues</h4>
-                      <div style={{ marginTop: 8, maxWidth: '100%', overflowX: 'hidden' }}>
-                        <DataTable
-                          columns={meetingIssueColumns}
-                          data={meetingIssues}
-                          loading={loading}
-                          emptyMessage="No issues available"
-                          className={styles.compactTable || ''}
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <h4 style={{ margin: '0 0 8px 0', fontSize: 14, fontWeight: 600, color: '#065f46' }}>Other Notes</h4>
-                      <div style={{ 
-                        fontSize: 13, 
-                        color: '#374151', 
-                        whiteSpace: 'pre-wrap',
-                        wordBreak: 'break-word',
-                        padding: '12px',
-                        background: 'rgba(255,255,255,0.5)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        minHeight: '80px'
-                      }}>
-                        {minuteData?.other || 'N/A'}
-                      </div>
+                    <div
+                      style={{
+                        marginTop: 8,
+                        maxWidth: '100%',
+                        overflowX: 'hidden',
+                      }}
+                    >
+                      <DataTable
+                        columns={meetingIssueColumns}
+                        data={meetingIssues}
+                        loading={loading}
+                        emptyMessage="No issues yet"
+                        className={styles.compactTable}
+                      />
                     </div>
                   </div>
-                </div>
+
+                  <div className={styles.formGroup}>
+                    <label>Other Notes</label>
+                    <Textarea
+                      value={formData.other || ''}
+                      disabled={true}
+                      placeholder="No notes available"
+                      rows={3}
+                      style={{
+                        backgroundColor: '#f3f4f6',
+                      }}
+                    />
+                  </div>
+                </>
               ) : (
                 <div style={{ 
                   background: '#fef3c7', 

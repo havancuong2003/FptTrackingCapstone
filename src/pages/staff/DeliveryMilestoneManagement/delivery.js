@@ -4,7 +4,9 @@ import Input from "../../../components/Input/Input";
 import Button from "../../../components/Button/Button";
 import DataTable from "../../../components/DataTable/DataTable";
 import Modal from "../../../components/Modal/Modal";
-import client from "../../../utils/axiosClient";
+import { getAllCodeCourses } from "../../../api/staff";
+import { getCurrentSemester } from "../../../api/staff/semester";
+import { getMilestonesByMajor, getDeliverablesByMajorAndSemester, updateMilestone } from "../../../api/staff/milestones";
 import { formatDate } from "../../../utils/date";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -61,8 +63,8 @@ export default function Delivery() {
         let mounted = true;
         async function loadMajors() {
             try {
-                const res = await client.get("https://160.30.21.113:5000/api/v1/Staff/getAllCodeCourse");
-                const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+                const res = await getAllCodeCourses();
+                const list = Array.isArray(res?.data) ? res.data : [];
                 if (!mounted) return;
                 setMajors(list);
                 if (list.length > 0) setSelectedMajorId(String(list[0].id));
@@ -82,8 +84,8 @@ export default function Delivery() {
         let mounted = true;
         async function loadCurrentSemester() {
             try {
-                const res = await client.get("https://160.30.21.113:5000/api/v1/Staff/semester/getSemesterByNow");
-                const sem = res?.data?.data || null;
+                const res = await getCurrentSemester();
+                const sem = res?.data || null;
                 if (!mounted) return;
                 setCurrentSemester(sem);
             } catch {
@@ -102,9 +104,8 @@ export default function Delivery() {
         async function loadMilestones() {
             if (!selectedMajorId) return;
             try {
-                const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${selectedMajorId}`;
-                const res = await client.get(url);
-                const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+                const res = await getMilestonesByMajor(selectedMajorId);
+                const list = Array.isArray(res?.data) ? res.data : [];
                 // Sort milestones: those with deadline first (by deadline), then those without deadline (by createAt)
                 const sortedList = list.sort((a, b) => {
                     // Milestones with deadline go first
@@ -141,9 +142,8 @@ export default function Delivery() {
         async function loadDeliverables() {
             if (!selectedMajorId || !currentSemester?.id) return;
             try {
-                const url = `https://160.30.21.113:5000/api/v1/Staff/deliverables?majorCateId=${selectedMajorId}&semesterId=${currentSemester.id}`;
-                const res = await client.get(url);
-                const list = Array.isArray(res?.data) ? res.data : [];
+                const res = await getDeliverablesByMajorAndSemester(selectedMajorId, currentSemester.id);
+                const list = Array.isArray(res) ? res : [];
                 if (!mounted) return;
                 setDeliverables(list);
             } catch {
@@ -422,12 +422,11 @@ export default function Delivery() {
                     return itemData;
                 })
             };
-            await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", payload);
+            await updateMilestone(payload);
             setIsModalOpen(false);
             // refetch
-            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${selectedMajorId}`;
-            const res = await client.get(url);
-            const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+            const res = await getMilestonesByMajor(selectedMajorId);
+            const list = Array.isArray(res?.data) ? res.data : [];
             // Sort milestones: those with deadline first (by deadline), then those without deadline (by createAt)
             const sortedList = list.sort((a, b) => {
                 // Milestones with deadline go first
@@ -448,9 +447,8 @@ export default function Delivery() {
             setMilestones(sortedList);
             // also refresh deliverables of current semester
             if (currentSemester?.id) {
-                const deliverUrl = `https://160.30.21.113:5000/api/v1/Staff/deliverables?majorCateId=${selectedMajorId}&semesterId=${currentSemester.id}`;
-                const deliverRes = await client.get(deliverUrl);
-                const deliverList = Array.isArray(deliverRes?.data) ? deliverRes.data : [];
+                const deliverRes = await getDeliverablesByMajorAndSemester(selectedMajorId, currentSemester.id);
+                const deliverList = Array.isArray(deliverRes) ? deliverRes : [];
                 setDeliverables(deliverList);
             }
             
@@ -459,50 +457,6 @@ export default function Delivery() {
         }
     }
 
-    // async function removeDeadline() {
-    //     if (!selectedMilestone) return;
-    //     try {
-    //         const payload = {
-    //             id: selectedMilestone.id,
-    //             name: selectedMilestone.name,
-    //             description: selectedMilestone.description || "",
-    //             deadline: null,
-    //             majorId: Number(selectedMajorId),
-    //             items: editingItems.map(item => {
-    //                 const itemData = {
-    //                     name: item.name.trim(),
-    //                     description: item.description.trim()
-    //                 };
-    //                 // Only include ID if it exists (for existing items)
-    //                 if (item.id) {
-    //                     itemData.id = item.id;
-    //                 }
-    //                 return itemData;
-    //             })
-    //         };
-    //         await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", payload);
-    //         setIsModalOpen(false);
-    //         // refetch
-    //         const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${selectedMajorId}`;
-    //         const res = await client.get(url);
-    //         const list = Array.isArray(res?.data?.data) ? res.data.data : [];
-    //         // Sort milestones: those without deadline first, then by createAt
-    //         const sortedList = list.sort((a, b) => {
-    //             // Milestones without deadline go first
-    //             if (!a.deadline && b.deadline) return -1;
-    //             if (a.deadline && !b.deadline) return 1;
-    //             // Then sort by createAt
-    //             if (a.createAt && b.createAt) {
-    //                 return new Date(a.createAt) - new Date(b.createAt);
-    //             }
-    //             return 0;
-    //         });
-    //         if (!mounted) return;
-    //         setMilestones(sortedList);
-    //     } catch (err) {
-    //         setModalError(err?.message || "Failed to remove deadline");
-    //     }
-    // }
 
     return (
         <div style={{ padding: 16 }}>

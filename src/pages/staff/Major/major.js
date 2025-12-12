@@ -4,7 +4,7 @@ import Input from "../../../components/Input/Input";
 import Button from "../../../components/Button/Button";
 import Modal from "../../../components/Modal/Modal";
 import Switch from "../../../components/Switch/Switch";
-import client from "../../../utils/axiosClient";
+import { getAllCodeCourses, createCourse, updateCourse } from "../../../api/staff";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -35,8 +35,8 @@ export default function Major() {
         async function loadMajors() {
             setLoading(true);
             try {
-                const res = await client.get("https://160.30.21.113:5000/api/v1/Staff/getAllCodeCourse");
-                const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+                const res = await getAllCodeCourses();
+                const list = Array.isArray(res?.data) ? res.data : [];
                 if (!mounted) return;
                 setMajors(list);
                 setFilteredMajors(list);
@@ -116,12 +116,12 @@ export default function Major() {
                 isActive: formData.isActive
             };
 
-            await client.post("https://160.30.21.113:5000/api/v1/Staff/createCourse", payload);
+            await createCourse(payload);
             setIsCreateModalOpen(false);
             
             // Refresh the list
-            const res = await client.get("https://160.30.21.113:5000/api/v1/Staff/getAllCodeCourse");
-            const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+            const res = await getAllCodeCourses();
+            const list = Array.isArray(res?.data) ? res.data : [];
             setMajors(list);
             setFilteredMajors(list);
         } catch (err) {
@@ -144,12 +144,12 @@ export default function Major() {
                 isActive: formData.isActive
             };
 
-            await client.post(`https://160.30.21.113:5000/api/v1/Staff/updateCourse/${selectedMajor.id}`, payload);
+            await updateCourse(selectedMajor.id, payload);
             setIsEditModalOpen(false);
             
             // Refresh the list
-            const res = await client.get("https://160.30.21.113:5000/api/v1/Staff/getAllCodeCourse");
-            const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+            const res = await getAllCodeCourses();
+            const list = Array.isArray(res?.data) ? res.data : [];
             setMajors(list);
             setFilteredMajors(list);
         } catch (err) {

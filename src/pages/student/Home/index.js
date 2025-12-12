@@ -1,12 +1,21 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
+import { getFileUrl } from '../../../utils/fileUrl';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import DataTable from '../../../components/DataTable/DataTable';
 import { getUserInfo, getFileSizeLimit, formatSizeLimit } from '../../../auth/auth';
-import { getMeetingScheduleByGroupId } from '../../../api/schedule';
+import { getMeetingScheduleByGroupId, getStudentFreeTimeSlots } from '../../../api/schedule';
+import { getUserInfoFromAPI } from '../../../api/auth';
+import { getSlotsByCampusId } from '../../../api/slots';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getSemesterDetail } from '../../../api/staff/semester';
+import { getDeliverablesByGroup, getDeliverableDetail } from '../../../api/deliverables';
+import { getTaskAssignees, getMeetingTasksByMinuteId } from '../../../api/student';
+import { getMeetingScheduleDatesByGroup, getMeetingMinutesByMeetingDateId } from '../../../api/meetings';
+import { getTaskTypeIssuesByGroup } from '../../../api/tasks/issues';
+import { uploadMilestoneFile, deleteMilestoneAttachment } from '../../../api/upload';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -42,8 +51,8 @@ export default function StudentHome() {
     let mounted = true;
     async function loadUserInfo() {
       try {
-        const res = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
-        const user = res?.data?.data || null;
+        const res = await getUserInfoFromAPI();
+        const user = res?.data || null;
         if (!mounted) return;
         setUserInfo(user);
         
@@ -77,9 +86,9 @@ export default function StudentHome() {
     async function loadSlots() {
       if (!userInfo?.campusId) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/slot/ById/${userInfo.campusId}`);
-        if (res.data.status === 200 && res.data.data?.slots) {
-          const slots = res.data.data.slots;
+        const res = await getSlotsByCampusId(userInfo.campusId);
+        if (res.status === 200 && res.data?.slots) {
+          const slots = res.data.slots;
           // Chuyển đổi slots từ API thành format phù hợp
           const formattedSlots = slots.map(slot => {
             // Parse thời gian từ "7:30 AM" hoặc "1:00 PM" format
@@ -134,8 +143,8 @@ export default function StudentHome() {
       try {
         // Lấy group đầu tiên từ danh sách groups
         const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
-        const group = res?.data?.data || null;
+        const res = await getCapstoneGroupDetail(groupId);
+        const group = res?.data || null;
         if (!mounted) return;
         setGroupInfo(group);
       } catch {
@@ -153,8 +162,8 @@ export default function StudentHome() {
     async function loadSemesterInfo() {
       if (!groupInfo?.semesterId) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/semester/getSemesterBy/${groupInfo.semesterId}`);
-        const semester = res?.data?.data || null;
+        const res = await getSemesterDetail(groupInfo.semesterId);
+        const semester = res?.data || null;
         if (!mounted) return;
         setSemesterInfo(semester);
         setWeeks(semester?.weeks || []);
@@ -187,8 +196,8 @@ export default function StudentHome() {
       try {
         // Lấy group đầu tiên từ danh sách groups
         const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${groupId}`);
-        const list = Array.isArray(res?.data) ? res.data : [];
+        const res = await getDeliverablesByGroup(groupId);
+        const list = Array.isArray(res) ? res : [];
         if (!mounted) return;
         setMilestones(list);
       } catch {
@@ -206,9 +215,9 @@ export default function StudentHome() {
     async function loadTasks() {
       if (!userInfo) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Task/assignee`);
-        if (res.data.statusCode === 200) {
-          const tasksData = res.data.data || [];
+        const res = await getTaskAssignees();
+        if (res.statusCode === 200) {
+          const tasksData = res.data || [];
           if (!mounted) return;
           setTasks(Array.isArray(tasksData) ? tasksData : []);
         }
@@ -230,9 +239,9 @@ export default function StudentHome() {
       try {
         // Lấy group đầu tiên từ danh sách groups
         const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Meeting/group/${groupId}/schedule-dates`);
-        if (res.data.status === 200) {
-          const meetingsData = res.data.data;
+        const res = await getMeetingScheduleDatesByGroup(groupId);
+        if (res.status === 200) {
+          const meetingsData = res.data;
           if (!mounted) return;
           setMeetings(meetingsData || []);
         }
@@ -253,9 +262,9 @@ export default function StudentHome() {
       
       try {
         const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/task/taskTypeIssue/${groupId}`);
-        if (res.data?.code === 200) {
-          const issuesData = res.data.data || [];
+        const res = await getTaskTypeIssuesByGroup(groupId);
+        if (res?.code === 200) {
+          const issuesData = res.data || [];
           if (!mounted) return;
           setGroupIssues(Array.isArray(issuesData) ? issuesData : []);
         }
@@ -319,9 +328,9 @@ export default function StudentHome() {
       if (!userInfo?.groups || userInfo.groups.length === 0 || !userInfo.id) return;
       try {
         const groupId = userInfo.groups[0];
-        const response = await client.get(`https://160.30.21.113:5000/api/v1/Student/Meeting/groups/${groupId}/schedule/free-time`);
-        if (response.data.status === 200 && response.data.data?.students) {
-          const students = response.data.data.students;
+        const response = await getStudentFreeTimeSlots(groupId);
+        if (response.status === 200 && response.data?.students) {
+          const students = response.data.students;
           const currentStudent = students.find(s => s.studentId === userInfo.id);
           if (currentStudent) {
             // Kiểm tra xem freeTimeSlots có rỗng không
@@ -694,8 +703,8 @@ export default function StudentHome() {
       // get user info from localStorage
       const user = getUserInfo();
       const groupId = user?.groups?.[0];
-      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${groupId}&deliverableId=${milestone.id}`);
-      setMilestoneDetails(res?.data || null);
+      const res = await getDeliverableDetail(groupId, milestone.id);
+      setMilestoneDetails(res || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
       setMilestoneDetails(null);
@@ -712,9 +721,9 @@ export default function StudentHome() {
   // Hàm lấy thông tin nhóm
   const fetchGroupInfo = async (groupId) => {
     try {
-      const response = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
-      if (response.data.status === 200) {
-        return response.data.data;
+      const response = await getCapstoneGroupDetail(groupId);
+      if (response.status === 200) {
+        return response.data;
       }
       return null;
     } catch (error) {
@@ -791,8 +800,8 @@ export default function StudentHome() {
   // Fetch meeting issues (tasks) by meetingId
   const fetchMeetingIssues = async (meetingId) => {
     try {
-      const res = await client.get(`https://160.30.21.113:5000/api/v1/Student/Task/meeting-tasks/${meetingId}`);
-      const data = res.data?.data;
+      const res = await getMeetingTasksByMinuteId(meetingId);
+      const data = res?.data;
       const tasks = Array.isArray(data?.tasks) ? data.tasks : [];
       return tasks.map(t => ({
         id: t.id,
@@ -918,9 +927,9 @@ export default function StudentHome() {
       // Chỉ fetch meeting minute nếu isMinute === true
       if (meeting.isMinute === true) {
         try {
-          const response = await client.get(`https://160.30.21.113:5000/api/v1/MeetingMinute?meetingDateId=${meeting.id}`);
-          if (response.data.status === 200 && response.data.data) {
-            setMinuteData(response.data.data);
+          const response = await getMeetingMinutesByMeetingDateId(meeting.id);
+          if (response.status === 200 && response.data) {
+            setMinuteData(response.data);
             
             // Parse attendance từ text
             if (currentGroupInfo && currentGroupInfo.students) {
@@ -1179,22 +1188,16 @@ export default function StudentHome() {
     
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      
-      const res = await client.post(
-        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}&semester=${groupInfo.semesterId}`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
+      const res = await uploadMilestoneFile(
+        userInfo.groups[0],
+        deliveryItemId,
+        selectedFile,
+        groupInfo.semesterId
       );
       
       // Reload milestones after successful upload
-      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groups[0]}`);
-      const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
+      const milestonesRes = await getDeliverablesByGroup(userInfo.groups[0]);
+      const list = Array.isArray(milestonesRes) ? milestonesRes : [];
       setMilestones(list);
       
       // Update selectedMilestone with new status
@@ -1205,8 +1208,8 @@ export default function StudentHome() {
       
       // Reload milestone details after successful upload
       if (selectedMilestone) {
-        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
-        setMilestoneDetails(detailRes?.data || null);
+        const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
+        setMilestoneDetails(detailRes || null);
       }
       
       setSelectedFile(null);
@@ -1221,7 +1224,8 @@ export default function StudentHome() {
 
   const downloadFile = async (attachment) => {
     try {
-      const response = await fetch(`https://160.30.21.113:5000${attachment.path}`);
+      const fileUrl = getFileUrl(attachment.path);
+      const response = await fetch(fileUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -1243,13 +1247,13 @@ export default function StudentHome() {
     }
     
     try {
-      const response = await client.delete(`https://160.30.21.113:5000/api/v1/upload/milestone?attachmentId=${attachmentId}`);
-      if (response.data.status === 200) {
+      const response = await deleteMilestoneAttachment(attachmentId);
+      if (response.status === 200) {
         alert('File deleted successfully!');
         // Reload milestone details
         if (selectedMilestone) {
-          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
-          setMilestoneDetails(detailRes?.data || null);
+          const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
+          setMilestoneDetails(detailRes || null);
         }
       }
     } catch (error) {
@@ -1289,7 +1293,7 @@ export default function StudentHome() {
     const filePath = attachment.path;
     const fileName = filePath.split('/').pop().toLowerCase();
     const extension = fileName.split('.').pop();
-    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    const baseUrl = getFileUrl(filePath);
     
     let previewUrl = baseUrl;
     

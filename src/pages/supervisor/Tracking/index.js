@@ -12,6 +12,7 @@ import { getDeliverablesByGroup, getDeliverableDetail, markDeliverableAttachment
 import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 import { sendEmail } from '../../../email/api';
 import { baseTemplate } from '../../../email/templates';
+import { getFileUrl } from '../../../utils/fileUrl';
 
 export default function SupervisorTracking() {
   const [userInfo, setUserInfo] = React.useState(null);
@@ -458,7 +459,8 @@ export default function SupervisorTracking() {
 
   const downloadFile = async (attachment) => {
     try {
-      const response = await fetch(`https://160.30.21.113:5000${attachment.path}`);
+      const fileUrl = getFileUrl(attachment.path);
+      const response = await fetch(fileUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -513,7 +515,7 @@ export default function SupervisorTracking() {
     const filePath = attachment.path;
     const fileName = filePath.split('/').pop().toLowerCase();
     const extension = fileName.split('.').pop();
-    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    const baseUrl = getFileUrl(filePath);
     
     let previewUrl = baseUrl;
     

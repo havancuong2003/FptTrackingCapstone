@@ -13,6 +13,11 @@ export async function getUserInfoFromAPI() {
   }
 }
 
+// Get user info (alias for consistency)
+export async function getUserInfo() {
+  return getUserInfoFromAPI();
+}
+
 // Login API
 export async function loginAPI({ username, password }) {
   try {

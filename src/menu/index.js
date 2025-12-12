@@ -2,7 +2,6 @@ import { Role } from '../auth/rbac';
 import adminMenu from './admin';
 import staffMenu from './staff';
 import studentMenu from './student';
-import teacherMenu from './teacher';
 import supervisorMenu from './supervisor';
 
 export function getMenuForRole(role) {
@@ -14,8 +13,6 @@ export function getMenuForRole(role) {
       return staffMenu;
     case Role.STUDENT:
       return studentMenu;
-    case Role.TEACHER:
-      return teacherMenu;
     case Role.SUPERVISOR:
       return supervisorMenu;
     default:

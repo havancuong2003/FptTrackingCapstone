@@ -145,7 +145,7 @@ const SemesterList = () => {
       // API sync chỉ gửi name
       const response = await syncSemester({ name: confirmModal.name });
       if (response.status === 200) {
-        setMessage(`Đồng bộ thành công kỳ học: ${confirmModal.name}`);
+        setMessage(`Synced semester successfully: ${confirmModal.name}`);
         setConfirmModal(null);
         // Reload danh sách
         await loadSemesters();
@@ -215,7 +215,7 @@ const SemesterList = () => {
             }}
             disabled={syncLoading === semester.id}
           >
-            {syncLoading === semester.id ? 'Đang đồng bộ...' : 'Đồng bộ'}
+            {syncLoading === semester.id ? 'Syncing...' : 'Sync'}
           </button>
         </div>
       )
@@ -337,12 +337,12 @@ const SemesterList = () => {
         onClose={handleCancelSync}
       >
         <div className={styles.modalContent}>
-          <h2 className={styles.modalTitle}>Đồng bộ kỳ học từ FAP</h2>
+          <h2 className={styles.modalTitle}>Sync semester from FAP</h2>
           <p className={styles.modalDescription}>
-            Bạn có muốn đồng bộ thông tin và tên kỳ học từ hệ thống FAP?
+            Do you want to sync the semester information and name from the FAP system?
           </p>
           <div className={styles.modalSemesterInfo}>
-            <span className={styles.modalLabel}>Kỳ học:</span>
+            <span className={styles.modalLabel}>Semester:</span>
             <span className={styles.modalSemesterName}>{confirmModal?.name}</span>
           </div>
           <div className={styles.modalActions}>
@@ -351,14 +351,14 @@ const SemesterList = () => {
               className={styles.cancelBtn}
               disabled={syncLoading === confirmModal?.id}
             >
-              Hủy
+              Cancel
             </button>
             <button 
               onClick={handleConfirmSync} 
               className={styles.confirmBtn}
               disabled={syncLoading === confirmModal?.id}
             >
-              {syncLoading === confirmModal?.id ? 'Đang đồng bộ...' : 'Xác nhận'}
+              {syncLoading === confirmModal?.id ? 'Syncing...' : 'Confirm'}
             </button>
           </div>
         </div>

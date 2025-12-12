@@ -70,3 +70,36 @@ export async function deleteMeetingMinutes(minuteId) {
   }
 }
 
+// Get attendance data by group ID
+export async function getAttendanceDataByGroup(groupId) {
+  try {
+    const response = await client.get(`/MeetingMinute/attendance?groupId=${groupId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching attendance data:', error);
+    throw error;
+  }
+}
+
+// Update meeting isMeeting status
+export async function updateMeetingIsMeetingStatus(meetingId, isMeeting) {
+  try {
+    const response = await client.put(`/Student/Meeting/update-is-meeting/${meetingId}`, { isMeeting });
+    return response.data;
+  } catch (error) {
+    console.error('Error updating meeting status:', error);
+    throw error;
+  }
+}
+
+// Update meeting schedule
+export async function updateMeetingSchedule(meetingId, scheduleData) {
+  try {
+    const response = await client.put(`/Student/Meeting/schedule/${meetingId}`, scheduleData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating meeting schedule:', error);
+    throw error;
+  }
+}
+

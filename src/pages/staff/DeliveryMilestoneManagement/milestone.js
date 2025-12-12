@@ -3,7 +3,8 @@ import Select from "../../../components/Select/Select";
 import Input from "../../../components/Input/Input";
 import Button from "../../../components/Button/Button";
 import DataTable from "../../../components/DataTable/DataTable";
-import client from "../../../utils/axiosClient";
+import { getAllCodeCourses } from "../../../api/staff";
+import { getMilestonesByMajor, createMilestones, updateMilestone, deleteMilestone } from "../../../api/staff/milestones";
 import Modal from "../../../components/Modal/Modal";
 
 function Milestone() {
@@ -30,11 +31,8 @@ function Milestone() {
         let mounted = true;
         async function fetchMajors() {
             try {
-                const res = await client.get(
-                    "https://160.30.21.113:5000/api/v1/Staff/getAllCodeCourse"
-                );
-                const body = res?.data || {};
-                const list = Array.isArray(body.data) ? body.data : [];
+                const res = await getAllCodeCourses();
+                const list = Array.isArray(res?.data) ? res.data : [];
                 if (!mounted) return;
                 setMajors(list);
                 if (list.length > 0) {
@@ -57,12 +55,8 @@ function Milestone() {
         async function fetchMilestones() {
             if (!selectedMajorId) return;
             try {
-                const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${encodeURIComponent(
-                    selectedMajorId
-                )}`;
-                const res = await client.get(url);
-                const body = res?.data || {};
-                const list = Array.isArray(body.data) ? body.data : [];
+                const res = await getMilestonesByMajor(selectedMajorId);
+                const list = Array.isArray(res?.data) ? res.data : [];
                 if (!mounted) return;
                 setMilestones(list);
                 setPage(1);
@@ -190,30 +184,22 @@ function Milestone() {
                 items: originalMilestone?.items || [],
                 deadline: originalMilestone?.deadline || null
             };
-            await client.put("https://160.30.21.113:5000/api/v1/Staff/milestones", body);
+            await updateMilestone(body);
             closeEdit();
-            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${encodeURIComponent(
-                selectedMajorId
-            )}`;
-            const res = await client.get(url);
-            const bodyRes = res?.data || {};
-            setMilestones(Array.isArray(bodyRes.data) ? bodyRes.data : []);
+            const res = await getMilestonesByMajor(selectedMajorId);
+            setMilestones(Array.isArray(res?.data) ? res.data : []);
         } catch (err) {
             setEditError(err?.message || "Update failed");
         }
     }
 
-    async function deleteMilestone() {
+    async function handleDeleteMilestone() {
         if (!editingItem) return;
         try {
-            await client.delete(`https://160.30.21.113:5000/api/v1/Staff/milestone/${editingItem.id}`);
+            await deleteMilestone(editingItem.id);
             closeEdit();
-            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${encodeURIComponent(
-                selectedMajorId
-            )}`;
-            const res = await client.get(url);
-            const bodyRes = res?.data || {};
-            setMilestones(Array.isArray(bodyRes.data) ? bodyRes.data : []);
+            const res = await getMilestonesByMajor(selectedMajorId);
+            setMilestones(Array.isArray(res?.data) ? res.data : []);
         } catch (err) {
             setEditError(err?.message || "Delete failed");
         }
@@ -278,14 +264,10 @@ function Milestone() {
                 description: r.description,
                 majorCateId: selectedMajorId,
             }));
-            await client.post("https://160.30.21.113:5000/api/v1/Staff/milestones", payload);
+            await createMilestones(payload);
             closeCreate();
-            const url = `https://160.30.21.113:5000/api/v1/Staff/milestones?majorCateId=${encodeURIComponent(
-                selectedMajorId
-            )}`;
-            const res = await client.get(url);
-            const bodyRes = res?.data || {};
-            setMilestones(Array.isArray(bodyRes.data) ? bodyRes.data : []);
+            const res = await getMilestonesByMajor(selectedMajorId);
+            setMilestones(Array.isArray(res?.data) ? res.data : []);
         } catch (err) {
             setCreateError(err?.message || "Create failed");
         }
@@ -388,7 +370,7 @@ function Milestone() {
                 fontSize: "14px"
             }}>
                 <div style={{ color: "#64748b", fontWeight: "500" }}>
-                    Hiển thị {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} trong {filtered.length} milestones
+                    Display {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, filtered.length)} in {filtered.length} milestones
                 </div>
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     <Button 
@@ -402,14 +384,14 @@ function Milestone() {
                             fontWeight: "500"
                         }}
                     >
-                        Trước
+                        Previous
                     </Button>
                     <span style={{ 
                         color: "#374151", 
                         fontWeight: "500",
                         padding: "0 8px"
                     }}>
-                        Trang {page} / {totalPages}
+                        Page {page} / {totalPages}
                     </span>
                     <Button 
                         variant="ghost" 
@@ -422,7 +404,7 @@ function Milestone() {
                             fontWeight: "500"
                         }}
                     >
-                        Tiếp
+                        Next
                     </Button>
                 </div>
             </div>
@@ -445,7 +427,7 @@ function Milestone() {
                         borderRadius: "8px"
                     }}
                 >
-                    + Tạo Milestone
+                    + Create Milestone
                 </Button>
             </div>
 
@@ -556,7 +538,7 @@ function Milestone() {
                                 <Button 
                                     variant="ghost" 
                                     type="button" 
-                                    onClick={deleteMilestone}
+                                    onClick={handleDeleteMilestone}
                                     style={{ 
                                         color: "#dc2626", 
                                         borderColor: "#dc2626",

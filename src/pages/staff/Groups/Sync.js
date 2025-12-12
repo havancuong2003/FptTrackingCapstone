@@ -152,7 +152,7 @@ export default function SyncGroup() {
         majorCategories: majorCategories
       };
       
-      const res = await syncMockDataGroups(syncData);
+      const res = await syncMockDataGroups(syncData, parseInt(selectedSemesterId));
       clearInterval(progressInterval);
       setSyncProgress(100);
       
@@ -161,6 +161,8 @@ export default function SyncGroup() {
         setMessage('Data synced successfully!');
         setTimeout(() => {
           alert('Data synced successfully!');
+          // Reload data after sync
+          handleLoadData();
         }, 100);
       } else {
         setSyncStatus('error');

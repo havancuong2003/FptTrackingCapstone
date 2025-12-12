@@ -1,10 +1,10 @@
 const staffMenu = [
   // Trang chủ
-  { 
-    path: "/dashboard", 
-    label: "Dashboard", 
-    icon: "🏠"
-  },
+  // { 
+  //   path: "/dashboard", 
+  //   label: "Dashboard", 
+  //   icon: "🏠"
+  // },
   // Quản lý học kỳ
   {
     path: "/category-management",
@@ -42,11 +42,11 @@ const staffMenu = [
     ],
   },
   // Quản lý chuyên ngành
-  { 
-    path: "/staff/major", 
-    label: "Major Management",
-    icon: "🎓"
-  },
+  // { 
+  //   path: "/staff/major", 
+  //   label: "Major Management",
+  //   icon: "🎓"
+  // },
 ];
 
 export default staffMenu;
