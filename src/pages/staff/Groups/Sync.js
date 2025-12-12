@@ -161,8 +161,8 @@ export default function SyncGroup() {
         setMessage('Data synced successfully!');
         setTimeout(() => {
           alert('Data synced successfully!');
-          // Refresh page after sync
-          window.location.reload();
+          // Reload data after sync
+          handleLoadData();
         }, 100);
       } else {
         setSyncStatus('error');
