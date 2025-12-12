@@ -3,19 +3,19 @@ import client from '../../utils/axiosClient';
 // ================== File Upload ==================
 
 // Upload milestone file
-export async function uploadMilestoneFile(groupId, deliveryItemId, file) {
+export async function uploadMilestoneFile(groupId, deliveryItemId, file, semester = null) {
   try {
     const formData = new FormData();
     formData.append('file', file);
-    const response = await client.post(
-      `/upload/milestone?groupId=${groupId}&deliveryItemId=${deliveryItemId}`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      }
-    );
+    let url = `/upload/milestone?groupId=${groupId}&deliveryItemId=${deliveryItemId}`;
+    if (semester) {
+      url += `&semester=${semester}`;
+    }
+    const response = await client.post(url, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   } catch (error) {
     console.error('Error uploading milestone file:', error);

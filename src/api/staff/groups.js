@@ -137,9 +137,11 @@ export async function getMockDataGroups(semesterId) {
   }
 }
 
-export async function syncMockDataGroups(groupsData) {
+export async function syncMockDataGroups(groupsData, semesterId) {
   try {
-    const res = await client.post('/mock-data/group', groupsData);
+    const res = await client.post('/mock-data/group', groupsData, {
+      params: { semesterId }
+    });
     const payload = res.data;
     return {
       data: payload.data,

@@ -3,9 +3,15 @@ import styles from './index.module.scss';
 import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
-import client from '../../../utils/axiosClient';
 import { formatDate } from '../../../utils/date';
+import { getFileUrl } from '../../../utils/fileUrl';
 import { getFileSizeLimit, formatSizeLimit, getUserInfo } from '../../../auth/auth';
+import { getUserInfoFromAPI } from '../../../api/auth';
+import { getCapstoneGroupDetail } from '../../../api/staff/groups';
+import { getSemesterDetail } from '../../../api/staff/semester';
+import { getDeliverablesByGroup, getDeliverableDetail } from '../../../api/deliverables';
+import { uploadMilestoneFile, deleteMilestoneAttachment } from '../../../api/upload';
+import { sendMilestoneSubmissionEmail } from '../../../email/documents/milestoneSubmission';
 
 
 export default function StudentMilestones() {
@@ -57,8 +63,8 @@ export default function StudentMilestones() {
     let mounted = true;
     async function loadUserInfo() {
       try {
-        const res = await client.get("https://160.30.21.113:5000/api/v1/auth/user-info");
-        const user = res?.data?.data || null;
+        const res = await getUserInfoFromAPI();
+        const user = res?.data || null;
         if (!mounted) return;
         setUserInfo(user);
         
@@ -94,8 +100,8 @@ export default function StudentMilestones() {
       try {
         // Lấy group đầu tiên từ danh sách groups
         const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/capstone-groups/${groupId}`);
-        const group = res?.data?.data || null;
+        const res = await getCapstoneGroupDetail(groupId);
+        const group = res?.data || null;
         if (!mounted) return;
         setGroupInfo(group);
       } catch {
@@ -113,8 +119,8 @@ export default function StudentMilestones() {
     async function loadSemesterInfo() {
       if (!groupInfo?.semesterId) return;
       try {
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/Staff/semester/getSemesterBy/${groupInfo.semesterId}`);
-        const semester = res?.data?.data || null;
+        const res = await getSemesterDetail(groupInfo.semesterId);
+        const semester = res?.data || null;
         if (!mounted) return;
         setSemesterInfo(semester);
       } catch {
@@ -134,8 +140,8 @@ export default function StudentMilestones() {
       try {
         // Lấy group đầu tiên từ danh sách groups
         const groupId = userInfo.groups[0];
-        const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${groupId}`);
-        const list = Array.isArray(res?.data) ? res.data : [];
+        const res = await getDeliverablesByGroup(groupId);
+        const list = Array.isArray(res) ? res : [];
         if (!mounted) return;
         setMilestones(list);
       } catch {
@@ -167,8 +173,8 @@ export default function StudentMilestones() {
     
     // Load milestone details
     try {
-      const res = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${milestone.id}`);
-      setMilestoneDetails(res?.data || null);
+      const res = await getDeliverableDetail(userInfo.groups[0], milestone.id);
+      setMilestoneDetails(res || null);
     } catch (error) {
       console.error('Error loading milestone details:', error);
       setMilestoneDetails(null);
@@ -260,19 +266,16 @@ export default function StudentMilestones() {
       const formData = new FormData();
       formData.append('file', fileToUpload);
       
-      const res = await client.post(
-        `https://160.30.21.113:5000/api/v1/upload/milestone?groupId=${userInfo.groups[0]}&deliveryItemId=${deliveryItemId}&semester=${groupInfo.semesterId}`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
+      const res = await uploadMilestoneFile(
+        userInfo.groups[0],
+        deliveryItemId,
+        fileToUpload,
+        groupInfo.semesterId
       );
       
       // Reload milestones after successful upload
-      const milestonesRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/${userInfo.groups[0]}`);
-      const list = Array.isArray(milestonesRes?.data) ? milestonesRes.data : [];
+      const milestonesRes = await getDeliverablesByGroup(userInfo.groups[0]);
+      const list = Array.isArray(milestonesRes) ? milestonesRes : [];
       setMilestones(list);
       
       // Update selectedMilestone with new status
@@ -282,9 +285,83 @@ export default function StudentMilestones() {
       }
       
       // Reload milestone details after successful upload
+      let updatedMilestoneDetails = null;
       if (selectedMilestone) {
-        const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
-        setMilestoneDetails(detailRes?.data || null);
+        const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
+        updatedMilestoneDetails = detailRes || null;
+        setMilestoneDetails(updatedMilestoneDetails);
+      }
+      
+      // Send email notification to supervisors and CC to group members
+      try {
+        // Get delivery item name from updated details or current details
+        const currentDetails = updatedMilestoneDetails || milestoneDetails;
+        const deliveryItem = currentDetails?.deliveryItems?.find(item => item.id === deliveryItemId);
+        const deliveryItemName = deliveryItem?.name || 'Unknown';
+        
+        // Get supervisor emails
+        const supervisorEmails = [];
+        if (groupInfo?.supervisorsInfor && Array.isArray(groupInfo.supervisorsInfor)) {
+          groupInfo.supervisorsInfor.forEach(supervisor => {
+            if (supervisor.email) {
+              supervisorEmails.push(supervisor.email);
+            }
+          });
+        }
+        
+        // Get student emails (CC) - include all students in the group
+        const studentEmails = [];
+        if (groupInfo?.students && Array.isArray(groupInfo.students)) {
+          groupInfo.students.forEach(student => {
+            if (student.email) {
+              studentEmails.push(student.email);
+            }
+          });
+        }
+        
+        // Format file size
+        const fileSizeMB = (fileToUpload.size / (1024 * 1024)).toFixed(2);
+        const fileSizeText = `${fileSizeMB} MB`;
+        
+        // Format upload time
+        const uploadTime = formatDate(new Date().toISOString(), 'DD/MM/YYYY HH:mm');
+        
+        // Format deadline
+        const deadline = formatDate(selectedMilestone.endAt, 'DD/MM/YYYY HH:mm');
+        
+        // Get file URL if available from updated details
+        let fileUrl = null;
+        if (currentDetails?.deliveryItems) {
+          const updatedItem = currentDetails.deliveryItems.find(item => item.id === deliveryItemId);
+          if (updatedItem?.attachments && updatedItem.attachments.length > 0) {
+            const latestAttachment = updatedItem.attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
+            if (latestAttachment?.path) {
+              fileUrl = getFileUrl(latestAttachment.path);
+            }
+          }
+        }
+        
+        // Only send email if there are supervisors
+        if (supervisorEmails.length > 0) {
+          await sendMilestoneSubmissionEmail({
+            supervisorEmails: supervisorEmails,
+            studentEmails: studentEmails,
+            studentName: userInfo?.name || userInfo?.fullName || 'Sinh viên',
+            groupName: groupInfo?.projectName || groupInfo?.name || 'Nhóm',
+            milestoneName: selectedMilestone.name,
+            deliveryItemName: deliveryItemName,
+            fileName: fileToUpload.name,
+            fileSize: fileSizeText,
+            uploadTime: uploadTime,
+            deadline: deadline,
+            semesterName: semesterInfo?.name,
+            fileUrl: fileUrl,
+            systemUrl: window.location.origin + '/student/milestones'
+          });
+        }
+      } catch (emailError) {
+        console.error('Error sending milestone submission email:', emailError);
+        // Don't show error to user, just log it
       }
       
       // Clear selected file for this item only
@@ -304,7 +381,8 @@ export default function StudentMilestones() {
 
   const downloadFile = async (attachment) => {
     try {
-      const response = await fetch(`https://160.30.21.113:5000${attachment.path}`);
+      const fileUrl = getFileUrl(attachment.path);
+      const response = await fetch(fileUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -326,13 +404,13 @@ export default function StudentMilestones() {
     }
     
     try {
-      const response = await client.delete(`https://160.30.21.113:5000/api/v1/upload/milestone?attachmentId=${attachmentId}`);
-      if (response.data.status === 200) {
+      const response = await deleteMilestoneAttachment(attachmentId);
+      if (response.status === 200) {
         alert('Xóa file thành công!');
         // Reload milestone details
         if (selectedMilestone) {
-          const detailRes = await client.get(`https://160.30.21.113:5000/api/v1/deliverables/group/detail?groupdId=${userInfo.groups[0]}&deliverableId=${selectedMilestone.id}`);
-          setMilestoneDetails(detailRes?.data || null);
+          const detailRes = await getDeliverableDetail(userInfo.groups[0], selectedMilestone.id);
+          setMilestoneDetails(detailRes || null);
         }
       }
     } catch (error) {
@@ -377,7 +455,7 @@ export default function StudentMilestones() {
     const filePath = attachment.path;
     const fileName = filePath.split('/').pop().toLowerCase();
     const extension = fileName.split('.').pop();
-    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    const baseUrl = getFileUrl(filePath);
     
     let previewUrl = baseUrl;
     

@@ -97,3 +97,25 @@ export async function updateCourse(id, courseData) {
   }
 }
 
+// Create course
+export async function createCourse(courseData) {
+  try {
+    const response = await client.post('/Staff/createCourse', courseData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating course:', error);
+    throw error;
+  }
+}
+
+// Get all code courses (without pagination)
+export async function getAllCodeCourses() {
+  try {
+    const response = await client.get('/Staff/getAllCodeCourse');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting all code courses:', error);
+    throw error;
+  }
+}
+

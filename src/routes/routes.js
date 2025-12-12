@@ -20,17 +20,16 @@ const Discussions = React.lazy(() =>
 );
 const Schedule = React.lazy(() => import("../pages/common/Schedule"));
 const AiAssistant = React.lazy(() => import("../pages/student/AiAssistant"));
-const Evaluations = React.lazy(() => import("../pages/teacher/Evaluations"));
 const Analytics = React.lazy(() => import("../pages/staff/Analytics"));
 const Templates = React.lazy(() => import("../pages/staff/Templates"));
 const StaffGroups = React.lazy(() => import("../pages/staff/Groups"));
 const StaffGroupsSync = React.lazy(() => import("../pages/staff/Groups/Sync"));
-const Users = React.lazy(() => import("../pages/admin/Users"));
 const System = React.lazy(() => import("../pages/admin/System"));
 const Tracking = React.lazy(() => import("../pages/staff/Tracking"));
 const Milestone = React.lazy(() =>
   import("../pages/staff/DeliveryMilestoneManagement/milestone")
 );
+const Evaluations = React.lazy(() => import("../pages/supervisor/Evaluation"));
 const Delivery = React.lazy(() =>
   import("../pages/staff/DeliveryMilestoneManagement/delivery")
 );
@@ -198,11 +197,6 @@ export const routes = [
     path: "/templates",
     element: Templates,
     meta: { title: "Templates", protected: true, roles: ["STAFF"] },
-  },
-  {
-    path: "/users",
-    element: Users,
-    meta: { title: "Users", protected: true, roles: ["ADMIN"] },
   },
   {
     path: "/system",

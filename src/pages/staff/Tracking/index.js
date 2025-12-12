@@ -2,7 +2,8 @@ import React from "react";
 import Select from "../../../components/Select/Select";
 import Input from "../../../components/Input/Input";
 import Button from "../../../components/Button/Button";
-import client from "../../../utils/axiosClient";
+import { getMajors } from "../../../api/staff/groups";
+import { listCapstoneGroups } from "../../../api/staff/groups";
 import { useNavigate } from "react-router-dom";
 
 export default function Tracking() {
@@ -29,8 +30,8 @@ export default function Tracking() {
         let mounted = true;
         async function loadMajors() {
             try {
-                const res = await client.get("https://160.30.21.113:5000/api/Staff/GetMajors");
-                const list = Array.isArray(res?.data?.data) ? res.data.data : [];
+                const res = await getMajors();
+                const list = Array.isArray(res?.data) ? res.data : [];
                 if (!mounted) return;
                 setMajors(list);
                 if (list.length > 0) setSelectedMajorId(String(list[0].id));
@@ -51,9 +52,8 @@ export default function Tracking() {
         async function loadGroups() {
             setLoading(true);
             try {
-                const url = `https://160.30.21.113:5000/api/v1/Staff/capstone-groups?page=${page}&pageSize=${pageSize}`;
-                const res = await client.get(url);
-                const data = res?.data?.data || {};
+                const res = await listCapstoneGroups({ page, pageSize });
+                const data = res?.data || {};
                 if (!mounted) return;
                 setGroups(Array.isArray(data.items) ? data.items : []);
                 setTotal(data.total || 0);

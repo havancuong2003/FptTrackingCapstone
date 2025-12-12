@@ -18,7 +18,8 @@ import { getMeetingTasksByMinuteId } from '../../../api/tasks';
 import { getSemesterDetail } from '../../../api/semester';
 import { getMeetingScheduleByGroupId } from '../../../api/schedule';
 import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
-import client from '../../../utils/axiosClient';
+import { getTaskTypeIssuesByGroup } from '../../../api/tasks/issues';
+import { getFileUrl } from '../../../utils/fileUrl';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -380,9 +381,9 @@ export default function SupervisorCalendar() {
         const issuesMap = {};
         for (const group of groups) {
           try {
-            const res = await client.get(`https://160.30.21.113:5000/api/v1/task/taskTypeIssue/${group.id}`);
-            if (res.data?.code === 200) {
-              const issuesData = res.data.data || [];
+            const res = await getTaskTypeIssuesByGroup(group.id);
+            if (res?.code === 200) {
+              const issuesData = res.data || [];
               // Add groupId to each issue
               issuesMap[group.id] = Array.isArray(issuesData) ? issuesData.map(issue => ({
                 ...issue,
@@ -1176,7 +1177,7 @@ export default function SupervisorCalendar() {
     const filePath = attachment.path;
     const fileName = filePath.split('/').pop().toLowerCase();
     const extension = fileName.split('.').pop();
-    const baseUrl = `https://160.30.21.113:5000${filePath}`;
+    const baseUrl = getFileUrl(filePath);
     
     let previewUrl = baseUrl;
     
@@ -2317,7 +2318,7 @@ export default function SupervisorCalendar() {
                                       <Button
                                         onClick={() => {
                                           const link = document.createElement('a');
-                                          link.href = `https://160.30.21.113:5000${attachment.path}`;
+                                          link.href = getFileUrl(attachment.path);
                                           link.download = attachment.path.split('/').pop();
                                           link.click();
                                         }}

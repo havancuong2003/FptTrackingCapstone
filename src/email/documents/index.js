@@ -83,6 +83,8 @@ export const sendDocumentUploadEmail = async (params) => {
     }
 };
 
+export { sendMilestoneSubmissionEmail } from './milestoneSubmission';
+
 export default {
     sendDocumentUploadEmail
 };

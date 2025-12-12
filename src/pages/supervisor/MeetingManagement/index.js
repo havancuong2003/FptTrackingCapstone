@@ -1020,9 +1020,9 @@ export default function SupervisorMeetingManagement() {
   };
 
   const pollAIResult = async (taskId) => {
-    const maxAttempts = 60; // 60 attempts
+    const timeout = 60000; // 1 minute (60 seconds)
     const interval = 2000; // 2 seconds
-    let attempts = 0;
+    const startTime = Date.now();
     isPollingActiveRef.current = true;
 
     const poll = async () => {
@@ -1031,10 +1031,12 @@ export default function SupervisorMeetingManagement() {
         return;
       }
 
-      if (attempts >= maxAttempts) {
+      // Check if timeout (1 minute) has been reached
+      const elapsedTime = Date.now() - startTime;
+      if (elapsedTime >= timeout) {
         isPollingActiveRef.current = false;
         setAiPolling(false);
-        setAiError('Timeout waiting for AI result. Please try again later.');
+        setAiError('Timeout waiting for AI result (1 minute). Please try again later.');
         return;
       }
 
@@ -1054,7 +1056,6 @@ export default function SupervisorMeetingManagement() {
             setAiPolling(false);
           } else if (response.data.status === 'processing' || response.data.status === 'pending') {
             // Still processing, continue polling
-            attempts++;
             pollingTimeoutRef.current = setTimeout(poll, interval);
           } else if (response.data.status === 'failed' || response.data.status === 'error') {
             isPollingActiveRef.current = false;
@@ -1068,7 +1069,6 @@ export default function SupervisorMeetingManagement() {
           }
         } else {
           // If status is not 200, might still be processing
-          attempts++;
           pollingTimeoutRef.current = setTimeout(poll, interval);
         }
       } catch (error) {
@@ -1079,7 +1079,6 @@ export default function SupervisorMeetingManagement() {
         
         // If 404 or other error, might still be processing
         if (error.status === 404 || error.status === 400) {
-          attempts++;
           pollingTimeoutRef.current = setTimeout(poll, interval);
         } else {
           isPollingActiveRef.current = false;

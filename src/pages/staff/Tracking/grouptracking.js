@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom';
 import Select from "../../../components/Select/Select";
 import Button from "../../../components/Button/Button";
 import client from "../../../utils/axiosClient";
-import { mockGroupTrackingApi } from "../../../mocks/mockstaff/groupTrackingApiResponse";
 
 export default function GroupTracking() {
     // Get groupId from URL parameters

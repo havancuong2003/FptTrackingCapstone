@@ -152,7 +152,7 @@ export default function SyncGroup() {
         majorCategories: majorCategories
       };
       
-      const res = await syncMockDataGroups(syncData);
+      const res = await syncMockDataGroups(syncData, parseInt(selectedSemesterId));
       clearInterval(progressInterval);
       setSyncProgress(100);
       
