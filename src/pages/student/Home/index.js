@@ -2087,9 +2087,7 @@ export default function StudentHome() {
                             
                             // Debug: Log để kiểm tra
                             if (process.env.NODE_ENV === 'development') {
-                              console.log('UserInfo from localStorage:', userInfoData);
-                              console.log('MajorCategory:', majorCategory);
-                              console.log('Size limit text:', sizeLimitText);
+
                             }
                             
                             if (sizeLimitText) {

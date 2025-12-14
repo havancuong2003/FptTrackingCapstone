@@ -112,6 +112,8 @@ export async function logout() {
     localStorage.removeItem('user_campus_id');
     localStorage.removeItem(CURRENT_SEMESTER_KEY);
     resetLoading();
+    // Redirect về trang login
+    window.location.href = '/login';
     return;
   } catch {}
   localStorage.removeItem(USER_ROLE_KEY);
@@ -120,6 +122,8 @@ export async function logout() {
   localStorage.removeItem('user_role_in_group');
   localStorage.removeItem(CURRENT_SEMESTER_KEY);
   resetLoading();
+  // Redirect về trang login ngay cả khi logout API fail
+  window.location.href = '/login';
 }
 
 // Refresh user info from API (call after updating group expire date, etc.)

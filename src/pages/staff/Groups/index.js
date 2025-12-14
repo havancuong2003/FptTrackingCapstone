@@ -23,7 +23,6 @@ export default function StaffGroups() {
       }
       return null;
     } catch (error) {
-      console.error('Error getting current semester from localStorage:', error);
       return null;
     }
   };
@@ -92,7 +91,6 @@ export default function StaffGroups() {
           }
         }
       } catch (error) {
-        console.error('Error loading filter options:', error);
       }
     }
     loadFilterOptions();
@@ -165,7 +163,6 @@ export default function StaffGroups() {
         alert(res.message || 'An error occurred when sending email.');
       }
     } catch (error) {
-      console.error('Error sending email:', error);
       alert('An error occurred when sending email. Please try again.');
     } finally {
       setSendingEmail(false);

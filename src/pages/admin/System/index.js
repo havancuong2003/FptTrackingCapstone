@@ -53,7 +53,6 @@ export default function System() {
         setIsEditing(false);
       }
     } catch (error) {
-      console.error('Error loading mail settings:', error);
       alert('Unable to load email settings. Please try again.');
     } finally {
       setLoading(false);
@@ -158,7 +157,6 @@ export default function System() {
         alert(response.message || 'Error updating email settings');
       }
     } catch (error) {
-      console.error('Error updating mail settings:', error);
       alert(error.message || 'Unable to update email settings. Please try again.');
     } finally {
       setSaving(false);
@@ -196,7 +194,6 @@ export default function System() {
         setTestError(response.message || 'Unable to send test email. Please check your settings.');
       }
     } catch (error) {
-      console.error('Error testing email:', error);
       setTestError(error.message || 'Unable to send test email. Please check your email settings.');
     } finally {
       setTesting(false);

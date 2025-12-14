@@ -34,7 +34,6 @@ export default function CampusSlotManagement() {
         setCampuses(response.data);
       }
     } catch (error) {
-      console.error('Error loading campuses:', error);
       alert('Unable to load campus list');
     } finally {
       setLoading(false);
@@ -83,7 +82,6 @@ export default function CampusSlotManagement() {
         setHasChanges(false);
       }
     } catch (error) {
-      console.error('Error loading campus slots:', error);
       alert('Unable to load slot list');
     } finally {
       setLoading(false);
@@ -369,7 +367,6 @@ export default function CampusSlotManagement() {
         alert('Error occurred while saving: ' + (response.data?.message || response.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error saving changes:', error);
       alert('Error occurred while saving changes: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
@@ -418,7 +415,6 @@ export default function CampusSlotManagement() {
         alert('Error occurred while deleting: ' + (response.data?.message || response.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error deleting slot:', error);
       alert('Error occurred while deleting slot: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
@@ -461,7 +457,6 @@ export default function CampusSlotManagement() {
         alert('Error deleting campus: ' + (response.data?.message || response.message || 'Unknown error'));
       }
     } catch (error) {
-      console.error('Error deleting campus:', error);
       alert('Error deleting campus: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);
@@ -494,7 +489,6 @@ export default function CampusSlotManagement() {
       } else {
         // Create campus
         const response = await createCampus({ name: campusForm.name.trim() });
-        console.log(response);
         if (response.status === 201) {
           alert('Campus created successfully!');
           setShowCampusModal(false);
@@ -504,7 +498,6 @@ export default function CampusSlotManagement() {
         }
       }
     } catch (error) {
-      console.error('Error saving campus:', error);
       alert('Error saving campus: ' + (error.message || 'Unknown error'));
     } finally {
       setLoading(false);

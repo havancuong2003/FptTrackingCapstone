@@ -59,7 +59,6 @@ export default function StudentDocuments() {
         setSelectedGroupId(firstId);
         await Promise.all([loadGroupInfo(firstId), loadFiles(firstId)]);
     } catch (e) {
-      console.error('Error loading user info:', e);
       setMessage('Could not get user information');
     } finally {
       setLoading(false);

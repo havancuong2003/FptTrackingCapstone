@@ -68,11 +68,9 @@ export default function StudentMeetings() {
           
           setMeetings(mappedMeetings);
         } else {
-          console.error('Error fetching meetings:', response.message);
           setMeetings([]);
         }
       } catch (error) {
-        console.error('Error fetching meetings:', error);
         setMeetings([]);
       } finally {
         setLoading(false);

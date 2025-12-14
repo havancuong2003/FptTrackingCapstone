@@ -40,7 +40,6 @@ export default function AISettings() {
         setIsEditing(false);
       }
     } catch (error) {
-      console.error('Error loading AI settings:', error);
       alert('Unable to load AI settings. Please try again.');
     } finally {
       setLoading(false);
@@ -126,7 +125,6 @@ export default function AISettings() {
         alert(response.message || 'Error updating AI settings');
       }
     } catch (error) {
-      console.error('Error updating AI settings:', error);
       alert(error.message || 'Unable to update AI settings. Please try again.');
     } finally {
       setSaving(false);

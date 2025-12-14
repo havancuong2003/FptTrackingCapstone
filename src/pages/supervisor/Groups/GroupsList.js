@@ -47,7 +47,6 @@ export default function GroupsList({ isExpired = false }) {
             
             setGroups(formattedGroups);
         } catch (error) {
-            console.error('Error loading groups:', error);
             setGroups([]);
         } finally {
             setLoading(false);

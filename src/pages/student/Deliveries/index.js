@@ -57,7 +57,6 @@ export default function StudentDeliveries() {
         
         setDeliveries(mockData.data);
       } catch (error) {
-        console.error('Error fetching deliveries:', error);
       } finally {
         setLoading(false);
       }

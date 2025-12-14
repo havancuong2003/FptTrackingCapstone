@@ -31,7 +31,6 @@ export default function StudentGroups() {
                 
                 // Early check: if no groups, don't call API further
                 if (!userInfo?.groups || userInfo.groups.length === 0) {
-                    console.error('No groups found for student');
                     setGroups([]);
                     setLoading(false);
                     return;
@@ -71,11 +70,9 @@ export default function StudentGroups() {
                     
                     setGroups([formattedGroup]);
                 } else {
-                    console.error('Error fetching groups:', response.data.message);
                     setGroups([]);
                 }
             } catch (error) {
-                console.error('Error fetching groups:', error);
                 setGroups([]);
             } finally {
                 setLoading(false);
@@ -172,7 +169,6 @@ export default function StudentGroups() {
                 alert(`Error: ${response.data.message}`);
             }
         } catch (error) {
-            console.error('Error changing role:', error);
             alert(`Error changing role: ${error.message || 'An error occurred'}`);
         }
     };
