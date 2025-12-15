@@ -448,7 +448,8 @@ export default function StudentMilestones() {
   // Mở preview file trong tab mới
   const openFilePreview = (attachment) => {
     if (!canPreviewFile(attachment.path)) {
-      alert('File này không thể xem trước. Vui lòng tải xuống để xem.');
+      // english
+      alert('This file cannot be previewed. Please download to view.');
       return;
     }
     
@@ -759,7 +760,7 @@ export default function StudentMilestones() {
                       {getStatusText(selectedMilestone.status)}
                     </span>
                   </div>
-                  <div style={{ wordBreak: 'break-word' }}><strong>Note:</strong> {milestoneDetails?.note || 'Chưa có ghi chú nào từ giảng viên'}</div>
+                  <div style={{ wordBreak: 'break-word' }}><strong>Note:</strong> {milestoneDetails?.note || 'No note from supervisor yet'}</div>
                 </div>
               </div>
               

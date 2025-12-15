@@ -201,7 +201,7 @@ export default function StudentDocuments() {
               borderRadius: 6,
               cursor: 'pointer'
             }}
-          >Tải xuống</button>
+          >Download</button>
       </div>
       )
   }
