@@ -84,7 +84,6 @@ export default function Dashboard() {
 
         setDefenseData(formattedData);
       } catch (err) {
-        console.error("Fetch defense data failed:", err);
         setError(
           err?.response?.data?.message ||
             err?.message ||

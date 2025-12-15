@@ -325,9 +325,9 @@ export default function PenaltyManagement() {
 
   // ------------------ Penalty Types ------------------
   const penaltyTypes = [
-    { value: "warning", label: "Nhắc nhở" },
-    { value: "no-deduction", label: "Không trừ điểm" },
-    { value: "deduction", label: "Trừ điểm" }
+    { value: "warning", label: "Warning" },
+    { value: "no-deduction", label: "No deduction" },
+    { value: "deduction", label: "Deduction" }
   ];
 
   // ------------------ Modal Logic ------------------
@@ -357,25 +357,25 @@ export default function PenaltyManagement() {
     
     // Kiểm tra validation chi tiết hơn
     if (!newPenalty.name || typeof newPenalty.name !== 'string' || !newPenalty.name.trim()) {
-      alert("Please enter penalty name");
+      alert("Please enter discipline name");
       return;
     }
     
     if (!newPenalty.type || typeof newPenalty.type !== 'string' || !newPenalty.type.trim()) {
-      alert("Please select penalty type");
+      alert("Please select discipline type");
       return;
     }
     
     // Luôn yêu cầu userId vì tất cả loại penalty đều cần gán cho student
     if (!newPenalty.userId || typeof newPenalty.userId !== 'string' || !newPenalty.userId.trim()) {
-      alert("Please select person to penalize");
+      alert("Please select person to discipline");
       return;
     }
 
     // Kiểm tra userId có phải là số hợp lệ không
     const userIdNumber = parseInt(newPenalty.userId);
     if (isNaN(userIdNumber) || userIdNumber <= 0) {
-      alert("ID người dùng không hợp lệ");
+      alert("Invalid user ID");
       return;
     }
 
@@ -429,12 +429,12 @@ export default function PenaltyManagement() {
           type: "",
           userId: "",
         });
-        alert("Discipline issued successfully!");
+        alert("Discipline issued successfully");
       } else {
-        alert(`Error: ${response.message || 'Unable to issue penalty'}`);
+        alert(`Error: ${response.message || 'Unable to issue discipline'}`);
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message || "Unable to issue penalty. Please try again.";
+      const errorMessage = err.response?.data?.message || err.message || "Unable to issue discipline. Please try again.";
       alert(`Error: ${errorMessage}`);
     }
   };
@@ -456,18 +456,18 @@ export default function PenaltyManagement() {
 
     // Validation
     if (!editPenalty.name || !editPenalty.name.trim()) {
-      alert("Please enter penalty name");
+      alert("Please enter discipline name");
       return;
     }
 
     if (!editPenalty.type || !editPenalty.type.trim()) {
-      alert("Please select penalty type");
+      alert("Please select discipline type");
       return;
     }
 
     // Luôn yêu cầu userId vì tất cả loại penalty đều cần gán cho student
     if (!editPenalty.userId || !editPenalty.userId.trim()) {
-      alert("Please select person to penalize");
+      alert("Please select person to discipline");
       return;
     }
 
@@ -510,10 +510,10 @@ export default function PenaltyManagement() {
         await fetchGroupPenalties();
         
       } else {
-        alert(`Error: ${response.message || 'Unable to update penalty'}`);
+        alert(`Error: ${response.message || 'Unable to update discipline'}`);
       }
     } catch (err) {
-      const errorMessage = err.response?.data?.message || err.message || "Unable to update penalty. Please try again.";
+      const errorMessage = err.response?.data?.message || err.message || "Unable to update discipline. Please try again.";
       alert(`Error: ${errorMessage}`);
     }
   };
@@ -533,14 +533,14 @@ export default function PenaltyManagement() {
     },
     {
       key: 'total',
-      title: 'Tổng số',
+      title: 'Total',
       render: (stats) => (
         <span className={styles.statTotal}>{stats.total}</span>
       )
     },
     {
       key: 'warning',
-      title: 'Nhắc nhở',
+      title: 'Warning',
       render: (stats) => (
         <span className={`${styles.statBadge} ${styles.statWarning}`}>
           {stats.warning}
@@ -549,7 +549,7 @@ export default function PenaltyManagement() {
     },
     {
       key: 'noDeduction',
-      title: 'Không trừ điểm',
+      title: 'No deduction',
       render: (stats) => (
         <span className={`${styles.statBadge} ${styles.statNoDeduction}`}>
           {stats.noDeduction}
@@ -558,7 +558,7 @@ export default function PenaltyManagement() {
     },
     {
       key: 'deduction',
-      title: 'Trừ điểm',
+      title: 'Deduction',
       render: (stats) => (
         <span className={`${styles.statBadge} ${styles.statDeduction}`}>
           {stats.deduction}
@@ -581,7 +581,7 @@ export default function PenaltyManagement() {
     },
     {
       key: 'name',
-      title: 'Penalty Name',
+      title: 'Discipline Name',
       render: (penalty) => penalty.name || 'N/A'
     },
     {
@@ -594,9 +594,9 @@ export default function PenaltyManagement() {
       title: 'Type',
       render: (penalty) => {
         const typeLabels = {
-          'warning': 'Nhắc nhở',
-          'no-deduction': 'Không trừ điểm',
-          'deduction': 'Trừ điểm'
+          'warning': 'Warning',
+          'no-deduction': 'No deduction',
+          'deduction': 'Deduction'
         };
         return typeLabels[penalty.type] || penalty.type || 'N/A';
       }
@@ -635,7 +635,7 @@ export default function PenaltyManagement() {
     },
     {
       key: 'name',
-      title: 'Penalty Name',
+      title: 'Discipline Name',
       render: (penalty) => (
         <span className={styles.penaltyName}>
           {penalty.name}
@@ -647,9 +647,9 @@ export default function PenaltyManagement() {
       title: 'Type',
       render: (penalty) => {
         const typeLabels = {
-          'warning': 'Nhắc nhở',
-          'no-deduction': 'Không trừ điểm',
-          'deduction': 'Trừ điểm'
+          'warning': 'Warning',
+          'no-deduction': 'No deduction',
+          'deduction': 'Deduction'
         };
         const getTypeClassName = (type) => {
           if (type === 'warning') return styles.penaltyTypeWarning;
@@ -692,7 +692,7 @@ export default function PenaltyManagement() {
             size="small"
             onClick={() => {
               // View penalty details
-              alert(`Penalty details:\nReason: ${penalty.reason}\nDescription: ${penalty.description || "None"}`);
+              alert(`Discipline details:\nReason: ${penalty.reason}\nDescription: ${penalty.description || "None"}`);
             }}
           >
             View
@@ -762,16 +762,16 @@ export default function PenaltyManagement() {
           </div>
           <div className={styles.statsTableContainer}>
             {loadingPenaltyStats ? (
-              <div className={styles.loadingStats}>Đang tải thống kê...</div>
+              <div className={styles.loadingStats}>Loading statistics...</div>
             ) : studentPenaltyStats.length > 0 ? (
               <DataTable
                 columns={penaltyStatsColumns}
                 data={studentPenaltyStats}
                 loading={false}
-                emptyMessage="Không có thẻ phạt nào"
+                emptyMessage="No penalty cards"
               />
             ) : (
-              <div className={styles.noStats}>Không có dữ liệu thống kê</div>
+              <div className={styles.noStats}>No statistics data</div>
             )}
           </div>
         </div>
@@ -821,7 +821,7 @@ export default function PenaltyManagement() {
           </div>
 
           <div className={styles.formGroup}>
-            <label>Penalty Type *</label>
+            <label>Discipline Type *</label>
             <select
               value={newPenalty.type}
               onChange={(e) => {
@@ -829,7 +829,7 @@ export default function PenaltyManagement() {
               }}
               className={styles.select}
             >
-              <option value="">Select penalty type</option>
+              <option value="">Select discipline type</option>
               {penaltyTypes.map(type => (
                 <option key={type.value} value={type.value}>
                   {type.label}
@@ -890,11 +890,11 @@ export default function PenaltyManagement() {
           <h2>Edit Discipline</h2>
           
           <div className={styles.formGroup}>
-            <label>Penalty Name *</label>
+              <label>Discipline Name *</label>
             <Input
               value={editPenalty?.name || ""}
               onChange={(e) => setEditPenalty({...editPenalty, name: e.target.value})}
-              placeholder="Enter penalty name"
+              placeholder="Enter discipline name"
             />
           </div>
 
@@ -903,14 +903,14 @@ export default function PenaltyManagement() {
             <Textarea
               value={editPenalty?.description || ""}
               onChange={(e) => setEditPenalty({...editPenalty, description: e.target.value})}
-              placeholder="Describe penalty details..."
+              placeholder="Describe discipline details..."
               rows={4}
               className={styles.textarea}
             />
               </div>
 
           <div className={styles.formGroup}>
-            <label>Penalty Type *</label>
+            <label>Discipline Type *</label>
             <select
               value={editPenalty?.type || ""}
               onChange={(e) => {
@@ -918,7 +918,7 @@ export default function PenaltyManagement() {
               }}
               className={styles.select}
             >
-              <option value="">Select penalty type</option>
+              <option value="">Select discipline type</option>
               {penaltyTypes.map(type => (
                 <option key={type.value} value={type.value}>
                   {type.label}
@@ -928,7 +928,7 @@ export default function PenaltyManagement() {
               </div>
 
           <div className={styles.formGroup}>
-            <label>Person to Penalize *</label>
+              <label>Person to Discipline *</label>
             <select
               value={editPenalty?.userId || ""}
               onChange={(e) => {

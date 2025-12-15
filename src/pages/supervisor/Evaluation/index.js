@@ -718,7 +718,6 @@ export default function SupervisorEvaluation() {
       
       setStudentStatistics(statistics);
     } catch (error) {
-      console.error('Error fetching student statistics:', error);
       setStudentStatistics(null);
     } finally {
       setLoadingStatistics(false);
@@ -752,7 +751,6 @@ export default function SupervisorEvaluation() {
             evaluations: Array.isArray(statsData.evaluations) ? statsData.evaluations : []
           };
         }).catch(error => {
-          console.error(`Error fetching stats for student ${student.id}:`, error);
           return {
             student: {
               id: student.id,
@@ -773,7 +771,6 @@ export default function SupervisorEvaluation() {
       const allStats = await Promise.all(statsPromises);
       setAllStudentsStatistics(allStats);
     } catch (error) {
-      console.error('Error fetching all students statistics:', error);
       setAllStudentsStatistics([]);
     } finally {
       setLoadingAllStatistics(false);
@@ -802,7 +799,6 @@ export default function SupervisorEvaluation() {
       // Return evaluation để sử dụng ngay
       return evaluation;
     } catch (error) {
-      console.error('Error fetching cell tasks:', error);
       setCellTasks([]);
       setCurrentEvaluation(null);
       return null;

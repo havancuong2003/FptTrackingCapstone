@@ -16,12 +16,12 @@ export default function TaskPermissionNotice({
   }
 
   const reason = isGroupExpired
-    ? 'Nhóm đã hết hạn nên tất cả thao tác chỉnh sửa đều bị khóa.'
-    : 'Bạn không có quyền chỉnh sửa công việc này.';
+    ? 'The group has expired so all edit operations are locked.'
+    : 'You do not have permission to edit this task.';
 
   return (
     <div className={`${styles.notice} ${className}`.trim()}>
-      <div className={styles.title}>Chế độ chỉ xem</div>
+      <div className={styles.title}>View mode</div>
       <p className={styles.message}>
         {reason} {groupName ? `(${groupName})` : ''}
       </p>

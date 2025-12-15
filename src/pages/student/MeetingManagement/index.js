@@ -159,11 +159,6 @@ export default function StudentMeetingManagement() {
                 setLoading(false);
             }
         } catch (error) {
-            console.error("Error fetching user info:", error);
-            console.error(
-                "Error details:",
-                error.response?.data || error.message
-            );
             setLoading(false);
         }
     };
@@ -227,7 +222,6 @@ export default function StudentMeetingManagement() {
                 setAttendanceData(attendanceMap);
             }
         } catch (error) {
-            console.error("Error fetching attendance data:", error);
         }
     };
 
@@ -283,11 +277,6 @@ export default function StudentMeetingManagement() {
                 setLoading(false);
             }
         } catch (error) {
-            console.error("Error fetching meetings:", error);
-            console.error(
-                "Error details:",
-                error.response?.data || error.message
-            );
             setLoading(false);
         }
     };
@@ -334,7 +323,6 @@ export default function StudentMeetingManagement() {
                 );
             }
         } catch (error) {
-            console.error("Error updating meeting status:", error);
             // Rollback khi có lỗi
             setMeetings((prevMeetings) =>
                 prevMeetings.map((m) =>
@@ -364,7 +352,6 @@ export default function StudentMeetingManagement() {
             }
             return null;
         } catch (error) {
-            console.error("Error fetching meeting minute:", error);
             return null;
         }
     };
@@ -375,11 +362,6 @@ export default function StudentMeetingManagement() {
             const response = await createMeetingMinutes(data);
             return response;
         } catch (error) {
-            console.error("Error creating meeting minute:", error);
-            console.error(
-                "Error details:",
-                error.response?.data || error.message
-            );
             throw error;
         }
     };
@@ -390,7 +372,6 @@ export default function StudentMeetingManagement() {
             const response = await updateMeetingMinutes(data);
             return response;
         } catch (error) {
-            console.error("Error updating meeting minute:", error);
             throw error;
         }
     };
@@ -401,7 +382,6 @@ export default function StudentMeetingManagement() {
             const response = await deleteMeetingMinutes(minuteId);
             return response;
         } catch (error) {
-            console.error("Error deleting meeting minute:", error);
             throw error;
         }
     };
@@ -415,7 +395,6 @@ export default function StudentMeetingManagement() {
             }
             return null;
         } catch (error) {
-            console.error("Error fetching group info:", error);
             return null;
         }
     };
@@ -625,7 +604,6 @@ export default function StudentMeetingManagement() {
         // Key trong attendanceData là meetingScheduleDateId (number)
         // Thử cả meetingScheduleDateId và meeting.id, và convert sang number để đảm bảo khớp
         const meetingKey = meeting.meetingScheduleDateId || meeting.id;
-        // console.log('meetingKey', meetingKey);
         // Thử cả number và string key
         const attendanceText =
             attendanceData[meetingKey] ||
@@ -634,7 +612,6 @@ export default function StudentMeetingManagement() {
         if (!attendanceText || !userInfo?.name) {
             return "-";
         }
-        // console.log('attendanceText', attendanceText);
         // Parse attendance text để tìm user
         // Format: "Name (RollNumber): Status" hoặc "Name (RollNumber): Nghỉ - Lý do"
         const lines = attendanceText.split("\n").filter((line) => line.trim());
@@ -878,10 +855,6 @@ export default function StudentMeetingManagement() {
                                             break;
                                         }
                                     } catch (error) {
-                                        console.error(
-                                            "Error fetching previous meeting minute:",
-                                            error
-                                        );
                                     }
                                 }
                             }
@@ -926,7 +899,6 @@ export default function StudentMeetingManagement() {
                         );
                         setPendingIssues([]); // Reset pending issues khi mở modal mới
                     } catch (error) {
-                        console.error("Error loading tasks:", error);
                         setMeetingIssues([]);
                     }
                 } else {
@@ -950,8 +922,6 @@ export default function StudentMeetingManagement() {
                     if (showMinuteModalRef.current) {
                         autoSaveMeetingMinute();
                         lastAutoSaveTimeRef.current = Date.now();
-                    } else {
-                        console.log("Auto-save interval skipped: Modal is closed");
                     }
                 }, 1 * 60 * 1000); // 1 phút = 60000 ms
                 autoSaveIntervalRef.current = interval;
@@ -964,7 +934,6 @@ export default function StudentMeetingManagement() {
                             (lastAutoSaveTimeRef.current || Date.now());
                         // Nếu đã quá 1 phút kể từ lần save cuối, auto-save ngay
                         if (timeSinceLastSave >= 1 * 60 * 1000) {
-                            console.log("Tab became active, triggering auto-save...");
                             autoSaveMeetingMinute();
                             lastAutoSaveTimeRef.current = Date.now();
                         }
@@ -976,10 +945,6 @@ export default function StudentMeetingManagement() {
                     handleVisibilityChange
                 );
                 visibilityChangeHandlerRef.current = handleVisibilityChange;
-
-                console.log(
-                    "Auto-save interval started: will save every 1 minute (works even when tab is inactive)"
-                );
             }
         }
     };
@@ -1014,7 +979,6 @@ export default function StudentMeetingManagement() {
         setShowPreviousMinuteModal(false); // Reset previous minute modal
         setPreviousMinuteIssues([]); // Reset previous minute issues
         setLastSaveTime(null);
-        console.log("Modal closed, auto-save stopped");
         setFormData({
             startAt: "",
             endAt: "",
@@ -1103,7 +1067,6 @@ export default function StudentMeetingManagement() {
     const autoSaveMeetingMinute = async () => {
         // Kiểm tra modal có đang mở không
         if (!showMinuteModalRef.current) {
-            console.log("Auto-save skipped: Modal is not open");
             return;
         }
 
@@ -1115,7 +1078,6 @@ export default function StudentMeetingManagement() {
 
         // Kiểm tra có meeting được chọn không
         if (!currentSelectedMeeting) {
-            console.log("Auto-save skipped: No meeting selected");
             return;
         }
 
@@ -1125,15 +1087,8 @@ export default function StudentMeetingManagement() {
             !currentFormData.endAt ||
             !currentFormData.meetingContent
         ) {
-            console.log("Auto-save skipped: Missing required fields", {
-                hasStartAt: !!currentFormData.startAt,
-                hasEndAt: !!currentFormData.endAt,
-                hasMeetingContent: !!currentFormData.meetingContent,
-            });
             return;
         }
-
-        console.log("Auto-save triggered at", new Date().toLocaleTimeString("vi-VN"));
 
         // Format attendance từ attendanceList thành text
         const attendanceText = formatAttendance(currentAttendanceList);
@@ -1155,10 +1110,6 @@ export default function StudentMeetingManagement() {
                 };
                 await updateMeetingMinute(data);
                 meetingMinuteId = currentMinuteData.id;
-                console.log("Auto-saved: Updated meeting minute to database", {
-                    minuteId: meetingMinuteId,
-                    timestamp: new Date().toLocaleTimeString("vi-VN"),
-                });
             } else {
                 // CHƯA CÓ BIÊN BẢN - Tạo mới và lưu vào database
                 const data = {
@@ -1208,34 +1159,13 @@ export default function StudentMeetingManagement() {
                     try {
                         await updateMeetingIsMeetingStatus(currentSelectedMeeting.id, true);
                     } catch (error) {
-                        console.error(
-                            "Error marking meeting as completed:",
-                            error
-                        );
                     }
                 }
-                console.log(
-                    "Auto-saved: Created new meeting minute in database",
-                    {
-                        minuteId: meetingMinuteId,
-                        timestamp: new Date().toLocaleTimeString("vi-VN"),
-                    }
-                );
             }
 
             // Update last save time
             setLastSaveTime(new Date());
-            console.log("Auto-save completed successfully at", new Date().toLocaleTimeString("vi-VN"));
         } catch (error) {
-            console.error(
-                "Error auto saving meeting minute to database:",
-                error
-            );
-            console.error("Error details:", {
-                message: error.message,
-                response: error.response?.data,
-                stack: error.stack,
-            });
             // Không throw error để không làm gián đoạn interval
         }
     };
@@ -1321,10 +1251,6 @@ export default function StudentMeetingManagement() {
                             prev ? { ...prev, isMeeting: true } : null
                         );
                     } catch (error) {
-                        console.error(
-                            "Error marking meeting as completed:",
-                            error
-                        );
                     }
                 }
 
@@ -1345,7 +1271,6 @@ export default function StudentMeetingManagement() {
                         Array.isArray(meetingTasks) ? meetingTasks : []
                     );
                 } catch (error) {
-                    console.error("Error creating pending issues:", error);
                     alert(
                         "Meeting minutes saved but some issues failed to create. Please check again."
                     );
@@ -1367,7 +1292,6 @@ export default function StudentMeetingManagement() {
             if (!isAutoSave) {
                 alert("Error saving meeting minutes!");
             }
-            console.error("Error saving meeting minute:", error);
         }
     };
 
@@ -1398,7 +1322,6 @@ export default function StudentMeetingManagement() {
     // Fetch incomplete tasks for the group
     const fetchIncompleteTasks = async (groupId) => {
         if (!groupId) {
-            console.error("GroupId is required to fetch incomplete tasks");
             return [];
         }
         try {
@@ -1419,7 +1342,6 @@ export default function StudentMeetingManagement() {
                 assignedToName: t.assignedToName,
             }));
         } catch (e) {
-            console.error("Error fetching incomplete tasks:", e);
             return [];
         }
     };
@@ -1751,10 +1673,6 @@ export default function StudentMeetingManagement() {
                                 );
                             }
                         } catch (uploadError) {
-                            console.error(
-                                "Error uploading files:",
-                                uploadError
-                            );
                             // Không block việc tạo issue nếu upload fail
                         }
                     }
@@ -1781,7 +1699,6 @@ export default function StudentMeetingManagement() {
                     alert(res.data?.message || "Failed to create issue");
                 }
             } catch (e) {
-                console.error("Error creating meeting issue:", e);
                 const errorMessage =
                     e?.response?.data?.message ||
                     e?.message ||
@@ -1871,15 +1788,10 @@ export default function StudentMeetingManagement() {
                                 file
                             );
                         } catch (uploadError) {
-                            console.error(
-                                "Error uploading file for pending issue:",
-                                uploadError
-                            );
                         }
                     }
                 }
             } catch (e) {
-                console.error("Error creating pending issue:", e);
                 throw e;
             }
         });
@@ -1888,7 +1800,6 @@ export default function StudentMeetingManagement() {
             await Promise.all(createPromises);
             setPendingIssues([]); // Xóa các issue tạm sau khi tạo thành công
         } catch (error) {
-            console.error("Error creating pending issues:", error);
             throw error;
         }
     };
@@ -1925,7 +1836,6 @@ export default function StudentMeetingManagement() {
                             : null
                     );
                 } catch (error) {
-                    console.error("Error updating isMeeting status:", error);
                 }
             }
 
@@ -1939,7 +1849,6 @@ export default function StudentMeetingManagement() {
             closeMinuteModal();
         } catch (error) {
             alert("Error deleting meeting minutes!");
-            console.error("Error deleting meeting minute:", error);
         }
     };
 
@@ -2060,7 +1969,6 @@ export default function StudentMeetingManagement() {
                 body: emailBody,
             });
         } catch (error) {
-            console.error("Error sending email notification:", error);
         }
     };
 
@@ -2135,7 +2043,6 @@ export default function StudentMeetingManagement() {
                 alert(response.data.message || "Update failed");
             }
         } catch (error) {
-            console.error("Error updating meeting schedule:", error);
             alert("Error updating meeting schedule!");
         }
     };
@@ -2286,7 +2193,6 @@ export default function StudentMeetingManagement() {
                             const hasHappened =
                                 meeting.isMeeting === true &&
                                 meetingDate <= now;
-                            // console.log(meeting);
                             if (!hasHappened) {
                                 // Chưa diễn ra
                                 upcomingCount++;
@@ -4614,3 +4520,4 @@ export default function StudentMeetingManagement() {
         </div>
     );
 }
+

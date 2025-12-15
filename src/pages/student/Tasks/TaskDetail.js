@@ -1364,7 +1364,7 @@ export default function TaskDetail() {
                 borderRadius: 8,
                 border: '1px dashed #d1d5db'
               }}>
-                Chưa có file nào được đính kèm
+                No files attached yet
               </div>
             )}
           </div>
@@ -1519,7 +1519,7 @@ export default function TaskDetail() {
               
               {/* Filters */}
               <div className={styles.historyFilters}>
-                <label>Phân loại</label>
+                <label>Classification</label>
                 <select 
                   value={historyActionFilter || ''} 
                   onChange={(e) => setHistoryActionFilter(e.target.value)}
@@ -1530,7 +1530,7 @@ export default function TaskDetail() {
                   ))}
                 </select>
                 
-                <label>Cập nhật bởi</label>
+                <label>Updated by</label>
                 <select 
                   value={historyUserFilter || ''} 
                   onChange={(e) => setHistoryUserFilter(e.target.value)}

@@ -1286,7 +1286,8 @@ export default function StudentHome() {
   // Mở preview file trong tab mới
   const openFilePreview = (attachment) => {
     if (!canPreviewFile(attachment.path)) {
-      alert('File này không thể xem trước. Vui lòng tải xuống để xem.');
+      // english
+      alert('This file cannot be previewed. Please download to view.');
       return;
     }
     
@@ -2087,9 +2088,7 @@ export default function StudentHome() {
                             
                             // Debug: Log để kiểm tra
                             if (process.env.NODE_ENV === 'development') {
-                              console.log('UserInfo from localStorage:', userInfoData);
-                              console.log('MajorCategory:', majorCategory);
-                              console.log('Size limit text:', sizeLimitText);
+
                             }
                             
                             if (sizeLimitText) {

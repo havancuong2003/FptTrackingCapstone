@@ -47,7 +47,6 @@ export default function GroupTracking() {
             }
         } catch (err) {
             setError(err.message || 'Error fetching data');
-            console.error('API Error:', err);
         } finally {
             setLoading(false);
         }

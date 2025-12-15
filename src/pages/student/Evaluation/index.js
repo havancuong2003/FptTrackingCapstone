@@ -24,12 +24,9 @@ export default function StudentEvaluation() {
       if (Array.isArray(response)) {
         setEvaluations(response);
       } else {
-        console.error('Unexpected response format:', response);
         setEvaluations([]);
       }
     } catch (err) {
-      console.error('Error fetching evaluations:', err);
-      console.error('Error details:', err.response?.data);
       setEvaluations([]);
     } finally {
       setLoading(false);
@@ -53,11 +50,9 @@ export default function StudentEvaluation() {
         if (Array.isArray(response)) {
           setPenaltyCardsGeneral(response);
         } else {
-          console.error('Unexpected response format:', response);
           setPenaltyCardsGeneral([]);
         }
       } catch (err) {
-        console.error('Error fetching general penalty cards:', err);
         setPenaltyCardsGeneral([]);
       } finally {
         setLoadingPenaltyCards(false);

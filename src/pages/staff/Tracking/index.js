@@ -58,7 +58,6 @@ export default function Tracking() {
                 setGroups(Array.isArray(data.items) ? data.items : []);
                 setTotal(data.total || 0);
             } catch (err) {
-                console.error("Error loading groups:", err);
                 if (!mounted) return;
                 setGroups([]);
                 setTotal(0);

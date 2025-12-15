@@ -87,7 +87,6 @@ export default function SupervisorDocuments() {
         return;
       }
     } catch (e) {
-      console.error('Error loading user info:', e);
       setMessage('Could not get user information');
     } finally {
       setLoading(false);
@@ -122,7 +121,6 @@ export default function SupervisorDocuments() {
       setGroupOptions(options);
       setUserGroups(groupsFromStorage.map(g => g.id));
     } catch (e) {
-      console.error('Error loading groups from localStorage:', e);
       setMessage('Could not get group information');
     }
   };
@@ -293,7 +291,6 @@ export default function SupervisorDocuments() {
             }
           }
         } catch (emailError) {
-          console.error('Error sending document upload email:', emailError);
           // Don't block flow if email error
         }
         

@@ -45,7 +45,6 @@ export default function SyncGroup() {
         setSemesters(res.data || []);
       }
     } catch (error) {
-      console.error('Error loading semesters:', error);
     } finally {
       setLoadingSemesters(false);
     }
@@ -95,7 +94,6 @@ export default function SyncGroup() {
         setDataLoaded(true);
       }
     } catch (error) {
-      console.error('Error loading data:', error);
       setMessage('Error loading data. Please try again.');
       setGroupsData([]);
       setGroupsByStatus({ alreadyExist: [], notExistYet: [] });
@@ -173,7 +171,6 @@ export default function SyncGroup() {
       clearInterval(progressInterval);
       setSyncProgress(0);
       setSyncStatus('error');
-      console.error('Error syncing data:', error);
       setMessage('Error syncing data. Please try again.');
       alert('Error syncing data. Please try again.');
     } finally {

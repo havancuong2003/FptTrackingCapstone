@@ -54,13 +54,6 @@ export default function CourseSizeConfig() {
         pageSize: itemsPerPage
       });
       
-      console.log('API Response:', {
-        page: currentPage,
-        pageSize: itemsPerPage,
-        response: response.data,
-        itemsCount: response.data?.items?.length || response.data?.length || 0
-      });
-      
       if (response.status === 200) {
         // Nếu API trả về dạng paginated response
         if (response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
@@ -86,7 +79,6 @@ export default function CourseSizeConfig() {
         }
       }
     } catch (error) {
-      console.error('Error loading courses:', error);
       alert('Unable to load courses list. Please try again.');
       setAllCourses([]);
       setTotalItems(0);
@@ -123,7 +115,6 @@ export default function CourseSizeConfig() {
         });
       }
     } catch (error) {
-      console.error('Error loading course details:', error);
       // Fallback nếu có lỗi
       setFormData({
         id: course.id || 0,
@@ -217,7 +208,6 @@ export default function CourseSizeConfig() {
         alert(response.message || 'Error updating configuration');
       }
     } catch (error) {
-      console.error('Error updating course:', error);
       alert(error.response?.data?.message || 'Unable to update configuration. Please try again.');
     } finally {
       setSaving(false);

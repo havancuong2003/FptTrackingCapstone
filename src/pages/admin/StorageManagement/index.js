@@ -45,7 +45,6 @@ export default function StorageManagement() {
         setSemesters(response);
       }
     } catch (error) {
-      console.error('Error loading semesters:', error);
       alert('Unable to load semesters list');
     } finally {
       setLoading(false);
@@ -70,7 +69,6 @@ export default function StorageManagement() {
         });
       }
     } catch (error) {
-      console.error('Error loading semester groups:', error);
       alert('Unable to load groups list');
       setGroups([]);
     } finally {
@@ -101,7 +99,6 @@ export default function StorageManagement() {
         alert(response?.message || 'Failed to zip folder');
       }
     } catch (error) {
-      console.error('Error zipping folder:', error);
       alert(error.response?.data?.message || 'Failed to zip folder');
     } finally {
       setLoading(false);
@@ -126,7 +123,6 @@ export default function StorageManagement() {
         alert(response?.message || 'Failed to unzip archive');
       }
     } catch (error) {
-      console.error('Error unzipping archive:', error);
       alert(error.response?.data?.message || 'Failed to unzip archive');
     } finally {
       setLoading(false);
@@ -194,7 +190,6 @@ export default function StorageManagement() {
         alert(response?.message || 'Unable to load group details');
       }
     } catch (error) {
-      console.error('Error loading group detail:', error);
       alert(error.response?.data?.message || 'Unable to load group details');
     } finally {
       setLoadingGroupDetail(false);

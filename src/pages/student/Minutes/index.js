@@ -105,7 +105,6 @@ export default function StudentMinutes() {
           setMinutes([]);
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
         setMeetings([]);
         setMinutes([]);
       } finally {
@@ -173,7 +172,6 @@ export default function StudentMinutes() {
       // Tạm thời hiển thị thông báo
       alert('Meeting minutes API endpoint is not available yet. Please contact administrator.');
     } catch (error) {
-      console.error('Error creating minutes:', error);
       alert('Error creating minutes: ' + error.message);
     }
   };

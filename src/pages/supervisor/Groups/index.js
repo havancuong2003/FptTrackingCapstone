@@ -95,7 +95,6 @@ export default function SupervisorGroups() {
                             }
                             return null;
                         } catch (error) {
-                            console.error(`Error fetching details for group ${groupInfo.id}:`, error);
                             return null;
                         }
                     })
@@ -105,7 +104,6 @@ export default function SupervisorGroups() {
                 const validGroups = detailedGroups.filter(group => group !== null);
                 setGroups(validGroups);
             } catch (error) {
-                console.error('Error fetching groups:', error);
                 setGroups([]);
             } finally {
                 setLoading(false);
@@ -271,7 +269,6 @@ export default function SupervisorGroups() {
                 alert(`Error: ${response.data.message}`);
             }
         } catch (error) {
-            console.error('Error changing role:', error);
             alert(`Error changing role: ${error.message || 'An error occurred'}`);
         }
     };
@@ -326,7 +323,6 @@ export default function SupervisorGroups() {
                 alert('Error sending email');
             }
         } catch (error) {
-            console.error('Error sending email:', error);
             alert(`Error sending email: ${error.message || 'An error occurred'}`);
         } finally {
             setEmailLoading(false);

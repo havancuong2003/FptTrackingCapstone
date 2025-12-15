@@ -1170,7 +1170,8 @@ export default function SupervisorCalendar() {
   // Mở preview file trong tab mới
   const openFilePreview = (attachment) => {
     if (!canPreviewFile(attachment.path)) {
-      alert('File này không thể xem trước. Vui lòng tải xuống để xem.');
+      // english
+      alert('This file cannot be previewed. Please download to view.');
       return;
     }
     
