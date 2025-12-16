@@ -93,13 +93,23 @@ export default function StudentHome() {
           const formattedSlots = slots.map(slot => {
             // Parse thời gian từ "7:30 AM" hoặc "1:00 PM" format
             const parseTime = (timeStr) => {
-              const time = timeStr.trim();
-              const isPM = time.toUpperCase().includes('PM');
-              const timePart = time.replace(/[AP]M/gi, '').trim();
+              const time = timeStr.trim().toUpperCase();
+            
+              // Nếu là format 24h (HH:mm)
+              if (!time.includes('AM') && !time.includes('PM')) {
+                const [h, m] = time.split(':').map(Number);
+                return h + m / 60;
+              }
+            
+              // Format 12h (AM/PM)
+              const isPM = time.includes('PM');
+              const timePart = time.replace(/AM|PM/g, '').trim();
               const [hours, minutes] = timePart.split(':').map(Number);
+            
               let hour24 = hours;
-              if (isPM && hours !== 12) hour24 = hours + 12;
+              if (isPM && hours !== 12) hour24 += 12;
               if (!isPM && hours === 12) hour24 = 0;
+            
               return hour24 + (minutes || 0) / 60;
             };
             
@@ -391,11 +401,11 @@ export default function StudentHome() {
     
     // Set week end to 23:59:59 to include the entire last day
     weekEnd.setHours(23, 59, 59, 999);
-    
-    return meetings.filter(meeting => {
+    const filteredMeetings = meetings.filter(meeting => {
       const meetingDate = new Date(meeting.meetingDate);
       return meetingDate >= weekStart && meetingDate <= weekEnd;
     });
+    return filteredMeetings;
   };
 
   // Get tasks for selected week (only tasks assigned to logged-in student and isActive === true)
@@ -457,10 +467,9 @@ export default function StudentHome() {
     for (const meeting of weekMeetings) {
       const meetingDate = new Date(meeting.meetingDate);
       const dayOfWeek = meetingDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      
       // Convert Sunday=0 to Monday=0 format
       const adjustedDay = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      
+
       if (adjustedDay !== day) continue;
       
       // Lấy giờ từ meeting.startAt hoặc meeting.time
@@ -493,7 +502,6 @@ export default function StudentHome() {
         // Không có thời gian, bỏ qua meeting này
         continue;
       }
-      
       // Kiểm tra xem meeting có nằm trong slot không
       if (meetingHour >= timeSlot.start && meetingHour < timeSlot.end) {
         matchedMeetings.push(meeting);
@@ -934,13 +942,13 @@ export default function StudentHome() {
             // Parse attendance từ text
             if (currentGroupInfo && currentGroupInfo.students) {
               const students = Array.isArray(currentGroupInfo.students) ? currentGroupInfo.students : [];
-              const parsedAttendance = parseAttendance(response.data.data.attendance, students);
+              const parsedAttendance = parseAttendance(response.data.attendance, students);
               setAttendanceList(parsedAttendance);
             }
             
             // Load meeting issues bằng meeting minute id
-            if (response.data.data.id) {
-              const meetingTasks = await fetchMeetingIssues(response.data.data.id);
+            if (response.data.id) {
+              const meetingTasks = await fetchMeetingIssues(response.data.id);
               setMeetingIssues(Array.isArray(meetingTasks) ? meetingTasks : []);
             }
           } else {
@@ -1513,7 +1521,6 @@ export default function StudentHome() {
             {timeSlots.length > 0 ? (() => {
               // Lấy tất cả milestones của tuần
               const weekMilestones = getMilestonesForWeek();
-              
               // Tạo một map để lưu các milestone không có slot phù hợp
               const milestoneRows = new Map();
               
