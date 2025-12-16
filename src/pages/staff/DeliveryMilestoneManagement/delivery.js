@@ -181,12 +181,27 @@ export default function Delivery() {
             title: 'Milestone',
             render: (milestone) => (
                 <div>
-                    <div style={{ 
-                        fontWeight: 600, 
-                        color: !milestone.deadline ? "#92400e" : "#374151",
-                        fontSize: 14,
-                        lineHeight: 1.3
-                    }}>
+                    <div
+                        onClick={() => openEditMilestone(milestone)}
+                        style={{
+                            cursor: 'pointer',
+                            fontWeight: 600,
+                            color: !milestone.deadline ? "#f59e0b" : "#3b82f6",
+                            fontSize: 14,
+                            lineHeight: 1.3,
+                            textDecoration: 'underline',
+                            display: 'inline-block',
+                            transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.color = !milestone.deadline ? "#d97706" : "#2563eb";
+                            e.currentTarget.style.textDecorationThickness = '2px';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.color = !milestone.deadline ? "#f59e0b" : "#3b82f6";
+                            e.currentTarget.style.textDecorationThickness = '1px';
+                        }}
+                    >
                         {milestone.name}
                     </div>
                     {milestone.description && (
@@ -242,22 +257,6 @@ export default function Delivery() {
                 }}>
                     {milestone.items ? milestone.items.length : 0} items
                 </span>
-            ),
-            headerStyle: { width: '75px', textAlign: 'center' },
-            cellStyle: { textAlign: 'center' }
-        },
-        {
-            key: 'actions',
-            title: 'Action',
-            render: (milestone) => (
-                <Button 
-                    variant="primary" 
-                    size="sm" 
-                    onClick={() => openEditMilestone(milestone)}
-                    style={{ fontSize: 14, padding: "6px 12px", fontWeight: "600" }}
-                >
-                    {milestone.deadline ? "Edit" : "Set"}
-                </Button>
             ),
             headerStyle: { width: '75px', textAlign: 'center' },
             cellStyle: { textAlign: 'center' }
@@ -463,7 +462,7 @@ export default function Delivery() {
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
                 <h2 style={{ margin: 0, flex: 1 }}>Delivery Milestones</h2>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontWeight: 600 }}>Code:</span>
+                    <span style={{ fontWeight: 600 }}>Capstone Code:</span>
                     <select 
                         value={selectedMajorId} 
                         onChange={(e) => setSelectedMajorId(e.target.value)}
@@ -504,169 +503,183 @@ export default function Delivery() {
                     gap: 16,
                     width: "800px",
                     maxWidth: "95vw",
-                    padding:16
+                    maxHeight: "90vh",
+                    padding: 16,
+                    overflow: "hidden"
                 }}>
-                    <h3 style={{ margin: 0 }}>
+                    <h3 style={{ margin: 0, flexShrink: 0 }}>
                         {selectedMilestone && selectedMilestone.deadline ? "Edit Deliverable Deadline" : "Save Deliverable Deadline"}
                     </h3>
-                    {modalError && <div style={{ color: "#dc2626" }}>{modalError}</div>}
+                    {modalError && <div style={{ color: "#dc2626", flexShrink: 0 }}>{modalError}</div>}
                     
-                    {/* Milestone Information */}
-                    {selectedMilestone && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            <span style={{ fontWeight: 600, fontSize: 14 }}>Milestone Information:</span>
-                            <div style={{ 
-                                border: "1px solid #e5e7eb", 
-                                borderRadius: 12, 
-                                padding: 16, 
-                                background: selectedMilestone.deadline ? "#f0f9ff" : "#fef3c7",
-                                borderColor: selectedMilestone.deadline ? "#0ea5e9" : "#f59e0b"
-                            }}>
-                                <div>
-                                    <div style={{ 
-                                        fontWeight: 600, 
-                                        color: selectedMilestone.deadline ? "#0c4a6e" : "#92400e",
-                                        fontSize: 14,
-                                        marginBottom: 4
-                                    }}>
-                                        {selectedMilestone.name}
-                                    </div>
-                                    {selectedMilestone.deadline && (
-                                        <div style={{ fontSize: 12, color: "#0369a1", marginBottom: 4 }}>
-                                             {selectedMilestone.deadline}
-                                        </div>
-                                    )}
-                                    {selectedMilestone.description && (
+                    {/* Scrollable content area */}
+                    <div style={{ 
+                        flex: 1,
+                        overflowY: "auto",
+                        overflowX: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 16,
+                        paddingRight: 8
+                    }}>
+                        {/* Milestone Information */}
+                        {selectedMilestone && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+                                <span style={{ fontWeight: 600, fontSize: 14 }}>Milestone Information:</span>
+                                <div style={{ 
+                                    border: "1px solid #e5e7eb", 
+                                    borderRadius: 12, 
+                                    padding: 16, 
+                                    background: selectedMilestone.deadline ? "#f0f9ff" : "#fef3c7",
+                                    borderColor: selectedMilestone.deadline ? "#0ea5e9" : "#f59e0b"
+                                }}>
+                                    <div>
                                         <div style={{ 
-                                            fontSize: 12, 
-                                            color: selectedMilestone.deadline ? "#0369a1" : "#a16207", 
-                                            lineHeight: 1.4
+                                            fontWeight: 600, 
+                                            color: selectedMilestone.deadline ? "#0c4a6e" : "#92400e",
+                                            fontSize: 14,
+                                            marginBottom: 4
                                         }}>
-                                            {selectedMilestone.description}
+                                            {selectedMilestone.name}
                                         </div>
-                                    )}
+                                        {selectedMilestone.deadline && (
+                                            <div style={{ fontSize: 12, color: "#0369a1", marginBottom: 4 }}>
+                                                 {selectedMilestone.deadline}
+                                            </div>
+                                        )}
+                                        {selectedMilestone.description && (
+                                            <div style={{ 
+                                                fontSize: 12, 
+                                                color: selectedMilestone.deadline ? "#0369a1" : "#a16207", 
+                                                lineHeight: 1.4
+                                            }}>
+                                                {selectedMilestone.description}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-
-
-                    {selectedMilestone && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <span style={{ fontWeight: 600, fontSize: 14 }}>Items in "{selectedMilestone.name}":</span>
-                                <Button variant="ghost" size="sm" type="button" onClick={addItem}>Add Item</Button>
-                            </div>
-                            <div style={{ 
-                                border: "1px solid #e5e7eb", 
-                                borderRadius: 8
-                            }}>
-                                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-                                    <thead style={{ background: "#f9fafb" }}>
-                                        <tr>
-                                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb", fontSize: 12, width: "25%" }}>Name</th>
-                                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb", fontSize: 12, width: "60%" }}>Description</th>
-                                            <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb", width: "15%", fontSize: 12 }}>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {editingItems.map((item, idx) => (
-                                            <tr key={item.id || idx}>
-                                                <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
-                                                    <Input 
-                                                        value={item.name || ""} 
-                                                        onChange={(e) => updateItem(idx, "name", e.target.value)} 
-                                                        placeholder="Item name"
-                                                        style={{ width: "100%", fontSize: 12 }}
-                                                    />
-                                                </td>
-                                                <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
-                                                    <textarea 
-                                                        value={item.description || ""} 
-                                                        onChange={(e) => updateItem(idx, "description", e.target.value)} 
-                                                        placeholder="Description"
-                                                        style={{ 
-                                                            width: "100%", 
-                                                            fontSize: 12,
-                                                            padding: "8px",
-                                                            border: "1px solid #d1d5db",
-                                                            borderRadius: "4px",
-                                                            resize: "vertical",
-                                                            minHeight: "32px",
-                                                            fontFamily: "inherit"
-                                                        }}
-                                                        rows={1}
-                                                    />
-                                                </td>
-                                                <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
-                                                    <Button variant="ghost" size="sm" type="button" onClick={() => removeItem(idx)} style={{ fontSize: 11 }}>Remove</Button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                        {editingItems.length === 0 && (
+                        {selectedMilestone && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <span style={{ fontWeight: 600, fontSize: 14 }}>Items in "{selectedMilestone.name}":</span>
+                                    <Button variant="ghost" size="sm" type="button" onClick={addItem}>Add Item</Button>
+                                </div>
+                                <div style={{ 
+                                    border: "1px solid #e5e7eb", 
+                                    borderRadius: 8,
+                                    maxHeight: "400px",
+                                    overflowY: "auto",
+                                    overflowX: "hidden"
+                                }}>
+                                    <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
+                                        <thead style={{ background: "#f9fafb", position: "sticky", top: 0, zIndex: 10 }}>
                                             <tr>
-                                                <td colSpan={3} style={{ padding: 16, textAlign: "center", color: "#64748b", fontSize: 12 }}>
-                                                    No items. Click "Add Item" to add items.
-                                                </td>
+                                                <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb", fontSize: 12, width: "25%" }}>Name</th>
+                                                <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb", fontSize: 12, width: "60%" }}>Description</th>
+                                                <th style={{ textAlign: "left", padding: 8, borderBottom: "1px solid #e5e7eb", width: "15%", fontSize: 12 }}>Action</th>
                                             </tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {editingItems.map((item, idx) => (
+                                                <tr key={item.id || idx}>
+                                                    <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                                                        <Input 
+                                                            value={item.name || ""} 
+                                                            onChange={(e) => updateItem(idx, "name", e.target.value)} 
+                                                            placeholder="Item name"
+                                                            style={{ width: "100%", fontSize: 12 }}
+                                                        />
+                                                    </td>
+                                                    <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                                                        <textarea 
+                                                            value={item.description || ""} 
+                                                            onChange={(e) => updateItem(idx, "description", e.target.value)} 
+                                                            placeholder="Description"
+                                                            style={{ 
+                                                                width: "100%", 
+                                                                fontSize: 12,
+                                                                padding: "8px",
+                                                                border: "1px solid #d1d5db",
+                                                                borderRadius: "4px",
+                                                                resize: "vertical",
+                                                                minHeight: "32px",
+                                                                fontFamily: "inherit"
+                                                            }}
+                                                            rows={1}
+                                                        />
+                                                    </td>
+                                                    <td style={{ padding: 8, borderBottom: "1px solid #f1f5f9" }}>
+                                                        <Button variant="ghost" size="sm" type="button" onClick={() => removeItem(idx)} style={{ fontSize: 11 }}>Remove</Button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {editingItems.length === 0 && (
+                                                <tr>
+                                                    <td colSpan={3} style={{ padding: 16, textAlign: "center", color: "#64748b", fontSize: 12 }}>
+                                                        No items. Click "Add Item" to add items.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                                        {/* Deadline Settings */}
-                                        <div style={{ display: "flex", flexDirection: "column", gap: 12 , padding:16}}>
-                        <span style={{ fontWeight: 600 }}>Set Deadline:</span>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                <label style={{ fontSize: 12, fontWeight: 600 }}>Week</label>
-                                <select 
-                                    value={modalWeek} 
-                                    onChange={(e) => setModalWeek(Number(e.target.value))}
-                                    style={{
-                                        padding: "8px 12px",
-                                        border: "1px solid #d1d5db",
-                                        borderRadius: "6px",
-                                        fontSize: "14px",
-                                        backgroundColor: "white",
-                                        outline: "none"
-                                    }}
-                                >
-                                    {Array.from({ length: weeks }, (_, i) => (
-                                        <option key={i + 1} value={i + 1}>Week {i + 1}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                <label style={{ fontSize: 12, fontWeight: 600 }}>Day</label>
-                                <select 
-                                    value={modalDay} 
-                                    onChange={(e) => setModalDay(e.target.value)}
-                                    style={{
-                                        padding: "8px 12px",
-                                        border: "1px solid #d1d5db",
-                                        borderRadius: "6px",
-                                        fontSize: "14px",
-                                        backgroundColor: "white",
-                                        outline: "none"
-                                    }}
-                                >
-                                    {DAYS.map((day) => (
-                                        <option key={day} value={day}>{day}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                <label style={{ fontSize: 12, fontWeight: 600 }}>Time</label>
-                                <Input type="time" value={deadlineTime} onChange={(e) => setDeadlineTime(e.target.value)} />
+                        {/* Deadline Settings */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 12, flexShrink: 0 }}>
+                            <span style={{ fontWeight: 600 }}>Set Deadline:</span>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <label style={{ fontSize: 12, fontWeight: 600 }}>Week</label>
+                                    <select 
+                                        value={modalWeek} 
+                                        onChange={(e) => setModalWeek(Number(e.target.value))}
+                                        style={{
+                                            padding: "8px 12px",
+                                            border: "1px solid #d1d5db",
+                                            borderRadius: "6px",
+                                            fontSize: "14px",
+                                            backgroundColor: "white",
+                                            outline: "none"
+                                        }}
+                                    >
+                                        {Array.from({ length: weeks }, (_, i) => (
+                                            <option key={i + 1} value={i + 1}>Week {i + 1}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <label style={{ fontSize: 12, fontWeight: 600 }}>Day</label>
+                                    <select 
+                                        value={modalDay} 
+                                        onChange={(e) => setModalDay(e.target.value)}
+                                        style={{
+                                            padding: "8px 12px",
+                                            border: "1px solid #d1d5db",
+                                            borderRadius: "6px",
+                                            fontSize: "14px",
+                                            backgroundColor: "white",
+                                            outline: "none"
+                                        }}
+                                    >
+                                        {DAYS.map((day) => (
+                                            <option key={day} value={day}>{day}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                    <label style={{ fontSize: 12, fontWeight: 600 }}>Time</label>
+                                    <Input type="time" value={deadlineTime} onChange={(e) => setDeadlineTime(e.target.value)} />
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, borderTop: "1px solid #e5e7eb", paddingTop: 16 }}>
                         {/* {selectedMilestone && selectedMilestone.deadline && (
                             <Button 
                                 variant="ghost" 

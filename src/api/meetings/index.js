@@ -84,7 +84,16 @@ export async function getAttendanceDataByGroup(groupId) {
 // Update meeting isMeeting status
 export async function updateMeetingIsMeetingStatus(meetingId, isMeeting) {
   try {
-    const response = await client.put(`/Student/Meeting/update-is-meeting/${meetingId}`, { isMeeting });
+    // API expects JSON string 'true' or 'false', not boolean or object
+    const response = await client.put(
+      `/Student/Meeting/update-is-meeting/${meetingId}`,
+      JSON.stringify(isMeeting),
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
     return response.data;
   } catch (error) {
     console.error('Error updating meeting status:', error);

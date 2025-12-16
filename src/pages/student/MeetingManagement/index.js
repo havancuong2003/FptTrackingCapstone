@@ -51,6 +51,7 @@ export default function StudentMeetingManagement() {
     const [groupInfo, setGroupInfo] = React.useState(null);
     // State cho file đính kèm khi tạo issue
     const [createIssueFiles, setCreateIssueFiles] = React.useState([]);
+    const [creatingIssue, setCreatingIssue] = React.useState(false); // Loading state khi tạo issue
     const [attendanceList, setAttendanceList] = React.useState([]); // [{ studentId, name, rollNumber, attended: boolean, reason: string }]
     const [loadingMinuteModal, setLoadingMinuteModal] = React.useState(false);
     const [previousMinuteData, setPreviousMinuteData] = React.useState(null); // Previous meeting minutes
@@ -229,7 +230,6 @@ export default function StudentMeetingManagement() {
     const fetchMeetings = async (groupId) => {
         try {
             const response = await getMeetingScheduleDatesByGroup(groupId);
-
             if (response.status === 200) {
                 const meetingsData = response.data;
 
@@ -596,7 +596,8 @@ export default function StudentMeetingManagement() {
         // Nếu meeting chưa diễn ra (isMeeting !== true hoặc meetingDate > now)
         const now = new Date();
         const meetingDate = new Date(meeting.meetingDate);
-        if (meeting.isMeeting !== true || meetingDate > now) {
+        // console.log("meeting", meeting);
+        if (meeting.isMeeting !== true ) {
             return "-";
         }
 
@@ -923,7 +924,7 @@ export default function StudentMeetingManagement() {
                         autoSaveMeetingMinute();
                         lastAutoSaveTimeRef.current = Date.now();
                     }
-                }, 1 * 60 * 1000); // 1 phút = 60000 ms
+                }, 3 * 60 * 1000); // 1 phút = 60000 ms
                 autoSaveIntervalRef.current = interval;
 
                 // Auto-save ngay khi tab trở lại active nếu đã quá 1 phút kể từ lần save cuối
@@ -933,7 +934,7 @@ export default function StudentMeetingManagement() {
                             Date.now() -
                             (lastAutoSaveTimeRef.current || Date.now());
                         // Nếu đã quá 1 phút kể từ lần save cuối, auto-save ngay
-                        if (timeSinceLastSave >= 1 * 60 * 1000) {
+                        if (timeSinceLastSave >= 3 * 60 * 1000) {
                             autoSaveMeetingMinute();
                             lastAutoSaveTimeRef.current = Date.now();
                         }
@@ -1092,7 +1093,6 @@ export default function StudentMeetingManagement() {
 
         // Format attendance từ attendanceList thành text
         const attendanceText = formatAttendance(currentAttendanceList);
-
         try {
             let meetingMinuteId;
 
@@ -1159,6 +1159,30 @@ export default function StudentMeetingManagement() {
                     try {
                         await updateMeetingIsMeetingStatus(currentSelectedMeeting.id, true);
                     } catch (error) {
+                    }
+                }
+
+                // Cập nhật attendanceData trong state để giao diện phản ánh ngay attendance mới
+                const meetingKey =
+                    currentSelectedMeeting.meetingScheduleDateId ||
+                    currentSelectedMeeting.id;
+                if (meetingKey) {
+                    setAttendanceData((prev) => ({
+                        ...prev,
+                        [meetingKey]: attendanceText,
+                    }));
+                }
+
+                // Refresh meetings để cập nhật thống kê và isMinute flag
+                if (
+                    meetingMinuteId &&
+                    userInfo?.groups &&
+                    userInfo.groups.length > 0
+                ) {
+                    try {
+                        await fetchMeetings(userInfo.groups[0]);
+                    } catch (error) {
+                        // Không throw error để không làm gián đoạn interval
                     }
                 }
             }
@@ -1254,6 +1278,30 @@ export default function StudentMeetingManagement() {
                     }
                 }
 
+                // Cập nhật attendanceData trong state để giao diện phản ánh ngay attendance mới
+                const meetingKey =
+                    selectedMeeting.meetingScheduleDateId ||
+                    selectedMeeting.id;
+                if (meetingKey) {
+                    setAttendanceData((prev) => ({
+                        ...prev,
+                        [meetingKey]: attendanceText,
+                    }));
+                }
+
+                // Refresh meetings để cập nhật thống kê và isMinute flag sau khi tạo meeting minute mới
+                if (
+                    meetingMinuteId &&
+                    userInfo?.groups &&
+                    userInfo.groups.length > 0
+                ) {
+                    try {
+                        await fetchMeetings(userInfo.groups[0]);
+                    } catch (error) {
+                        // Không throw error để không làm gián đoạn flow
+                    }
+                }
+
                 if (!isAutoSave) {
                     alert("Meeting minutes created successfully!");
                 }
@@ -1277,7 +1325,7 @@ export default function StudentMeetingManagement() {
                 }
             }
 
-            // Refresh meetings data (chỉ khi manual save)
+            // Refresh meetings data khi manual save (để đảm bảo sync với server)
             if (!isAutoSave && userInfo?.groups && userInfo.groups.length > 0) {
                 await fetchMeetings(userInfo.groups[0]);
             }
@@ -1595,11 +1643,13 @@ export default function StudentMeetingManagement() {
             reviewer: "",
         });
         setCreateIssueFiles([]);
+        setCreatingIssue(false); // Reset loading state
         setShowIssueModal(true);
     };
 
     // Tạo issue: nếu đã có biên bản thì tạo luôn, nếu chưa thì lưu tạm
     const createMeetingIssue = async () => {
+        if (creatingIssue) return; // Tránh bấm nhiều lần
         if (!selectedMeeting) return;
         if (!issueForm.title || !issueForm.assignee || !issueForm.deadline) {
             alert("Please fill in title, assignee and deadline");
@@ -1617,6 +1667,8 @@ export default function StudentMeetingManagement() {
                 return;
             }
         }
+
+        setCreatingIssue(true); // Bắt đầu loading
 
         // Chuyển đổi datetime-local sang ISO string (giữ nguyên local time, không convert timezone)
         // Format: "YYYY-MM-DDTHH:mm:ss" từ datetime-local input
@@ -1704,6 +1756,8 @@ export default function StudentMeetingManagement() {
                     e?.message ||
                     "Failed to create issue";
                 alert(errorMessage);
+            } finally {
+                setCreatingIssue(false); // Kết thúc loading
             }
         } else {
             // Chưa có biên bản, lưu tạm vào pendingIssues và hiển thị trong bảng
@@ -1743,6 +1797,7 @@ export default function StudentMeetingManagement() {
                 reviewer: "",
             });
             setCreateIssueFiles([]);
+            setCreatingIssue(false); // Kết thúc loading
             alert(
                 "Issue added. It will be created when you save the meeting minutes."
             );
@@ -2187,16 +2242,18 @@ export default function StudentMeetingManagement() {
                         let attendedCount = 0;
                         let absentCount = 0;
                         let upcomingCount = 0;
-
+                        // console.log("meetings", meetings);
                         meetings.forEach((meeting) => {
                             const meetingDate = new Date(meeting.meetingDate);
                             const hasHappened =
-                                meeting.isMeeting === true &&
-                                meetingDate <= now;
+                                meeting.isMeeting === true 
+                                // && meetingDate <= now;
                             if (!hasHappened) {
+                                // console.log("meeting if", meeting);
                                 // Chưa diễn ra
                                 upcomingCount++;
                             } else {
+                                // console.log("meeting else", meeting);
                                 // Đã diễn ra, kiểm tra attendance
                                 const attendanceStatus =
                                     getUserAttendanceStatus(meeting);
@@ -3626,7 +3683,7 @@ export default function StudentMeetingManagement() {
                                         ) : (
                                             <>
                                                 <span style={{ color: "#f59e0b" }}>●</span>
-                                                Auto-save active (saves every 1 minute)
+                                                Auto-save active (saves every 3 minute)
                                             </>
                                         )}
                                     </span>
@@ -3674,6 +3731,25 @@ export default function StudentMeetingManagement() {
                         }}
                     >
                         <h3>Create Meeting Issue</h3>
+                        {creatingIssue && (
+                            <div
+                                style={{
+                                    background: "#f0f9ff",
+                                    border: "1px solid #0ea5e9",
+                                    borderRadius: "6px",
+                                    padding: "12px",
+                                    marginBottom: "16px",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                    fontSize: "14px",
+                                    color: "#0c4a6e",
+                                }}
+                            >
+                                <span>⏳</span>
+                                <span>Creating issue, please wait...</span>
+                            </div>
+                        )}
                         <div className={styles.formGroup}>
                             <label>
                                 Title <span className={styles.required}>*</span>
@@ -3690,6 +3766,11 @@ export default function StudentMeetingManagement() {
                                 }
                                 placeholder="Enter issue title"
                                 maxLength={100}
+                                disabled={creatingIssue}
+                                style={{
+                                    backgroundColor: creatingIssue ? "#f3f4f6" : "white",
+                                    cursor: creatingIssue ? "not-allowed" : "text",
+                                }}
                             />
                             <div
                                 style={{
@@ -3715,6 +3796,11 @@ export default function StudentMeetingManagement() {
                                     })
                                 }
                                 placeholder="Short description"
+                                disabled={creatingIssue}
+                                style={{
+                                    backgroundColor: creatingIssue ? "#f3f4f6" : "white",
+                                    cursor: creatingIssue ? "not-allowed" : "text",
+                                }}
                             />
                         </div>
                         <div className={styles.taskFormRow}>
@@ -3732,6 +3818,11 @@ export default function StudentMeetingManagement() {
                                             assignee: e.target.value,
                                         })
                                     }
+                                    disabled={creatingIssue}
+                                    style={{
+                                        backgroundColor: creatingIssue ? "#f3f4f6" : "white",
+                                        cursor: creatingIssue ? "not-allowed" : "pointer",
+                                    }}
                                 >
                                     <option value="">Select assignee</option>
                                     {assigneeOptions.map((a) => (
@@ -3752,6 +3843,11 @@ export default function StudentMeetingManagement() {
                                             reviewer: e.target.value,
                                         })
                                     }
+                                    disabled={creatingIssue}
+                                    style={{
+                                        backgroundColor: creatingIssue ? "#f3f4f6" : "white",
+                                        cursor: creatingIssue ? "not-allowed" : "pointer",
+                                    }}
                                 >
                                     <option value="">
                                         Select reviewer (optional)
@@ -3774,6 +3870,11 @@ export default function StudentMeetingManagement() {
                                             priority: e.target.value,
                                         })
                                     }
+                                    disabled={creatingIssue}
+                                    style={{
+                                        backgroundColor: creatingIssue ? "#f3f4f6" : "white",
+                                        cursor: creatingIssue ? "not-allowed" : "pointer",
+                                    }}
                                 >
                                     <option value="low">Low</option>
                                     <option value="medium">Medium</option>
@@ -3796,6 +3897,11 @@ export default function StudentMeetingManagement() {
                                         deadline: e.target.value,
                                     })
                                 }
+                                disabled={creatingIssue}
+                                style={{
+                                    backgroundColor: creatingIssue ? "#f3f4f6" : "white",
+                                    cursor: creatingIssue ? "not-allowed" : "text",
+                                }}
                                 min={(() => {
                                     // Set min là thời gian hiện tại + 1 phút
                                     const now = new Date();
@@ -3829,6 +3935,7 @@ export default function StudentMeetingManagement() {
                                     multiple
                                     accept=".jpg,.jpeg,.png,.gif,.bmp,.webp,.svg,.pdf,.zip,.7z,.rar"
                                     onChange={(e) => {
+                                        if (creatingIssue) return; // Không cho upload khi đang tạo
                                         const files = Array.from(
                                             e.target.files
                                         );
@@ -3859,11 +3966,17 @@ export default function StudentMeetingManagement() {
                                         }
                                         e.target.value = "";
                                     }}
+                                    disabled={creatingIssue}
                                     style={{ display: "none" }}
                                 />
                                 <label
                                     htmlFor="create-issue-file-input"
                                     className={styles.fileUploadLabel}
+                                    style={{
+                                        opacity: creatingIssue ? 0.5 : 1,
+                                        cursor: creatingIssue ? "not-allowed" : "pointer",
+                                        pointerEvents: creatingIssue ? "none" : "auto",
+                                    }}
                                 >
                                     + Add Files
                                 </label>
@@ -3890,6 +4003,7 @@ export default function StudentMeetingManagement() {
                                                         styles.removeFileBtn
                                                     }
                                                     onClick={() => {
+                                                        if (creatingIssue) return; // Không cho xóa khi đang tạo
                                                         setCreateIssueFiles(
                                                             (prev) =>
                                                                 prev.filter(
@@ -3898,6 +4012,11 @@ export default function StudentMeetingManagement() {
                                                                         index
                                                                 )
                                                         );
+                                                    }}
+                                                    disabled={creatingIssue}
+                                                    style={{
+                                                        opacity: creatingIssue ? 0.5 : 1,
+                                                        cursor: creatingIssue ? "not-allowed" : "pointer",
                                                     }}
                                                 >
                                                     ×
@@ -3913,6 +4032,7 @@ export default function StudentMeetingManagement() {
                             <button
                                 className={`${styles.modalButton} ${styles.secondary}`}
                                 onClick={() => {
+                                    if (creatingIssue) return; // Không cho cancel khi đang tạo
                                     // Check if there is entered data
                                     const hasData =
                                         issueForm.title ||
@@ -3942,14 +4062,34 @@ export default function StudentMeetingManagement() {
                                         setShowIssueModal(false);
                                     }
                                 }}
+                                disabled={creatingIssue}
+                                style={{
+                                    opacity: creatingIssue ? 0.5 : 1,
+                                    cursor: creatingIssue ? "not-allowed" : "pointer",
+                                }}
                             >
                                 Cancel
                             </button>
                             <button
                                 className={`${styles.modalButton} ${styles.primary}`}
                                 onClick={createMeetingIssue}
+                                disabled={creatingIssue}
+                                style={{
+                                    opacity: creatingIssue ? 0.6 : 1,
+                                    cursor: creatingIssue ? "not-allowed" : "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "8px",
+                                }}
                             >
-                                Save
+                                {creatingIssue ? (
+                                    <>
+                                        <span>⏳</span>
+                                        <span>Creating...</span>
+                                    </>
+                                ) : (
+                                    "Save"
+                                )}
                             </button>
                         </div>
                     </div>

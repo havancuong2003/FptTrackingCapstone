@@ -109,7 +109,26 @@ function Milestone() {
             key: 'name',
             title: 'Milestone Name',
             render: (milestone) => (
-                <div style={{ fontWeight: "600", fontSize: "14px", color: "#1f2937" }}>
+                <div
+                    onClick={() => openEdit(milestone)}
+                    style={{
+                        cursor: 'pointer',
+                        fontWeight: "600",
+                        fontSize: "14px",
+                        color: "#3b82f6",
+                        textDecoration: 'underline',
+                        display: 'inline-block',
+                        transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.color = "#2563eb";
+                        e.currentTarget.style.textDecorationThickness = '2px';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.color = "#3b82f6";
+                        e.currentTarget.style.textDecorationThickness = '1px';
+                    }}
+                >
                     {milestone.name}
                 </div>
             )
@@ -121,26 +140,6 @@ function Milestone() {
                 <div style={{ fontSize: "14px", color: "#4b5563", lineHeight: "1.5" }}>
                     {milestone.description || <span style={{ color: "#9ca3af", fontStyle: "italic" }}>No description</span>}
                 </div>
-            )
-        },
-        {
-            key: 'actions',
-            title: 'Action',
-            render: (milestone) => (
-                <Button 
-                    size="sm" 
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        openEdit(milestone);
-                    }}
-                    style={{
-                        padding: "6px 12px",
-                        fontSize: "13px",
-                        fontWeight: "500"
-                    }}
-                >
-                    Edit
-                </Button>
             )
         }
     ];
@@ -290,7 +289,7 @@ function Milestone() {
             >
                 {/* Major select with name display */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 320 }}>
-                    <span style={{ fontWeight: 600 }}>Major:</span>
+                    <span style={{ fontWeight: 600 }}>Project Capstone Subject Code:</span>
                     <div style={{ width: 200 }}>
                         <select
                             value={selectedMajorId}
@@ -472,7 +471,7 @@ function Milestone() {
                                     />
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                    <label style={{ fontWeight: "600", color: "#374151", fontSize: "14px" }}>Major Code</label>
+                                    <label style={{ fontWeight: "600", color: "#374151", fontSize: "14px" }}>Project Capstone Subject Code</label>
                                     <Input 
                                         value={selectedMajor?.code || ""} 
                                         disabled 
@@ -594,7 +593,7 @@ function Milestone() {
                                 Create Milestone
                             </h3>
                             <p style={{ margin: "8px 0 0 0", fontSize: "14px", color: "#6b7280" }}>
-                                Add new milestone to the selected major: <strong>{selectedMajor?.code || "N/A"}</strong> - {selectedMajor?.name || "N/A"}
+                                Add new milestone to the selected Project Capstone Subject Code: <strong>{selectedMajor?.code || "N/A"}</strong> - {selectedMajor?.name || "N/A"}
                             </p>
                         </div>
                         {createError && (

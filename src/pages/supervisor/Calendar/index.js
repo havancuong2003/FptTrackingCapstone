@@ -1256,19 +1256,46 @@ export default function SupervisorCalendar() {
                                    groupsWithoutSchedule.includes(groupIdNum) ||
                                    groupsWithoutSchedule.includes(group.id);
               return (
-                <div key={group.id} style={{
-                  background: hasNoSchedule ? '#fef3c7' : '#f9fafb',
-                  border: hasNoSchedule ? '2px solid #f59e0b' : '1px solid #e5e7eb',
-                  borderRadius: 8,
-                  padding: 12
-                }}>
+                <div 
+                  key={group.id} 
+                  onClick={() => {
+                    if (hasNoSchedule) {
+                      navigate(`/supervisor/schedule`);
+                    }
+                  }}
+                  style={{
+                    background: hasNoSchedule ? '#fef3c7' : '#f9fafb',
+                    border: hasNoSchedule ? '2px solid #f59e0b' : '1px solid #e5e7eb',
+                    borderRadius: 8,
+                    padding: 12,
+                    cursor: hasNoSchedule ? 'pointer' : 'default',
+                    transition: hasNoSchedule ? 'all 0.2s ease' : 'none'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (hasNoSchedule) {
+                      e.currentTarget.style.background = '#fde68a';
+                      e.currentTarget.style.transform = 'scale(1.02)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.3)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (hasNoSchedule) {
+                      e.currentTarget.style.background = '#fef3c7';
+                      e.currentTarget.style.transform = 'scale(1)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }
+                  }}
+                >
                   {/* Header row: Warning + View Tracking button */}
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between', 
-                    marginBottom: 8
-                  }}>
+                  <div 
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      marginBottom: 8
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {hasNoSchedule ? (
                       <div style={{
                         background: '#f59e0b',

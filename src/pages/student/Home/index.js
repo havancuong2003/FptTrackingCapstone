@@ -1362,16 +1362,31 @@ export default function StudentHome() {
 
       {/* Warning if student hasn't selected free time and group hasn't finalized schedule */}
       {!hasSchedule && !hasSelectedFreeTime && (
-        <div style={{ 
-          background: '#fef3c7', 
-          border: '2px solid #f59e0b', 
-          borderRadius: 8, 
-          padding: 16,
-          marginBottom: 16,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12
-        }}>
+        <div 
+          onClick={() => navigate('/schedule')}
+          style={{ 
+            background: '#fef3c7', 
+            border: '2px solid #f59e0b', 
+            borderRadius: 8, 
+            padding: 16,
+            marginBottom: 16,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#fde68a';
+            e.currentTarget.style.transform = 'scale(1.01)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(245, 158, 11, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = '#fef3c7';
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
           <div style={{ fontSize: 24 }}>⚠️</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: '#92400e', marginBottom: 4 }}>

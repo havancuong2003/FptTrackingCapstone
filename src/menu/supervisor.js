@@ -1,5 +1,10 @@
 const supervisorMenu = [
   // Quản lý nhóm - quan trọng nhất
+  {
+    path: "/supervisor/calendar", 
+    label: "Calendar", 
+    icon: "📅"
+  },
   { 
     label: "Groups", 
     icon: "👥",
@@ -15,11 +20,7 @@ const supervisorMenu = [
     icon: "✅"
   },
   // Quản lý lịch trình và cuộc họp
-  {
-    path: "/supervisor/calendar", 
-    label: "Calendar", 
-    icon: "📅"
-  },
+  
   { 
     path: "/supervisor/schedule", 
     label: "Schedule Management", 
