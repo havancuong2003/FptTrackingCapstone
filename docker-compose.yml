@@ -6,7 +6,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-http://localhost:5000/api/v1}
+        REACT_APP_API_BASE_URL: ${REACT_APP_API_BASE_URL:-https://35.240.135.75/api/v1}
         PORT: ${PORT:-8082}
         HOST: ${HOST:-0.0.0.0}
     container_name: fpt-tracking-capstone
@@ -15,7 +15,7 @@ services:
     environment:
       - PORT=${PORT:-8082}
       - HOST=${HOST:-0.0.0.0}
-      - REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL:-http://localhost:5000/api/v1}
+      - REACT_APP_API_BASE_URL=${REACT_APP_API_BASE_URL:-https://35.240.135.75/api/v1}
     ports:
       - "${PORT:-8082}:8082"
     restart: unless-stopped
