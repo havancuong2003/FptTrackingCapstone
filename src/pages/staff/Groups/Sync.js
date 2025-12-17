@@ -56,13 +56,17 @@ export default function SyncGroup() {
       return;
     }
 
+    // Tìm semester name từ selectedSemesterId
+    const selectedSemester = semesters.find(sem => sem.id === parseInt(selectedSemesterId));
+    const semesterName = selectedSemester?.name || '';
+
     setLoading(true);
     setMessage('');
     setSyncProgress(0);
     setSyncStatus('idle');
     setDataLoaded(false);
     try {
-      const res = await getMockDataGroups(selectedSemesterId);
+      const res = await getMockDataGroups(selectedSemesterId, semesterName);
       if (res.status === 200) {
         // Parse data từ format mới: data.groups.alreadyExist, data.groups.notExistYet và data.majorCategories
         const data = res.data || {};
@@ -140,6 +144,10 @@ export default function SyncGroup() {
     }, 200);
 
     try {
+      // Tìm semester name từ selectedSemesterId
+      const selectedSemester = semesters.find(sem => sem.id === parseInt(selectedSemesterId));
+      const semesterName = selectedSemester?.name || '';
+
       // Gửi dữ liệu với cấu trúc đúng: groups có alreadyExist và notExistYet
       const syncData = {
         semesterId: parseInt(selectedSemesterId),
@@ -150,7 +158,7 @@ export default function SyncGroup() {
         majorCategories: majorCategories
       };
       
-      const res = await syncMockDataGroups(syncData, parseInt(selectedSemesterId));
+      const res = await syncMockDataGroups(syncData, parseInt(selectedSemesterId), semesterName);
       clearInterval(progressInterval);
       setSyncProgress(100);
       

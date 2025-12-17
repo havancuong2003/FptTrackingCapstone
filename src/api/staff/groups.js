@@ -117,10 +117,10 @@ export async function sendEmailToGroup(groupId, content) {
 }
 
 // ================== sync from Call4Project ==================
-export async function getMockDataGroups(semesterId) {
+export async function getMockDataGroups(semesterId, semesterName) {
   try {
     const res = await client.get('/mock-data/group', {
-      params: { semesterId }
+      params: { semesterId, semesterName }
     });
     const payload = res.data;
     if (payload.status === 200) {
@@ -137,10 +137,10 @@ export async function getMockDataGroups(semesterId) {
   }
 }
 
-export async function syncMockDataGroups(groupsData, semesterId) {
+export async function syncMockDataGroups(groupsData, semesterId, semesterName) {
   try {
     const res = await client.post('/mock-data/group', groupsData, {
-      params: { semesterId }
+      params: { semesterId, semesterName }
     });
     const payload = res.data;
     return {
