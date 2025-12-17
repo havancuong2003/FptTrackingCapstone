@@ -4,7 +4,6 @@ import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
 import { formatDate } from '../../../utils/date';
-import { getFileUrl } from '../../../utils/fileUrl';
 import { getFileSizeLimit, formatSizeLimit, getUserInfo } from '../../../auth/auth';
 import { getUserInfoFromAPI } from '../../../api/auth';
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
@@ -181,6 +180,18 @@ export default function StudentMilestones() {
     }
   };
 
+  // Lấy URL file dựa trên origin của browser, không dùng API_BASE_URL (/api/v1)
+  const getOriginFileUrl = (filePath) => {
+    if (!filePath) return '';
+    // Nếu backend đã trả về full URL thì dùng luôn
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+      return filePath;
+    }
+    const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+    const origin = typeof window !== 'undefined' ? window.location.origin.replace(/\/+$/, '') : '';
+    return `${origin}${normalizedPath}`;
+  };
+
   // Kiểm tra file có đúng định dạng được phép không
   const isValidFileType = (fileName) => {
     if (!fileName) return false;
@@ -336,7 +347,7 @@ export default function StudentMilestones() {
           if (updatedItem?.attachments && updatedItem.attachments.length > 0) {
             const latestAttachment = updatedItem.attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
             if (latestAttachment?.path) {
-              fileUrl = getFileUrl(latestAttachment.path);
+              fileUrl = getOriginFileUrl(latestAttachment.path);
             }
           }
         }
@@ -381,7 +392,7 @@ export default function StudentMilestones() {
 
   const downloadFile = async (attachment) => {
     try {
-      const fileUrl = getFileUrl(attachment.path);
+      const fileUrl = getOriginFileUrl(attachment.path);
       const response = await fetch(fileUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -456,7 +467,7 @@ export default function StudentMilestones() {
     const filePath = attachment.path;
     const fileName = filePath.split('/').pop().toLowerCase();
     const extension = fileName.split('.').pop();
-    const baseUrl = getFileUrl(filePath);
+    const baseUrl = getOriginFileUrl(filePath);
     
     let previewUrl = baseUrl;
     
