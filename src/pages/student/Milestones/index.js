@@ -4,6 +4,7 @@ import Button from '../../../components/Button/Button';
 import Modal from '../../../components/Modal/Modal';
 import Select from '../../../components/Select/Select';
 import { formatDate } from '../../../utils/date';
+import client from '../../../utils/axiosClient';
 import { getFileSizeLimit, formatSizeLimit, getUserInfo } from '../../../auth/auth';
 import { getUserInfoFromAPI } from '../../../api/auth';
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
@@ -180,16 +181,23 @@ export default function StudentMilestones() {
     }
   };
 
-  // Lấy URL file dựa trên origin của browser, không dùng API_BASE_URL (/api/v1)
-  const getOriginFileUrl = (filePath) => {
+  // Lấy URL file dựa trên baseURL của axios client (HTTPS + port backend), nhưng bỏ phần /api/v1
+  const getBackendFileUrl = (filePath) => {
     if (!filePath) return '';
+
     // Nếu backend đã trả về full URL thì dùng luôn
     if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
       return filePath;
     }
+
+    const rawBaseURL = client.defaults.baseURL || '';
+
+    // Bỏ phần /api hoặc /api/v1 ở cuối baseURL (nếu có)
+    const baseURL = rawBaseURL.replace(/\/api(\/v1)?\/?$/i, '').replace(/\/+$/, '');
+
     const normalizedPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
-    const origin = typeof window !== 'undefined' ? window.location.origin.replace(/\/+$/, '') : '';
-    return `${origin}${normalizedPath}`;
+
+    return `${baseURL}${normalizedPath}`;
   };
 
   // Kiểm tra file có đúng định dạng được phép không
@@ -347,7 +355,7 @@ export default function StudentMilestones() {
           if (updatedItem?.attachments && updatedItem.attachments.length > 0) {
             const latestAttachment = updatedItem.attachments.sort((a, b) => new Date(b.createAt) - new Date(a.createAt))[0];
             if (latestAttachment?.path) {
-              fileUrl = getOriginFileUrl(latestAttachment.path);
+              fileUrl = getBackendFileUrl(latestAttachment.path);
             }
           }
         }
@@ -392,7 +400,7 @@ export default function StudentMilestones() {
 
   const downloadFile = async (attachment) => {
     try {
-      const fileUrl = getOriginFileUrl(attachment.path);
+      const fileUrl = getBackendFileUrl(attachment.path);
       const response = await fetch(fileUrl);
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -467,7 +475,7 @@ export default function StudentMilestones() {
     const filePath = attachment.path;
     const fileName = filePath.split('/').pop().toLowerCase();
     const extension = fileName.split('.').pop();
-    const baseUrl = getOriginFileUrl(filePath);
+    const baseUrl = getBackendFileUrl(filePath);
     
     let previewUrl = baseUrl;
     
