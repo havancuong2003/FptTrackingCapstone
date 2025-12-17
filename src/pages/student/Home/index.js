@@ -1200,7 +1200,7 @@ export default function StudentHome() {
         userInfo.groups[0],
         deliveryItemId,
         selectedFile,
-        groupInfo.semesterId
+        groupInfo?.semesterName
       );
       
       // Reload milestones after successful upload
