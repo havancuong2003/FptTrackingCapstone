@@ -1242,19 +1242,37 @@ export default function SupervisorMeetingManagement() {
           <Button
             onClick={handleOpenAIModal}
             style={{
-              background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'linear-gradient(135deg, #a855f7, #6366f1)',
               color: 'white',
               border: 'none',
-              padding: '10px 20px',
+              padding: '12px 22px',
               borderRadius: '999px',
               fontSize: '14px',
               fontWeight: '600',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
-              boxShadow: '0 10px 25px rgba(15, 23, 42, 0.25)',
+              boxShadow: '0 18px 45px rgba(15, 23, 42, 0.45)',
+              letterSpacing: '0.02em',
             }}
           >
-            Ask AI
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 20,
+                height: 20,
+                borderRadius: '999px',
+                backgroundColor: 'rgba(255,255,255,0.16)',
+                fontSize: 14,
+              }}
+            >
+              ✨
+            </span>
+            <span>Ask AI</span>
           </Button>
         </div>
       )}
@@ -2107,17 +2125,21 @@ export default function SupervisorMeetingManagement() {
         onClose={handleCloseAIModal}
       >
         <div style={{
-          padding: '32px',
+          padding: '24px 28px 20px 28px',
           minWidth: '900px',
           maxWidth: '1200px',
           width: '90vw',
           maxHeight: '90vh',
-          overflow: 'auto'
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px'
         }}>
-          <h2 style={{ margin: '0 0 24px 0', fontSize: '24px', fontWeight: '600', color: '#1f2937' }}>
+          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '600', color: '#1f2937' }}>
             Ask AI Assistant
           </h2>
           
+          {/* Nội dung cuộn được */}
+          <div style={{ flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#374151' }}>
               Enter your question or prompt <span style={{ color: '#dc2626' }}>*</span>
@@ -2206,7 +2228,7 @@ export default function SupervisorMeetingManagement() {
           {aiHistory.length > 0 && (
             <div style={{
               marginTop: '8px',
-              marginBottom: '20px',
+              marginBottom: '4px',
               paddingTop: '12px',
               borderTop: '1px solid #e5e7eb'
             }}>
@@ -2281,8 +2303,18 @@ export default function SupervisorMeetingManagement() {
               </div>
             </div>
           )}
+          </div>
 
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+          {/* Footer cố định với nút Close + Ask AI */}
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end',
+            borderTop: '1px solid #e5e7eb',
+            paddingTop: '12px',
+            marginTop: '4px',
+            backgroundColor: 'white'
+          }}>
             <Button
               variant="secondary"
               onClick={handleCloseAIModal}
@@ -2295,8 +2327,12 @@ export default function SupervisorMeetingManagement() {
               disabled={aiLoading || aiPolling || !aiPrompt.trim()}
               loading={aiLoading || aiPolling}
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
                 backgroundColor: '#8b5cf6',
-                color: 'white'
+                color: 'white',
+                paddingInline: 18
               }}
             >
               {aiPolling ? 'Processing...' : 'Ask AI'}
