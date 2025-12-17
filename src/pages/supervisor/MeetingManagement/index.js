@@ -71,6 +71,7 @@ export default function SupervisorMeetingManagement() {
   const [aiError, setAiError] = React.useState('');
   const pollingTimeoutRef = React.useRef(null);
   const isPollingActiveRef = React.useRef(false);
+  const [aiHistory, setAiHistory] = React.useState([]); // [{id, prompt, result, createdAt}]
 
   React.useEffect(() => {
     fetchUserInfo();
@@ -1051,7 +1052,18 @@ export default function SupervisorMeetingManagement() {
         if (response.status === 200 && response.data) {
           // Check if result is ready
           if (response.data.status === 'completed' || response.data.result) {
-            setAiResult(response.data.result || response.data);
+            const finalResult = response.data.result || response.data;
+            setAiResult(finalResult);
+            // Lưu vào lịch sử tạm trong session
+            setAiHistory(prev => [
+              {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                prompt: aiPrompt,
+                result: finalResult,
+                createdAt: new Date().toISOString(),
+              },
+              ...prev,
+            ]);
             isPollingActiveRef.current = false;
             setAiPolling(false);
           } else if (response.data.status === 'processing' || response.data.status === 'pending') {
@@ -1063,7 +1075,17 @@ export default function SupervisorMeetingManagement() {
             setAiError(response.data.message || 'AI processing failed');
           } else {
             // Assume completed if result exists
-            setAiResult(response.data.result || response.data);
+            const finalResult = response.data.result || response.data;
+            setAiResult(finalResult);
+            setAiHistory(prev => [
+              {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                prompt: aiPrompt,
+                result: finalResult,
+                createdAt: new Date().toISOString(),
+              },
+              ...prev,
+            ]);
             isPollingActiveRef.current = false;
             setAiPolling(false);
           }
@@ -2164,6 +2186,86 @@ export default function SupervisorMeetingManagement() {
                 wordBreak: 'break-word'
               }}>
                 {typeof aiResult === 'string' ? aiResult : JSON.stringify(aiResult, null, 2)}
+              </div>
+            </div>
+          )}
+
+          {/* Lịch sử tạm của các câu hỏi/kết quả trong phiên hiện tại */}
+          {aiHistory.length > 0 && (
+            <div style={{
+              marginTop: '8px',
+              marginBottom: '20px',
+              paddingTop: '12px',
+              borderTop: '1px solid #e5e7eb'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '600', color: '#374151' }}>
+                  Recent AI conversations (this session)
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setAiHistory([])}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: '#6b7280',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+              <div style={{
+                maxHeight: '220px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}>
+                {aiHistory.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      padding: '8px 10px',
+                      backgroundColor: '#f9fafb'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#4b5563' }}>
+                        Prompt
+                      </span>
+                      <span style={{ fontSize: '11px', color: '#9ca3af' }}>
+                        {new Date(item.createdAt).toLocaleString('vi-VN')}
+                      </span>
+                    </div>
+                    <div style={{
+                      fontSize: '13px',
+                      color: '#111827',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      marginBottom: '6px'
+                    }}>
+                      {item.prompt}
+                    </div>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#059669', marginBottom: '2px' }}>
+                      Response
+                    </div>
+                    <div style={{
+                      fontSize: '13px',
+                      color: '#374151',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word'
+                    }}>
+                      {typeof item.result === 'string'
+                        ? item.result
+                        : JSON.stringify(item.result, null, 2)}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
