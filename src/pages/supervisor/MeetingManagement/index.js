@@ -1226,26 +1226,38 @@ export default function SupervisorMeetingManagement() {
               </div>
             )}
           </div>
-          {selectedGroupId && (
-            <Button
-              onClick={handleOpenAIModal}
-              style={{
-                backgroundColor: '#8b5cf6',
-                color: 'white',
-                border: 'none',
-                padding: '10px 20px',
-                borderRadius: '6px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              Ask AI
-            </Button>
-          )}
         </div>
       </div>
+
+      {/* Nút Ask AI cố định, không trôi khi scroll */}
+      {selectedGroupId && (
+        <div
+          style={{
+            position: 'fixed',
+            right: 32,
+            bottom: 32,
+            zIndex: 1100,
+          }}
+        >
+          <Button
+            onClick={handleOpenAIModal}
+            style={{
+              background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
+              color: 'white',
+              border: 'none',
+              padding: '10px 20px',
+              borderRadius: '999px',
+              fontSize: '14px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 10px 25px rgba(15, 23, 42, 0.25)',
+            }}
+          >
+            Ask AI
+          </Button>
+        </div>
+      )}
 
       <SupervisorGroupFilter
         semesters={semesters}
