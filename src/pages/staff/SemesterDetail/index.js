@@ -43,8 +43,8 @@ const SemesterDetail = () => {
         setSemester(semesterData);
         setEditData({
           name: semesterData.name,
-          startAt: semesterData.startAt.split('T')[0],
-          endAt: semesterData.endAt.split('T')[0],
+          // startAt: semesterData.startAt.split('T')[0],
+          // endAt: semesterData.endAt.split('T')[0],
           description: semesterData.description || '',
           isActive: Boolean(semesterData.isActive)
         });
@@ -90,8 +90,8 @@ const SemesterDetail = () => {
     try {
       const formattedData = {
         ...editData,
-        startAt: new Date(editData.startAt).toISOString().split('T')[0],
-        endAt: new Date(editData.endAt).toISOString().split('T')[0],
+        // startAt: new Date(editData.startAt).toISOString().split('T')[0],
+        // endAt: new Date(editData.endAt).toISOString().split('T')[0],
         isActive: Boolean(editData.isActive)
       };
 
