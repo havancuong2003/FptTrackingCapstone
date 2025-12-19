@@ -139,13 +139,23 @@ export default function SupervisorCalendar() {
           const formattedSlots = slots.map(slot => {
             // Parse time from "7:30 AM" or "1:00 PM" format
             const parseTime = (timeStr) => {
-              const time = timeStr.trim();
-              const isPM = time.toUpperCase().includes('PM');
-              const timePart = time.replace(/[AP]M/gi, '').trim();
+              const time = timeStr.trim().toUpperCase();
+            
+              // Nếu là format 24h (HH:mm)
+              if (!time.includes('AM') && !time.includes('PM')) {
+                const [h, m] = time.split(':').map(Number);
+                return h + m / 60;
+              }
+            
+              // Format 12h (AM/PM)
+              const isPM = time.includes('PM');
+              const timePart = time.replace(/AM|PM/g, '').trim();
               const [hours, minutes] = timePart.split(':').map(Number);
+            
               let hour24 = hours;
-              if (isPM && hours !== 12) hour24 = hours + 12;
+              if (isPM && hours !== 12) hour24 += 12;
               if (!isPM && hours === 12) hour24 = 0;
+            
               return hour24 + (minutes || 0) / 60;
             };
             

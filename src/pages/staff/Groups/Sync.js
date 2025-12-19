@@ -453,11 +453,11 @@ export default function SyncGroup() {
       {/* Major Categories Info */}
       {dataLoaded && !loading && (
         <div className={styles.majorCategoriesSection}>
-          <h2>Major Categories Information</h2>
+          <h2>Capstone Subject Code Information</h2>
           
           {/* New Major Categories */}
           <div className={styles.majorCategoryBox}>
-            <h3>New Major Categories ({majorCategories.notExistYet?.length || 0})</h3>
+            <h3>New Capstone Subject Code ({majorCategories.notExistYet?.length || 0})</h3>
             {majorCategories.notExistYet?.length > 0 ? (
               <div className={styles.majorList}>
                 {majorCategories.notExistYet.map((major, index) => (
@@ -468,14 +468,14 @@ export default function SyncGroup() {
               </div>
             ) : (
               <div className={styles.emptyStateBox}>
-                <p>No new major categories</p>
+                <p>No new capstone subject code</p>
               </div>
             )}
           </div>
           
           {/* Existing Major Categories */}
           <div className={styles.majorCategoryBox}>
-            <h3>Existing Major Categories ({majorCategories.alreadyExist?.length || 0})</h3>
+            <h3>Existing Capstone Subject Code ({majorCategories.alreadyExist?.length || 0})</h3>
             {majorCategories.alreadyExist?.length > 0 ? (
               <div className={styles.majorList}>
                 {majorCategories.alreadyExist.map((major, index) => (
@@ -486,7 +486,7 @@ export default function SyncGroup() {
               </div>
             ) : (
               <div className={styles.emptyStateBox}>
-                <p>No existing major categories</p>
+                <p>No existing capstone subject code</p>
               </div>
             )}
           </div>
