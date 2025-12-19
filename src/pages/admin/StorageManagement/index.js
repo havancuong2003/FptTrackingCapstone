@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+// src/pages/admin/StorageManagement/index.js (FULL - Archive File Name is read-only)
+import React, { useEffect, useState } from 'react';
 import styles from './index.module.scss';
-import { 
-  getStorageSemesters, 
-  getSemesterGroups, 
-  zipFolder, 
-  unzipArchive,
-  getGroupSizeDetail
+import {
+  getStorageSemesters,
+  getSemesterGroups,
+  zipFolder,
+  restoreGroupArchive
 } from '../../../api/storage';
 import Button from '../../../components/Button/Button';
 import DataTable from '../../../components/DataTable/DataTable';
@@ -15,22 +15,28 @@ import axiosClient from '../../../utils/axiosClient';
 export default function StorageManagement() {
   const [loading, setLoading] = useState(false);
   const [semesters, setSemesters] = useState([]);
+
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedSemester, setSelectedSemester] = useState(null);
+
   const [groups, setGroups] = useState([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
   const [pagination, setPagination] = useState({
     pageNumber: 1,
     pageSize: 10,
     totalPages: 1,
-    totalCount: 0
+    totalCount: 0,
+    hasPreviousPage: false,
+    hasNextPage: false
   });
-  const [groupDetailModalOpen, setGroupDetailModalOpen] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState(null);
-  const [groupDetail, setGroupDetail] = useState(null);
-  const [loadingGroupDetail, setLoadingGroupDetail] = useState(false);
 
-  // Load semesters list
+  // Restore modal (restore per group)
+  const [restoreModalOpen, setRestoreModalOpen] = useState(false);
+  const [restoreTargetGroup, setRestoreTargetGroup] = useState(null);
+
+  // Only deleteArchiveAfter remains editable
+  const [deleteArchiveAfter, setDeleteArchiveAfter] = useState(true);
+
   useEffect(() => {
     loadSemesters();
   }, []);
@@ -38,295 +44,231 @@ export default function StorageManagement() {
   const loadSemesters = async () => {
     setLoading(true);
     try {
-      const response = await getStorageSemesters();
-      if (response?.status === 200 && Array.isArray(response.data)) {
-        setSemesters(response.data);
-      } else if (Array.isArray(response)) {
-        setSemesters(response);
+      const res = await getStorageSemesters();
+      if (res?.status === 200 && Array.isArray(res.data)) {
+        setSemesters(res.data);
+      } else {
+        setSemesters([]);
+        alert(res?.message || 'Unable to load semesters.');
       }
     } catch (error) {
-      alert('Unable to load semesters list');
+      alert(error?.response?.data?.message || 'Unable to load semesters.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Load groups for selected semester
   const loadSemesterGroups = async (semesterName, pageNumber = 1) => {
     setLoadingGroups(true);
     try {
-      const response = await getSemesterGroups(semesterName, pageNumber, pagination.pageSize);
-      if (response?.status === 200 && response.data) {
-        const data = response.data;
+      const res = await getSemesterGroups(semesterName, pageNumber, pagination.pageSize);
+      if (res?.status === 200 && res.data) {
+        const data = res.data;
         setGroups(data.items || []);
         setPagination({
           pageNumber: data.pageNumber || pageNumber,
           pageSize: data.pageSize || pagination.pageSize,
           totalPages: data.totalPages || 1,
           totalCount: data.totalCount || 0,
-          hasPreviousPage: data.hasPreviousPage || false,
-          hasNextPage: data.hasNextPage || false
+          hasPreviousPage: !!data.hasPreviousPage,
+          hasNextPage: !!data.hasNextPage
         });
+      } else {
+        setGroups([]);
+        alert(res?.message || 'Unable to load groups.');
       }
     } catch (error) {
-      alert('Unable to load groups list');
       setGroups([]);
+      alert(error?.response?.data?.message || 'Unable to load groups.');
     } finally {
       setLoadingGroups(false);
     }
   };
 
-  // Handle semester detail click
   const handleSemesterClick = (semester) => {
     setSelectedSemester(semester);
     setDetailModalOpen(true);
     loadSemesterGroups(semester.name, 1);
   };
 
-  // Handle zip folder
-  const handleZip = async (semesterName) => {
-    if (!confirm(`Are you sure you want to zip folder: ${semesterName}?`)) {
-      return;
-    }
+  const handleZipSemester = async (semesterName) => {
+    if (!window.confirm(`Zip remaining items in semester "${semesterName}"?`)) return;
 
     try {
       setLoading(true);
-      const response = await zipFolder(semesterName);
-      if (response?.status === 200) {
-        alert('Folder zipped successfully!');
-        loadSemesters(); // Refresh list
+      const res = await zipFolder(semesterName);
+      if (res?.status === 200) {
+        alert(res?.message || 'Zip completed.');
+        await loadSemesters();
+        if (selectedSemester?.name === semesterName) {
+          await loadSemesterGroups(semesterName, pagination.pageNumber || 1);
+        }
       } else {
-        alert(response?.message || 'Failed to zip folder');
+        alert(res?.message || 'Zip failed.');
       }
     } catch (error) {
-      alert(error.response?.data?.message || 'Failed to zip folder');
+      alert(error?.response?.data?.message || 'Zip failed.');
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle unzip archive
-  const handleUnzip = async (semesterName) => {
-    if (!confirm(`Are you sure you want to unzip: ${semesterName}?`)) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      // Assuming archive file name is semesterName.zip
-      const archiveFileName = `${semesterName}.zip`;
-      const response = await unzipArchive(archiveFileName, true);
-      if (response?.status === 200) {
-        alert('Archive unzipped successfully!');
-        loadSemesters(); // Refresh list
-      } else {
-        alert(response?.message || 'Failed to unzip archive');
-      }
-    } catch (error) {
-      alert(error.response?.data?.message || 'Failed to unzip archive');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle PDF view - open in new tab
   const handleViewPdf = (pdfFilePath) => {
     if (!pdfFilePath) {
-      alert('PDF file not available');
+      alert('PDF is not available.');
       return;
     }
 
-    // Construct full URL for PDF
-    // pdfFilePath from API is like: /uploads/Fall2025/Group11/Fall2025_Group11.pdf
-    // PDF files are served directly, not through /api/v1 endpoint
     let pdfUrl;
-    
     if (pdfFilePath.startsWith('http://') || pdfFilePath.startsWith('https://')) {
       pdfUrl = pdfFilePath;
     } else {
-      // Get base URL from axiosClient (e.g., https://160.30.21.113:5000/api/v1)
       const apiBaseUrl = axiosClient.defaults.baseURL || '';
-      
-      // Remove /api/v1 from base URL to get server root
-      // If baseUrl is like "https://domain.com/api/v1", we want "https://domain.com"
       let serverBaseUrl;
+
       if (apiBaseUrl.includes('/api/v1')) {
         serverBaseUrl = apiBaseUrl.replace(/\/api\/v1\/?$/, '');
       } else if (apiBaseUrl) {
-        // If baseURL doesn't have /api/v1, use it as is
         serverBaseUrl = apiBaseUrl.replace(/\/+$/, '');
       } else {
-        // Fallback: use current origin
         serverBaseUrl = window.location.origin;
       }
-      
-      // Ensure pdfFilePath starts with /
+
       const cleanPath = pdfFilePath.startsWith('/') ? pdfFilePath : `/${pdfFilePath}`;
       pdfUrl = `${serverBaseUrl}${cleanPath}`;
     }
 
-    // Open PDF in new tab
     window.open(pdfUrl, '_blank', 'noopener,noreferrer');
   };
 
-  // Handle group detail view
-  const handleViewGroupDetail = async (group) => {
-    if (!group || !selectedSemester) {
-      return;
-    }
+  // ✅ Read-only archive file name convention:
+  // If your backend uses a different naming, change here only.
+  const getArchiveFileNameForGroup = (group) => `${group.groupName}.zip`;
 
-    setSelectedGroup(group);
-    setGroupDetailModalOpen(true);
-    setLoadingGroupDetail(true);
-    setGroupDetail(null);
+  const openRestoreModalForGroup = (group) => {
+    if (!selectedSemester?.name) return;
+    setRestoreTargetGroup(group);
+    setDeleteArchiveAfter(true);
+    setRestoreModalOpen(true);
+  };
+
+  const submitRestoreGroup = async () => {
+    const parentFolder = selectedSemester?.name;
+    const groupName = restoreTargetGroup?.groupName;
+
+    if (!parentFolder || !groupName) return;
+
+    const archiveFileName = getArchiveFileNameForGroup(restoreTargetGroup);
+
+    if (!window.confirm(`Restore group "${groupName}" from "${archiveFileName}"?`)) return;
 
     try {
-      const response = await getGroupSizeDetail(selectedSemester.name, group.groupName);
-      if (response?.status === 200 && response.data) {
-        setGroupDetail(response.data);
-      } else if (response?.data) {
-        setGroupDetail(response.data);
+      setLoading(true);
+      const res = await restoreGroupArchive(parentFolder, archiveFileName, deleteArchiveAfter);
+
+      if (res?.status === 200) {
+        alert(res?.message || 'Restore completed.');
+        setRestoreModalOpen(false);
+
+        await loadSemesters();
+        await loadSemesterGroups(parentFolder, pagination.pageNumber || 1);
       } else {
-        alert(response?.message || 'Unable to load group details');
+        alert(res?.message || 'Restore failed.');
       }
     } catch (error) {
-      alert(error.response?.data?.message || 'Unable to load group details');
+      alert(error?.response?.data?.message || 'Restore failed.');
     } finally {
-      setLoadingGroupDetail(false);
+      setLoading(false);
     }
   };
 
-  // Semester columns
   const semesterColumns = [
     {
       key: 'name',
-      title: 'Semester Name',
-      render: (semester) => (
-        <button
-          className={styles.semesterLink}
-          onClick={() => handleSemesterClick(semester)}
-          title="Click to view groups"
-        >
-          {semester.name}
+      title: 'Semester',
+      render: (s) => (
+        <button className={styles.semesterLink} onClick={() => handleSemesterClick(s)} title="Click to view groups">
+          {s.name}
         </button>
       )
     },
     {
-      key: 'hasFolder',
-      title: 'Has Folder',
-      render: (semester) => (
-        <span className={semester.hasFolder ? styles.statusYes : styles.statusNo}>
-          {semester.hasFolder ? 'Yes' : 'No'}
-        </span>
+      key: 'zipFolder',
+      title: 'Zip Progress',
+      render: (s) => (
+        <div>
+          <div><strong>{s.zipFolder || '-'}</strong></div>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>
+            {(s.zippedSubFolders ?? 0)}/{(s.totalSubFolders ?? 0)} subfolders
+          </div>
+        </div>
       )
     },
     {
-      key: 'folderSizeFormatted',
-      title: 'Folder Size',
-      render: (semester) => semester.folderSizeFormatted || '0 B'
+      key: 'zipPercentage',
+      title: 'Zip %',
+      render: (s) => {
+        const pct = Math.max(0, Math.min(100, Number(s.zipPercentage || 0)));
+        return (
+          <div>
+            <div><strong>{s.zipPercentageFormatted ?? `${pct}%`}</strong></div>
+            <div style={{ height: 6, background: '#eee', borderRadius: 999, overflow: 'hidden', marginTop: 6 }}>
+              <div style={{ height: '100%', width: `${pct}%`, background: '#3b82f6' }} />
+            </div>
+          </div>
+        );
+      }
     },
-    {
-      key: 'hasZipFile',
-      title: 'Has Zip',
-      render: (semester) => (
-        <span className={semester.hasZipFile ? styles.statusYes : styles.statusNo}>
-          {semester.hasZipFile ? 'Yes' : 'No'}
-        </span>
-      )
-    },
-    {
-      key: 'zipSizeFormatted',
-      title: 'Zip Size',
-      render: (semester) => semester.zipSizeFormatted || '0 B'
-    },
-    {
-      key: 'totalSizeFormatted',
-      title: 'Total Size',
-      render: (semester) => (
-        <strong>{semester.totalSizeFormatted || '0 B'}</strong>
-      )
-    },
+    { key: 'folderSizeFormatted', title: 'Folder Size', render: (s) => s.folderSizeFormatted || '0 B' },
+    { key: 'zipSizeFormatted', title: 'Zip Size', render: (s) => s.zipSizeFormatted || '0 B' },
     {
       key: 'actions',
       title: 'Actions',
-      render: (semester) => (
-        <div className={styles.actionButtons}>
-          {semester.hasFolder && !semester.hasZipFile && (
+      render: (s) => {
+        const canZip = Number(s.zipPercentage || 0) < 100;
+        return (
+          <div className={styles.actionButtons}>
             <Button
               variant="primary"
               size="small"
+              disabled={!canZip || loading}
               onClick={(e) => {
                 e.stopPropagation();
-                handleZip(semester.name);
+                handleZipSemester(s.name);
               }}
             >
               Zip
             </Button>
-          )}
-          {semester.hasZipFile && (
-            <Button
-              variant="secondary"
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleUnzip(semester.name);
-              }}
-            >
-              Unzip
-            </Button>
-          )}
-        </div>
-      )
+          </div>
+        );
+      }
     }
   ];
 
-  // Group columns for detail modal
   const groupColumns = [
+    { key: 'groupName', title: 'Group', render: (g) => <strong>{g.groupName}</strong> },
     {
-      key: 'groupName',
-      title: 'Group Name',
-      render: (group) => <strong>{group.groupName}</strong>
+      key: 'hasZip',
+      title: 'Zipped',
+      render: (g) => (
+        <span className={g.hasZip ? styles.statusYes : styles.statusNo}>{g.hasZip ? 'Yes' : 'No'}</span>
+      )
     },
-    {
-      key: 'sizeFormatted',
-      title: 'Size',
-      render: (group) => group.sizeFormatted || '0 B'
-    },
-    {
-      key: 'fileCount',
-      title: 'Files',
-      render: (group) => group.fileCount || 0
-    },
-    {
-      key: 'subFolderCount',
-      title: 'Subfolders',
-      render: (group) => group.subFolderCount || 0
-    },
+    { key: 'sizeFormatted', title: 'Size', render: (g) => g.sizeFormatted || '0 B' },
+    { key: 'fileCount', title: 'Files', render: (g) => g.fileCount || 0 },
+    { key: 'subFolderCount', title: 'Subfolders', render: (g) => g.subFolderCount || 0 },
     {
       key: 'lastModified',
       title: 'Last Modified',
-      render: (group) => {
-        if (!group.lastModified) return 'N/A';
-        try {
-          return new Date(group.lastModified).toLocaleString('vi-VN');
-        } catch {
-          return group.lastModified;
-        }
-      }
+      render: (g) => (g.lastModified ? new Date(g.lastModified).toLocaleString('en-US') : 'N/A')
     },
     {
       key: 'pdf',
       title: 'PDF',
-      render: (group) => {
-        if (!group.pdfFilePath) {
-          return <span className={styles.noPdf}>No PDF</span>;
-        }
+      render: (g) => {
+        if (!g.pdfFilePath) return <span className={styles.noPdf}>No PDF</span>;
         return (
-          <Button
-            variant="ghost"
-            size="small"
-            onClick={() => handleViewPdf(group.pdfFilePath)}
-          >
+          <Button variant="ghost" size="small" onClick={() => handleViewPdf(g.pdfFilePath)}>
             View PDF
           </Button>
         );
@@ -335,19 +277,23 @@ export default function StorageManagement() {
     {
       key: 'actions',
       title: 'Actions',
-      render: (group) => (
+      render: (g) => (
         <div className={styles.actionButtons}>
           <Button
-            variant="primary"
+            variant="secondary"
             size="small"
-            onClick={() => handleViewGroupDetail(group)}
+            disabled={!g.hasZip || loading}
+            onClick={() => openRestoreModalForGroup(g)}
+            title={g.hasZip ? 'Restore this group from its zip archive' : 'No archive to restore'}
           >
-            View Detail
+            Restore
           </Button>
         </div>
       )
     }
   ];
+
+  const archiveFileNamePreview = restoreTargetGroup ? getArchiveFileNameForGroup(restoreTargetGroup) : '—';
 
   return (
     <div className={styles.container}>
@@ -368,11 +314,11 @@ export default function StorageManagement() {
         />
       </div>
 
-      {/* Detail Modal - Groups in Semester */}
+      {/* Groups modal */}
       <Modal open={detailModalOpen} onClose={() => setDetailModalOpen(false)}>
         <div className={styles.detailModal}>
           <h2>Groups in {selectedSemester?.name}</h2>
-          
+
           <DataTable
             columns={groupColumns}
             data={groups}
@@ -381,7 +327,6 @@ export default function StorageManagement() {
             showIndex={true}
           />
 
-          {/* Pagination */}
           {pagination.totalPages > 1 && (
             <div className={styles.pagination}>
               <Button
@@ -392,10 +337,11 @@ export default function StorageManagement() {
               >
                 Previous
               </Button>
+
               <span className={styles.pageInfo}>
-                Page {pagination.pageNumber} of {pagination.totalPages} 
-                ({pagination.totalCount} total)
+                Page {pagination.pageNumber} of {pagination.totalPages} ({pagination.totalCount} total)
               </span>
+
               <Button
                 variant="secondary"
                 size="small"
@@ -415,39 +361,46 @@ export default function StorageManagement() {
         </div>
       </Modal>
 
-      {/* Group Detail Modal */}
-      <Modal open={groupDetailModalOpen} onClose={() => setGroupDetailModalOpen(false)}>
+      {/* Restore modal */}
+      <Modal open={restoreModalOpen} onClose={() => setRestoreModalOpen(false)}>
         <div className={styles.groupDetailModal}>
-          <h2>Group Details: {selectedGroup?.groupName}</h2>
-          
-          {loadingGroupDetail ? (
-            <div className={styles.loading}>Loading...</div>
-          ) : groupDetail ? (
-            <div className={styles.groupDetailContent}>
-              <div className={styles.detailRow}>
-                <span className={styles.detailLabel}>Semester:</span>
-                <span className={styles.detailValue}>{groupDetail.semesterName}</span>
-              </div>
-              <div className={styles.detailRow}>
-                <span className={styles.detailLabel}>Group Name:</span>
-                <span className={styles.detailValue}>{groupDetail.groupName}</span>
-              </div>
-              <div className={styles.detailRow}>
-                <span className={styles.detailLabel}>Size (Bytes):</span>
-                <span className={styles.detailValue}>{groupDetail.sizeBytes?.toLocaleString('vi-VN') || 'N/A'}</span>
-              </div>
-              <div className={styles.detailRow}>
-                <span className={styles.detailLabel}>Size (Formatted):</span>
-                <span className={styles.detailValue}><strong>{groupDetail.sizeFormatted || 'N/A'}</strong></span>
-              </div>
+          <h2>Restore Group: {restoreTargetGroup?.groupName}</h2>
+
+          <div className={styles.groupDetailContent}>
+            <div className={styles.detailRow}>
+              <span className={styles.detailLabel}>Parent Folder:</span>
+              <span className={styles.detailValue}>{selectedSemester?.name || '—'}</span>
             </div>
-          ) : (
-            <div className={styles.error}>No data available</div>
-          )}
+
+            <div className={styles.detailRow}>
+              <span className={styles.detailLabel}>Archive File Name:</span>
+              {/* ✅ Read-only text */}
+              <span className={styles.detailValue}>
+                <strong>{archiveFileNamePreview}</strong>
+              </span>
+            </div>
+
+            <div className={styles.detailRow}>
+              <span className={styles.detailLabel}>Delete Archive After Restore:</span>
+              <span className={styles.detailValue}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={deleteArchiveAfter}
+                    onChange={(e) => setDeleteArchiveAfter(e.target.checked)}
+                  />
+                  Yes
+                </label>
+              </span>
+            </div>
+          </div>
 
           <div className={styles.modalActions}>
-            <Button variant="secondary" onClick={() => setGroupDetailModalOpen(false)}>
-              Close
+            <Button variant="secondary" onClick={() => setRestoreModalOpen(false)} disabled={loading}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={submitRestoreGroup} disabled={loading}>
+              Restore
             </Button>
           </div>
         </div>
@@ -455,4 +408,3 @@ export default function StorageManagement() {
     </div>
   );
 }
-
