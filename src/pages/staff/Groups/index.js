@@ -29,7 +29,8 @@ export default function StaffGroups() {
 
   const currentSemesterId = getCurrentSemesterFromStorage();
   const [filters, setFilters] = React.useState({
-    term: currentSemesterId ? String(currentSemesterId) : 'all',
+    term: 'all',
+    //term: currentSemesterId ? String(currentSemesterId) : 'all',
     courseCode: 'all',
     search: '',
   });

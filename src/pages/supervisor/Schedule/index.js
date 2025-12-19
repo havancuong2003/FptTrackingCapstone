@@ -58,6 +58,7 @@ export default function SupervisorSchedule() {
     slotId: '',
     meetingLink: ''
   });
+
   
   // State for sending reminder email
   const [sendingReminder, setSendingReminder] = React.useState(false);
@@ -194,7 +195,7 @@ export default function SupervisorSchedule() {
       // Check if meeting schedule exists
       try {
         const scheduleResponse = await getMeetingScheduleByGroupId(groupId);
-        if (scheduleResponse.status === 200 && scheduleResponse.data.isActive) {
+        if (scheduleResponse.status === 200 ) {
           setMeetingSchedule(scheduleResponse.data);
           setIsFinalized(scheduleResponse.data.isActive);  
         }

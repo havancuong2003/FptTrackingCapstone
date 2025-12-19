@@ -17,7 +17,7 @@ export default function SupervisorGroupFilter({
   onGroupChange,
   groupSelectPlaceholder = 'Select group',
   loading = false,
-  hideGroupSelect = false
+  hideGroupSelect = false,
 }) {
   return (
     <div className={styles.filterContainer}>
@@ -28,7 +28,10 @@ export default function SupervisorGroupFilter({
             <Select
               value={selectedSemesterId?.toString() || ''}
               onChange={(e) => onSemesterChange(parseInt(e.target.value))}
-              options={semesters.map(s => ({ value: s.id.toString(), label: s.name }))}
+              options={semesters.map((s) => ({
+                value: s.id.toString(),
+                label: s.name,
+              }))}
               placeholder="Select Semester"
             />
           </div>
@@ -65,14 +68,21 @@ export default function SupervisorGroupFilter({
             <label className={styles.filterLabel}>Group:</label>
             <select
               value={selectedGroupId || ''}
-              onChange={(e) => onGroupChange(e.target.value)}
+              onChange={(e) => {
+                console.log('select value =', e.target.value); // xem có đổi thật không
+                onGroupChange(e.target.value);
+              }}
               className={styles.groupSelect}
               disabled={loading}
             >
               <option value="">{groupSelectPlaceholder}</option>
               {groups.map((group) => {
-                const groupId = typeof group === 'object' ? (group.id || group.groupId) : group;
-                const groupName = typeof group === 'object' ? (group.name || group.groupName || group.label) : group;
+                const groupId =
+                  typeof group === 'object' ? group.id || group.groupId : group;
+                const groupName =
+                  typeof group === 'object'
+                    ? group.name || group.groupName || group.label
+                    : group;
                 return (
                   <option key={groupId} value={groupId}>
                     {groupName}
@@ -86,4 +96,3 @@ export default function SupervisorGroupFilter({
     </div>
   );
 }
-
