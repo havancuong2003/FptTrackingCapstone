@@ -107,25 +107,27 @@ export default function StudentDocuments() {
     }
   };
 
-  const getUploadsBaseOrigin = () => {
+  const getUploadsBaseOrigin = async () => {
     try {
-      const base = client.defaults.baseURL || '';
+      const axiosClient = (await import('../../../utils/axiosClient')).default;
+      const base = axiosClient.defaults.baseURL || '';
       const u = new URL(base, window.location.origin);
       return u.origin;
     } catch {
-      return '';
+      return window.location.origin;
     }
   };
+  
 
   const handleDownload = async (row) => {
-    const origin = getUploadsBaseOrigin();
+    const origin = await getUploadsBaseOrigin();
     const url = `${origin}${row.path}`;
     try {
-      // Tải blob để buộc trình duyệt tải xuống thay vì mở xem
       const resp = await fetch(url, { credentials: 'include' });
       if (!resp.ok) throw new Error('Không thể tải file');
       const blob = await resp.blob();
       const blobUrl = window.URL.createObjectURL(blob);
+  
       const a = document.createElement('a');
       a.href = blobUrl;
       a.download = row.fileName || 'download';
@@ -133,8 +135,7 @@ export default function StudentDocuments() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(blobUrl);
-    } catch (e) {
-      // Fallback: mở link trực tiếp nếu blob thất bại
+    } catch {
       const a = document.createElement('a');
       a.href = url;
       a.download = row.fileName || 'download';
@@ -144,6 +145,7 @@ export default function StudentDocuments() {
       document.body.removeChild(a);
     }
   };
+  
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
