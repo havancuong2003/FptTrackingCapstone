@@ -289,7 +289,7 @@ export default function StudentMilestones() {
         userInfo.groups[0],
         deliveryItemId,
         fileToUpload,
-        groupInfo.semesterId
+        groupInfo?.semesterName
       );
       
       // Reload milestones after successful upload
