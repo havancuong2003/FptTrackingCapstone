@@ -5,79 +5,56 @@ import DataTable from '../../../components/DataTable/DataTable';
 import Modal from '../../../components/Modal/Modal';
 import Textarea from '../../../components/Textarea/Textarea';
 import { sendDocumentUploadEmail } from '../../../email/documents';
-import {
-  getUserInfo,
-  getUniqueSemesters,
-  getGroupsBySemesterAndStatus,
-  getCurrentSemesterId,
-  getCurrentSemesterName
-} from '../../../auth/auth';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId, getCurrentSemesterName } from '../../../auth/auth';
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
 import { getFilesByGroup, uploadGroupDocument, deleteGroupDocument } from '../../../api/upload';
 import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
 
 export default function SupervisorDocuments() {
   const [loading, setLoading] = React.useState(false);
-
+  const [userGroups, setUserGroups] = React.useState([]); // [number]
   const [groupOptions, setGroupOptions] = React.useState([]); // [{value,label}]
   const [selectedGroupId, setSelectedGroupId] = React.useState('');
   const [groupInfo, setGroupInfo] = React.useState(null);
   const [files, setFiles] = React.useState([]);
   const [message, setMessage] = React.useState('');
-
   const fileInputRef = React.useRef(null);
-
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
   const [semesters, setSemesters] = React.useState([]);
   const [selectedSemesterId, setSelectedSemesterId] = React.useState(getCurrentSemesterId());
-
+  const [selectedSemesterName, setSelectedSemesterName] = React.useState(getCurrentSemesterName());
   const [uploadModalOpen, setUploadModalOpen] = React.useState(false);
   const [uploadDescription, setUploadDescription] = React.useState('');
   const [selectedFile, setSelectedFile] = React.useState(null);
-
-  // Fix loading flicker for parallel requests
-  const pendingCountRef = React.useRef(0);
-  const beginLoading = () => {
-    pendingCountRef.current += 1;
-    setLoading(true);
-  };
-  const endLoading = () => {
-    pendingCountRef.current = Math.max(0, pendingCountRef.current - 1);
-    if (pendingCountRef.current === 0) setLoading(false);
-  };
-
-  // Avoid race condition when switching group quickly
-  const selectTokenRef = React.useRef(0);
-
-  // Derive semesterName from selectedSemesterId (upload API needs name)
-  const selectedSemesterName = React.useMemo(() => {
-    const sem = semesters.find(s => String(s.id) === String(selectedSemesterId));
-    return sem?.name || getCurrentSemesterName() || null;
-  }, [semesters, selectedSemesterId]);
-
   // Load semesters and set default to current semester
   React.useEffect(() => {
     function loadSemesters() {
       const uniqueSemesters = getUniqueSemesters();
       setSemesters(uniqueSemesters);
-
-      const currentId = getCurrentSemesterId();
-      if (currentId) {
-        const existsInList = uniqueSemesters.some(s => String(s.id) === String(currentId));
+      
+      // Luôn ưu tiên kì hiện tại khi lần đầu render
+      const currentSemesterId = getCurrentSemesterId();
+      const currentSemesterName = getCurrentSemesterName();
+      if (currentSemesterId) {
+        // Kiểm tra xem currentSemesterId có trong danh sách không
+        const existsInList = uniqueSemesters.some(s => s.id === currentSemesterId);
         if (existsInList) {
-          setSelectedSemesterId(currentId);
+          setSelectedSemesterId(currentSemesterId);
+          setSelectedSemesterName(currentSemesterName);
         } else if (uniqueSemesters.length > 0) {
+          // Nếu không có trong danh sách, fallback về semester đầu tiên
           setSelectedSemesterId(uniqueSemesters[0].id);
-        } else {
-          setSelectedSemesterId(null);
+          setSelectedSemesterName(uniqueSemesters[0].name);
         }
       } else if (uniqueSemesters.length > 0) {
+        // Nếu không có currentSemesterId, fallback về semester đầu tiên
         setSelectedSemesterId(uniqueSemesters[0].id);
+        setSelectedSemesterName(uniqueSemesters[0].name);
       } else {
+        setSelectedSemesterName(null);
         setSelectedSemesterId(null);
       }
     }
-
     loadSemesters();
     loadUserInfo();
   }, []);
@@ -85,18 +62,20 @@ export default function SupervisorDocuments() {
   React.useEffect(() => {
     if (selectedSemesterId === null) {
       setGroupOptions([]);
+      setUserGroups([]);
       return;
     }
-
+    
     loadGroups();
-
+    
     // Check if selected group is still in filtered list
     const isExpired = groupExpireFilter === 'expired';
     const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
-    const selectedGroupExists =
-      selectedGroupId && groupsFromStorage.some(g => g.id === Number(selectedGroupId));
-
+    
+    const selectedGroupExists = selectedGroupId && groupsFromStorage.some(g => g.id === Number(selectedGroupId));
+    
     if (selectedGroupId && !selectedGroupExists) {
+      // Selected group is not in filtered list, clear selection and data
       setSelectedGroupId('');
       setGroupInfo(null);
       setFiles([]);
@@ -104,16 +83,21 @@ export default function SupervisorDocuments() {
   }, [selectedSemesterId, groupExpireFilter]);
 
   const loadUserInfo = () => {
+    setLoading(true);
     setMessage('');
     try {
       // Get info from localStorage, don't call API
-      const user = getUserInfo();
-      if (!user) {
+      const userInfo = getUserInfo();
+      if (!userInfo) {
         setGroupOptions([]);
+        setUserGroups([]);
+        setLoading(false);
         return;
       }
     } catch (e) {
       setMessage('Could not get user information');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -121,81 +105,72 @@ export default function SupervisorDocuments() {
     try {
       if (selectedSemesterId === null) {
         setGroupOptions([]);
+        setUserGroups([]);
         return;
       }
-
+      
       // Get groups from selected semester based on expired status (no API call)
       const isExpired = groupExpireFilter === 'expired';
       const groupsFromStorage = getGroupsBySemesterAndStatus(selectedSemesterId, isExpired);
-
-      if (!Array.isArray(groupsFromStorage) || groupsFromStorage.length === 0) {
+      
+      if (groupsFromStorage.length === 0) {
         setGroupOptions([]);
+        setUserGroups([]);
         return;
       }
-
+      
       // Build options from localStorage only (no API call)
-      const options = groupsFromStorage.map(group => {
-        const gid = String(group.id);
-        const label = group.name || group.code || `Group #${gid}`;
+      const options = groupsFromStorage.map((groupInfo) => {
+        const gid = String(groupInfo.id);
+        const label = groupInfo.name || groupInfo.code || `Group #${gid}`;
         return { value: gid, label };
       });
-
+      
       setGroupOptions(options);
+      setUserGroups(groupsFromStorage.map(g => g.id));
     } catch (e) {
       setMessage('Could not get group information');
     }
   };
 
   const onSelectGroup = async (groupId) => {
-    const gidStr = groupId ? String(groupId) : '';
-    setSelectedGroupId(gidStr);
+    setSelectedGroupId(groupId);
     setGroupInfo(null);
     setFiles([]);
-
-    const token = ++selectTokenRef.current;
-    if (!gidStr) return;
-
-    const gid = Number(gidStr);
-    await Promise.all([loadGroupInfo(gid, token), loadFiles(gid, token)]);
+    if (!groupId) return;
+    
+    // Only call API when group is selected
+    await Promise.all([loadGroupInfo(groupId), loadFiles(groupId)]);
   };
 
-  const loadGroupInfo = async (groupId, token = selectTokenRef.current) => {
-    beginLoading();
+  const loadGroupInfo = async (groupId) => {
     try {
+      setLoading(true);
       const res = await getCapstoneGroupDetail(groupId);
-      if (selectTokenRef.current !== token) return;
-
       if (res?.status === 200) {
         setGroupInfo(res.data);
-
         // Update select label if needed for groupCode
-        setGroupOptions(prev =>
-          prev.map(o =>
-            o.value === String(groupId) && res.data?.groupCode
-              ? {
-                  value: o.value,
-                  label: `${res.data.groupCode} - ${res.data.projectName || ''}`.trim()
-                }
-              : o
-          )
-        );
+        setGroupOptions((prev) => {
+          const exists = prev.some((o) => o.value === String(groupId) && o.label.includes('SEP') );
+          if (exists) return prev;
+          return prev.map((o) => (o.value === String(groupId) && res.data?.groupCode
+            ? { value: o.value, label: `${res.data.groupCode} - ${res.data.projectName || ''}`.trim() }
+            : o));
+        });
       } else {
         setMessage(res?.message || 'Could not get group information');
       }
     } catch (e) {
-      if (selectTokenRef.current !== token) return;
       setMessage(e?.message || 'Could not get group information');
     } finally {
-      endLoading();
+      setLoading(false);
     }
   };
 
-  const loadFiles = async (groupId, token = selectTokenRef.current) => {
-    beginLoading();
+  const loadFiles = async (groupId) => {
     try {
+      setLoading(true);
       const res = await getFilesByGroup(groupId);
-      if (selectTokenRef.current !== token) return;
-
       if (res?.status === 200) {
         setFiles(res.data || []);
       } else {
@@ -203,11 +178,10 @@ export default function SupervisorDocuments() {
         setMessage(res?.message || 'Could not get document list');
       }
     } catch (e) {
-      if (selectTokenRef.current !== token) return;
       setFiles([]);
       setMessage(e?.message || 'Could not get document list');
     } finally {
-      endLoading();
+      setLoading(false);
     }
   };
 
@@ -251,18 +225,18 @@ export default function SupervisorDocuments() {
 
   const handleDelete = async (row) => {
     if (!window.confirm('Delete this document?')) return;
-    beginLoading();
     try {
+      setLoading(true);
       const res = await deleteGroupDocument(row.id);
       if (res?.status === 200) {
-        setFiles(prev => prev.filter(f => f.id !== row.id));
+        setFiles((prev) => prev.filter((f) => f.id !== row.id));
       } else {
         setMessage(res?.message || 'Delete failed');
       }
     } catch (e) {
       setMessage(e?.message || 'Delete failed');
     } finally {
-      endLoading();
+      setLoading(false);
     }
   };
 
@@ -274,12 +248,13 @@ export default function SupervisorDocuments() {
     setUploadModalOpen(true);
     setUploadDescription('');
     setSelectedFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
-    if (file) setSelectedFile(file);
+    if (file) {
+      setSelectedFile(file);
+    }
   };
 
   const handleUploadSubmit = async () => {
@@ -287,52 +262,47 @@ export default function SupervisorDocuments() {
       setMessage('Please select a file and ensure group and semester are selected');
       return;
     }
-
-    beginLoading();
+    
     try {
-      const gid = Number(selectedGroupId);
-      const res = await uploadGroupDocument(
-        gid,
-        selectedSemesterName,
-        uploadDescription || '',
-        selectedFile
-      );
-
+      setLoading(true);
+      const res = await uploadGroupDocument(selectedGroupId, selectedSemesterName, uploadDescription || '', selectedFile);
       if (res?.status === 200) {
         const uploadedFile = res.data; // File info from response
-
-        // Reload list (use current token to prevent stale overwrite)
-        await loadFiles(gid, selectTokenRef.current);
-
+        await loadFiles(selectedGroupId);
+        
         // Send email notification to students in group
         try {
           const currentUser = getUserInfo();
-          if (groupInfo && Array.isArray(groupInfo.students)) {
+          if (groupInfo && groupInfo.students && Array.isArray(groupInfo.students)) {
             const studentEmails = groupInfo.students
               .map(student => student.email)
-              .filter(Boolean);
-
+              .filter(email => email);
+            
             if (studentEmails.length > 0) {
+              // Build file download URL
               const origin = await getUploadsBaseOrigin();
               const fileUrl = uploadedFile?.path ? `${origin}${uploadedFile.path}` : null;
-
-              const systemUrl = `${window.location.origin}/student/documents?groupId=${gid}`;
-
+              
+              // Build system URL to documents page (student sẽ xem ở đâu?)
+              // Có thể là trang documents của student hoặc trang chung
+              const systemUrl = `${window.location.origin}/student/documents?groupId=${selectedGroupId}`;
+              
               await sendDocumentUploadEmail({
                 recipientEmails: studentEmails,
                 fileName: selectedFile.name,
                 supervisorName: currentUser?.name || 'Supervisor',
-                groupName: groupInfo.groupCode || `Group ${gid}`,
+                groupName: groupInfo.groupCode || `Group ${selectedGroupId}`,
                 message: '',
-                fileUrl,
-                systemUrl
+                fileUrl: fileUrl,
+                systemUrl: systemUrl
               });
             }
           }
-        } catch {
+        } catch (emailError) {
           // Don't block flow if email error
         }
-
+        
+        // Close modal and reset
         setUploadModalOpen(false);
         setUploadDescription('');
         setSelectedFile(null);
@@ -344,7 +314,7 @@ export default function SupervisorDocuments() {
     } catch (e1) {
       setMessage(e1?.message || 'Upload failed');
     } finally {
-      endLoading();
+      setLoading(false);
     }
   };
 
@@ -402,10 +372,7 @@ export default function SupervisorDocuments() {
       render: (row) => (
         <div style={{ display: 'flex', gap: 8 }}>
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDownload(row);
-            }}
+            onClick={(e) => { e.stopPropagation(); handleDownload(row); }}
             style={{
               background: '#2563EB',
               color: '#fff',
@@ -414,14 +381,9 @@ export default function SupervisorDocuments() {
               borderRadius: 6,
               cursor: 'pointer'
             }}
-          >
-            Download
-          </button>
+          >Download</button>
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(row);
-            }}
+            onClick={(e) => { e.stopPropagation(); handleDelete(row); }}
             style={{
               background: '#DC2626',
               color: '#fff',
@@ -430,12 +392,10 @@ export default function SupervisorDocuments() {
               borderRadius: 6,
               cursor: 'pointer'
             }}
-          >
-            Delete
-          </button>
-        </div>
+          >Delete</button>
+      </div>
       )
-    }
+  }
   ];
 
   return (
@@ -450,7 +410,6 @@ export default function SupervisorDocuments() {
         selectedSemesterId={selectedSemesterId}
         onSemesterChange={(newSemesterId) => {
           setSelectedSemesterId(newSemesterId);
-
           // Clear data when semester changes
           setSelectedGroupId('');
           setGroupInfo(null);
@@ -459,7 +418,6 @@ export default function SupervisorDocuments() {
         groupExpireFilter={groupExpireFilter}
         onGroupExpireFilterChange={(newFilter) => {
           setGroupExpireFilter(newFilter);
-
           // Clear data when filter changes
           setSelectedGroupId('');
           setGroupInfo(null);
@@ -473,12 +431,7 @@ export default function SupervisorDocuments() {
       />
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <input
-          ref={fileInputRef}
-          type="file"
-          onChange={handleFileSelect}
-          style={{ display: 'none' }}
-        />
+        <input ref={fileInputRef} type="file" onChange={handleFileSelect} style={{ display: 'none' }} />
         <button
           disabled={!selectedGroupId}
           onClick={handleUploadClick}
@@ -500,34 +453,24 @@ export default function SupervisorDocuments() {
           Upload
         </button>
       </div>
-
-      {message && <div className={styles.message}>{message}</div>}
+      
+      {message && (
+        <div className={styles.message}>{message}</div>
+      )}
 
       {!selectedGroupId && (
         <div className={sharedLayout.emptyState}>
           <div style={{ fontSize: 20, marginBottom: 8 }}>Please select a group</div>
-          <div style={{ opacity: 0.7 }}>
-            You will see group information and document list after selection.
-          </div>
+          <div style={{ opacity: 0.7 }}>You will see group information and document list after selection.</div>
         </div>
       )}
-
+      
       {selectedGroupId && groupInfo && (
         <div className={sharedLayout.contentSection}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: 12,
-              flexWrap: 'wrap'
-            }}
-          >
-            <h2 style={{ margin: 0 }}>
-              {groupInfo.groupCode} — {groupInfo.projectName}
-            </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0 }}>{groupInfo.groupCode} — {groupInfo.projectName}</h2>
             <button
-              onClick={() => loadFiles(Number(selectedGroupId), selectTokenRef.current)}
+              onClick={() => loadFiles(selectedGroupId)}
               style={{
                 background: '#0EA5E9',
                 color: '#fff',
@@ -536,46 +479,35 @@ export default function SupervisorDocuments() {
                 borderRadius: 6,
                 cursor: 'pointer'
               }}
-            >
-              Refresh
-            </button>
+            >Refresh</button>
           </div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
-            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>
-              Number of Students:{' '}
-              <b>{Array.isArray(groupInfo.students) ? groupInfo.students.length : 0}</b>
-            </div>
-            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>
-              Supervisors: <b>{(groupInfo.supervisors || []).join(', ')}</b>
-            </div>
+            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Number of Students: <b>{Array.isArray(groupInfo.students) ? groupInfo.students.length : 0}</b></div>
+            <div style={{ padding: '6px 10px', background: '#F1F5F9', borderRadius: 8 }}>Supervisors: <b>{(groupInfo.supervisors || []).join(', ')}</b></div>
           </div>
         </div>
       )}
 
       {selectedGroupId && (
         <div className={styles.semesterList}>
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 8
-            }}
-          >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
             <div style={{ fontWeight: 600 }}>Document List</div>
-            <div style={{ opacity: 0.7 }}>
-              {files.length} document{files.length !== 1 ? 's' : ''}
-            </div>
+            <div style={{ opacity: 0.7 }}>{files.length} document{files.length !== 1 ? 's' : ''}</div>
           </div>
-          <DataTable columns={columns} data={files} loading={loading} emptyMessage="No documents yet" />
-        </div>
-      )}
+          <DataTable
+            columns={columns}
+            data={files}
+            loading={loading}
+            emptyMessage="No documents yet"
+          />
+          </div>
+        )}
 
       {/* Upload Modal */}
       <Modal open={uploadModalOpen} onClose={handleCloseUploadModal}>
         <div style={{ padding: 24, minWidth: '500px', maxWidth: '90vw' }}>
           <h2 style={{ margin: '0 0 20px 0', fontSize: 20 }}>Upload Document</h2>
-
+          
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14 }}>
               Description
@@ -616,7 +548,11 @@ export default function SupervisorDocuments() {
               >
                 Choose File
               </button>
-              {selectedFile && <span style={{ fontSize: 14, color: '#374151' }}>{selectedFile.name}</span>}
+              {selectedFile && (
+                <span style={{ fontSize: 14, color: '#374151' }}>
+                  {selectedFile.name}
+                </span>
+              )}
             </div>
           </div>
 
