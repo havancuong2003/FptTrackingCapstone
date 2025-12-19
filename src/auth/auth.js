@@ -257,6 +257,14 @@ export function getCurrentSemesterId() {
   }
 }
 
+export function getCurrentSemesterName() {
+  try {
+    const currentSemesterInfo = getCurrentSemesterInfo();
+    return currentSemesterInfo?.name || null;
+  } catch {
+    return null;
+  }
+}
 // Helper function để lấy groupId từ groups (phần tử đầu tiên)
 export function getGroupId() {
   try {

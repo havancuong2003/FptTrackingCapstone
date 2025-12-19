@@ -5,7 +5,7 @@ import DataTable from '../../../components/DataTable/DataTable';
 import Modal from '../../../components/Modal/Modal';
 import Textarea from '../../../components/Textarea/Textarea';
 import { sendDocumentUploadEmail } from '../../../email/documents';
-import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId } from '../../../auth/auth';
+import { getUserInfo, getUniqueSemesters, getGroupsBySemesterAndStatus, getCurrentSemesterId, getCurrentSemesterName } from '../../../auth/auth';
 import { getCapstoneGroupDetail } from '../../../api/staff/groups';
 import { getFilesByGroup, uploadGroupDocument, deleteGroupDocument } from '../../../api/upload';
 import SupervisorGroupFilter from '../../../components/SupervisorGroupFilter/SupervisorGroupFilter';
@@ -22,6 +22,7 @@ export default function SupervisorDocuments() {
   const [groupExpireFilter, setGroupExpireFilter] = React.useState('active'); // 'active' or 'expired'
   const [semesters, setSemesters] = React.useState([]);
   const [selectedSemesterId, setSelectedSemesterId] = React.useState(getCurrentSemesterId());
+  const [selectedSemesterName, setSelectedSemesterName] = React.useState(getCurrentSemesterName());
   const [uploadModalOpen, setUploadModalOpen] = React.useState(false);
   const [uploadDescription, setUploadDescription] = React.useState('');
   const [selectedFile, setSelectedFile] = React.useState(null);
@@ -38,9 +39,11 @@ export default function SupervisorDocuments() {
         const existsInList = uniqueSemesters.some(s => s.id === currentSemesterId);
         if (existsInList) {
           setSelectedSemesterId(currentSemesterId);
+          setSelectedSemesterName(currentSemesterName);
         } else if (uniqueSemesters.length > 0) {
           // Nếu không có trong danh sách, fallback về semester đầu tiên
           setSelectedSemesterId(uniqueSemesters[0].id);
+          setSelectedSemesterName(uniqueSemesters[0].name);
         }
       } else if (uniqueSemesters.length > 0) {
         // Nếu không có currentSemesterId, fallback về semester đầu tiên
@@ -250,14 +253,14 @@ export default function SupervisorDocuments() {
   };
 
   const handleUploadSubmit = async () => {
-    if (!selectedFile || !selectedGroupId || !selectedSemesterId) {
+    if (!selectedFile || !selectedGroupId || !selectedSemesterName) {
       setMessage('Please select a file and ensure group and semester are selected');
       return;
     }
     
     try {
       setLoading(true);
-      const res = await uploadGroupDocument(selectedGroupId, selectedSemesterId, uploadDescription || '', selectedFile);
+      const res = await uploadGroupDocument(selectedGroupId, selectedSemesterName, uploadDescription || '', selectedFile);
       if (res?.status === 200) {
         const uploadedFile = res.data; // File info from response
         await loadFiles(selectedGroupId);
