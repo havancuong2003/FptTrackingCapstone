@@ -123,9 +123,26 @@ export default function SyncGroup() {
       return;
     }
 
-    if (!window.confirm(`Are you sure you want to sync ${totalGroups} groups from FAP System?\n- ${alreadyExistCount} existing groups\n- ${notExistYetCount} new groups`)) {
+    
+    const existingSubjects = majorCategories?.alreadyExist?.length || 0;
+    const newSubjects = majorCategories?.notExistYet?.length || 0;
+    const totalSubjects = existingSubjects + newSubjects;
+    
+    if (!window.confirm(
+      `Are you sure you want to sync data from FAP System?\n\n` +
+      `Groups: ${totalGroups}\n` +
+      `- ${alreadyExistCount} existing groups\n` +
+      `- ${notExistYetCount} new groups\n\n` +
+      `Capstone subjects: ${totalSubjects}\n` +
+      `- ${existingSubjects} existing subjects\n` +
+      `- ${newSubjects} new subjects`
+    )) {
       return;
     }
+    
+    // if (!window.confirm(`Are you sure you want to sync ${totalGroups} groups from FAP System?\n- ${alreadyExistCount} existing groups\n- ${notExistYetCount} new groups`)) {
+    //   return;
+    // }
 
     setSyncing(true);
     setMessage('');
