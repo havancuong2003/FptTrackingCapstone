@@ -34,6 +34,7 @@ export default function SupervisorDocuments() {
       
       // Luôn ưu tiên kì hiện tại khi lần đầu render
       const currentSemesterId = getCurrentSemesterId();
+      const currentSemesterName = getCurrentSemesterName();
       if (currentSemesterId) {
         // Kiểm tra xem currentSemesterId có trong danh sách không
         const existsInList = uniqueSemesters.some(s => s.id === currentSemesterId);
@@ -48,6 +49,10 @@ export default function SupervisorDocuments() {
       } else if (uniqueSemesters.length > 0) {
         // Nếu không có currentSemesterId, fallback về semester đầu tiên
         setSelectedSemesterId(uniqueSemesters[0].id);
+        setSelectedSemesterName(uniqueSemesters[0].name);
+      } else {
+        setSelectedSemesterName(null);
+        setSelectedSemesterId(null);
       }
     }
     loadSemesters();
